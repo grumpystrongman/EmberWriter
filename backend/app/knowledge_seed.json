@@ -1,0 +1,154 @@
+[
+  {
+    "id": "grammar-comma-coordinate-clauses",
+    "category": "grammar",
+    "title": "Comma before a coordinating conjunction joining independent clauses",
+    "body": "When two independent clauses are joined by a coordinating conjunction such as and, but, or, nor, for, so, or yet, use a comma before the conjunction. In fiction, deliberate fragments and stylized punctuation can be valid, so treat this as a correctness rule only when both sides are intended as complete clauses.",
+    "source_id": "gmu-punctuation",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-comma-introductory",
+    "category": "grammar",
+    "title": "Comma after introductory clauses and phrases",
+    "body": "An introductory dependent clause or substantial introductory phrase is normally followed by a comma. This helps distinguish the setup from the independent clause that follows.",
+    "source_id": "gmu-punctuation",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-comma-nonrestrictive",
+    "category": "grammar",
+    "title": "Set off nonrestrictive elements with commas",
+    "body": "Parenthetical material, appositives, and nonrestrictive relative clauses are normally set off with paired commas because the information is supplementary rather than essential to identifying the noun.",
+    "source_id": "gmu-punctuation",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-semicolon-independent",
+    "category": "grammar",
+    "title": "Semicolons can join closely related independent clauses",
+    "body": "A semicolon may connect two closely related independent clauses without a coordinating conjunction. It can also precede a transition such as however when that transition connects independent clauses.",
+    "source_id": "gmu-punctuation",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-colon-complete-clause",
+    "category": "grammar",
+    "title": "A colon normally follows an independent clause",
+    "body": "Use a colon after a complete independent clause to introduce a list, explanation, example, amplification, or other completing information.",
+    "source_id": "gmu-punctuation",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-subject-verb",
+    "category": "grammar",
+    "title": "Subjects and verbs agree in number and person",
+    "body": "Choose the verb form that agrees with the grammatical subject, not with a nearby noun inside a prepositional or modifying phrase. Compound subjects joined by and are usually plural; with or/nor constructions, agreement generally follows the nearer subject.",
+    "source_id": "gmu-subject-verb",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-pronoun-antecedent",
+    "category": "grammar",
+    "title": "Pronouns should agree clearly with their antecedents",
+    "body": "Pronouns should match the intended antecedent in person and number and should refer clearly enough that the reader does not have to guess which noun the pronoun replaces. Singular they is valid when appropriate to the person or context.",
+    "source_id": "gmu-pronouns",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-passive",
+    "category": "grammar",
+    "title": "Passive voice is grammatical but should be intentional",
+    "body": "Passive voice typically combines a form of be with a past participle and makes the receiver of the action the grammatical subject. It is not automatically wrong; flag it for review when active voice would make agency clearer or prose more direct.",
+    "source_id": "gmu-passive",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-runon-comma-splice",
+    "category": "grammar",
+    "title": "Do not join independent clauses with only a comma",
+    "body": "Two independent clauses need an appropriate connection: a period, a semicolon, or a comma plus coordinating conjunction are common options. Joining complete clauses with only a comma creates a comma splice unless it is an intentional stylistic device.",
+    "source_id": "gmu-runons",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-fragment",
+    "category": "grammar",
+    "title": "Fragments lack a complete independent clause",
+    "body": "A sentence fragment may lack a subject, a complete verb, or may consist only of a dependent clause. In creative writing fragments are often intentional for voice, pace, emphasis, or interiority, so Ember should identify likely fragments without automatically treating them as errors.",
+    "source_id": "fordham-fragments",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "grammar-parallel",
+    "category": "grammar",
+    "title": "Coordinate ideas should use parallel grammatical form",
+    "body": "Items serving the same grammatical or rhetorical role should normally use parallel structures. Broken parallelism can make comparisons, lists, and paired actions difficult to parse.",
+    "source_id": "gmu-parallel",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-kdp-paperback-cover",
+    "category": "publishing",
+    "title": "KDP paperback cover production basics",
+    "body": "KDP paperback cover uploads use one PDF containing back cover, spine, and front cover. Cover imagery should extend 0.125 inch beyond trim for bleed and should be at least 300 DPI. Front/back text should remain at least 0.125 inch inside trim. KDP currently requires at least 79 pages before spine text is used.",
+    "source_id": "kdp-paperback-cover",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-kdp-print-preflight",
+    "category": "publishing",
+    "title": "KDP print cover preflight",
+    "body": "Before KDP print upload, use a single PDF cover, embed fonts, flatten transparency, remove crop/template marks and security, keep imagery at least 300 DPI, and ensure cover title/author/edition/ISBN text matches title setup.",
+    "source_id": "kdp-paperback-cover",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-kdp-ebook-cover",
+    "category": "publishing",
+    "title": "KDP eBook marketing cover",
+    "body": "KDP's eBook marketing cover is front-only. Current guidance recommends a 1600 by 2560 pixel portrait image, JPEG preferred, RGB, with high-quality source imagery and clear title/author text. The marketing cover should not contain a print spine, back cover, or barcode.",
+    "source_id": "kdp-ebook-cover",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-kdp-print-manuscript",
+    "category": "publishing",
+    "title": "KDP print manuscript upload basics",
+    "body": "For print interiors with bleed, KDP requires PDF. For no-bleed interiors KDP accepts several text formats including PDF and DOCX. Images should be at least 300 DPI, fonts/images embedded where applicable, and submission files should not contain crop marks, comments, annotations, invisible objects, or placeholder text.",
+    "source_id": "kdp-paperback-submission",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-ingram-cover",
+    "category": "publishing",
+    "title": "IngramSpark print cover production basics",
+    "body": "IngramSpark print covers are submitted separately from the interior as a full-cover PDF. Current guidance calls for 300 PPI artwork, CMYK color, 0.125 inch bleed on standard covers, and at least 0.25 inch type safety from trim. Use the current generated cover template for exact dimensions.",
+    "source_id": "ingramspark-print-files",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-ingram-barcode",
+    "category": "publishing",
+    "title": "IngramSpark barcode space",
+    "body": "IngramSpark requires a barcode on print covers. If the publisher is not supplying one, leave an unobstructed area at least 1.75 inches wide by 1 inch high on the back cover for placement. Publisher-supplied barcodes should be 100% black on white.",
+    "source_id": "ingramspark-print-files",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-apple-cover",
+    "category": "publishing",
+    "title": "Apple Books marketing cover",
+    "body": "Apple Books marketing cover art should use RGB color, be a high-quality JPEG or PNG, and currently should be at least 1400 pixels on the shorter axis. Apple advises against upscaling a smaller blurry source merely to meet dimensions.",
+    "source_id": "apple-books-assets",
+    "checked_at": "2026-09-10"
+  },
+  {
+    "id": "publishing-kobo-cover",
+    "category": "publishing",
+    "title": "Kobo Writing Life cover basics",
+    "body": "Kobo recommends portrait cover art, JPG/JPEG or PNG, no larger than 5 MB, with 300 DPI preferred. Its guidance notes a 3:4 width-to-height device ratio and recommends a clean two-dimensional cover rather than a 3D box-set mockup.",
+    "source_id": "kobo-cover",
+    "checked_at": "2026-09-10"
+  }
+]
