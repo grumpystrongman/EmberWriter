@@ -1,0 +1,284 @@
+:root {
+  --ember-bg: #0b1118;
+  --ember-panel: #111a24;
+  --ember-panel-2: #15212d;
+  --ember-border: #263545;
+  --ember-text: #e7edf3;
+  --ember-muted: #8190a0;
+  --ember-accent: #ee8a3a;
+  --ember-accent-soft: rgba(238, 138, 58, .13);
+  --ember-blue: #4497df;
+}
+
+.workspace-shell {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--ember-bg);
+  color: var(--ember-text);
+}
+
+.workspace-topbar {
+  height: 54px;
+  display: grid;
+  grid-template-columns: 230px 1fr auto;
+  align-items: stretch;
+  border-bottom: 1px solid var(--ember-border);
+  background: #0d151e;
+  box-shadow: 0 5px 18px rgba(0,0,0,.24);
+  position: relative;
+  z-index: 40;
+}
+
+.workspace-brand {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: 0 .85rem;
+  cursor: pointer;
+  border-right: 1px solid var(--ember-border);
+}
+
+.workspace-brand > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-brand strong {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1rem;
+  letter-spacing: .01em;
+}
+
+.workspace-brand small {
+  color: #b59b84;
+  font-size: .62rem;
+}
+
+.workspace-flame {
+  color: var(--ember-accent);
+  font-size: 1.25rem;
+  filter: drop-shadow(0 0 8px rgba(238,138,58,.3));
+}
+
+.workspace-nav {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.workspace-nav button,
+.workspace-actions button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #aeb9c5;
+  box-shadow: none;
+}
+
+.workspace-nav button {
+  min-width: 74px;
+  padding: .35rem .7rem .25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .1rem;
+  border-bottom: 2px solid transparent;
+  font-size: .66rem;
+}
+
+.workspace-nav button > span {
+  font-size: .9rem;
+}
+
+.workspace-nav button:hover,
+.workspace-actions button:hover {
+  background: rgba(255,255,255,.035);
+  color: #eef4f9;
+}
+
+.workspace-nav button.active {
+  color: #fff;
+  border-bottom-color: var(--ember-accent);
+  background: linear-gradient(to top, var(--ember-accent-soft), transparent 75%);
+}
+
+.workspace-actions {
+  display: flex;
+  align-items: stretch;
+  border-left: 1px solid var(--ember-border);
+}
+
+.workspace-actions button {
+  min-width: 44px;
+  padding: 0 .65rem;
+  font-size: .7rem;
+}
+
+.workspace-actions button.active {
+  background: var(--ember-accent-soft);
+  color: #ffbd86;
+}
+
+.workspace-contextbar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: 0 .8rem;
+  border-bottom: 1px solid #1f2b37;
+  background: #0c131b;
+  color: var(--ember-muted);
+  font-size: .65rem;
+}
+
+.workspace-context-label {
+  color: #f2b27d;
+  font-weight: 700;
+}
+
+.workspace-shortcut {
+  margin-left: auto;
+  color: #5f6d7b;
+}
+
+.workspace-app {
+  height: calc(100vh - 83px);
+  overflow: hidden;
+}
+
+.workspace-app > .app-shell {
+  height: 100%;
+}
+
+.workspace-shell .app-shell > .topbar {
+  display: none;
+}
+
+.workspace-shell .app-shell {
+  background: var(--ember-bg);
+}
+
+.workspace-shell .library,
+.workspace-shell .assistant {
+  background: #101923;
+  border-color: var(--ember-border);
+}
+
+.workspace-shell .editor-panel {
+  background: #0e1720;
+}
+
+.workspace-shell .rich-editor-shell {
+  background: #111a23;
+  color: #dfe7ee;
+}
+
+.workspace-shell .editor-toolbar {
+  background: #121d28;
+  border-color: #2a3948;
+  color: #b8c4cf;
+}
+
+.workspace-shell .editor-toolbar button {
+  color: #aebbc7;
+}
+
+.workspace-shell .editor-toolbar button.active {
+  background: #245b88;
+  border-color: #3473a7;
+}
+
+.workspace-shell .prose-editor {
+  color: #e0e5ea;
+  caret-color: var(--ember-accent);
+}
+
+.workspace-shell .prose-editor blockquote {
+  color: #aeb8c1;
+}
+
+.workspace-shell .prose-editor ::selection {
+  background: rgba(68,151,223,.32);
+}
+
+.workspace-shell .authoring-panel,
+.workspace-shell .memory-panel,
+.workspace-shell .chemistry-panel,
+.workspace-shell .model-settings,
+.workspace-shell .knowledge-panel {
+  border-color: #2a3948;
+  background: #111b26;
+}
+
+.workspace-shell .primary {
+  background: linear-gradient(180deg, #ee913f, #d36e25);
+  border-color: #f2a15c;
+  color: #1a1008;
+  font-weight: 800;
+}
+
+.workspace-shell.binder-collapsed .library {
+  display: none;
+}
+
+.workspace-shell.binder-collapsed .app-shell {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 25vw);
+}
+
+.workspace-shell.assistant-collapsed .assistant {
+  display: none;
+}
+
+.workspace-shell.assistant-collapsed .app-shell {
+  grid-template-columns: minmax(230px, 19vw) minmax(0, 1fr);
+}
+
+.workspace-shell.binder-collapsed.assistant-collapsed .app-shell,
+.workspace-shell.focus-mode .app-shell {
+  grid-template-columns: 1fr;
+}
+
+.workspace-shell.focus-mode .library,
+.workspace-shell.focus-mode .assistant,
+.workspace-shell.focus-mode .editor-header {
+  display: none;
+}
+
+.workspace-shell.focus-mode .workspace-contextbar {
+  opacity: .3;
+}
+
+.workspace-shell.focus-mode .workspace-app {
+  background: #0a1118;
+}
+
+.workspace-shell.focus-mode .editor-panel {
+  max-width: 70rem;
+  width: 100%;
+  margin: 0 auto;
+  border-left: 1px solid #1f2a35;
+  border-right: 1px solid #1f2a35;
+}
+
+.workspace-shell.focus-mode .prose-editor {
+  width: min(48rem, calc(100% - 2rem));
+  font-size: 1.08rem;
+  line-height: 1.8;
+}
+
+@media (max-width: 1050px) {
+  .workspace-topbar {
+    grid-template-columns: 175px 1fr auto;
+  }
+
+  .workspace-nav button {
+    min-width: 58px;
+    padding-inline: .35rem;
+  }
+
+  .workspace-shortcut {
+    display: none;
+  }
+}
