@@ -278,13 +278,15 @@ def _descendant_ids(state: BinderState, node_id: str) -> set[str]:
 
 
 def _validate_move(state: BinderState, node_id: str, parent_id: str | None) -> None:
+    if node_id in state.roots:
+        raise ValueError("Binder root nodes cannot be moved")
+    if parent_id is None:
+        raise ValueError("Non-root Binder nodes must have a parent")
     _validate_parent(state, parent_id)
     if parent_id == node_id:
         raise ValueError("A Binder node cannot contain itself")
     if parent_id in _descendant_ids(state, node_id):
         raise ValueError("A Binder node cannot move beneath one of its descendants")
-    if node_id in state.roots:
-        raise ValueError("Binder root nodes cannot be moved")
 
 
 def _area_for_parent(state: BinderState, parent_id: str | None, kind: str) -> str:
@@ -326,7 +328,7 @@ def create_node(slug: str, payload: BinderNodeCreate) -> BinderState:
     state = get_binder(slug)
     parent_id = payload.parent_id
     if parent_id is None:
-        if payload.kind in {"document"}:
+        if payload.kind == "document":
             parent_id = _root_by_title(state, "Draft").id
         elif payload.kind == "research":
             parent_id = _root_by_title(state, "Research").id
