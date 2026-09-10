@@ -45,8 +45,14 @@ def put_profile(slug: str, payload: CoverProfile) -> CoverProfile:
 
 
 @router.post("/geometry", response_model=CoverGeometry)
-def geometry(_: str, payload: CoverProfile) -> CoverGeometry:
-    return cover_geometry(payload)
+def geometry(slug: str, payload: CoverProfile) -> CoverGeometry:
+    try:
+        load_cover_profile(slug)
+        return cover_geometry(payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/validate", response_model=CoverValidationResponse)
