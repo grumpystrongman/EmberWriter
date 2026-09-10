@@ -9,12 +9,11 @@ from uuid import uuid4
 import markdown as markdown_lib
 from bs4 import BeautifulSoup
 from docx import Document
-from docx.enum.text import WD_BREAK
 from docx.shared import Inches, Pt
 from ebooklib import epub
 from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import inch
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
 from .binder import get_binder
