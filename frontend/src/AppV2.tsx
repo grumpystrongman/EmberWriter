@@ -14,6 +14,7 @@ import CraftPanel, {
   type CraftProfile,
   type VoiceProfile,
 } from './CraftPanel'
+import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
 import ImportPanel from './ImportPanel'
 import MemoryPanel, { type MemoryFact, type MemoryStats } from './MemoryPanel'
 import PublishPanel from './PublishPanel'
@@ -789,6 +790,20 @@ export default function AppV2() {
     setStatus('Revision restored; later history remains available')
   }
 
+  async function openEditorialFinding(finding: EditorialFinding) {
+    if (!project) return
+    if (dirty) await saveActiveFile()
+    await openFile(project.slug, finding.path)
+    window.setTimeout(() => {
+      const selected = editorRef.current?.findAndSelect(finding.anchor_text) ?? false
+      setStatus(
+        selected
+          ? `${finding.report_name} · ${finding.path}:${finding.line}`
+          : `Opened ${finding.path} · finding near line ${finding.line}`,
+      )
+    }, 100)
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -859,6 +874,17 @@ export default function AppV2() {
             disabled={workspaceBusy}
             refreshToken={revisionToken}
             onRestored={reloadAfterRestore}
+          />
+        )}
+
+        {project && (
+          <EditorialPanel
+            apiBase={API}
+            slug={project.slug}
+            activePath={activeFile}
+            disabled={workspaceBusy || dirty}
+            refreshToken={revisionToken}
+            onOpenFinding={openEditorialFinding}
           />
         )}
 
