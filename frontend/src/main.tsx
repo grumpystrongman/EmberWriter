@@ -1,12 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import AppV2 from './AppV2'
+import WorkspaceShell from './WorkspaceShell'
 import './styles.css'
 import './story.css'
 import './editorial.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppV2 />
+    <WorkspaceShell />
   </StrictMode>,
 )
