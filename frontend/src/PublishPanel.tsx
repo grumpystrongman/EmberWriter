@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import CoverStudioPanel from './CoverStudioPanel'
 import ProjectHistoryPanel from './ProjectHistoryPanel'
 
 type PublishFormat = 'docx' | 'epub' | 'pdf'
@@ -94,10 +95,11 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
   return (
     <>
       <ProjectHistoryPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
+      <CoverStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
 
       <details className="authoring-panel">
         <summary>
-          Compile &amp; Publish <small>EPUB · DOCX · PDF</small>
+          Interior Compile &amp; Publish <small>EPUB · DOCX · PDF</small>
         </summary>
 
         <div className="authoring-panel-body">
@@ -185,13 +187,13 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
             onClick={() => void publish()}
             disabled={disabled || busy || !title.trim() || selectedFormats.length === 0}
           >
-            {busy ? 'Compiling…' : 'Build publishing files'}
+            {busy ? 'Compiling…' : 'Build interior publishing files'}
           </button>
 
           <small className="panel-help">
-            Compile uses Binder order and the Compile checkbox. PDF uses the selected print trim
+            Interior compile uses Binder order and the Compile checkbox. PDF uses the selected print trim
             size; EPUB is reflowable for ebook distribution; DOCX is suitable for editorial and
-            submission workflows.
+            submission workflows. Cover Studio above builds the separate print-wrap or eBook cover asset.
           </small>
 
           {result && (
