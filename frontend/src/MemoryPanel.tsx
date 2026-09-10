@@ -29,9 +29,11 @@ type Props = {
   autoMemory: boolean
   busy: boolean
   canAnalyze: boolean
+  canAnalyzeAll: boolean
   onQueryChange: (value: string) => void
   onAutoMemoryChange: (value: boolean) => void
   onAnalyze: () => void
+  onAnalyzeAll: () => void
   onRefresh: () => void
   onOpenSource: (path: string) => void
 }
@@ -47,9 +49,11 @@ export default function MemoryPanel({
   autoMemory,
   busy,
   canAnalyze,
+  canAnalyzeAll,
   onQueryChange,
   onAutoMemoryChange,
   onAnalyze,
+  onAnalyzeAll,
   onRefresh,
   onOpenSource,
 }: Props) {
@@ -64,7 +68,8 @@ export default function MemoryPanel({
         <button onClick={onAnalyze} disabled={busy || !canAnalyze}>
           {busy ? 'Analyzing…' : 'Analyze now'}
         </button>
-        <button className="quiet" onClick={onRefresh} disabled={busy}>Refresh</button>
+        <button onClick={onAnalyzeAll} disabled={busy || !canAnalyzeAll}>Build all</button>
+        <button className="quiet" onClick={onRefresh} disabled={busy}>↻</button>
       </div>
 
       <label className="toggle-row">
