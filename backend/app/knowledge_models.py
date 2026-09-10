@@ -53,6 +53,10 @@ class EmbeddingConfig(BaseModel):
     api_key: str | None = None
 
 
+class KnowledgeRefreshRequest(BaseModel):
+    source_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
 class KnowledgeRefreshResult(BaseModel):
     source_id: str
     status: Literal["updated", "unchanged", "error"]
