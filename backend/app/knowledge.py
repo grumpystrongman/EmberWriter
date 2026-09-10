@@ -41,7 +41,7 @@ def _parse_time(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         try:
             parsed = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=UTC)
@@ -128,7 +128,7 @@ def _connect() -> sqlite3.Connection:
 def _load_json(path: Path) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
-        raise ValueError(f"Knowledge manifest must be a list: {path.name}")
+        raise TypeError(f"Knowledge manifest must be a list: {path.name}")
     return [item for item in payload if isinstance(item, dict)]
 
 
@@ -730,7 +730,7 @@ def _parse_json_object(text: str) -> dict[str, Any]:
         raise ValueError("Knowledge model did not return a JSON object")
     payload = json.loads(cleaned[start : end + 1])
     if not isinstance(payload, dict):
-        raise ValueError("Knowledge model returned an invalid payload")
+        raise TypeError("Knowledge model returned an invalid payload")
     return payload
 
 
