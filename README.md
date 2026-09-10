@@ -1,10 +1,10 @@
 # EmberWriter
 
-EmberWriter is a local-first AI fiction workspace built around durable manuscripts, structured story memory, character continuity, relationship state, scene planning, and model choice. The manuscript is the source of truth: readable Markdown/JSON/YAML/text files live on your machine, while SQLite stores supplemental state such as snapshots and rebuildable narrative memory.
+EmberWriter is a local-first AI fiction workspace built around durable manuscripts, structured story memory, character continuity, relationship state, scene planning, prose craft, author voice, and model choice. The manuscript is the source of truth: readable Markdown/JSON/YAML/text files live on your machine, while SQLite stores supplemental state such as snapshots and rebuildable narrative memory.
 
 EmberWriter is model-agnostic. It supports Ollama directly and any OpenAI-compatible endpoint, including local servers such as LM Studio or vLLM.
 
-## What exists in v0.3
+## What exists in v0.4
 
 - Three-pane authoring workspace: library, manuscript editor, and Ember AI panel.
 - Local projects with manuscript, characters, world, relationships, timeline, scenes, style, and summaries folders.
@@ -12,22 +12,18 @@ EmberWriter is model-agnostic. It supports Ollama directly and any OpenAI-compat
 - Autosave with automatic pre-save snapshots.
 - Snapshot listing and restore API.
 - Search across the local story library.
-- Context compiler combining project settings, author style, summaries, active manuscript, selected text, relevant story files, and structured narrative memory.
+- Context compiler combining project settings, author style, summaries, active manuscript, selected text, relevant story files, structured narrative memory, and participant-specific character intelligence.
 - AI modes for Write, Continue, Rewrite, Brainstorm, Critic, and Continuity.
 - Ollama and generic OpenAI-compatible model gateways with local model discovery.
 - Import of an existing manuscript file or local story directory through the local API.
 - Windows and macOS/Linux launch scripts.
 - Narrative Memory Engine with source-aware canon, character state, character knowledge, relationships, timeline events, unresolved threads, locations, objects, and abilities.
 - Automatic chapter/scene summaries and content-hash tracking so unchanged chapters are not repeatedly analyzed.
-- Re-analysis replacement semantics: editing a chapter replaces memory derived from that source instead of accumulating stale duplicates.
-- Ranked memory retrieval injected into generation and continuity checks ahead of ordinary text retrieval.
-- Story Memory inspector with search, confidence, importance, source navigation, manual analysis, idle auto-analysis, and whole-manuscript memory building.
-- Readable narrative-memory export at `summaries/narrative-memory.json` so derived state remains inspectable and rebuildable.
 - Story Intelligence layer that turns raw memory into per-character state, per-character knowledge, dossier links, and relationship edges.
-- Character inspector with current state, knowledge boundaries, relationship history, source navigation, and latest chapter state.
-- Relationship view showing recent person-to-person movement with source chapter and continuity importance.
-- Scene Architect that plans POV, participants, location, objective, conflict, causal beats, emotional movement, relationship changes, reveals, continuity guardrails, unresolved threads, intimacy notes, ending state, and next-scene pressure.
-- Scene plans are saved as readable JSON under `scenes/` and can be sent directly into the prose Writer prompt.
+- Scene Architect for POV, participants, location, objective, conflict, causal beats, emotional movement, relationship changes, reveals, continuity guardrails, unresolved threads, intimacy notes, ending state, and next-scene pressure.
+- Prose & Intimacy Craft Engine with project heat levels, tension curves, sensory/dialogue/interiority controls, Voice Lock, Voice Lab, and an optional second Craft Pass.
+- Deterministic character-dossier injection when known characters appear in the current request or scene context.
+- Readable craft and voice profiles stored under `style/` so the writing system remains portable and inspectable.
 
 ## Project format
 
@@ -45,7 +41,9 @@ EmberWriter/data/projects/my-novel/
 ├── scenes/
 │   └── scene-plan-xxxxxxxxxx.json
 ├── style/
-│   └── author-profile.md
+│   ├── author-profile.md
+│   ├── craft-profile.json
+│   └── voice-profile.json
 ├── summaries/
 │   ├── rolling-summary.md
 │   ├── unresolved-threads.md
@@ -55,14 +53,14 @@ EmberWriter/data/projects/my-novel/
     └── snapshots/
 ```
 
-If the application disappears, the manuscript and story bible still exist as ordinary files. `.ember/story.db` is supplemental state, not the only copy of the work. Narrative memory can be rebuilt from the manuscript and is also exported to readable JSON.
+If the application disappears, the manuscript and story bible still exist as ordinary files. `.ember/story.db` is supplemental state, not the only copy of the work. Narrative memory can be rebuilt from the manuscript. Craft and voice profiles are ordinary JSON files that can be edited or backed up with the book.
 
 ## Requirements
 
 - Python 3.11+
 - Node.js 20+ (22 recommended)
 - npm
-- A model server if you want AI generation, automatic memory analysis, or Scene Architect
+- A model server if you want AI generation, automatic memory analysis, Voice Lab, Craft Pass, or Scene Architect
 
 For Ollama, start Ollama normally and make sure at least one chat/instruct model is installed. EmberWriter defaults to `http://localhost:11434` and discovers installed models from the server.
 
@@ -153,11 +151,13 @@ Memory analysis sends manuscript text to whichever model endpoint you configured
 
 The Story Intelligence endpoint derives author-friendly views from the lower-level memory store. Character dossiers under `characters/` are combined with extracted character state and knowledge. The UI shows what a character currently knows separately from objective story facts, which is important for mysteries, secrets, betrayals, reveals, and multi-POV books.
 
+When generation detects a known character name in the author request, selected text, or active scene context, EmberWriter deterministically injects that character's dossier plus their current state, knowledge, and relationship history. This is designed to make dialogue, reactions, flirtation, conflict, and intimacy character-specific instead of relying on generic model defaults.
+
 Relationship facts are exposed as source-aware edges. EmberWriter keeps the history instead of collapsing every relationship into one score: a later scene can therefore reason about how trust, attraction, conflict, loyalty, fear, or intimacy changed and where that change was established.
 
 ## Scene Architect
 
-Scene Architect is a planning pass before prose generation. It uses the active manuscript, relevant structured memory, participant-specific knowledge/state, relationship history, and the author's request to create a JSON scene plan.
+Scene Architect is a planning pass before prose generation. It uses the active manuscript, relevant structured memory, participant-specific knowledge/state, relationship history, project craft profile, book voice, and the author's request to create a JSON scene plan.
 
 A plan includes:
 
@@ -176,11 +176,76 @@ ending state
 next-scene pressure
 ```
 
-Generated plans are saved to `scenes/scene-plan-*.json`. **Send to Writer** converts the plan into a structured prose prompt so the normal Writer can execute the planned scene while the context compiler still supplies canon and memory.
+Generated plans are saved to `scenes/scene-plan-*.json`. **Send to Writer** converts the plan into a structured prose prompt so the normal Writer can execute the planned scene while the context compiler still supplies canon, character intelligence, craft direction, and memory.
+
+## Prose & Intimacy Craft Engine
+
+The craft engine exists because increasing explicitness is not the same thing as improving a scene. EmberWriter separates **heat**, **tension shape**, and **voice** so the author can control each independently.
+
+### Heat
+
+- **Simmer** — attraction, anticipation, proximity, restraint, subtext, and interrupted choices.
+- **Hot** — unmistakable sustained desire with concrete sensual detail and stronger escalation.
+- **Scorching** — explicit on-page adult intimacy with direct language when requested; no automatic fade-to-black.
+- **Inferno** — maximum requested on-page explicitness supported by the configured model while still prioritizing voice, character psychology, pacing, mutual agency, sensory specificity, and aftermath.
+
+Erotic generation is limited to adult participants and keeps the project's adult/consent baseline. Heat controls do not override that floor.
+
+### Tension curve
+
+- **Slow Burn** — small irreversible steps and delayed release.
+- **Steady Rise** — each beat increases pressure or intimacy.
+- **Pressure Cooker** — restraint, reversals, near-releases, then a break.
+- **Flashpoint** — existing charge ignites quickly; the scene spends more time on consequence and emotional change.
+
+The writer can separately tune sensory intensity, dialogue presence, and POV interiority. This avoids treating every high-heat scene as the same rhythm.
+
+### Project craft rules
+
+`style/craft-profile.json` stores project defaults and author-defined prose direction/avoidances. Examples of useful constraints include close POV, restrained metaphor, sharper verbs, more banter, less explanatory narration, avoiding repetitive body-language clichés, or keeping lore imagery tied to a particular magic system.
+
+## Voice Lab and Voice Lock
+
+Voice Lab analyzes a selected passage or current chapter and writes `style/voice-profile.json`. It extracts reusable technique rather than plot:
+
+```text
+sentence rhythm
+diction / register
+imagery and metaphor habits
+dialogue behavior
+interiority
+POV distance
+sensual / romantic voice
+signature traits
+avoidances
+```
+
+**Voice Lock** injects that compact profile into future writing. The original prose sample does not need to be sent with every request.
+
+The purpose is not sentence copying. It is to keep a book recognizably itself across ordinary dialogue, action, romance, and explicit scenes.
+
+## Craft Pass
+
+Craft Pass is an optional second inference pass after Write, Continue, or Rewrite. The first pass creates the scene; the second behaves as a line editor.
+
+It preserves events, POV, tense, character identity, relationship meaning, adult consent state, and requested intensity while editing for:
+
+- accidental repetitive cadence;
+- generic AI phrasing and filler;
+- over-explanation and repeated emotional labels;
+- precise verbs and concrete sensory detail;
+- character-specific dialogue;
+- spatial clarity;
+- coherent metaphor/lore imagery;
+- purple euphemism when it conflicts with the book voice;
+- clinical detachment when it conflicts with the book voice;
+- intensity that has become mechanical rather than emotional or dramatic.
+
+Craft Pass intentionally costs another model call, so it is optional and visible in the UI.
 
 ## Model and context flow
 
-The frontend stores the configured model connection settings in browser local storage. The backend does not persist an API key supplied for an OpenAI-compatible endpoint.
+The frontend stores the configured model connection settings and current craft controls in browser local storage. The backend does not persist an API key supplied for an OpenAI-compatible endpoint.
 
 ```text
 Author instruction
@@ -189,13 +254,19 @@ Active manuscript / selection
        +
 Project settings + author profile
        +
+Voice Lock + craft profile
+       +
+Heat level + tension curve
+       +
 Recent analyzed chapter summaries
        +
 Ranked structured narrative memory
        +
+Detected participant dossiers
+       +
 Character knowledge/state + relationship history
        +
-Relevant character/world/story files
+Relevant world/story files
        |
        v
 Context Compiler / Scene Architect
@@ -205,6 +276,8 @@ Model Gateway
        |
        +--> Ollama
        +--> OpenAI-compatible endpoint
+       |
+       +--> optional Craft Pass
 ```
 
 Ordinary story-file retrieval is currently lexical. Structured memory adds a second retrieval layer ranked by query matches, continuity importance, confidence, and chapter order. Future retrieval work can add embeddings without changing the project or memory formats.
@@ -235,4 +308,4 @@ GitHub Actions runs both sets of checks on pull requests.
 
 ## Near-term roadmap
 
-Next: editable/correctable character canon, stronger relationship history grouping, timeline views, setup/payoff tracker, streaming generation, graphical import/recovery, snapshot/history UI, project-level prose controls, semantic retrieval/embeddings, document export, and native desktop packaging.
+Next: editable/correctable canon, relationship history grouping, timeline views, setup/payoff tracking, character-specific voice overrides, scene aftermath/state review, streaming generation, graphical import/recovery, snapshot/history UI, semantic retrieval/embeddings, document export, and native desktop packaging.
