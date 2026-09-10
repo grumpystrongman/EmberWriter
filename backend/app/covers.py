@@ -111,6 +111,7 @@ def cover_geometry(profile: CoverProfile) -> CoverGeometry:
         authority = "Amazon Kindle Direct Publishing"
         authority_url = KDP_PAPERBACK_URL
         exact = True
+        spine_text_allowed = profile.page_count >= 80 and spine > 0.125
         notes = [
             "KDP paperback wrap uses back + spine + front with 0.125 in bleed on the outside edges.",
             "Spine text is treated as allowed at 80 pages or more, matching KDP's conservative rejection guidance.",
@@ -123,8 +124,10 @@ def cover_geometry(profile: CoverProfile) -> CoverGeometry:
         authority = "IngramSpark"
         authority_url = INGRAM_TEMPLATE_URL
         exact = False
+        spine_text_allowed = profile.page_count >= 48 and spine > 0.125
         notes = [
             "IngramSpark geometry depends on the selected print product. Use the official template generator and enter its spine width here.",
+            "Generic perfect-bound guidance omits spine text below 48 pages; the generated product template remains authoritative.",
             "Ember does not invent a universal Ingram spine formula; the supplied template measurement remains authoritative.",
         ]
         safe_inset = max(0.25, profile.safe_inset)
@@ -135,6 +138,7 @@ def cover_geometry(profile: CoverProfile) -> CoverGeometry:
         authority = "Custom print specification"
         authority_url = ""
         exact = False
+        spine_text_allowed = spine > max(0.125, profile.spine_safe_inset * 2)
         notes = ["Custom geometry uses the author/publisher supplied bleed and spine measurements."]
         safe_inset = profile.safe_inset
         spine_safe = profile.spine_safe_inset
@@ -158,7 +162,7 @@ def cover_geometry(profile: CoverProfile) -> CoverGeometry:
         front_x=round(front_x, 6),
         safe_inset=round(safe_inset, 6),
         spine_safe_inset=round(spine_safe, 6),
-        spine_text_allowed=profile.page_count >= 80 and spine > 0.125,
+        spine_text_allowed=spine_text_allowed,
         exact_platform_formula=exact,
         authority=authority,
         authority_url=authority_url,
@@ -240,10 +244,15 @@ def validate_cover(slug: str, profile: CoverProfile) -> CoverValidationResponse:
     elif profile.platform == "ingramspark":
         if profile.manual_spine_width <= 0:
             add("error", "ingram-template-spine", "Generate an IngramSpark cover template for the exact print product and enter its spine width before export.")
+        if profile.spine_text.strip() and not geometry.spine_text_allowed:
+            add("error", "ingram-spine-text", "For this generic Ingram perfect-bound guardrail, omit spine text below 48 pages or confirm the exact product template before export.")
         if profile.safe_inset < 0.25:
             add("info", "ingram-type-safety", "Ember increases the preview/export type-safe inset to IngramSpark's 0.25 in recommended minimum.")
-    elif profile.platform == "custom_print" and profile.manual_spine_width <= 0:
-        add("warning", "custom-zero-spine", "Custom print cover has zero spine width. Confirm that this is intentional.")
+    elif profile.platform == "custom_print":
+        if profile.manual_spine_width <= 0:
+            add("warning", "custom-zero-spine", "Custom print cover has zero spine width. Confirm that this is intentional.")
+        if profile.spine_text.strip() and not geometry.spine_text_allowed:
+            add("error", "custom-spine-text", "The supplied custom spine is too narrow for the configured spine safety inset; remove spine text or correct the geometry.")
 
     if profile.platform == "kdp_ebook":
         ratio = profile.ebook_height_px / profile.ebook_width_px
