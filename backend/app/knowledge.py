@@ -208,10 +208,16 @@ def ensure_seeded() -> None:
                     seed_checked.get(source["id"]),
                 ),
             )
+        live_source_ids = {
+            row["id"]
+            for row in con.execute(
+                "SELECT id FROM knowledge_sources WHERE content_hash <> ''"
+            ).fetchall()
+        }
         for rule in seeds:
             source_id = str(rule.get("source_id", ""))
             source = manifest.get(source_id)
-            if source is None:
+            if source is None or source_id in live_source_ids:
                 continue
             rule_id = str(rule.get("id", "")).strip()
             body = str(rule.get("body", "")).strip()
@@ -406,7 +412,11 @@ async def refresh_source(source_id: str) -> dict[str, Any]:
                     con.execute("DELETE FROM knowledge_fts WHERE chunk_id = ?", (chunk_id,))
                 except sqlite3.OperationalError:
                     pass
-            con.execute("DELETE FROM knowledge_embeddings WHERE chunk_id IN (SELECT id FROM knowledge_chunks WHERE source_id = ?)", (source_id,))
+            con.execute(
+                "DELETE FROM knowledge_embeddings "
+                "WHERE chunk_id IN (SELECT id FROM knowledge_chunks WHERE source_id = ?)",
+                (source_id,),
+            )
             con.execute("DELETE FROM knowledge_chunks WHERE source_id = ?", (source_id,))
             for index, body in enumerate(chunks, start=1):
                 chunk_id = f"{source_id}:live:{index:04d}"
@@ -467,7 +477,11 @@ def source_chunk_count(source_id: str) -> int:
 
 
 def due_source_ids() -> list[str]:
-    return [source["id"] for source in list_sources() if source["status"] in {"stale", "never_checked", "error"}]
+    return [
+        source["id"]
+        for source in list_sources()
+        if source["status"] in {"stale", "never_checked", "error"}
+    ]
 
 
 async def refresh_due_sources(source_ids: list[str] | None = None) -> dict[str, Any]:
@@ -535,7 +549,9 @@ def lexical_search(query: str, categories: list[str], limit: int) -> list[dict[s
                     [fts, *category_params, limit],
                 ).fetchall()
                 if rows:
-                    return [_row_to_chunk(row, score=max(0.0, -float(row["rank"]))) for row in rows]
+                    return [
+                        _row_to_chunk(row, score=max(0.0, -float(row["rank"]))) for row in rows
+                    ]
             except sqlite3.OperationalError:
                 pass
         lowered = f"%{query.casefold()}%"
@@ -584,7 +600,9 @@ async def _embed(config: EmbeddingConfig, texts: list[str]) -> list[list[float]]
     return [[float(value) for value in vector] for vector in vectors]
 
 
-async def index_embeddings(config: EmbeddingConfig, categories: list[str], force: bool) -> dict[str, Any]:
+async def index_embeddings(
+    config: EmbeddingConfig, categories: list[str], force: bool
+) -> dict[str, Any]:
     ensure_seeded()
     category_clause = ""
     params: list[Any] = []
@@ -767,7 +785,11 @@ async def grammar_review(request: GrammarReviewRequest) -> dict[str, Any]:
         except ValueError:
             continue
         issues.append(issue.model_dump())
-    return {"summary": str(payload.get("summary", "")).strip(), "issues": issues, "rules": rules}
+    return {
+        "summary": str(payload.get("summary", "")).strip(),
+        "issues": issues,
+        "rules": rules,
+    }
 
 
 async def answer_knowledge(request: KnowledgeAnswerRequest) -> dict[str, Any]:
