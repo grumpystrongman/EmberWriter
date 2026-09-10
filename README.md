@@ -1,12 +1,12 @@
 # EmberWriter
 
-EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, structured story intelligence, scene planning, author voice, relationship state, and model-agnostic AI writing.
+EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, structured story intelligence, scene planning, author voice, relationship state, editorial analysis, AI readers, and model-agnostic AI writing.
 
-The design rule is simple: **your manuscript is the source of truth**. Ordinary readable project files live on your machine. SQLite accelerates revision history and Story Intelligence, but the application does not trap the novel inside a proprietary database.
+The design rule is simple: **your manuscript is the source of truth**. Ordinary readable project files live on your machine. SQLite accelerates revision history, Story Intelligence, editorial analysis, reader history, and trusted reference retrieval, but the application does not trap the novel inside a proprietary database.
 
 EmberWriter supports Ollama directly and generic OpenAI-compatible endpoints such as LM Studio, vLLM, and compatible hosted gateways.
 
-## Implemented in v0.7
+## Implemented through v0.8
 
 ### Authoring workspace
 
@@ -35,7 +35,7 @@ Supported upload formats:
 
 Pasted text is also supported. DOCX import preserves the supported inline formatting/alignment set. EPUB import follows the book spine order. Whole-novel import detects chapter/prologue/epilogue/interlude/part boundaries and creates real Binder documents. Imported documents receive baseline revisions immediately.
 
-The older local-directory import API remains available for portable EmberWriter folders and text-based writing directories.
+The local-directory import API remains available for portable EmberWriter folders and text-based writing directories.
 
 ### Durable version control
 
@@ -65,7 +65,72 @@ Publishing supports book title, author/pen name, language, EPUB TOC, and print t
 
 Generated files are written beneath the project `exports/` directory and are downloadable from the app.
 
-Distributor requirements can change. Final KDP/other-platform compatibility is verified against the current distributor documentation during release acceptance rather than treated as a permanent claim.
+Distributor requirements can change. EmberWriter's trusted publishing knowledge base tracks source authority and refresh dates, and final platform compatibility is rechecked during release acceptance rather than treated as a permanent claim.
+
+### Editorial Studio
+
+v0.8 adds deterministic manuscript diagnostics with persisted, source-linked findings. Reports can run against the current document or the whole Binder Draft.
+
+Current report catalog:
+
+- Repeated Words
+- Repeated Phrases
+- Adverbs
+- Filler Words
+- Filter Words
+- Passive Voice
+- Weak Verb Clusters
+- Sentence Length
+- Paragraph Length
+- Repeated Sentence Starts
+- Sticky Sentences
+- Redundancies
+- Cliches
+- Dialogue Adverbs
+- Dialogue Balance
+- Readability
+- Punctuation Emphasis
+
+Each finding stores the stable Binder node ID when available, source path/hash, line and source offsets, excerpt/anchor, severity, explanation, and suggested review action. Findings and runs persist in SQLite. Authors can resolve, ignore, or reopen findings. When source prose changes, historical findings are marked stale rather than silently attaching themselves to different text.
+
+Project editorial thresholds are portable in `style/editorial-profile.json`, and finding navigation opens the correct Binder document and selects the current flagged prose where possible.
+
+### AI Reader Panel
+
+EmberWriter can run persistent manuscript reads from three distinct perspectives:
+
+- **Genre Fan** — emotional engagement, chemistry, favorite moments, anticipation, promises/payoffs, and whether the reader wants to keep going.
+- **Casual Reader** — clarity, pacing drag, confusion, character tracking, accessibility, and where an ordinary reader may disengage.
+- **Strong Editor** — causality, scene purpose, structure, character arcs, POV, pacing, genre delivery, setup/payoff, and high-leverage revisions.
+
+A Reader run consumes the Draft in Binder order one document at a time. Each chapter reaction is stored before Ember moves to the next chapter, and predictions/confusion from earlier chapters are carried forward so later reactions are informed by the reader's accumulated experience rather than a one-shot summary.
+
+Runs can be interrupted and resumed after restart. Completed runs synthesize a whole-book verdict covering score, audience and genre fit, strengths/weaknesses, character/pacing/plot/voice/ending feedback, unresolved confusion, fulfilled predictions, broken promises, top revisions, and recommendation. Historical chapter notes become visibly stale if their source chapter changes.
+
+### Trusted grammar and publishing knowledge
+
+v0.8 adds a separate global `data/knowledge.db` reference store. It is source-attributed and independently rebuildable from the source manifest and packaged fallback rules.
+
+The initial authority set includes university writing-center material for grammar and official/current publishing documentation from Amazon KDP, IngramSpark, Apple Books, and Kobo Writing Life.
+
+Knowledge records retain:
+
+- authority and source title;
+- source URL;
+- category;
+- refresh cadence;
+- last checked / last successful refresh time;
+- source and chunk hashes;
+- refresh error state;
+- indexed chunks.
+
+On startup EmberWriter seeds a last-known-good local rule set and runs a scheduled refresh loop. Only sources due under their configured cadence are checked. A failed network refresh records the error but does **not** erase the last good rules, so reference search remains useful offline.
+
+Search works without an embedding model through SQLite/FTS retrieval. Authors can optionally configure an Ollama or OpenAI-compatible embedding model; vectors are stored per chunk, embedding model, dimension, and content hash, and only changed chunks require re-indexing.
+
+**Grammar Review** gives the configured language model only retrieved trusted grammar rules as normative evidence and rejects issues that cite rule IDs not present in that evidence. It also instructs the reviewer to distinguish grammatical mistakes from intentional fiction fragments, dialogue, rhythm, and voice.
+
+Publishing questions can be answered against retrieved trusted excerpts with the supporting rule IDs and authority/source details visible in the UI.
 
 ### Narrative Memory Engine
 
@@ -99,21 +164,7 @@ The Aftermath workflow proposes relationship/state changes from a completed scen
 
 Scene Architect builds a structured plan from current canon, character knowledge, relationship history, chemistry, project voice, and craft settings.
 
-Plans can include:
-
-- POV and participants;
-- location;
-- objective and conflict;
-- opening state;
-- causal beats;
-- emotional arc;
-- relationship movement;
-- reveals;
-- continuity guardrails;
-- unresolved threads;
-- intimacy/romance notes where relevant;
-- ending state;
-- next-scene pressure.
+Plans can include POV and participants, location, objective/conflict, opening state, causal beats, emotional arc, relationship movement, reveals, continuity guardrails, unresolved threads, intimacy/romance notes where relevant, ending state, and next-scene pressure.
 
 Plans are persisted as ordinary JSON beneath `scenes/` and can be sent directly to Writer.
 
@@ -123,14 +174,7 @@ EmberWriter separates prose identity from explicitness.
 
 **Voice Lab** analyzes a real prose sample and stores a reusable `style/voice-profile.json` describing sentence rhythm, diction, imagery, dialogue behavior, interiority, POV distance, sensual/romantic voice, signature traits, and avoidances. **Voice Lock** injects that compact profile into future writing.
 
-The craft system separately controls:
-
-- heat: Simmer / Hot / Scorching / Inferno;
-- tension curve: Slow Burn / Steady Rise / Pressure Cooker / Flashpoint;
-- sensory intensity;
-- dialogue intensity;
-- interiority;
-- project prose rules and avoidances.
+The craft system separately controls heat (Simmer / Hot / Scorching / Inferno), tension curve (Slow Burn / Steady Rise / Pressure Cooker / Flashpoint), sensory intensity, dialogue intensity, interiority, and project prose rules/avoidances.
 
 For consensual adult fiction, high heat can remain explicit and on-page when supported by the configured model. The writing pipeline still prioritizes character psychology, pacing, mutual agency, established voice, continuity, and aftermath rather than treating explicitness as a substitute for prose quality.
 
@@ -161,32 +205,35 @@ API keys supplied for an OpenAI-compatible endpoint are passed with the request 
 A project remains portable:
 
 ```text
-data/projects/my-novel/
-├── project.json
-├── binder.json
-├── manuscript/
-├── characters/
-├── world/
-├── relationships/
-├── timeline/
-├── scenes/
-├── research/
-├── notes/
-├── style/
-│   ├── author-profile.md
-│   ├── craft-profile.json
-│   └── voice-profile.json
-├── summaries/
-│   ├── rolling-summary.md
-│   ├── unresolved-threads.md
-│   └── narrative-memory.json
-├── exports/
-└── .ember/
-    ├── story.db
-    └── snapshots/
+data/
+├── knowledge.db
+└── projects/my-novel/
+    ├── project.json
+    ├── binder.json
+    ├── manuscript/
+    ├── characters/
+    ├── world/
+    ├── relationships/
+    ├── timeline/
+    ├── scenes/
+    ├── research/
+    ├── notes/
+    ├── style/
+    │   ├── author-profile.md
+    │   ├── craft-profile.json
+    │   ├── editorial-profile.json
+    │   └── voice-profile.json
+    ├── summaries/
+    │   ├── rolling-summary.md
+    │   ├── unresolved-threads.md
+    │   └── narrative-memory.json
+    ├── exports/
+    └── .ember/
+        ├── story.db
+        └── snapshots/
 ```
 
-If EmberWriter disappears, the manuscript and story-bible files still exist as readable files. Derived Narrative Memory can be rebuilt from the manuscript.
+If EmberWriter disappears, the manuscript and story-bible files still exist as readable files. Derived Narrative Memory and reference indexes can be rebuilt.
 
 ## Requirements
 
@@ -194,6 +241,7 @@ If EmberWriter disappears, the manuscript and story-bible files still exist as r
 - Node.js 22 recommended
 - npm
 - A compatible model server for AI generation/analysis
+- Optional embedding model for semantic knowledge retrieval
 
 ## Windows quick start
 
@@ -241,25 +289,32 @@ npm run dev
 
 GitHub Actions runs backend tests, Ruff, and the production TypeScript/Vite build on pull requests.
 
+Knowledge refresh scheduler defaults can be overridden for development/deployment with:
+
+- `EMBER_KNOWLEDGE_INITIAL_DELAY_SECONDS`
+- `EMBER_KNOWLEDGE_REFRESH_INTERVAL_SECONDS`
+
 ## Release acceptance standard
 
 Unit tests are necessary but not sufficient. Before a release is treated as author-ready, EmberWriter is tested against a real author-owned manuscript rather than generated filler.
 
-The formal checklist lives at:
+The formal checklists are:
 
-`docs/REAL_MANUSCRIPT_ACCEPTANCE.md`
+- `docs/REAL_MANUSCRIPT_ACCEPTANCE.md`
+- `docs/EDITORIAL_READER_KNOWLEDGE_ACCEPTANCE.md`
 
-That gate requires real import, editing, AI, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, compile, and DOCX/EPUB/PDF verification. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
+The final dogfood gate requires real import, editing, deterministic editorial reports, actual configured-model Reader runs, source-backed grammar/publishing guidance, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, compile, and DOCX/EPUB/PDF verification. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
 
 ## Product direction
 
 EmberWriter is being built as one integrated author studio rather than disconnected tools:
 
 - Scrivener-class organization and project control;
-- AutoCrit-class editorial analysis and manuscript diagnostics;
+- AutoCrit-class editorial analysis and reader feedback;
 - Ember Story Intelligence and continuity;
 - prose/voice/relationship/intimacy craft;
+- trusted grammar/publishing reference knowledge;
 - local-first ownership and model choice;
-- professional compile, recovery, and publishing workflows.
+- professional compile, recovery, publishing, and commercial cover workflows.
 
-The next major track after the v0.7 authoring core is the editorial-analysis engine: manuscript-wide deterministic reports, issue navigation, genre/style benchmarking, and AI-assisted revision layered on top of the stable Binder/document identities already in place.
+The next dedicated milestone after v0.8 is the publishing/cover design track: editable commercial front/spine/back projects, distributor-aware geometry/preflight, front-only ebook variants, deterministic typography/layout, and high-quality source-art workflows rather than flattened AI-generated cover text.

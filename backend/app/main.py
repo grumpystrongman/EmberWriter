@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager, suppress
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .importer import import_project
+from .knowledge import ensure_seeded
+from .knowledge_scheduler import knowledge_refresh_loop
 from .models import (
     FilePayload,
     ProjectCreate,
@@ -18,8 +23,11 @@ from .routes_authoring import router as authoring_router
 from .routes_binder import router as binder_router
 from .routes_chemistry import router as chemistry_router
 from .routes_craft import router as craft_router
+from .routes_editorial import router as editorial_router
 from .routes_generation import router as generation_router
+from .routes_knowledge import router as knowledge_router
 from .routes_memory import router as memory_router
+from .routes_reader import router as reader_router
 from .routes_story import router as story_router
 from .storage import (
     create_project,
@@ -32,7 +40,20 @@ from .storage import (
     search_story,
 )
 
-app = FastAPI(title="EmberWriter API", version="0.7.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    ensure_seeded()
+    refresh_task = asyncio.create_task(knowledge_refresh_loop(), name="ember-knowledge-refresh")
+    try:
+        yield
+    finally:
+        refresh_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await refresh_task
+
+
+app = FastAPI(title="EmberWriter API", version="0.8.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,11 +69,14 @@ app.include_router(craft_router)
 app.include_router(chemistry_router)
 app.include_router(binder_router)
 app.include_router(authoring_router)
+app.include_router(editorial_router)
+app.include_router(reader_router)
+app.include_router(knowledge_router)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.7.0"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.8.0"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
