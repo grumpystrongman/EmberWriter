@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import KnowledgePanel from './KnowledgePanel'
 import ReaderPanel from './ReaderPanel'
 
 export type EditorialFinding = {
@@ -223,6 +224,29 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     setProfile({ ...profile, enabled_reports: catalog.map((item) => item.id).filter((id) => current.has(id)) })
   }
 
+  function openReaderSource(path: string) {
+    return onOpenFinding({
+      id: '',
+      run_id: '',
+      report_id: 'reader',
+      report_name: 'AI Reader',
+      category: 'reader',
+      severity: 'info',
+      status: 'open',
+      path,
+      binder_node_id: null,
+      start_offset: 0,
+      end_offset: 0,
+      line: 1,
+      excerpt: '',
+      anchor_text: '\u0000',
+      message: '',
+      suggestion: '',
+      source_hash: '',
+      stale: false,
+    })
+  }
+
   if (!profile) {
     return <details className="authoring-panel"><summary>Editorial Studio</summary><small>Loading editorial profile…</small></details>
   }
@@ -334,27 +358,16 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
           apiBase={apiBase}
           slug={slug}
           disabled={disabled || busy}
-          onOpenSource={(path) => void onOpenFinding({
-            id: '',
-            run_id: '',
-            report_id: 'reader',
-            report_name: 'AI Reader',
-            category: 'reader',
-            severity: 'info',
-            status: 'open',
-            path,
-            binder_node_id: null,
-            start_offset: 0,
-            end_offset: 0,
-            line: 1,
-            excerpt: '',
-            anchor_text: '',
-            message: '',
-            suggestion: '',
-            source_hash: '',
-            stale: false,
-          })}
+          onOpenSource={(path) => void openReaderSource(path)}
         />
+
+        <KnowledgePanel
+          apiBase={apiBase}
+          slug={slug}
+          activePath={activePath}
+          disabled={disabled || busy}
+        />
+
         {error && <small className="panel-error">{error}</small>}
       </div>
     </details>
