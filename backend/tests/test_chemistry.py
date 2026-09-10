@@ -109,7 +109,7 @@ def test_infer_chemistry_uses_model_and_saves(tmp_path: Path, monkeypatch) -> No
                 "verbal_rhythm": "Precise teasing answered with patient observation.",
                 "initiation_style": "Sera tests; Kaelen waits for the choice beneath the test.",
                 "response_style": "Kaelen reflects pressure without stealing agency.",
-                "power_dynamic": "Control becomes meaningful only when it can be voluntarily yielded.",
+                "power_dynamic": "Control becomes meaningful only when voluntarily yielded.",
                 "trust_state": "Developing.",
                 "vulnerability_pressure": "Sera fears being diminished by surrender.",
                 "established_patterns": [],
@@ -139,6 +139,71 @@ def test_infer_chemistry_uses_model_and_saves(tmp_path: Path, monkeypatch) -> No
     assert result["profile"].dynamic_summary.startswith("Control meeting")
     assert result["profile"].boundaries == []
     assert result["saved_path"] == "relationships/chemistry/kaelen--sera.json"
+
+
+def test_reinfer_preserves_author_owned_fields(tmp_path: Path, monkeypatch) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Protected Chemistry Test")
+    slug = project["slug"]
+    chemistry.save_chemistry_profile(
+        slug,
+        RelationshipChemistryProfile(
+            participants=["Sera", "Kaelen"],
+            dynamic_summary="Old derived state.",
+            boundaries=["Only explicit voluntary surrender counts as surrender."],
+            author_notes="Do not turn Sera into a generic submissive archetype.",
+            milestones=[
+                ChemistryMilestone(
+                    label="Chosen trust",
+                    consequence="Sera asks rather than commands.",
+                    source_path="manuscript/chapter-006.md",
+                    chapter_order=6,
+                )
+            ],
+        ),
+    )
+
+    async def fake_generate(*args, **kwargs):
+        return json.dumps(
+            {
+                "participants": ["Sera", "Kaelen"],
+                "dynamic_summary": "Fresh model-derived state.",
+                "attraction_language": "Attention and challenge.",
+                "verbal_rhythm": "Measured.",
+                "initiation_style": "Deliberate.",
+                "response_style": "Attentive.",
+                "power_dynamic": "Chosen shifts.",
+                "trust_state": "Stronger.",
+                "vulnerability_pressure": "Fear of losing self.",
+                "established_patterns": [],
+                "boundaries": ["MODEL SHOULD NOT REPLACE THIS"],
+                "signature_elements": [],
+                "lore_resonance": [],
+                "aftermath_needs": [],
+                "next_escalations": [],
+                "avoidances": [],
+                "milestones": [],
+                "author_notes": "MODEL SHOULD NOT REPLACE THIS",
+            }
+        )
+
+    monkeypatch.setattr(chemistry, "generate", fake_generate)
+    result = asyncio.run(
+        chemistry.infer_chemistry(
+            slug,
+            ChemistryInferRequest(
+                participants=["Sera", "Kaelen"],
+                provider=ProviderConfig(model="test-model"),
+                save=True,
+            ),
+        )
+    )
+
+    profile = result["profile"]
+    assert profile.dynamic_summary == "Fresh model-derived state."
+    assert profile.boundaries == ["Only explicit voluntary surrender counts as surrender."]
+    assert profile.author_notes == "Do not turn Sera into a generic submissive archetype."
+    assert profile.milestones[0].label == "Chosen trust"
 
 
 def test_aftermath_analysis_sets_source_and_chapter(tmp_path: Path, monkeypatch) -> None:
