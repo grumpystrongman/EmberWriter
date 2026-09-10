@@ -21,7 +21,7 @@ SubmissionStatus = Literal[
     "pass",
     "withdrawn",
 ]
-ManuscriptPreset = Literal["standard_novel", "shunn_classic", "custom"]
+ManuscriptPreset = Literal["standard_novel", "shunn_classic"]
 SubmissionMaterialKind = Literal["query", "synopsis", "pitch", "bio"]
 
 
