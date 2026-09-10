@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .board_models import BoardItem, BoardItemCreate, BoardItemUpdate, BoardState
-from .storage import project_root, safe_project_path, utc_now
+from .storage import project_root, utc_now
 
 BOARD_ASSET_LIMIT = 50 * 1024 * 1024
 
@@ -20,6 +20,15 @@ def _ensure_project(slug: str) -> Path:
 
 def _board_path(slug: str) -> Path:
     return _ensure_project(slug) / "planning" / "corkboard.json"
+
+
+def _safe_board_asset_path(slug: str, relative_path: str) -> Path:
+    root = _ensure_project(slug)
+    asset_root = (root / "assets" / "board").resolve()
+    candidate = (root / relative_path).resolve()
+    if candidate == asset_root or asset_root not in candidate.parents:
+        raise ValueError("Only project Corkboard assets can be accessed")
+    return candidate
 
 
 def load_board(slug: str) -> BoardState:
@@ -115,7 +124,7 @@ def store_asset(
     safe_name = _safe_filename(filename)
     asset_id = uuid4().hex
     relative = f"assets/board/{asset_id}-{safe_name}"
-    target = safe_project_path(slug, relative)
+    target = _safe_board_asset_path(slug, relative)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(content)
     kind = "image" if content_type.startswith("image/") else "attachment"
@@ -143,10 +152,7 @@ def store_asset(
 
 
 def board_asset_path(slug: str, relative_path: str) -> Path:
-    _ensure_project(slug)
-    if not relative_path.startswith("assets/board/"):
-        raise ValueError("Only project Corkboard assets can be served")
-    path = safe_project_path(slug, relative_path)
+    path = _safe_board_asset_path(slug, relative_path)
     if not path.is_file():
         raise FileNotFoundError(relative_path)
     return path
