@@ -32,6 +32,7 @@ type BoardState = {
 type Props = {
   apiBase: string
   slug: string
+  binderNodes: BinderNode[]
   selectedBinder: BinderNode | null
   disabled: boolean
   onOpenBinder: (path: string) => void
@@ -49,7 +50,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export default function ProjectBoard({ apiBase, slug, selectedBinder, disabled, onOpenBinder }: Props) {
+export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinder, disabled, onOpenBinder }: Props) {
   const [state, setState] = useState<BoardState>({ schema_version: 1, items: [] })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -65,6 +66,7 @@ export default function ProjectBoard({ apiBase, slug, selectedBinder, disabled, 
   }, [slug])
 
   const sorted = useMemo(() => [...state.items].sort((a, b) => a.z - b.z), [state.items])
+  const binderById = useMemo(() => new Map(binderNodes.map((node) => [node.id, node])), [binderNodes])
 
   async function refresh() {
     try {
@@ -249,44 +251,50 @@ export default function ProjectBoard({ apiBase, slug, selectedBinder, disabled, 
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        {sorted.map((item) => (
-          <div
-            key={item.id}
-            className={`board-item board-${item.kind} board-color-${item.color}`}
-            style={{ left: item.x, top: item.y, width: item.width, minHeight: item.height, zIndex: item.z }}
-            onPointerDown={(event) => beginDrag(event, item)}
-            onDoubleClick={() => {
-              if (item.kind === 'binder' && selectedBinder?.id === item.binder_node_id && selectedBinder.path) onOpenBinder(selectedBinder.path)
-            }}
-          >
-            <div className="board-item-head">
-              <span>{item.kind === 'sticky' ? '✎' : item.kind === 'image' ? '▧' : item.kind === 'attachment' ? '▤' : item.kind === 'link' ? '↗' : '▦'}</span>
-              <input
-                defaultValue={item.title}
-                onBlur={(event) => { if (event.target.value !== item.title) void patchItem(item.id, { title: event.target.value }) }}
-                aria-label="Board item title"
-              />
-              <button type="button" onClick={() => void removeItem(item.id)} aria-label="Remove from board">×</button>
-            </div>
+        {sorted.map((item) => {
+          const binder = item.binder_node_id ? binderById.get(item.binder_node_id) : null
+          return (
+            <div
+              key={item.id}
+              className={`board-item board-${item.kind} board-color-${item.color}${item.kind === 'binder' && !binder ? ' board-stale' : ''}`}
+              style={{ left: item.x, top: item.y, width: item.width, minHeight: item.height, zIndex: item.z }}
+              onPointerDown={(event) => beginDrag(event, item)}
+              onDoubleClick={() => {
+                if (item.kind === 'binder' && binder?.path && !binder.custom_metadata.source_missing) onOpenBinder(binder.path)
+              }}
+            >
+              <div className="board-item-head">
+                <span>{item.kind === 'sticky' ? '✎' : item.kind === 'image' ? '▧' : item.kind === 'attachment' ? '▤' : item.kind === 'link' ? '↗' : '▦'}</span>
+                <input
+                  defaultValue={item.title}
+                  onBlur={(event) => { if (event.target.value !== item.title) void patchItem(item.id, { title: event.target.value }) }}
+                  aria-label="Board item title"
+                />
+                <button type="button" onClick={() => void removeItem(item.id)} aria-label="Remove from board">×</button>
+              </div>
 
-            {item.kind === 'image' && item.asset_path && (
-              <img src={assetUrl(item)} alt={item.title || item.original_filename} draggable={false} />
-            )}
-            {item.kind === 'attachment' && item.asset_path && (
-              <a href={assetUrl(item)} target="_blank" rel="noreferrer">Open {item.original_filename || item.title}</a>
-            )}
-            {item.kind === 'link' && item.url && (
-              <a href={item.url} target="_blank" rel="noreferrer">{item.url}</a>
-            )}
-            {(item.kind === 'sticky' || item.kind === 'binder') && (
-              <textarea
-                defaultValue={item.body}
-                placeholder={item.kind === 'sticky' ? 'Write a thought, question, beat, reminder…' : 'Scene note…'}
-                onBlur={(event) => { if (event.target.value !== item.body) void patchItem(item.id, { body: event.target.value }) }}
-              />
-            )}
-          </div>
-        ))}
+              {item.kind === 'image' && item.asset_path && (
+                <img src={assetUrl(item)} alt={item.title || item.original_filename} draggable={false} />
+              )}
+              {item.kind === 'attachment' && item.asset_path && (
+                <a href={assetUrl(item)} target="_blank" rel="noreferrer">Open {item.original_filename || item.title}</a>
+              )}
+              {item.kind === 'link' && item.url && (
+                <a href={item.url} target="_blank" rel="noreferrer">{item.url}</a>
+              )}
+              {(item.kind === 'sticky' || item.kind === 'binder') && (
+                <textarea
+                  defaultValue={item.body}
+                  placeholder={item.kind === 'sticky' ? 'Write a thought, question, beat, reminder…' : 'Scene note…'}
+                  onBlur={(event) => { if (event.target.value !== item.body) void patchItem(item.id, { body: event.target.value }) }}
+                />
+              )}
+              {item.kind === 'binder' && (
+                <small className="board-binder-status">{binder ? `Pinned to ${binder.title}` : 'Pinned Binder item no longer exists'}</small>
+              )}
+            </div>
+          )
+        })}
         {state.items.length === 0 && (
           <div className="project-board-empty">
             <strong>This manuscript’s board is empty.</strong>
