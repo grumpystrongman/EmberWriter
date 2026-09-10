@@ -307,15 +307,21 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
   }
 
   const printMode = profile.platform !== 'kdp_ebook'
+  const fullWrapArtwork = Boolean(profile.artwork_path && printMode && profile.artwork_mode === 'full_wrap')
+  const frontArtwork = Boolean(profile.artwork_path && (!printMode || profile.artwork_mode === 'front'))
   const frontStyle = {
-    backgroundColor: profile.front_overlay_color,
+    backgroundColor: fullWrapArtwork || frontArtwork ? 'transparent' : profile.front_overlay_color,
     color: profile.title_color,
     fontFamily: cssFont(profile.title_font),
   }
   const backStyle = {
-    backgroundColor: profile.back_overlay_color,
+    backgroundColor: fullWrapArtwork ? 'transparent' : profile.back_overlay_color,
     color: profile.body_color,
     fontFamily: cssFont(profile.body_font),
+  }
+  const spineStyle = {
+    width: `${spinePercent}%`,
+    backgroundColor: fullWrapArtwork ? 'transparent' : profile.spine_color,
   }
 
   return (
@@ -352,7 +358,7 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
                     {profile.barcode_mode !== 'none' && <span className="cover-barcode-box">{profile.barcode_mode === 'custom' ? 'BARCODE' : 'PLATFORM BARCODE CLEARANCE'}</span>}
                   </div>
                 </section>
-                <section className="cover-spine" style={{ width: `${spinePercent}%`, backgroundColor: profile.spine_color }}>
+                <section className="cover-spine" style={spineStyle}>
                   {profile.spine_text && <span>{profile.spine_text}</span>}
                 </section>
                 <section className="cover-face cover-front" style={{ ...frontStyle, width: `calc((100% - ${spinePercent}%) / 2)` }}>
