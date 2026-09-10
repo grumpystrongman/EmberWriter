@@ -38,6 +38,9 @@ type Props = {
   onOpenBinder: (path: string) => void
 }
 
+type DragState = { id: string; dx: number; dy: number }
+type ResizeState = { id: string; startX: number; startY: number; startWidth: number; startHeight: number }
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -56,17 +59,21 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
   const [error, setError] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [linkTitle, setLinkTitle] = useState('')
-  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null)
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const [resize, setResize] = useState<ResizeState | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setState({ schema_version: 1, items: [] })
     setError('')
+    setDrag(null)
+    setResize(null)
     void refresh()
   }, [slug])
 
   const sorted = useMemo(() => [...state.items].sort((a, b) => a.z - b.z), [state.items])
   const binderById = useMemo(() => new Map(binderNodes.map((node) => [node.id, node])), [binderNodes])
+  const topZ = useMemo(() => Math.max(0, ...state.items.map((item) => item.z)), [state.items])
 
   async function refresh() {
     try {
@@ -116,35 +123,52 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
     }
   }
 
+  async function uploadOne(file: File, index: number) {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('x', String(140 + ((state.items.length + index) % 6) * 34))
+    form.append('y', String(120 + ((state.items.length + index) % 6) * 34))
+    const response = await fetch(`${apiBase}/projects/${slug}/board/upload`, { method: 'POST', body: form })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(body.detail || `${response.status} ${response.statusText}`)
+    }
+    return response.json() as Promise<BoardItem>
+  }
+
   async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files || [])
     event.target.value = ''
-    if (!file || disabled || busy) return
+    if (!files.length || disabled || busy) return
     setBusy(true)
     setError('')
     try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('x', String(140 + (state.items.length % 5) * 28))
-      form.append('y', String(120 + (state.items.length % 5) * 28))
-      const response = await fetch(`${apiBase}/projects/${slug}/board/upload`, { method: 'POST', body: form })
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}))
-        throw new Error(body.detail || `${response.status} ${response.statusText}`)
-      }
-      const item = await response.json() as BoardItem
-      setState((current) => ({ ...current, items: [...current.items, item] }))
+      const uploaded: BoardItem[] = []
+      for (const [index, file] of files.entries()) uploaded.push(await uploadOne(file, index))
+      setState((current) => ({ ...current, items: [...current.items, ...uploaded] }))
     } catch (cause) {
       setError((cause as Error).message)
+      await refresh()
     } finally {
       setBusy(false)
     }
   }
 
+  function bringToFront(item: BoardItem) {
+    if (item.z >= topZ) return
+    const nextZ = topZ + 1
+    setState((current) => ({
+      ...current,
+      items: current.items.map((entry) => entry.id === item.id ? { ...entry, z: nextZ } : entry),
+    }))
+    void patchItem(item.id, { z: nextZ })
+  }
+
   function beginDrag(event: PointerEvent<HTMLDivElement>, item: BoardItem) {
-    if (disabled || (event.target as HTMLElement).closest('input, textarea, button, a')) return
+    if (disabled || resize || (event.target as HTMLElement).closest('input, textarea, button, a, .board-resize-handle')) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
+    bringToFront(item)
     event.currentTarget.setPointerCapture(event.pointerId)
     setDrag({
       id: item.id,
@@ -153,23 +177,54 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
     })
   }
 
-  function moveDrag(event: PointerEvent<HTMLDivElement>) {
-    if (!drag) return
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const x = Math.max(0, event.clientX - rect.left - drag.dx)
-    const y = Math.max(0, event.clientY - rect.top - drag.dy)
-    setState((current) => ({
-      ...current,
-      items: current.items.map((item) => item.id === drag.id ? { ...item, x, y } : item),
-    }))
+  function beginResize(event: PointerEvent<HTMLButtonElement>, item: BoardItem) {
+    if (disabled) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    bringToFront(item)
+    setResize({
+      id: item.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: item.width,
+      startHeight: item.height,
+    })
   }
 
-  function endDrag() {
-    if (!drag) return
-    const item = state.items.find((entry) => entry.id === drag.id)
-    setDrag(null)
-    if (item) void patchItem(item.id, { x: item.x, y: item.y })
+  function movePointer(event: PointerEvent<HTMLDivElement>) {
+    if (drag) {
+      const rect = canvasRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const x = Math.max(0, event.clientX - rect.left - drag.dx)
+      const y = Math.max(0, event.clientY - rect.top - drag.dy)
+      setState((current) => ({
+        ...current,
+        items: current.items.map((item) => item.id === drag.id ? { ...item, x, y } : item),
+      }))
+      return
+    }
+    if (resize) {
+      const width = Math.max(120, Math.min(1200, resize.startWidth + event.clientX - resize.startX))
+      const height = Math.max(80, Math.min(1000, resize.startHeight + event.clientY - resize.startY))
+      setState((current) => ({
+        ...current,
+        items: current.items.map((item) => item.id === resize.id ? { ...item, width, height } : item),
+      }))
+    }
+  }
+
+  function endPointer() {
+    if (drag) {
+      const item = state.items.find((entry) => entry.id === drag.id)
+      setDrag(null)
+      if (item) void patchItem(item.id, { x: item.x, y: item.y })
+    }
+    if (resize) {
+      const item = state.items.find((entry) => entry.id === resize.id)
+      setResize(null)
+      if (item) void patchItem(item.id, { width: item.width, height: item.height })
+    }
   }
 
   function addSticky() {
@@ -232,8 +287,8 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
           <button type="button" onClick={addSticky} disabled={disabled || busy}>+ Sticky</button>
           <button type="button" onClick={pinBinder} disabled={disabled || busy || !selectedBinder}>Pin selected scene</button>
           <label className="board-upload-button">
-            Upload image/file
-            <input type="file" onChange={(event) => void upload(event)} disabled={disabled || busy} />
+            {busy ? 'Uploading…' : 'Upload images/files'}
+            <input type="file" multiple onChange={(event) => void upload(event)} disabled={disabled || busy} />
           </label>
         </div>
       </header>
@@ -247,9 +302,9 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
       <div
         ref={canvasRef}
         className="project-board-canvas"
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerMove={movePointer}
+        onPointerUp={endPointer}
+        onPointerCancel={endPointer}
       >
         {sorted.map((item) => {
           const binder = item.binder_node_id ? binderById.get(item.binder_node_id) : null
@@ -257,7 +312,7 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
             <div
               key={item.id}
               className={`board-item board-${item.kind} board-color-${item.color}${item.kind === 'binder' && !binder ? ' board-stale' : ''}`}
-              style={{ left: item.x, top: item.y, width: item.width, minHeight: item.height, zIndex: item.z }}
+              style={{ left: item.x, top: item.y, width: item.width, height: item.height, zIndex: item.z }}
               onPointerDown={(event) => beginDrag(event, item)}
               onDoubleClick={() => {
                 if (item.kind === 'binder' && binder?.path && !binder.custom_metadata.source_missing) onOpenBinder(binder.path)
@@ -267,6 +322,7 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
                 <span>{item.kind === 'sticky' ? '✎' : item.kind === 'image' ? '▧' : item.kind === 'attachment' ? '▤' : item.kind === 'link' ? '↗' : '▦'}</span>
                 <input
                   defaultValue={item.title}
+                  onFocus={() => bringToFront(item)}
                   onBlur={(event) => { if (event.target.value !== item.title) void patchItem(item.id, { title: event.target.value }) }}
                   aria-label="Board item title"
                 />
@@ -286,12 +342,34 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
                 <textarea
                   defaultValue={item.body}
                   placeholder={item.kind === 'sticky' ? 'Write a thought, question, beat, reminder…' : 'Scene note…'}
+                  onFocus={() => bringToFront(item)}
                   onBlur={(event) => { if (event.target.value !== item.body) void patchItem(item.id, { body: event.target.value }) }}
                 />
+              )}
+              {item.kind === 'sticky' && (
+                <div className="board-color-row" aria-label="Sticky note color">
+                  {['amber', 'blue', 'rose', 'green', 'slate'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`board-color-dot color-${color}${item.color === color ? ' active' : ''}`}
+                      aria-label={`Set ${color} color`}
+                      onClick={() => void patchItem(item.id, { color })}
+                    />
+                  ))}
+                </div>
               )}
               {item.kind === 'binder' && (
                 <small className="board-binder-status">{binder ? `Pinned to ${binder.title}` : 'Pinned Binder item no longer exists'}</small>
               )}
+              <button
+                type="button"
+                className="board-resize-handle"
+                aria-label="Resize board item"
+                onPointerDown={(event) => beginResize(event, item)}
+              >
+                ◢
+              </button>
             </div>
           )
         })}
