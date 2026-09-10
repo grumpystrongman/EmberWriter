@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import ReaderPanel from './ReaderPanel'
+
 export type EditorialFinding = {
   id: string
   run_id: string
@@ -327,6 +329,32 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
             </div>
           </>
         )}
+
+        <ReaderPanel
+          apiBase={apiBase}
+          slug={slug}
+          disabled={disabled || busy}
+          onOpenSource={(path) => void onOpenFinding({
+            id: '',
+            run_id: '',
+            report_id: 'reader',
+            report_name: 'AI Reader',
+            category: 'reader',
+            severity: 'info',
+            status: 'open',
+            path,
+            binder_node_id: null,
+            start_offset: 0,
+            end_offset: 0,
+            line: 1,
+            excerpt: '',
+            anchor_text: '',
+            message: '',
+            suggestion: '',
+            source_hash: '',
+            stale: false,
+          })}
+        />
         {error && <small className="panel-error">{error}</small>}
       </div>
     </details>
