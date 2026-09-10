@@ -4,7 +4,7 @@ import io
 from pathlib import Path
 
 from docx import Document
-from ebooklib import epub
+from ebooklib import ITEM_DOCUMENT, epub
 from pypdf import PdfReader
 
 from app import binder, ingest, publishing, revisions, storage
@@ -162,12 +162,11 @@ def test_compile_order_drives_docx_epub_and_pdf_exports(tmp_path: Path) -> None:
     assert docx_text.index("Second Scene") < docx_text.index("First Scene")
 
     exported_epub = epub.read_epub(str(paths["epub"]))
-    epub_titles = [
-        item.title
-        for item in exported_epub.get_items()
-        if getattr(item, "title", None)
-    ]
-    assert "Second Scene" in epub_titles
+    epub_html = "\n".join(
+        item.get_content().decode("utf-8", errors="ignore")
+        for item in exported_epub.get_items_of_type(ITEM_DOCUMENT)
+    )
+    assert epub_html.index("Second Scene") < epub_html.index("First Scene")
 
     pdf = PdfReader(str(paths["pdf"]))
     pdf_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
