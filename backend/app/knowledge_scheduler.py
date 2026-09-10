@@ -34,6 +34,6 @@ async def knowledge_refresh_loop() -> None:
     while True:
         try:
             await refresh_due_sources()
-        except Exception:  # noqa: BLE001 - scheduler must remain alive after unexpected source failures
+        except Exception:
             LOGGER.exception("Scheduled knowledge refresh failed")
         await asyncio.sleep(interval)
