@@ -87,6 +87,41 @@
   overflow-wrap: anywhere;
 }
 
+.project-compare {
+  display: grid;
+  gap: 0.28rem;
+  max-height: 15rem;
+  overflow: auto;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.project-compare strong {
+  font-size: 0.7rem;
+}
+
+.project-compare > div {
+  display: grid;
+  grid-template-columns: 4.2rem minmax(0, 1fr);
+  gap: 0.35rem;
+  align-items: baseline;
+  font-size: 0.64rem;
+}
+
+.project-compare span {
+  color: #d98955;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.project-compare code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #c9beb5;
+}
+
 .publish-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
