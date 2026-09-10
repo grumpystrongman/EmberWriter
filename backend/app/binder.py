@@ -205,9 +205,19 @@ def _refresh_derived_fields(slug: str, state: BinderState) -> BinderState:
     return state.model_copy(update={"nodes": refreshed})
 
 
+def _persistable_state(state: BinderState) -> BinderState:
+    nodes: list[BinderNode] = []
+    for node in state.nodes:
+        metadata = dict(node.custom_metadata)
+        metadata.pop("source_missing", None)
+        nodes.append(node.model_copy(update={"word_count": 0, "custom_metadata": metadata}))
+    return state.model_copy(update={"nodes": nodes})
+
+
 def _save_state(slug: str, state: BinderState) -> BinderState:
-    save_text(slug, BINDER_PATH, json.dumps(state.model_dump(), indent=2, ensure_ascii=False))
-    return _refresh_derived_fields(slug, state)
+    durable = _persistable_state(state)
+    save_text(slug, BINDER_PATH, json.dumps(durable.model_dump(), indent=2, ensure_ascii=False))
+    return _refresh_derived_fields(slug, durable)
 
 
 def sync_binder(slug: str, state: BinderState | None = None) -> BinderState:
