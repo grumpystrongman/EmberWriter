@@ -13,7 +13,13 @@ from .reader_models import (
     ReaderStepRequest,
     ReaderStepResponse,
 )
-from .readers import create_reader_run, get_reader_run, list_reader_runs, persona_catalog, step_reader_run
+from .readers import (
+    create_reader_run,
+    get_reader_run,
+    list_reader_runs,
+    persona_catalog,
+    step_reader_run,
+)
 from .storage import get_project
 
 router = APIRouter(prefix="/api/projects/{slug}/readers")
