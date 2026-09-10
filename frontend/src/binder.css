@@ -1,0 +1,209 @@
+.binder-panel {
+  display: grid;
+  gap: 0.7rem;
+  min-height: 0;
+}
+
+.binder-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.binder-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.binder-heading small,
+.binder-inspector summary small,
+.binder-collections summary small,
+.binder-path {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.binder-tree {
+  min-height: 120px;
+  max-height: 48vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.3rem 0;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.binder-row {
+  display: flex;
+  align-items: stretch;
+  min-height: 32px;
+  border-left: 2px solid transparent;
+}
+
+.binder-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.binder-row.selected {
+  background: rgba(224, 114, 68, 0.08);
+}
+
+.binder-row.active {
+  border-left-color: var(--ember);
+  background: rgba(224, 114, 68, 0.12);
+}
+
+.binder-row.missing {
+  opacity: 0.55;
+}
+
+.binder-disclosure,
+.binder-node-button {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.binder-disclosure {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  color: var(--muted);
+}
+
+.binder-node-button {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+}
+
+.binder-icon {
+  width: 1rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.binder-node-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.binder-node-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.binder-node-copy small {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.binder-create {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) 34px;
+  gap: 0.35rem;
+}
+
+.binder-create select,
+.binder-create input,
+.binder-create button {
+  min-width: 0;
+}
+
+.binder-inspector,
+.binder-collections {
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+}
+
+.binder-inspector > summary,
+.binder-collections > summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.binder-inspector label {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.binder-inspector textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.binder-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.binder-check {
+  display: flex !important;
+  align-items: center;
+  align-self: end;
+  min-height: 34px;
+  grid-template-columns: auto 1fr;
+}
+
+.binder-check input {
+  width: auto;
+}
+
+.binder-path {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 0.55rem;
+}
+
+.binder-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.binder-actions button {
+  flex: 1;
+}
+
+.binder-collection {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.binder-collection:last-child {
+  border-bottom: 0;
+}
+
+.binder-collection strong {
+  font-size: 0.74rem;
+}
+
+.binder-collection small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
