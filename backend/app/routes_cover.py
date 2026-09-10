@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
 from .cover_models import (
     CoverAsset,
@@ -19,9 +20,11 @@ from .covers import (
     save_cover_profile,
     validate_cover,
 )
+from .storage import project_root
 
 router = APIRouter(prefix="/api/projects/{slug}/cover")
 MAX_COVER_ASSET_BYTES = 100 * 1024 * 1024
+COVER_ASSET_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"}
 
 
 @router.get("/profile", response_model=CoverProfile)
@@ -79,6 +82,22 @@ async def upload_asset(
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/assets/view")
+def view_asset(slug: str, path: Annotated[str, Query(min_length=1)]) -> FileResponse:
+    root = project_root(slug)
+    if not (root / "project.json").is_file():
+        raise HTTPException(status_code=404, detail="Project not found")
+    asset_root = (root / "assets" / "covers").resolve()
+    candidate = (root / path).resolve()
+    if (
+        asset_root not in candidate.parents
+        or candidate.suffix.casefold() not in COVER_ASSET_SUFFIXES
+        or not candidate.is_file()
+    ):
+        raise HTTPException(status_code=404, detail="Cover asset not found")
+    return FileResponse(candidate)
 
 
 @router.post("/export", response_model=CoverExportResponse)
