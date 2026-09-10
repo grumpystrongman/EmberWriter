@@ -8,7 +8,7 @@ import pytest
 from docx import Document
 from pypdf import PdfReader
 
-from app import storage, submissions
+from app import memory, storage, submissions
 from app.models import ProviderConfig
 from app.submission_models import SubmissionDestination, SubmissionProfile
 
@@ -54,8 +54,14 @@ def profile_for(slug: str, target: SubmissionDestination) -> SubmissionProfile:
         update={
             "author_name": "A. Writer",
             "genre": "Adult Fantasy",
-            "query_letter": "Dear Agent,\n\nMara has one night to unlock the station.\n\nSincerely,\nA. Writer",
-            "synopsis": "Mara enters the station, discovers the betrayal, survives the confrontation, and chooses to destroy the key.",
+            "query_letter": (
+                "Dear Agent,\n\nMara has one night to unlock the station.\n\n"
+                "Sincerely,\nA. Writer"
+            ),
+            "synopsis": (
+                "Mara enters the station, discovers the betrayal, survives the confrontation, "
+                "and chooses to destroy the key."
+            ),
             "bio": "A. Writer writes adult fantasy.",
             "destinations": [target],
         }
@@ -101,7 +107,7 @@ def test_page_sample_package_contains_exact_pdf_pages_body_and_manifest(tmp_path
     assert result.validation.valid is True
     assert saved.records[-1].package_id == result.package_id
     assert saved.records[-1].status == "ready"
-    assert saved.records[-1].follow_up_on
+    assert saved.records[-1].follow_up_on == ""
 
     sample_pdf = root / next(
         item.relative_path
@@ -140,7 +146,9 @@ def test_full_manuscript_docx_uses_submission_spacing_and_header(tmp_path: Path)
     )
     root = storage.project_root(slug)
     sample = root / next(
-        item.relative_path for item in result.artifacts if item.filename == "manuscript-sample.docx"
+        item.relative_path
+        for item in result.artifacts
+        if item.filename == "manuscript-sample.docx"
     )
     doc = Document(sample)
 
@@ -149,13 +157,18 @@ def test_full_manuscript_docx_uses_submission_spacing_and_header(tmp_path: Path)
     assert "Writer / SUBMISSION TEST" in doc.sections[0].header.paragraphs[0].text
 
 
-def test_submission_record_can_be_marked_sent_without_losing_package_history(tmp_path: Path) -> None:
+def test_submission_record_starts_follow_up_clock_when_marked_sent(tmp_path: Path) -> None:
     slug = use_temp_data(tmp_path)
     target = destination(synopsis_required=False, sample_kind="chapters", sample_count=1)
     profile = profile_for(slug, target)
-    result, saved = submissions.build_submission_package(slug, profile=profile, destination_id=target.id)
+    result, saved = submissions.build_submission_package(
+        slug,
+        profile=profile,
+        destination_id=target.id,
+    )
     record = saved.records[-1]
 
+    assert record.follow_up_on == ""
     updated = submissions.update_submission_record(
         slug,
         saved,
@@ -169,6 +182,37 @@ def test_submission_record_can_be_marked_sent_without_losing_package_history(tmp
     assert current.status == "sent"
     assert current.package_id == result.package_id
     assert current.submitted_at == "2026-09-10"
+    assert current.follow_up_on == "2026-10-10"
+
+
+def test_submission_context_rejects_stale_story_summary(tmp_path: Path) -> None:
+    slug = use_temp_data(tmp_path)
+    path = "manuscript/chapter-001.md"
+    old_content = storage.read_text(slug, path)
+    memory.store_analysis(
+        slug,
+        path,
+        old_content,
+        {
+            "summary": "STALE SUMMARY: Mara keeps the key forever.",
+            "facts": [],
+        },
+    )
+    storage.save_text(
+        slug,
+        path,
+        "# Chapter 1\n\nMara destroys the key and walks into the dawn.\n",
+    )
+    profile = submissions.default_submission_profile(slug).model_copy(
+        update={"author_name": "A. Writer", "genre": "Adult Fantasy"}
+    )
+
+    context, documents, used_summaries = submissions._submission_context(slug, profile)
+
+    assert documents >= 1
+    assert used_summaries is False
+    assert "STALE SUMMARY" not in context
+    assert "destroys the key" in context
 
 
 @pytest.mark.asyncio
