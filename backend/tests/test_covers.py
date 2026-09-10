@@ -94,18 +94,26 @@ def test_cover_profile_persists_as_portable_json(tmp_path: Path) -> None:
     assert "Persistent Cover" in path.read_text(encoding="utf-8")
 
 
-def test_ingram_mode_requires_official_template_spine_measurement(tmp_path: Path) -> None:
+def test_ingram_mode_requires_template_spine_and_uses_its_own_spine_text_threshold(
+    tmp_path: Path,
+) -> None:
     slug = use_temp_data(tmp_path)
     missing = CoverProfile(title="Template Book", platform="ingramspark", manual_spine_width=0)
     complete = missing.model_copy(update={"manual_spine_width": 0.63})
+    too_short = complete.model_copy(update={"page_count": 47, "spine_text": "Template Book"})
+    eligible = complete.model_copy(update={"page_count": 60, "spine_text": "Template Book"})
 
     invalid = covers.validate_cover(slug, missing)
-    valid = covers.validate_cover(slug, complete)
+    short_validation = covers.validate_cover(slug, too_short)
+    valid = covers.validate_cover(slug, eligible)
 
     assert invalid.valid is False
     assert any(issue.code == "ingram-template-spine" for issue in invalid.issues)
+    assert short_validation.valid is False
+    assert any(issue.code == "ingram-spine-text" for issue in short_validation.issues)
     assert valid.valid is True
     assert valid.geometry.spine_width == pytest.approx(0.63)
+    assert valid.geometry.spine_text_allowed is True
     assert valid.geometry.exact_platform_formula is False
     assert "CoverTemplateGenerator" in valid.geometry.authority_url
 
