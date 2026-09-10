@@ -1,0 +1,235 @@
+.editorial-panel > summary {
+  color: #f2c09b;
+}
+
+.editorial-scope,
+.editorial-config-actions,
+.editorial-filters,
+.editorial-finding-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.editorial-scope button {
+  flex: 1 1 8rem;
+}
+
+.editorial-scope button.active,
+.editorial-config-actions button.active {
+  border-color: rgba(224, 114, 68, 0.7);
+  background: rgba(224, 114, 68, 0.16);
+  color: #f3b081;
+}
+
+.editorial-config-actions button {
+  flex: 1 1 auto;
+  font-size: 0.64rem;
+}
+
+.editorial-report-picker {
+  display: grid;
+  gap: 0.65rem;
+  max-height: 26rem;
+  overflow: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.editorial-report-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.editorial-report-group > strong {
+  color: #d9a37d;
+  font-size: 0.66rem;
+  text-transform: capitalize;
+}
+
+.editorial-report-group label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.editorial-report-group input {
+  width: auto;
+  margin-top: 0.15rem;
+}
+
+.editorial-report-group span {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.editorial-report-group b {
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.editorial-report-group small {
+  color: var(--muted);
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.editorial-thresholds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.editorial-thresholds label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5rem auto;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.62rem;
+}
+
+.editorial-thresholds input {
+  min-width: 0;
+}
+
+.editorial-history-label {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.editorial-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.editorial-metrics span {
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.42rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 0.58rem;
+  text-align: center;
+}
+
+.editorial-metrics b {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.editorial-filters select {
+  flex: 1 1 8rem;
+}
+
+.editorial-findings {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 36rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.editorial-finding {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.editorial-finding.severity-info {
+  border-left-color: #8a9fb3;
+}
+
+.editorial-finding.severity-warning {
+  border-left-color: #d69b5d;
+}
+
+.editorial-finding.severity-strong {
+  border-left-color: #d76552;
+}
+
+.editorial-finding.stale {
+  opacity: 0.65;
+  border-style: dashed;
+}
+
+.editorial-source {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.editorial-source:hover {
+  background: transparent;
+  color: #f1ad7c;
+}
+
+.editorial-source span {
+  min-width: 0;
+  overflow: hidden;
+  color: #e7d5c7;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorial-source small {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.54rem;
+}
+
+.editorial-finding p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.69rem;
+  line-height: 1.42;
+}
+
+.editorial-finding blockquote {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border-left: 2px solid rgba(224, 114, 68, 0.35);
+  background: rgba(0, 0, 0, 0.16);
+  color: #cfc1b6;
+  font-family: Georgia, serif;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.editorial-suggestion {
+  color: #a99b90;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+
+.editorial-finding-actions button {
+  font-size: 0.6rem;
+}
+
+@media (max-width: 1200px) {
+  .editorial-thresholds,
+  .editorial-metrics {
+    grid-template-columns: 1fr;
+  }
+}
