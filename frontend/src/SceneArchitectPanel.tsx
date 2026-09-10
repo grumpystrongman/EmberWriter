@@ -46,6 +46,7 @@ type Props = {
   disabled: boolean
   onGenerate: (input: SceneInput) => Promise<ScenePlanResponse | null>
   onOpenSaved: (path: string) => void
+  onUseAsPrompt: (plan: ScenePlan) => void
 }
 
 function StringList({ title, values }: { title: string; values: string[] }) {
@@ -58,7 +59,13 @@ function StringList({ title, values }: { title: string; values: string[] }) {
   )
 }
 
-export default function SceneArchitectPanel({ characters, disabled, onGenerate, onOpenSaved }: Props) {
+export default function SceneArchitectPanel({
+  characters,
+  disabled,
+  onGenerate,
+  onOpenSaved,
+  onUseAsPrompt,
+}: Props) {
   const [prompt, setPrompt] = useState('')
   const [pov, setPov] = useState('')
   const [location, setLocation] = useState('')
@@ -142,7 +149,10 @@ export default function SceneArchitectPanel({ characters, disabled, onGenerate, 
               <small>SCENE PLAN</small>
               <h3>{result.plan.title}</h3>
             </div>
-            {result.saved_path && <button className="quiet" onClick={() => onOpenSaved(result.saved_path!)}>Open saved</button>}
+            <div className="scene-plan-actions">
+              <button className="quiet" onClick={() => onUseAsPrompt(result.plan)}>Send to Writer</button>
+              {result.saved_path && <button className="quiet" onClick={() => onOpenSaved(result.saved_path!)}>Open saved</button>}
+            </div>
           </div>
           <div className="scene-plan-meta">
             <span>POV: {result.plan.pov || '—'}</span>
