@@ -61,6 +61,10 @@ def test_project_checkpoint_restores_files_and_binder_with_safety_snapshot(tmp_p
     assert restored_first.status == "Draft"
     assert all(node.id != temporary.id for node in restored_binder.nodes)
 
+    exact = project_history.compare_project_checkpoint(slug, checkpoint["id"])
+    assert exact["changed_files"] == 0
+    assert exact["changes"] == []
+
     checkpoints = project_history.list_project_checkpoints(slug)
     safety = next(item for item in checkpoints if item["id"] == restored["safety_checkpoint_id"])
     assert safety["source"] == "pre_restore"
@@ -78,6 +82,13 @@ def test_project_restore_can_be_undone_using_pre_restore_checkpoint(tmp_path: Pa
 
     restored = project_history.restore_project_checkpoint(slug, checkpoint_a["id"])
     assert storage.read_text(slug, path).endswith("Version A\n")
+    assert project_history.compare_project_checkpoint(slug, checkpoint_a["id"])["changed_files"] == 0
 
     project_history.restore_project_checkpoint(slug, restored["safety_checkpoint_id"])
     assert storage.read_text(slug, path).endswith("Version B\n")
+    assert (
+        project_history.compare_project_checkpoint(slug, restored["safety_checkpoint_id"])[
+            "changed_files"
+        ]
+        == 0
+    )
