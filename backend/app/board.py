@@ -82,16 +82,13 @@ def update_item(slug: str, item_id: str, payload: BoardItemUpdate) -> BoardItem:
 
 def delete_item(slug: str, item_id: str) -> None:
     state = load_board(slug)
-    target = next((item for item in state.items if item.id == item_id), None)
-    if target is None:
+    if not any(item.id == item_id for item in state.items):
         raise FileNotFoundError(item_id)
     state.items = [item for item in state.items if item.id != item_id]
     save_board(slug, state)
-    if target.asset_path and not any(item.asset_path == target.asset_path for item in state.items):
-        try:
-            safe_project_path(slug, target.asset_path).unlink(missing_ok=True)
-        except OSError:
-            pass
+    # Uploaded board assets intentionally remain in the project. Whole-project checkpoints
+    # currently snapshot the board JSON but do not duplicate binary files. Keeping the asset
+    # makes a later project-history restore able to recover a removed image/file reference.
 
 
 def _safe_filename(filename: str) -> str:
