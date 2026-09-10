@@ -1,0 +1,241 @@
+.distribution-panel > summary {
+  color: #e6c587;
+}
+
+.distribution-body {
+  gap: 0.72rem;
+}
+
+.distribution-status-strip,
+.distribution-actions {
+  display: flex;
+  gap: 0.48rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.distribution-status-strip span {
+  flex: 1 1 7rem;
+  display: grid;
+  place-items: center;
+  gap: 0.08rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+
+.distribution-status-strip b {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.distribution-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.distribution-grid label {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+
+.distribution-grid label > small {
+  color: color-mix(in srgb, var(--muted) 74%, transparent);
+  font-size: 0.54rem;
+  line-height: 1.35;
+}
+
+.distribution-wide {
+  grid-column: 1 / -1;
+}
+
+.distribution-wide textarea {
+  resize: vertical;
+}
+
+.distribution-subpanel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.016);
+}
+
+.distribution-subpanel > summary {
+  padding: 0.48rem 0.56rem;
+  color: #d8bc8e;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.distribution-subpanel > .distribution-grid {
+  padding: 0 0.56rem 0.56rem;
+}
+
+.distribution-check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.35rem !important;
+}
+
+.distribution-check input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.edition-stack {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.edition-card {
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.014);
+}
+
+.edition-card.enabled {
+  border-color: rgba(230, 197, 135, 0.32);
+  background: rgba(230, 197, 135, 0.028);
+}
+
+.edition-card > header {
+  display: flex;
+  align-items: center;
+  gap: 0.52rem;
+  min-height: 1.6rem;
+}
+
+.edition-card > header strong {
+  color: var(--text);
+  font-size: 0.69rem;
+  letter-spacing: 0.045em;
+}
+
+.edition-card > header small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.55rem;
+}
+
+.retailer-pills {
+  display: flex;
+  gap: 0.34rem;
+  margin: 0.55rem 0;
+  flex-wrap: wrap;
+}
+
+.retailer-pills label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.28rem 0.43rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.55rem;
+  cursor: pointer;
+}
+
+.retailer-pills label.selected {
+  border-color: rgba(230, 197, 135, 0.52);
+  background: rgba(230, 197, 135, 0.08);
+  color: #efd7ac;
+}
+
+.retailer-pills input {
+  width: auto;
+}
+
+.edition-grid {
+  padding-top: 0.08rem;
+}
+
+.distribution-inline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.distribution-inline span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.distribution-validation {
+  display: grid;
+  gap: 0.32rem;
+  padding: 0.58rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.distribution-validation.valid {
+  border-color: rgba(116, 173, 132, 0.45);
+  background: rgba(80, 137, 94, 0.07);
+}
+
+.distribution-validation.invalid {
+  border-color: rgba(205, 91, 71, 0.5);
+  background: rgba(160, 55, 45, 0.08);
+}
+
+.distribution-validation > strong {
+  color: var(--text);
+  font-size: 0.68rem;
+}
+
+.distribution-issue {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  line-height: 1.42;
+}
+
+.distribution-issue > b {
+  font-size: 0.52rem;
+  letter-spacing: 0.055em;
+}
+
+.distribution-issue > a {
+  color: #e5a875;
+  font-size: 0.55rem;
+}
+
+.retailer-badge,
+.edition-badge {
+  padding: 0.08rem 0.25rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #d7c2a9;
+  font-size: 0.51rem;
+}
+
+.distribution-actions button {
+  flex: 1 1 12rem;
+}
+
+.distribution-result {
+  margin-top: 0;
+}
+
+@media (max-width: 1200px) {
+  .distribution-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .distribution-wide {
+    grid-column: auto;
+  }
+}
