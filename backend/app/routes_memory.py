@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
@@ -13,8 +15,8 @@ router = APIRouter(prefix="/api")
 def memory(
     slug: str,
     query: str = "",
-    kind: list[str] | None = Query(default=None),
-    limit: int = Query(default=80, ge=1, le=200),
+    kind: Annotated[list[str] | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 80,
 ) -> list[dict]:
     try:
         return list_memory(slug, query=query, kinds=kind, limit=limit)
@@ -41,7 +43,7 @@ async def analyze(slug: str, payload: AnalyzeRequest) -> dict:
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Manuscript file not found") from exc
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Model server error: {exc}") from exc
