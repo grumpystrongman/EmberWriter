@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import MemoryPanel, { type MemoryFact, type MemoryStats } from './MemoryPanel'
+import SceneArchitectPanel, { type ScenePlan, type ScenePlanResponse } from './SceneArchitectPanel'
+import StoryIntelligencePanel, { type StoryIntelligence } from './StoryIntelligencePanel'
 
 const API = 'http://127.0.0.1:8000/api'
 
@@ -29,6 +31,14 @@ type AnalyzeResult = {
   skipped: boolean
 }
 
+type SceneArchitectInput = {
+  prompt: string
+  pov: string
+  participants: string[]
+  location: string
+  desired_heat: string
+}
+
 type Mode = 'write' | 'continue' | 'rewrite' | 'brainstorm' | 'critic' | 'continuity'
 
 const defaultProvider: Provider = {
@@ -39,6 +49,7 @@ const defaultProvider: Provider = {
 }
 
 const emptyMemoryStats: MemoryStats = { facts: 0, documents: 0, by_kind: {} }
+const emptyStoryIntelligence: StoryIntelligence = { characters: [], relationships: [] }
 
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -73,8 +84,10 @@ function App() {
   const [models, setModels] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [memoryBusy, setMemoryBusy] = useState(false)
+  const [sceneBusy, setSceneBusy] = useState(false)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [memoryStats, setMemoryStats] = useState<MemoryStats>(emptyMemoryStats)
+  const [storyIntelligence, setStoryIntelligence] = useState<StoryIntelligence>(emptyStoryIntelligence)
   const [memoryQuery, setMemoryQuery] = useState('')
   const [status, setStatus] = useState('Ready')
   const [provider, setProvider] = useState<Provider>(() => {
@@ -96,6 +109,7 @@ function App() {
     () => project?.files.filter((file) => !file.startsWith('manuscript/') && file !== 'project.json') ?? [],
     [project],
   )
+  const modelOccupied = busy || memoryBusy || sceneBusy
 
   useEffect(() => {
     void refreshProjects()
@@ -124,7 +138,7 @@ function App() {
   useEffect(() => {
     if (
       !autoMemory || !project || !activeFile.startsWith('manuscript/') || !provider.model ||
-      dirty || busy || memoryBusy
+      dirty || modelOccupied
     ) return
 
     const key = `${project.slug}\u0000${activeFile}\u0000${content}`
@@ -144,8 +158,7 @@ function App() {
     provider.provider,
     provider.base_url,
     dirty,
-    busy,
-    memoryBusy,
+    modelOccupied,
   ])
 
   async function refreshProjects() {
@@ -161,14 +174,16 @@ function App() {
     if (!slug) return
     try {
       const suffix = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : ''
-      const [facts, stats] = await Promise.all([
+      const [facts, stats, intelligence] = await Promise.all([
         jsonFetch<MemoryFact[]>(`${API}/projects/${slug}/memory${suffix}`),
         jsonFetch<MemoryStats>(`${API}/projects/${slug}/memory/stats`),
+        jsonFetch<StoryIntelligence>(`${API}/projects/${slug}/story-intelligence`),
       ])
       setMemoryFacts(facts)
       setMemoryStats(stats)
+      setStoryIntelligence(intelligence)
     } catch (error) {
-      setStatus(`Memory unavailable: ${(error as Error).message}`)
+      setStatus(`Story intelligence unavailable: ${(error as Error).message}`)
     }
   }
 
@@ -272,7 +287,7 @@ function App() {
   }
 
   async function analyzeActiveFile(force = true) {
-    if (!project || !activeFile.startsWith('manuscript/') || !provider.model || memoryBusy) return
+    if (!project || !activeFile.startsWith('manuscript/') || !provider.model || modelOccupied) return
     setMemoryBusy(true)
     setStatus(`Analyzing ${activeFile} for story memory…`)
     try {
@@ -298,7 +313,7 @@ function App() {
   }
 
   async function analyzeAllManuscript() {
-    if (!project || !provider.model || manuscriptFiles.length === 0 || memoryBusy) return
+    if (!project || !provider.model || manuscriptFiles.length === 0 || modelOccupied) return
     setMemoryBusy(true)
     let learned = 0
     let analyzed = 0
@@ -338,7 +353,7 @@ function App() {
   }
 
   async function runGeneration() {
-    if (!project || !prompt.trim() || memoryBusy) return
+    if (!project || !prompt.trim() || modelOccupied) return
     setBusy(true)
     setOutput('')
     setStatus(`Running ${mode}…`)
@@ -364,6 +379,46 @@ function App() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function runSceneArchitect(input: SceneArchitectInput): Promise<ScenePlanResponse | null> {
+    if (!project || !provider.model || modelOccupied) return null
+    setSceneBusy(true)
+    setStatus('Architecting scene from story state…')
+    try {
+      if (dirty) await saveActiveFile()
+      const result = await jsonFetch<ScenePlanResponse>(`${API}/projects/${project.slug}/scene-plan`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...input,
+          provider,
+          active_file: activeFile || null,
+          save: true,
+        }),
+      })
+      const refreshed = await jsonFetch<ProjectDetail>(`${API}/projects/${project.slug}`)
+      setProject(refreshed)
+      setStatus(result.saved_path ? `Scene plan saved to ${result.saved_path}` : 'Scene plan ready')
+      return result
+    } catch (error) {
+      setStatus(`Scene Architect failed: ${(error as Error).message}`)
+      return null
+    } finally {
+      setSceneBusy(false)
+    }
+  }
+
+  function useScenePlanAsPrompt(plan: ScenePlan) {
+    const beats = plan.beats.map((beat, index) => `${index + 1}. ${beat.beat}`).join('\n')
+    const guardrails = plan.continuity_requirements.map((item) => `- ${item}`).join('\n')
+    setMode('write')
+    setPrompt(
+      `Write the planned scene "${plan.title}" as polished manuscript prose.\n\n` +
+      `POV: ${plan.pov}\nLocation: ${plan.location}\nObjective: ${plan.scene_objective}\nConflict: ${plan.conflict}\n\n` +
+      `Required beats:\n${beats}\n\nContinuity guardrails:\n${guardrails || '- Preserve established canon and knowledge boundaries.'}\n\n` +
+      `Ending state: ${plan.ending_state}\nNext-scene pressure: ${plan.next_scene_pressure}`,
+    )
+    setStatus('Scene plan loaded into Writer prompt')
   }
 
   function insertOutput(replaceSelection: boolean) {
@@ -392,7 +447,7 @@ function App() {
         <h2>Library</h2>
         <div className="create-row">
           <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="New story project" />
-          <button onClick={() => void createProject()} disabled={busy || !newProjectName.trim()}>+</button>
+          <button onClick={() => void createProject()} disabled={modelOccupied || !newProjectName.trim()}>+</button>
         </div>
         <div className="project-list">
           {projects.map((item) => (
@@ -446,7 +501,9 @@ function App() {
         </div>
 
         <textarea className="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Tell Ember what you want from this scene…" />
-        <button className="primary" onClick={() => void runGeneration()} disabled={busy || memoryBusy || !project || !prompt.trim() || !provider.model}>{busy ? 'Working…' : memoryBusy ? 'Memory busy…' : 'Generate'}</button>
+        <button className="primary" onClick={() => void runGeneration()} disabled={modelOccupied || !project || !prompt.trim() || !provider.model}>
+          {busy ? 'Working…' : memoryBusy ? 'Memory busy…' : sceneBusy ? 'Scene Architect busy…' : 'Generate'}
+        </button>
 
         {output && <div className="result-card">
           <div className="result-actions"><strong>Result</strong><span><button onClick={() => insertOutput(false)}>Append</button><button onClick={() => insertOutput(true)}>Replace selection</button></span></div>
@@ -455,12 +512,30 @@ function App() {
         </div>}
 
         {project && (
+          <SceneArchitectPanel
+            characters={storyIntelligence.characters}
+            disabled={modelOccupied || !provider.model}
+            onGenerate={runSceneArchitect}
+            onOpenSaved={(path) => void openFile(project.slug, path)}
+            onUseAsPrompt={useScenePlanAsPrompt}
+          />
+        )}
+
+        {project && (
+          <StoryIntelligencePanel
+            intelligence={storyIntelligence}
+            onRefresh={() => void refreshMemory(project.slug, memoryQuery)}
+            onOpenSource={(path) => void openFile(project.slug, path)}
+          />
+        )}
+
+        {project && (
           <MemoryPanel
             facts={memoryFacts}
             stats={memoryStats}
             query={memoryQuery}
             autoMemory={autoMemory}
-            busy={memoryBusy}
+            busy={memoryBusy || sceneBusy}
             canAnalyze={activeFile.startsWith('manuscript/') && Boolean(provider.model)}
             canAnalyzeAll={manuscriptFiles.length > 0 && Boolean(provider.model)}
             onQueryChange={setMemoryQuery}
@@ -484,7 +559,7 @@ function App() {
           <label>Model</label>
           <div className="create-row">
             <input list="model-list" value={provider.model} onChange={(e) => setProvider({ ...provider, model: e.target.value })} placeholder="Choose or type model" />
-            <button onClick={() => void refreshModels()} disabled={busy || memoryBusy}>↻</button>
+            <button onClick={() => void refreshModels()} disabled={modelOccupied}>↻</button>
           </div>
           <datalist id="model-list">{models.map((model) => <option key={model} value={model} />)}</datalist>
           {provider.provider === 'openai_compatible' && <><label>API key (optional)</label><input type="password" value={provider.api_key || ''} onChange={(e) => setProvider({ ...provider, api_key: e.target.value })} /></>}
