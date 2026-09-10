@@ -1,3 +1,5 @@
+import './memory.css'
+
 export type MemoryFact = {
   id: string
   kind: string
