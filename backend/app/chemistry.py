@@ -145,7 +145,7 @@ def _load_profile_path(slug: str, path: str) -> RelationshipChemistryProfile | N
     try:
         payload = json.loads(read_text(slug, path))
         return RelationshipChemistryProfile.model_validate(payload)
-    except (FileNotFoundError, OSError, ValueError, TypeError, json.JSONDecodeError):
+    except (FileNotFoundError, OSError, ValueError, TypeError):
         return None
 
 
@@ -165,7 +165,10 @@ def list_chemistry_profiles(slug: str) -> list[RelationshipChemistryProfile]:
     return profiles
 
 
-def get_chemistry_profile(slug: str, participants: list[str]) -> RelationshipChemistryProfile | None:
+def get_chemistry_profile(
+    slug: str,
+    participants: list[str],
+) -> RelationshipChemistryProfile | None:
     return _load_profile_path(slug, chemistry_path(participants))
 
 
@@ -224,7 +227,9 @@ def build_chemistry_context(slug: str, names: list[str]) -> tuple[str, list[str]
             selected.append((profile, chemistry_path(profile.participants)))
     if not selected:
         return "", []
-    text = "## Relationship chemistry\n" + "\n\n".join(_render_profile(item[0]) for item in selected)
+    text = "## Relationship chemistry\n" + "\n\n".join(
+        _render_profile(item[0]) for item in selected
+    )
     return text, [item[1] for item in selected]
 
 
@@ -235,7 +240,9 @@ async def infer_chemistry(slug: str, request: ChemistryInferRequest) -> dict[str
     memory = build_memory_context(slug, query=query, limit=50)
     characters = build_character_context(slug, participants)
     existing = get_chemistry_profile(slug, participants)
-    existing_text = _render_profile(existing) if existing is not None else "(No existing chemistry profile.)"
+    existing_text = (
+        _render_profile(existing) if existing is not None else "(No existing chemistry profile.)"
+    )
 
     user_message = f"""PARTICIPANTS
 {', '.join(participants)}
@@ -268,7 +275,16 @@ PROJECT / MANUSCRIPT CONTEXT
     profile = RelationshipChemistryProfile.model_validate(
         _parse_json_object(raw, "Chemistry analyst")
     )
-    profile = profile.model_copy(update={"participants": participants})
+    protected: dict[str, Any] = {"participants": participants}
+    if existing is not None:
+        protected.update(
+            {
+                "boundaries": existing.boundaries,
+                "milestones": existing.milestones,
+                "author_notes": existing.author_notes,
+            }
+        )
+    profile = profile.model_copy(update=protected)
     saved_path: str | None = None
     if request.save:
         profile, saved_path = save_chemistry_profile(slug, profile)
@@ -283,7 +299,10 @@ async def analyze_aftermath(slug: str, request: AftermathAnalyzeRequest) -> Afte
     participants = [name.strip() for name in request.participants if name.strip()]
     if participants:
         participants = normalize_participants(participants)
-    chemistry_text, _ = build_chemistry_context(slug, participants) if len(participants) >= 2 else ("", [])
+    if len(participants) >= 2:
+        chemistry_text, _ = build_chemistry_context(slug, participants)
+    else:
+        chemistry_text = ""
     character_text = build_character_context(slug, participants) if participants else ""
     source_order = chapter_order(request.source_path) if request.source_path else 0
 
@@ -312,7 +331,9 @@ COMPLETED SCENE
         top_p=0.9,
         json_mode=True,
     )
-    proposal = AftermathProposal.model_validate(_parse_json_object(raw, "Aftermath analyst"))
+    proposal = AftermathProposal.model_validate(
+        _parse_json_object(raw, "Aftermath analyst")
+    )
     return proposal.model_copy(
         update={
             "source_path": request.source_path,
@@ -332,7 +353,10 @@ def _extend_unique(existing: list[str], additions: list[str]) -> list[str]:
     return result
 
 
-def apply_aftermath(slug: str, proposal: AftermathProposal) -> tuple[list[RelationshipChemistryProfile], list[str]]:
+def apply_aftermath(
+    slug: str,
+    proposal: AftermathProposal,
+) -> tuple[list[RelationshipChemistryProfile], list[str]]:
     profiles: list[RelationshipChemistryProfile] = []
     paths: list[str] = []
     for update in proposal.relationship_updates:
@@ -358,18 +382,24 @@ def apply_aftermath(slug: str, proposal: AftermathProposal) -> tuple[list[Relati
                     update.vulnerability_pressure.strip() or current.vulnerability_pressure
                 ),
                 "established_patterns": _extend_unique(
-                    current.established_patterns, update.add_established_patterns
+                    current.established_patterns,
+                    update.add_established_patterns,
                 ),
                 "signature_elements": _extend_unique(
-                    current.signature_elements, update.add_signature_elements
+                    current.signature_elements,
+                    update.add_signature_elements,
                 ),
                 "lore_resonance": _extend_unique(
-                    current.lore_resonance, update.add_lore_resonance
+                    current.lore_resonance,
+                    update.add_lore_resonance,
                 ),
                 "aftermath_needs": _extend_unique(
-                    current.aftermath_needs, update.add_aftermath_needs
+                    current.aftermath_needs,
+                    update.add_aftermath_needs,
                 ),
-                "next_escalations": [item.strip() for item in update.next_escalations if item.strip()]
+                "next_escalations": [
+                    item.strip() for item in update.next_escalations if item.strip()
+                ]
                 or current.next_escalations,
                 "milestones": milestones[-100:],
             }
