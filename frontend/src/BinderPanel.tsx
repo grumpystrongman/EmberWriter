@@ -211,30 +211,38 @@ export default function BinderPanel({
       {selected && (
         <details className="binder-inspector" open={!selectedIsRoot}>
           <summary>Inspector <small>{selected.kind}</small></summary>
-          {!selectedIsRoot && <>
+          {!selectedIsRoot && <div key={`${selected.id}-${selected.updated_at}`}>
             <label>Title</label>
             <input
-              value={selected.title}
-              onChange={(event) => void onUpdate(selected.id, { title: event.target.value })}
+              defaultValue={selected.title}
+              onBlur={(event) => {
+                const value = event.target.value.trim()
+                if (value && value !== selected.title) void onUpdate(selected.id, { title: value })
+              }}
             />
             <label>Synopsis</label>
             <textarea
-              value={selected.synopsis}
-              onChange={(event) => void onUpdate(selected.id, { synopsis: event.target.value })}
+              defaultValue={selected.synopsis}
+              onBlur={(event) => {
+                if (event.target.value !== selected.synopsis) void onUpdate(selected.id, { synopsis: event.target.value })
+              }}
               placeholder="What this document or scene is for…"
             />
             <div className="binder-meta-grid">
-              <label>Status<input value={selected.status} onChange={(event) => void onUpdate(selected.id, { status: event.target.value })} /></label>
-              <label>Label<input value={selected.label} onChange={(event) => void onUpdate(selected.id, { label: event.target.value })} /></label>
+              <label>Status<input defaultValue={selected.status} onBlur={(event) => { if (event.target.value !== selected.status) void onUpdate(selected.id, { status: event.target.value }) }} /></label>
+              <label>Label<input defaultValue={selected.label} onBlur={(event) => { if (event.target.value !== selected.label) void onUpdate(selected.id, { label: event.target.value }) }} /></label>
             </div>
             <label>Keywords</label>
             <input
-              value={selected.keywords.join(', ')}
-              onChange={(event) => void onUpdate(selected.id, { keywords: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
+              defaultValue={selected.keywords.join(', ')}
+              onBlur={(event) => {
+                const keywords = event.target.value.split(',').map((item) => item.trim()).filter(Boolean)
+                if (keywords.join('\u0000') !== selected.keywords.join('\u0000')) void onUpdate(selected.id, { keywords })
+              }}
               placeholder="POV, thread, location…"
             />
             <div className="binder-meta-grid">
-              <label>Word target<input type="number" min="0" value={selected.target_words ?? ''} onChange={(event) => void onUpdate(selected.id, { target_words: event.target.value ? Number(event.target.value) : null })} /></label>
+              <label>Word target<input type="number" min="0" defaultValue={selected.target_words ?? ''} onBlur={(event) => { const value = event.target.value ? Number(event.target.value) : null; if (value !== selected.target_words) void onUpdate(selected.id, { target_words: value }) }} /></label>
               <label className="binder-check"><input type="checkbox" checked={selected.include_in_compile} onChange={(event) => void onUpdate(selected.id, { include_in_compile: event.target.checked })} />Compile</label>
             </div>
             {selected.path && <small className="binder-path">{selected.path}</small>}
@@ -245,7 +253,7 @@ export default function BinderPanel({
                 ? <button type="button" disabled={disabled} onClick={() => void onRestore(selected.id)}>Restore</button>
                 : <button type="button" disabled={disabled} onClick={() => void onTrash(selected.id)}>Trash</button>}
             </div>
-          </>}
+          </div>}
         </details>
       )}
 
