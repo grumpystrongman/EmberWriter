@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field
 
 from .binder import sync_binder
 from .ingest import SUPPORTED_UPLOADS, import_bytes, import_pasted_text
+from .project_history import (
+    compare_project_checkpoint,
+    create_project_checkpoint,
+    get_project_checkpoint,
+    list_project_checkpoints,
+    restore_project_checkpoint,
+)
 from .publishing import export_project
 from .revisions import (
     compare_revisions,
@@ -32,6 +39,11 @@ class PastedImportRequest(BaseModel):
 class CheckpointRequest(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     note: str = Field(default="", max_length=1000)
+
+
+class ProjectCheckpointRequest(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    note: str = Field(default="", max_length=2000)
 
 
 class RestoreRequest(BaseModel):
@@ -149,6 +161,52 @@ def restore(slug: str, revision_id: str, payload: RestoreRequest) -> dict:
         return restore_revision(slug, revision_id, payload.note)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Revision not found") from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/project-checkpoints")
+def project_checkpoints(slug: str, limit: int = Query(100, ge=1, le=500)) -> list[dict]:
+    try:
+        return list_project_checkpoints(slug, limit)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+
+
+@router.post("/project-checkpoints")
+def create_full_checkpoint(slug: str, payload: ProjectCheckpointRequest) -> dict:
+    try:
+        return create_project_checkpoint(slug, payload.label, payload.note)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/project-checkpoints/{checkpoint_id}")
+def project_checkpoint(slug: str, checkpoint_id: str) -> dict:
+    try:
+        return get_project_checkpoint(slug, checkpoint_id, include_content=False)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project checkpoint not found") from exc
+
+
+@router.get("/project-checkpoints/{checkpoint_id}/compare")
+def compare_full_checkpoint(slug: str, checkpoint_id: str) -> dict:
+    try:
+        return compare_project_checkpoint(slug, checkpoint_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project checkpoint not found") from exc
+
+
+@router.post("/project-checkpoints/{checkpoint_id}/restore")
+def restore_full_checkpoint(slug: str, checkpoint_id: str) -> dict:
+    try:
+        result = restore_project_checkpoint(slug, checkpoint_id)
+        result["binder"] = sync_binder(slug).model_dump()
+        return result
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project checkpoint not found") from exc
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
