@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import CorkboardView from './CorkboardView'
+import OutlinerView from './OutlinerView'
 import './binder.css'
 
 export type BinderNodeKind = 'folder' | 'document' | 'research' | 'character' | 'location' | 'note' | 'trash'
@@ -59,6 +61,8 @@ type Props = {
   onSync: () => Promise<void>
 }
 
+type WorkspaceMode = 'tree' | 'corkboard' | 'outliner'
+
 function icon(kind: BinderNodeKind) {
   if (kind === 'trash') return '⌫'
   if (kind === 'folder') return '▸'
@@ -67,6 +71,11 @@ function icon(kind: BinderNodeKind) {
   if (kind === 'research') return '◇'
   if (kind === 'note') return '✎'
   return '▤'
+}
+
+function textMeta(node: BinderNode, key: string): string {
+  const value = node.custom_metadata[key]
+  return typeof value === 'string' ? value : ''
 }
 
 export default function BinderPanel({
@@ -85,6 +94,7 @@ export default function BinderPanel({
   const [selectedId, setSelectedId] = useState<string | null>(state.roots[0] || null)
   const [newTitle, setNewTitle] = useState('')
   const [newKind, setNewKind] = useState<BinderNodeKind>('document')
+  const [workspace, setWorkspace] = useState<WorkspaceMode>('tree')
   const nodes = useMemo(() => new Map(state.nodes.map((node) => [node.id, node])), [state.nodes])
   const selected = selectedId ? nodes.get(selectedId) || null : null
 
@@ -122,6 +132,11 @@ export default function BinderPanel({
     if (node.path && !node.custom_metadata.source_missing) onOpen(node.path)
   }
 
+  function openFromWorkspace(path: string) {
+    setWorkspace('tree')
+    onOpen(path)
+  }
+
   async function create() {
     const title = newTitle.trim()
     if (!title) return
@@ -140,6 +155,13 @@ export default function BinderPanel({
     const reordered = siblings.map((item) => item.id)
     ;[reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]]
     await onReorder(node.parent_id, reordered)
+  }
+
+  async function updateCustomMetadata(node: BinderNode, key: string, value: string) {
+    if (value === textMeta(node, key)) return
+    await onUpdate(node.id, {
+      custom_metadata: { ...node.custom_metadata, [key]: value },
+    })
   }
 
   function renderNode(node: BinderNode, depth: number): React.ReactNode {
@@ -184,6 +206,12 @@ export default function BinderPanel({
       <div className="binder-heading">
         <div><strong>Binder</strong><small>{state.nodes.length} items</small></div>
         <button type="button" className="quiet" disabled={disabled} onClick={() => void onSync()}>Sync</button>
+      </div>
+
+      <div className="binder-view-tabs" aria-label="Binder views">
+        <button type="button" className={workspace === 'tree' ? 'active' : ''} onClick={() => setWorkspace('tree')}>Tree</button>
+        <button type="button" className={workspace === 'corkboard' ? 'active' : ''} onClick={() => setWorkspace('corkboard')}>Corkboard</button>
+        <button type="button" className={workspace === 'outliner' ? 'active' : ''} onClick={() => setWorkspace('outliner')}>Outliner</button>
       </div>
 
       <div className="binder-tree">
@@ -232,6 +260,14 @@ export default function BinderPanel({
               <label>Status<input defaultValue={selected.status} onBlur={(event) => { if (event.target.value !== selected.status) void onUpdate(selected.id, { status: event.target.value }) }} /></label>
               <label>Label<input defaultValue={selected.label} onBlur={(event) => { if (event.target.value !== selected.label) void onUpdate(selected.id, { label: event.target.value }) }} /></label>
             </div>
+            <div className="binder-meta-grid">
+              <label>POV<input defaultValue={textMeta(selected, 'pov')} onBlur={(event) => void updateCustomMetadata(selected, 'pov', event.target.value.trim())} /></label>
+              <label>Location<input defaultValue={textMeta(selected, 'location')} onBlur={(event) => void updateCustomMetadata(selected, 'location', event.target.value.trim())} /></label>
+            </div>
+            <div className="binder-meta-grid">
+              <label>Timeline<input defaultValue={textMeta(selected, 'timeline')} onBlur={(event) => void updateCustomMetadata(selected, 'timeline', event.target.value.trim())} placeholder="Day 3 · Night" /></label>
+              <label>Scene type<input defaultValue={textMeta(selected, 'scene_type')} onBlur={(event) => void updateCustomMetadata(selected, 'scene_type', event.target.value.trim())} placeholder="Action, reveal…" /></label>
+            </div>
             <label>Keywords</label>
             <input
               defaultValue={selected.keywords.join(', ')}
@@ -267,6 +303,31 @@ export default function BinderPanel({
             </div>
           ))}
         </details>
+      )}
+
+      {workspace === 'corkboard' && (
+        <CorkboardView
+          state={state}
+          selectedId={selectedId}
+          disabled={disabled}
+          onOpen={openFromWorkspace}
+          onSelect={setSelectedId}
+          onUpdate={onUpdate}
+          onReorder={onReorder}
+          onClose={() => setWorkspace('tree')}
+        />
+      )}
+
+      {workspace === 'outliner' && (
+        <OutlinerView
+          state={state}
+          selectedId={selectedId}
+          disabled={disabled}
+          onOpen={openFromWorkspace}
+          onSelect={setSelectedId}
+          onUpdate={onUpdate}
+          onClose={() => setWorkspace('tree')}
+        />
       )}
     </div>
   )
