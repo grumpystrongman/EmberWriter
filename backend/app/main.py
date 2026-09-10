@@ -18,6 +18,7 @@ from .routes_authoring import router as authoring_router
 from .routes_binder import router as binder_router
 from .routes_chemistry import router as chemistry_router
 from .routes_craft import router as craft_router
+from .routes_editorial import router as editorial_router
 from .routes_generation import router as generation_router
 from .routes_memory import router as memory_router
 from .routes_story import router as story_router
@@ -32,7 +33,7 @@ from .storage import (
     search_story,
 )
 
-app = FastAPI(title="EmberWriter API", version="0.7.0")
+app = FastAPI(title="EmberWriter API", version="0.8.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,11 +49,12 @@ app.include_router(craft_router)
 app.include_router(chemistry_router)
 app.include_router(binder_router)
 app.include_router(authoring_router)
+app.include_router(editorial_router)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.7.0"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.8.0"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
