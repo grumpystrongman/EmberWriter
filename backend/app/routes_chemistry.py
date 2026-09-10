@@ -10,6 +10,7 @@ from .chemistry import (
     list_chemistry_profiles,
     save_chemistry_profile,
 )
+from .memory_integrity import reconcile_story_memory
 from .models import (
     AftermathAnalyzeRequest,
     AftermathApplyResponse,
@@ -59,6 +60,7 @@ async def infer_relationship_chemistry(
     payload: ChemistryInferRequest,
 ) -> dict:
     try:
+        reconcile_story_memory(slug)
         return await infer_chemistry(slug, payload)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
@@ -79,6 +81,7 @@ async def analyze_scene_aftermath(
     payload: AftermathAnalyzeRequest,
 ) -> AftermathProposal:
     try:
+        reconcile_story_memory(slug)
         return await analyze_aftermath(slug, payload)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc

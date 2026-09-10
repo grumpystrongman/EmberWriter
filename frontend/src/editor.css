@@ -1,0 +1,145 @@
+.rich-editor-shell {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f5efe6;
+  color: #2c2723;
+}
+
+.rich-editor-loading {
+  padding: 2rem;
+  color: var(--muted);
+}
+
+.editor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  flex-wrap: wrap;
+  min-height: 2.75rem;
+  padding: 0.38rem 0.6rem;
+  border-bottom: 1px solid #d5c9ba;
+  background: #e9dfd2;
+  color: #463b32;
+}
+
+.editor-toolbar button {
+  min-width: 2rem;
+  height: 1.95rem;
+  padding: 0 0.42rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #463b32;
+  box-shadow: none;
+  font-size: 0.72rem;
+}
+
+.editor-toolbar button:hover:not(:disabled) {
+  background: rgba(82, 56, 35, 0.09);
+  border-color: rgba(82, 56, 35, 0.16);
+}
+
+.editor-toolbar button.active {
+  background: #c98552;
+  color: #fff9f4;
+  border-color: #ae6635;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 1.45rem;
+  margin: 0 0.18rem;
+  background: #cbbdac;
+}
+
+.editor-count {
+  margin-left: auto;
+  color: #75685d;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.editor-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.prose-editor {
+  width: min(52rem, calc(100% - 3rem));
+  min-height: calc(100vh - 11rem);
+  margin: 0 auto;
+  padding: 3rem 3.8rem 7rem;
+  outline: none;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.04rem;
+  line-height: 1.72;
+  color: #2b2724;
+  caret-color: #8e431f;
+}
+
+.prose-editor p {
+  margin: 0 0 0.8em;
+}
+
+.prose-editor h1,
+.prose-editor h2,
+.prose-editor h3,
+.prose-editor h4 {
+  line-height: 1.2;
+  margin: 1.5em 0 0.7em;
+}
+
+.prose-editor h1 {
+  text-align: center;
+  font-size: 1.85rem;
+  margin-top: 0;
+  margin-bottom: 2rem;
+}
+
+.prose-editor h2 { font-size: 1.42rem; }
+.prose-editor h3 { font-size: 1.2rem; }
+
+.prose-editor blockquote {
+  border-left: 3px solid #c48a61;
+  margin: 1.2rem 0;
+  padding-left: 1rem;
+  color: #66584d;
+}
+
+.prose-editor hr {
+  border: 0;
+  height: 1px;
+  width: 5rem;
+  margin: 2rem auto;
+  background: #8f7c6d;
+}
+
+.prose-editor mark {
+  background: #f4d98d;
+  padding: 0 0.08em;
+}
+
+.prose-editor p.is-editor-empty:first-child::before {
+  color: #9c8f84;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.prose-editor ::selection {
+  background: rgba(197, 112, 57, 0.27);
+}
+
+@media (max-width: 1100px) {
+  .prose-editor {
+    width: calc(100% - 1.5rem);
+    padding: 2rem 1.5rem 5rem;
+  }
+}

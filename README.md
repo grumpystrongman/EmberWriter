@@ -1,45 +1,177 @@
 # EmberWriter
 
-EmberWriter is a local-first AI fiction workspace built around durable manuscripts, structured story memory, character continuity, relationship state, scene planning, prose craft, author voice, and model choice. The manuscript is the source of truth: readable Markdown/JSON/YAML/text files live on your machine, while SQLite stores supplemental state such as snapshots and rebuildable narrative memory.
+EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, structured story intelligence, scene planning, author voice, relationship state, and model-agnostic AI writing.
 
-EmberWriter is model-agnostic. It supports Ollama directly and any OpenAI-compatible endpoint, including local servers such as LM Studio or vLLM.
+The design rule is simple: **your manuscript is the source of truth**. Ordinary readable project files live on your machine. SQLite accelerates revision history and Story Intelligence, but the application does not trap the novel inside a proprietary database.
 
-## What exists in v0.4
+EmberWriter supports Ollama directly and generic OpenAI-compatible endpoints such as LM Studio, vLLM, and compatible hosted gateways.
 
-- Three-pane authoring workspace: library, manuscript editor, and Ember AI panel.
-- Local projects with manuscript, characters, world, relationships, timeline, scenes, style, and summaries folders.
-- Human-readable story files instead of a proprietary document format.
-- Autosave with automatic pre-save snapshots.
-- Snapshot listing and restore API.
-- Search across the local story library.
-- Context compiler combining project settings, author style, summaries, active manuscript, selected text, relevant story files, structured narrative memory, and participant-specific character intelligence.
-- AI modes for Write, Continue, Rewrite, Brainstorm, Critic, and Continuity.
-- Ollama and generic OpenAI-compatible model gateways with local model discovery.
-- Import of an existing manuscript file or local story directory through the local API.
-- Windows and macOS/Linux launch scripts.
-- Narrative Memory Engine with source-aware canon, character state, character knowledge, relationships, timeline events, unresolved threads, locations, objects, and abilities.
-- Automatic chapter/scene summaries and content-hash tracking so unchanged chapters are not repeatedly analyzed.
-- Story Intelligence layer that turns raw memory into per-character state, per-character knowledge, dossier links, and relationship edges.
-- Scene Architect for POV, participants, location, objective, conflict, causal beats, emotional movement, relationship changes, reveals, continuity guardrails, unresolved threads, intimacy notes, ending state, and next-scene pressure.
-- Prose & Intimacy Craft Engine with project heat levels, tension curves, sensory/dialogue/interiority controls, Voice Lock, Voice Lab, and an optional second Craft Pass.
-- Deterministic character-dossier injection when known characters appear in the current request or scene context.
-- Readable craft and voice profiles stored under `style/` so the writing system remains portable and inspectable.
+## Implemented in v0.7
+
+### Authoring workspace
+
+- Binder-style project hierarchy with stable node IDs independent of filenames.
+- Draft, Research, Story Bible, and reversible Trash roots.
+- Nested folders/documents, stable ordering, metadata, compile inclusion, collections, targets, and missing-source detection.
+- Corkboard cards backed by the same Binder nodes and order.
+- Outliner backed by the same Binder nodes and metadata.
+- Rich TipTap manuscript editor with undo/redo, headings, bold, italic, underline, strike, highlight, lists, block quotes, scene breaks, left/center/right alignment, spellcheck surface, selected-text operations, and word count.
+- Rich editing round-trips to portable Markdown/HTML-compatible source rather than storing proprietary editor HTML as the only manuscript copy.
+- Autosave plus explicit Save.
+
+### Import and ingest
+
+The application can import authentic writing material through the UI as a whole novel, novel portion, idea/note, or research item.
+
+Supported upload formats:
+
+- DOCX
+- PDF
+- EPUB
+- RTF
+- Markdown
+- TXT
+- HTML
+
+Pasted text is also supported. DOCX import preserves the supported inline formatting/alignment set. EPUB import follows the book spine order. Whole-novel import detects chapter/prologue/epilogue/interlude/part boundaries and creates real Binder documents. Imported documents receive baseline revisions immediately.
+
+The older local-directory import API remains available for portable EmberWriter folders and text-based writing directories.
+
+### Durable version control
+
+EmberWriter has multiple recovery layers:
+
+1. automatic pre-save filesystem snapshots;
+2. SQLite document revision history;
+3. named whole-project checkpoints.
+
+Each distinct document revision stores a stable ID, parent revision, timestamp, source, note, SHA-256 content hash, word count, and complete recoverable content. You can compare an older revision to the current document, restore it, and later restore the version you disliked less; restoration never deletes the later history.
+
+Whole-project checkpoints capture the author-owned project state, including Binder organization and editable project files. Project restore automatically creates a pre-restore safety checkpoint first, so the rollback itself can be undone.
+
+Derived Story Memory is checked against current manuscript hashes before generation and Story Intelligence operations. Facts extracted from a changed or deleted manuscript source are invalidated instead of surviving as stale AI context.
+
+### Compile and publishing
+
+Compile order comes from the Binder, not filesystem naming. Documents with Compile disabled are excluded.
+
+EmberWriter currently generates:
+
+- **DOCX** for editorial/submission workflows;
+- **EPUB** for reflowable ebook distribution;
+- **PDF** for print-oriented book interiors.
+
+Publishing supports book title, author/pen name, language, EPUB TOC, and print trim dimensions. DOCX exports carry document metadata and preserve the supported rich formatting set. EPUB keeps reflowable HTML and navigation structure. PDF output honors the selected trim size, keeps representative inline formatting/alignment, and includes pagination.
+
+Generated files are written beneath the project `exports/` directory and are downloadable from the app.
+
+Distributor requirements can change. Final KDP/other-platform compatibility is verified against the current distributor documentation during release acceptance rather than treated as a permanent claim.
+
+### Narrative Memory Engine
+
+EmberWriter extracts rebuildable, source-aware story state from manuscript chapters:
+
+- canon;
+- character state;
+- character-specific knowledge;
+- relationships;
+- timeline events;
+- unresolved threads/setup/payoff state;
+- locations;
+- objects;
+- abilities.
+
+Each fact retains its source file, confidence, importance, and chapter order. Character knowledge is intentionally distinct from objective canon so one character does not automatically know what another learned.
+
+The Story Memory panel supports inspection, filtering, per-chapter analysis, and whole-manuscript memory builds. Changed source files replace or invalidate their previous derived memory.
+
+### Characters, relationships, and Story Intelligence
+
+Character dossiers under `characters/` are combined with manuscript-derived state and knowledge. Generation detects known character names in the current request/selection/context and injects their dossiers plus current story state.
+
+Relationship Intelligence preserves source-aware relationship history rather than reducing a relationship to a single score.
+
+Relationship Chemistry stores pairing/group-specific information such as attraction language, verbal rhythm, trust, vulnerability, power dynamics, established milestones, lore/magic resonance, author notes, and meaningful next escalation. Author-owned boundaries and milestones cannot be silently overwritten by a new AI inference pass.
+
+The Aftermath workflow proposes relationship/state changes from a completed scene and requires review before those changes are applied.
+
+### Scene Architect
+
+Scene Architect builds a structured plan from current canon, character knowledge, relationship history, chemistry, project voice, and craft settings.
+
+Plans can include:
+
+- POV and participants;
+- location;
+- objective and conflict;
+- opening state;
+- causal beats;
+- emotional arc;
+- relationship movement;
+- reveals;
+- continuity guardrails;
+- unresolved threads;
+- intimacy/romance notes where relevant;
+- ending state;
+- next-scene pressure.
+
+Plans are persisted as ordinary JSON beneath `scenes/` and can be sent directly to Writer.
+
+### Prose, voice, and intimacy craft
+
+EmberWriter separates prose identity from explicitness.
+
+**Voice Lab** analyzes a real prose sample and stores a reusable `style/voice-profile.json` describing sentence rhythm, diction, imagery, dialogue behavior, interiority, POV distance, sensual/romantic voice, signature traits, and avoidances. **Voice Lock** injects that compact profile into future writing.
+
+The craft system separately controls:
+
+- heat: Simmer / Hot / Scorching / Inferno;
+- tension curve: Slow Burn / Steady Rise / Pressure Cooker / Flashpoint;
+- sensory intensity;
+- dialogue intensity;
+- interiority;
+- project prose rules and avoidances.
+
+For consensual adult fiction, high heat can remain explicit and on-page when supported by the configured model. The writing pipeline still prioritizes character psychology, pacing, mutual agency, established voice, continuity, and aftermath rather than treating explicitness as a substitute for prose quality.
+
+An optional **Craft Pass** performs a second model call as a fiction line editor, targeting repetitive cadence, generic filler, over-explanation, weak verbs, interchangeable dialogue, spatial confusion, incoherent metaphor, and mechanical intensity while preserving scene facts and requested tone.
+
+### AI modes and model gateway
+
+Current AI modes:
+
+- Write
+- Continue
+- Rewrite
+- Brainstorm
+- Critic
+- Continuity
+
+The context pipeline can combine the active manuscript, selected text, project settings, author profile, Voice Lock, craft profile, recent chapter summaries, ranked Story Memory, detected character dossiers, character knowledge/state, relationship history, chemistry, and relevant story files.
+
+Model providers:
+
+- Ollama
+- generic OpenAI-compatible endpoint
+
+API keys supplied for an OpenAI-compatible endpoint are passed with the request and are not persisted by the backend.
 
 ## Project format
 
-A project is portable by design:
+A project remains portable:
 
 ```text
-EmberWriter/data/projects/my-novel/
+data/projects/my-novel/
 ├── project.json
+├── binder.json
 ├── manuscript/
-│   └── chapter-001.md
 ├── characters/
 ├── world/
 ├── relationships/
 ├── timeline/
 ├── scenes/
-│   └── scene-plan-xxxxxxxxxx.json
+├── research/
+├── notes/
 ├── style/
 │   ├── author-profile.md
 │   ├── craft-profile.json
@@ -48,23 +180,20 @@ EmberWriter/data/projects/my-novel/
 │   ├── rolling-summary.md
 │   ├── unresolved-threads.md
 │   └── narrative-memory.json
+├── exports/
 └── .ember/
     ├── story.db
     └── snapshots/
 ```
 
-If the application disappears, the manuscript and story bible still exist as ordinary files. `.ember/story.db` is supplemental state, not the only copy of the work. Narrative memory can be rebuilt from the manuscript. Craft and voice profiles are ordinary JSON files that can be edited or backed up with the book.
+If EmberWriter disappears, the manuscript and story-bible files still exist as readable files. Derived Narrative Memory can be rebuilt from the manuscript.
 
 ## Requirements
 
 - Python 3.11+
-- Node.js 20+ (22 recommended)
+- Node.js 22 recommended
 - npm
-- A model server if you want AI generation, automatic memory analysis, Voice Lab, Craft Pass, or Scene Architect
-
-For Ollama, start Ollama normally and make sure at least one chat/instruct model is installed. EmberWriter defaults to `http://localhost:11434` and discovers installed models from the server.
-
-For LM Studio, vLLM, or another compatible server, choose **OpenAI-compatible** in EmberWriter and enter the server's base URL and model ID.
+- A compatible model server for AI generation/analysis
 
 ## Windows quick start
 
@@ -74,11 +203,11 @@ From PowerShell in the repository root:
 ./start.ps1
 ```
 
-The script creates `backend/.venv`, installs the Python package, installs frontend dependencies when needed, starts both local services, and opens the UI.
+The launcher creates the Python environment when needed, installs dependencies, starts the local FastAPI service and Vite UI, and opens the application.
 
 - UI: `http://127.0.0.1:5173`
 - API: `http://127.0.0.1:8000`
-- FastAPI docs: `http://127.0.0.1:8000/docs`
+- API docs: `http://127.0.0.1:8000/docs`
 
 ## macOS / Linux quick start
 
@@ -87,9 +216,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-Then open `http://127.0.0.1:5173`.
-
-## Run manually
+## Manual development
 
 Backend:
 
@@ -99,213 +226,40 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -e '.[dev]'
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+pytest tests -q
+ruff check app tests
 ```
 
-Frontend in another terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## Import an existing local story
-
-The API can import either one supported text file or a directory. Directory imports preserve recognized EmberWriter folders; loose files are placed beneath `manuscript/`.
-
-Example request:
-
-```json
-POST /api/projects/import
-{
-  "source_path": "C:/Writing/MyNovel",
-  "name": "My Novel"
-}
-```
-
-Supported source files are `.md`, `.txt`, `.json`, `.yaml`, and `.yml`. A native graphical folder picker is planned for the desktop packaging pass.
-
-After importing a multi-chapter manuscript, select a model and use **Story memory → Build all**. EmberWriter analyzes chapters in manuscript order, skips files whose content hash is already current, and builds structured memory as it proceeds.
-
-## Narrative Memory Engine
-
-The model does not receive the entire library on every request. EmberWriter maintains a derived narrative state with atomic facts such as:
-
-```text
-[character_knowledge] Jax — knows — the vault key is beneath the chapel
-[relationship] Sera — trusts — Jax
-[object] vault key — held by — Elara
-[thread] western gate prophecy — remains unresolved — true
-```
-
-Each fact keeps its source file, confidence, importance, and chapter order. Character knowledge is deliberately distinct from objective canon so the writer does not casually give one character information only another character learned.
-
-When a manuscript file changes, its previous derived facts are replaced on re-analysis. The original manuscript remains authoritative if an extracted fact is ever wrong or stale.
-
-The Story Memory panel lets you inspect what Ember believes it knows. **Analyze now** forcibly rebuilds the active manuscript file; **Build all** processes every manuscript file while skipping content that has not changed. **Auto memory** runs an idempotent analysis pass after a changed manuscript file has been saved and left idle.
-
-Memory analysis sends manuscript text to whichever model endpoint you configured. Keep Ollama/LM Studio/vLLM local if you want the entire workflow to remain on-device.
-
-## Characters and relationships
-
-The Story Intelligence endpoint derives author-friendly views from the lower-level memory store. Character dossiers under `characters/` are combined with extracted character state and knowledge. The UI shows what a character currently knows separately from objective story facts, which is important for mysteries, secrets, betrayals, reveals, and multi-POV books.
-
-When generation detects a known character name in the author request, selected text, or active scene context, EmberWriter deterministically injects that character's dossier plus their current state, knowledge, and relationship history. This is designed to make dialogue, reactions, flirtation, conflict, and intimacy character-specific instead of relying on generic model defaults.
-
-Relationship facts are exposed as source-aware edges. EmberWriter keeps the history instead of collapsing every relationship into one score: a later scene can therefore reason about how trust, attraction, conflict, loyalty, fear, or intimacy changed and where that change was established.
-
-## Scene Architect
-
-Scene Architect is a planning pass before prose generation. It uses the active manuscript, relevant structured memory, participant-specific knowledge/state, relationship history, project craft profile, book voice, and the author's request to create a JSON scene plan.
-
-A plan includes:
-
-```text
-POV + participants + location
-scene objective + conflict
-opening state
-causal scene beats
-emotional arc
-relationship movement
-reveals
-continuity guardrails
-threads in play
-intimacy/romance notes when relevant
-ending state
-next-scene pressure
-```
-
-Generated plans are saved to `scenes/scene-plan-*.json`. **Send to Writer** converts the plan into a structured prose prompt so the normal Writer can execute the planned scene while the context compiler still supplies canon, character intelligence, craft direction, and memory.
-
-## Prose & Intimacy Craft Engine
-
-The craft engine exists because increasing explicitness is not the same thing as improving a scene. EmberWriter separates **heat**, **tension shape**, and **voice** so the author can control each independently.
-
-### Heat
-
-- **Simmer** — attraction, anticipation, proximity, restraint, subtext, and interrupted choices.
-- **Hot** — unmistakable sustained desire with concrete sensual detail and stronger escalation.
-- **Scorching** — explicit on-page adult intimacy with direct language when requested; no automatic fade-to-black.
-- **Inferno** — maximum requested on-page explicitness supported by the configured model while still prioritizing voice, character psychology, pacing, mutual agency, sensory specificity, and aftermath.
-
-Erotic generation is limited to adult participants and keeps the project's adult/consent baseline. Heat controls do not override that floor.
-
-### Tension curve
-
-- **Slow Burn** — small irreversible steps and delayed release.
-- **Steady Rise** — each beat increases pressure or intimacy.
-- **Pressure Cooker** — restraint, reversals, near-releases, then a break.
-- **Flashpoint** — existing charge ignites quickly; the scene spends more time on consequence and emotional change.
-
-The writer can separately tune sensory intensity, dialogue presence, and POV interiority. This avoids treating every high-heat scene as the same rhythm.
-
-### Project craft rules
-
-`style/craft-profile.json` stores project defaults and author-defined prose direction/avoidances. Examples of useful constraints include close POV, restrained metaphor, sharper verbs, more banter, less explanatory narration, avoiding repetitive body-language clichés, or keeping lore imagery tied to a particular magic system.
-
-## Voice Lab and Voice Lock
-
-Voice Lab analyzes a selected passage or current chapter and writes `style/voice-profile.json`. It extracts reusable technique rather than plot:
-
-```text
-sentence rhythm
-diction / register
-imagery and metaphor habits
-dialogue behavior
-interiority
-POV distance
-sensual / romantic voice
-signature traits
-avoidances
-```
-
-**Voice Lock** injects that compact profile into future writing. The original prose sample does not need to be sent with every request.
-
-The purpose is not sentence copying. It is to keep a book recognizably itself across ordinary dialogue, action, romance, and explicit scenes.
-
-## Craft Pass
-
-Craft Pass is an optional second inference pass after Write, Continue, or Rewrite. The first pass creates the scene; the second behaves as a line editor.
-
-It preserves events, POV, tense, character identity, relationship meaning, adult consent state, and requested intensity while editing for:
-
-- accidental repetitive cadence;
-- generic AI phrasing and filler;
-- over-explanation and repeated emotional labels;
-- precise verbs and concrete sensory detail;
-- character-specific dialogue;
-- spatial clarity;
-- coherent metaphor/lore imagery;
-- purple euphemism when it conflicts with the book voice;
-- clinical detachment when it conflicts with the book voice;
-- intensity that has become mechanical rather than emotional or dramatic.
-
-Craft Pass intentionally costs another model call, so it is optional and visible in the UI.
-
-## Model and context flow
-
-The frontend stores the configured model connection settings and current craft controls in browser local storage. The backend does not persist an API key supplied for an OpenAI-compatible endpoint.
-
-```text
-Author instruction
-       +
-Active manuscript / selection
-       +
-Project settings + author profile
-       +
-Voice Lock + craft profile
-       +
-Heat level + tension curve
-       +
-Recent analyzed chapter summaries
-       +
-Ranked structured narrative memory
-       +
-Detected participant dossiers
-       +
-Character knowledge/state + relationship history
-       +
-Relevant world/story files
-       |
-       v
-Context Compiler / Scene Architect
-       |
-       v
-Model Gateway
-       |
-       +--> Ollama
-       +--> OpenAI-compatible endpoint
-       |
-       +--> optional Craft Pass
-```
-
-Ordinary story-file retrieval is currently lexical. Structured memory adds a second retrieval layer ranked by query matches, continuity importance, confidence, and chapter order. Future retrieval work can add embeddings without changing the project or memory formats.
-
-## Mature fiction behavior
-
-EmberWriter is designed as an adult fiction tool rather than a general-purpose assistant. The generation layer tells compatible models not to sanitize consensual adult intimacy simply because it is explicit. The narrow baseline requires adults for erotic sexual content and does not treat requested non-consensual sexual abuse as erotic generation. This policy is centralized in `backend/app/generation.py` so product behavior can evolve without coupling it to storage or UI code.
-
-## Development
-
-Backend checks:
-
-```bash
-pip install -e './backend[dev]'
-pytest backend/tests -q
-ruff check backend/app backend/tests
-```
-
-Frontend checks:
+Frontend:
 
 ```bash
 cd frontend
 npm install
 npm run build
+npm run dev
 ```
 
-GitHub Actions runs both sets of checks on pull requests.
+GitHub Actions runs backend tests, Ruff, and the production TypeScript/Vite build on pull requests.
 
-## Near-term roadmap
+## Release acceptance standard
 
-Next: editable/correctable canon, relationship history grouping, timeline views, setup/payoff tracking, character-specific voice overrides, scene aftermath/state review, streaming generation, graphical import/recovery, snapshot/history UI, semantic retrieval/embeddings, document export, and native desktop packaging.
+Unit tests are necessary but not sufficient. Before a release is treated as author-ready, EmberWriter is tested against a real author-owned manuscript rather than generated filler.
+
+The formal checklist lives at:
+
+`docs/REAL_MANUSCRIPT_ACCEPTANCE.md`
+
+That gate requires real import, editing, AI, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, compile, and DOCX/EPUB/PDF verification. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
+
+## Product direction
+
+EmberWriter is being built as one integrated author studio rather than disconnected tools:
+
+- Scrivener-class organization and project control;
+- AutoCrit-class editorial analysis and manuscript diagnostics;
+- Ember Story Intelligence and continuity;
+- prose/voice/relationship/intimacy craft;
+- local-first ownership and model choice;
+- professional compile, recovery, and publishing workflows.
+
+The next major track after the v0.7 authoring core is the editorial-analysis engine: manuscript-wide deterministic reports, issue navigation, genre/style benchmarking, and AI-assisted revision layered on top of the stable Binder/document identities already in place.

@@ -7,6 +7,7 @@ from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
 from .generation import build_messages, generate, list_models
 from .memory import build_memory_context
+from .memory_integrity import reconcile_story_memory
 from .models import (
     ContextRequest,
     ContextResponse,
@@ -98,6 +99,7 @@ async def models(payload: ProviderConfig) -> dict:
 @router.post("/projects/{slug}/context", response_model=ContextResponse)
 def context(slug: str, payload: ContextRequest) -> ContextResponse:
     try:
+        reconcile_story_memory(slug)
         compiled, files = compile_context(
             slug,
             prompt=payload.prompt,
@@ -133,6 +135,7 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
 @router.post("/projects/{slug}/generate", response_model=GenerateResponse)
 async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse:
     try:
+        reconcile_story_memory(slug)
         context_text, context_files = compile_context(
             slug,
             prompt=payload.prompt,
