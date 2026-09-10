@@ -15,6 +15,7 @@ export type RichEditorHandle = {
   getSelectedText: () => string
   replaceSelection: (text: string) => void
   insertAtEnd: (text: string) => void
+  findAndSelect: (text: string) => boolean
   focus: () => void
 }
 
@@ -124,6 +125,48 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       if (!editor) return
       const end = editor.state.doc.content.size
       editor.chain().focus().insertContentAt(end, htmlFromMarkdown(text)).run()
+    },
+    findAndSelect(text: string) {
+      if (!editor || !text.trim()) return false
+      const root = editor.view.dom
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+      const segments: { node: Node; start: number; end: number }[] = []
+      let haystack = ''
+      let currentNode = walker.nextNode()
+      while (currentNode) {
+        const value = currentNode.textContent || ''
+        const start = haystack.length
+        haystack += value
+        segments.push({ node: currentNode, start, end: haystack.length })
+        currentNode = walker.nextNode()
+      }
+
+      const candidates = [
+        text.trim(),
+        text.trim().split(/\s+/).slice(0, 8).join(' '),
+        text.trim().split(/\s+/).slice(0, 4).join(' '),
+      ].filter((value, index, items) => value.length >= 2 && items.indexOf(value) === index)
+      let matchStart = -1
+      let matchText = ''
+      for (const candidate of candidates) {
+        matchStart = haystack.indexOf(candidate)
+        if (matchStart >= 0) {
+          matchText = candidate
+          break
+        }
+      }
+      if (matchStart < 0) return false
+      const matchEnd = matchStart + matchText.length
+      const startSegment = segments.find((segment) => matchStart >= segment.start && matchStart <= segment.end)
+      const endSegment = segments.find((segment) => matchEnd >= segment.start && matchEnd <= segment.end)
+      if (!startSegment || !endSegment) return false
+
+      const startOffset = Math.max(0, matchStart - startSegment.start)
+      const endOffset = Math.max(0, matchEnd - endSegment.start)
+      const from = editor.view.posAtDOM(startSegment.node, startOffset)
+      const to = editor.view.posAtDOM(endSegment.node, endOffset)
+      editor.chain().focus().setTextSelection({ from, to }).scrollIntoView().run()
+      return true
     },
     focus() {
       editor?.commands.focus()
