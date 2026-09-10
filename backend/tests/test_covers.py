@@ -4,10 +4,11 @@ import io
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from PIL import Image
 from pypdf import PdfReader
 
-from app import covers, storage
+from app import covers, routes_cover, storage
 from app.cover_models import CoverProfile
 
 
@@ -122,6 +123,20 @@ def test_cover_asset_upload_is_image_checked_and_project_scoped(tmp_path: Path) 
         covers.save_cover_asset(slug, "fake.png", b"not an image")
 
 
+def test_cover_asset_preview_is_confined_to_project_cover_assets(tmp_path: Path) -> None:
+    slug = use_temp_data(tmp_path)
+    asset = covers.save_cover_asset(slug, "preview.png", png_bytes((800, 1200), "#294663"))
+
+    response = routes_cover.view_asset(slug, asset.relative_path)
+    assert Path(response.path).resolve() == (storage.project_root(slug) / asset.relative_path).resolve()
+
+    outside = storage.project_root(slug) / "project.json"
+    assert outside.is_file()
+    with pytest.raises(HTTPException) as exc:
+        routes_cover.view_asset(slug, "project.json")
+    assert exc.value.status_code == 404
+
+
 def test_print_cover_export_produces_single_page_full_wrap_pdf(tmp_path: Path) -> None:
     slug = use_temp_data(tmp_path)
     profile = CoverProfile(
@@ -148,6 +163,7 @@ def test_print_cover_export_produces_single_page_full_wrap_pdf(tmp_path: Path) -
     assert len(pdf.pages) == 1
     assert float(page.mediabox.width) / 72 == pytest.approx(result.geometry.cover_width, abs=0.01)
     assert float(page.mediabox.height) / 72 == pytest.approx(result.geometry.cover_height, abs=0.01)
+    assert any(issue.code == "platform-proof-required" for issue in result.validation.issues)
     text = page.extract_text() or ""
     assert "The Ember Cover" in text
     assert "A. Writer" in text
@@ -207,7 +223,7 @@ def test_ebook_artwork_opacity_is_applied_to_export(tmp_path: Path) -> None:
     slug = use_temp_data(tmp_path)
     asset = covers.save_cover_asset(slug, "red.png", png_bytes((625, 1000), "#ff0000"))
     profile = CoverProfile(
-        title="",
+        title="Opacity Test",
         platform="kdp_ebook",
         ebook_width_px=625,
         ebook_height_px=1000,
@@ -215,7 +231,6 @@ def test_ebook_artwork_opacity_is_applied_to_export(tmp_path: Path) -> None:
         artwork_path=asset.relative_path,
         artwork_opacity=0.5,
     )
-    profile.title = "Opacity Test"
 
     result = covers.export_cover(slug, profile)
     png_artifact = next(item for item in result.artifacts if item.format == "png")
