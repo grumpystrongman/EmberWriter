@@ -9,6 +9,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 
+import ReviewPanel, { type ReviewAnnotation } from './ReviewPanel'
 import './editor.css'
 
 export type RichEditorHandle = {
@@ -110,13 +111,58 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     editor?.setEditable(!disabled)
   }, [disabled, editor])
 
+  function selectedText() {
+    if (!editor) return ''
+    const { from, to } = editor.state.selection
+    if (from === to) return ''
+    return editor.state.doc.textBetween(from, to, '\n')
+  }
+
+  function selectText(text: string) {
+    if (!editor || !text.trim()) return false
+    const root = editor.view.dom
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    const segments: { node: Node; start: number; end: number }[] = []
+    let haystack = ''
+    let currentNode = walker.nextNode()
+    while (currentNode) {
+      const value = currentNode.textContent || ''
+      const start = haystack.length
+      haystack += value
+      segments.push({ node: currentNode, start, end: haystack.length })
+      currentNode = walker.nextNode()
+    }
+
+    const candidates = [
+      text.trim(),
+      text.trim().split(/\s+/).slice(0, 8).join(' '),
+      text.trim().split(/\s+/).slice(0, 4).join(' '),
+    ].filter((value, index, items) => value.length >= 2 && items.indexOf(value) === index)
+    let matchStart = -1
+    let matchText = ''
+    for (const candidate of candidates) {
+      matchStart = haystack.indexOf(candidate)
+      if (matchStart >= 0) {
+        matchText = candidate
+        break
+      }
+    }
+    if (matchStart < 0) return false
+    const matchEnd = matchStart + matchText.length
+    const startSegment = segments.find((segment) => matchStart >= segment.start && matchStart <= segment.end)
+    const endSegment = segments.find((segment) => matchEnd >= segment.start && matchEnd <= segment.end)
+    if (!startSegment || !endSegment) return false
+
+    const startOffset = Math.max(0, matchStart - startSegment.start)
+    const endOffset = Math.max(0, matchEnd - endSegment.start)
+    const from = editor.view.posAtDOM(startSegment.node, startOffset)
+    const to = editor.view.posAtDOM(endSegment.node, endOffset)
+    editor.chain().focus().setTextSelection({ from, to }).scrollIntoView().run()
+    return true
+  }
+
   useImperativeHandle(ref, () => ({
-    getSelectedText() {
-      if (!editor) return ''
-      const { from, to } = editor.state.selection
-      if (from === to) return ''
-      return editor.state.doc.textBetween(from, to, '\n')
-    },
+    getSelectedText: selectedText,
     replaceSelection(text: string) {
       if (!editor) return
       editor.chain().focus().insertContent(htmlFromMarkdown(text)).run()
@@ -126,54 +172,22 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       const end = editor.state.doc.content.size
       editor.chain().focus().insertContentAt(end, htmlFromMarkdown(text)).run()
     },
-    findAndSelect(text: string) {
-      if (!editor || !text.trim()) return false
-      const root = editor.view.dom
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-      const segments: { node: Node; start: number; end: number }[] = []
-      let haystack = ''
-      let currentNode = walker.nextNode()
-      while (currentNode) {
-        const value = currentNode.textContent || ''
-        const start = haystack.length
-        haystack += value
-        segments.push({ node: currentNode, start, end: haystack.length })
-        currentNode = walker.nextNode()
-      }
-
-      const candidates = [
-        text.trim(),
-        text.trim().split(/\s+/).slice(0, 8).join(' '),
-        text.trim().split(/\s+/).slice(0, 4).join(' '),
-      ].filter((value, index, items) => value.length >= 2 && items.indexOf(value) === index)
-      let matchStart = -1
-      let matchText = ''
-      for (const candidate of candidates) {
-        matchStart = haystack.indexOf(candidate)
-        if (matchStart >= 0) {
-          matchText = candidate
-          break
-        }
-      }
-      if (matchStart < 0) return false
-      const matchEnd = matchStart + matchText.length
-      const startSegment = segments.find((segment) => matchStart >= segment.start && matchStart <= segment.end)
-      const endSegment = segments.find((segment) => matchEnd >= segment.start && matchEnd <= segment.end)
-      if (!startSegment || !endSegment) return false
-
-      const startOffset = Math.max(0, matchStart - startSegment.start)
-      const endOffset = Math.max(0, matchEnd - endSegment.start)
-      const from = editor.view.posAtDOM(startSegment.node, startOffset)
-      const to = editor.view.posAtDOM(endSegment.node, endOffset)
-      editor.chain().focus().setTextSelection({ from, to }).scrollIntoView().run()
-      return true
-    },
+    findAndSelect: selectText,
     focus() {
       editor?.commands.focus()
     },
   }), [editor])
 
   if (!editor) return <div className="rich-editor-loading">Opening editor…</div>
+
+  const separator = documentKey.indexOf(':')
+  const projectSlug = separator >= 0 ? documentKey.slice(0, separator) : ''
+  const activePath = separator >= 0 ? documentKey.slice(separator + 1) : ''
+
+  function openAnnotation(annotation: ReviewAnnotation) {
+    if (annotation.stale) return
+    selectText(annotation.anchor_text)
+  }
 
   return (
     <div className="rich-editor-shell">
@@ -208,6 +222,17 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
         <span className="editor-count">{editor.storage.characterCount.words().toLocaleString()} words</span>
       </div>
       <EditorContent editor={editor} className="editor-scroll" />
+      {projectSlug && activePath && (
+        <ReviewPanel
+          apiBase="http://127.0.0.1:8000/api"
+          slug={projectSlug}
+          activePath={activePath}
+          disabled={disabled}
+          refreshToken={0}
+          getSelectedText={selectedText}
+          onOpen={openAnnotation}
+        />
+      )}
     </div>
   )
 })

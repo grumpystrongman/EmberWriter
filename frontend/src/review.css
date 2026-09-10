@@ -1,0 +1,120 @@
+.review-panel > summary {
+  color: #ddb58e;
+}
+
+.review-body {
+  gap: 0.62rem;
+}
+
+.review-compose {
+  display: grid;
+  gap: 0.42rem;
+  padding: 0.52rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.review-compose-row {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 0.4rem;
+}
+
+.review-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.review-toggle input {
+  width: auto;
+}
+
+.review-list {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.review-card {
+  display: grid;
+  gap: 0.34rem;
+  padding: 0.48rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.review-card.stale {
+  border-style: dashed;
+  border-color: rgba(205, 91, 71, 0.55);
+}
+
+.review-card.status-resolved,
+.review-card.status-dismissed {
+  opacity: 0.7;
+}
+
+.review-card header,
+.review-card footer {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.review-card header {
+  color: var(--muted);
+  font-size: 0.54rem;
+}
+
+.review-card header b {
+  padding: 0.08rem 0.24rem;
+  border-radius: 999px;
+  background: rgba(205, 91, 71, 0.12);
+  color: #e8a492;
+  font-size: 0.48rem;
+  text-transform: uppercase;
+}
+
+.review-kind {
+  padding: 0.09rem 0.28rem;
+  border-radius: 999px;
+  background: rgba(230, 197, 135, 0.08);
+  color: #e6c587;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.49rem;
+}
+
+.review-anchor {
+  width: 100%;
+  padding: 0.36rem 0.42rem;
+  border: 1px solid rgba(230, 197, 135, 0.16);
+  background: rgba(230, 197, 135, 0.035);
+  color: #d9c5ae;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.61rem;
+  line-height: 1.45;
+}
+
+.review-card p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.62rem;
+  line-height: 1.48;
+  white-space: pre-wrap;
+}
+
+.review-card footer button {
+  font-size: 0.52rem;
+}
+
+@media (max-width: 1200px) {
+  .review-compose-row {
+    grid-template-columns: 1fr;
+  }
+}
