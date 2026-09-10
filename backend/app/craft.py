@@ -70,7 +70,15 @@ CURVE_GUIDANCE = {
 }
 
 
+def _require_project(slug: str) -> Path:
+    root = project_root(slug)
+    if not (root / "project.json").exists():
+        raise FileNotFoundError(slug)
+    return root
+
+
 def _read_json(slug: str, path: str) -> dict[str, Any] | None:
+    _require_project(slug)
     try:
         raw = read_text(slug, path)
     except (FileNotFoundError, OSError, ValueError):
@@ -90,6 +98,7 @@ def get_craft_profile(slug: str) -> CraftProfile:
 
 
 def save_craft_profile(slug: str, profile: CraftProfile) -> CraftProfile:
+    _require_project(slug)
     save_text(slug, CRAFT_PROFILE_PATH, json.dumps(profile.model_dump(), indent=2, ensure_ascii=False))
     return profile
 
@@ -105,6 +114,7 @@ def get_voice_profile(slug: str) -> VoiceProfile | None:
 
 
 def save_voice_profile(slug: str, profile: VoiceProfile) -> VoiceProfile:
+    _require_project(slug)
     save_text(slug, VOICE_PROFILE_PATH, json.dumps(profile.model_dump(), indent=2, ensure_ascii=False))
     return profile
 
@@ -167,13 +177,15 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     cleaned = text.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.removeprefix("```json").removeprefix("```")
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
+        cleaned = cleaned.removesuffix("```")
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start < 0 or end <= start:
         raise ValueError("Voice Lab did not return a JSON object")
-    payload = json.loads(cleaned[start : end + 1])
+    try:
+        payload = json.loads(cleaned[start : end + 1])
+    except json.JSONDecodeError as exc:
+        raise ValueError("Voice Lab returned invalid JSON") from exc
     if not isinstance(payload, dict):
         raise TypeError("Voice Lab returned an invalid payload")
     return payload
@@ -185,6 +197,7 @@ async def analyze_voice(
     provider: ProviderConfig,
     profile_name: str,
 ) -> VoiceProfile:
+    _require_project(slug)
     user_message = f"""PROFILE NAME: {profile_name}
 
 Return this JSON shape:
@@ -249,7 +262,7 @@ DRAFT TO LINE-EDIT
 
 
 def craft_files(slug: str) -> list[str]:
-    root = project_root(slug)
+    root = _require_project(slug)
     return [
         path
         for path in (CRAFT_PROFILE_PATH, VOICE_PROFILE_PATH)
