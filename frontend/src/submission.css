@@ -1,0 +1,171 @@
+.submission-panel > summary {
+  color: #d9b8e8;
+}
+
+.submission-body,
+.submission-materials,
+.submission-history {
+  gap: 0.62rem;
+}
+
+.submission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.submission-grid label,
+.submission-materials label,
+.submission-notes,
+.submission-history label {
+  display: grid;
+  gap: 0.22rem;
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.submission-wide {
+  grid-column: 1 / -1;
+}
+
+.submission-materials {
+  display: grid;
+}
+
+.submission-materials label {
+  position: relative;
+}
+
+.submission-materials label > button {
+  position: absolute;
+  top: -0.1rem;
+  right: 0;
+  padding: 0.18rem 0.35rem;
+  font-size: 0.5rem;
+}
+
+.submission-materials textarea,
+.submission-notes textarea {
+  resize: vertical;
+}
+
+.submission-target-toolbar,
+.submission-actions,
+.submission-requirements {
+  display: flex;
+  gap: 0.38rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.submission-target-toolbar select {
+  flex: 1 1 14rem;
+}
+
+.submission-target-card {
+  display: grid;
+  gap: 0.52rem;
+  padding: 0.58rem;
+  border: 1px solid rgba(217, 184, 232, 0.3);
+  border-radius: 9px;
+  background: rgba(217, 184, 232, 0.025);
+}
+
+.submission-requirements label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  color: var(--muted);
+  font-size: 0.55rem;
+}
+
+.submission-requirements input {
+  width: auto;
+}
+
+.submission-validation {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.submission-validation.valid {
+  border-color: rgba(116, 173, 132, 0.45);
+  background: rgba(80, 137, 94, 0.07);
+}
+
+.submission-validation.invalid {
+  border-color: rgba(205, 91, 71, 0.5);
+  background: rgba(160, 55, 45, 0.08);
+}
+
+.submission-validation > strong {
+  color: var(--text);
+  font-size: 0.66rem;
+}
+
+.submission-validation > small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.submission-issue b {
+  font-size: 0.49rem;
+}
+
+.submission-actions button {
+  flex: 1 1 12rem;
+}
+
+.submission-history {
+  display: grid;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.submission-history > summary {
+  color: #d8bc8e;
+  cursor: pointer;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.submission-history article {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr repeat(3, 0.9fr);
+  gap: 0.38rem;
+  align-items: end;
+  padding: 0.42rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.submission-history article > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.submission-history article strong {
+  color: var(--text);
+  font-size: 0.58rem;
+  text-transform: capitalize;
+}
+
+.submission-history article small {
+  color: var(--muted);
+  font-size: 0.48rem;
+  word-break: break-all;
+}
+
+@media (max-width: 1200px) {
+  .submission-grid,
+  .submission-history article {
+    grid-template-columns: 1fr;
+  }
+
+  .submission-wide {
+    grid-column: auto;
+  }
+}
