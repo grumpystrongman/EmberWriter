@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import type { BinderState } from './BinderPanel'
-
 type ProjectCheckpoint = {
   id: string
   created_at: string
@@ -22,8 +20,6 @@ type Props = {
   apiBase: string
   slug: string
   disabled: boolean
-  refreshToken: number
-  onRestored: (binder: BinderState) => Promise<void>
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -43,7 +39,7 @@ function timeLabel(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
-export default function ProjectHistoryPanel({ apiBase, slug, disabled, refreshToken, onRestored }: Props) {
+export default function ProjectHistoryPanel({ apiBase, slug, disabled }: Props) {
   const [items, setItems] = useState<ProjectCheckpoint[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [label, setLabel] = useState('')
@@ -69,7 +65,7 @@ export default function ProjectHistoryPanel({ apiBase, slug, disabled, refreshTo
       })
       .catch((cause) => { if (!cancelled) setError((cause as Error).message) })
     return () => { cancelled = true }
-  }, [apiBase, slug, refreshToken])
+  }, [apiBase, slug])
 
   async function createCheckpoint() {
     if (!label.trim() || busy) return
@@ -109,13 +105,10 @@ export default function ProjectHistoryPanel({ apiBase, slug, disabled, refreshTo
     setBusy(true)
     setError('')
     try {
-      const result = await request<{ binder: BinderState }>(`${apiBase}/projects/${slug}/project-checkpoints/${selectedId}/restore`, { method: 'POST' })
-      await onRestored(result.binder)
-      setComparison(null)
-      await refresh()
+      await request(`${apiBase}/projects/${slug}/project-checkpoints/${selectedId}/restore`, { method: 'POST' })
+      window.location.reload()
     } catch (cause) {
       setError((cause as Error).message)
-    } finally {
       setBusy(false)
     }
   }
