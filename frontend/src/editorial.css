@@ -16,7 +16,8 @@
 }
 
 .editorial-scope button.active,
-.editorial-config-actions button.active {
+.editorial-config-actions button.active,
+.reader-personas button.active {
   border-color: rgba(224, 114, 68, 0.7);
   background: rgba(224, 114, 68, 0.16);
   color: #f3b081;
@@ -225,6 +226,207 @@
 
 .editorial-finding-actions button {
   font-size: 0.6rem;
+}
+
+.reader-panel-inner,
+.knowledge-panel {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.reader-panel-heading,
+.reader-progress,
+.reader-score {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.reader-panel-heading,
+.reader-progress > div {
+  display: grid;
+}
+
+.reader-panel-heading small,
+.reader-progress small,
+.reader-progress span,
+.knowledge-panel summary small {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.reader-personas,
+.knowledge-actions,
+.knowledge-search-row {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.reader-personas button {
+  flex: 1 1 7rem;
+}
+
+.reader-progress {
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.reader-verdict,
+.reader-chapter-notes article,
+.knowledge-results article,
+.knowledge-sources article,
+.grammar-review article {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.reader-verdict p,
+.reader-chapter-notes p,
+.knowledge-results p,
+.grammar-review p {
+  margin: 0;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.reader-score strong {
+  color: #f1ad7c;
+  font-size: 1rem;
+}
+
+.reader-score span,
+.reader-list,
+.reader-verdict small,
+.reader-chapter-notes small,
+.knowledge-results small,
+.grammar-review small,
+.knowledge-sources small {
+  color: var(--muted);
+  font-size: 0.6rem;
+  line-height: 1.4;
+}
+
+.reader-list {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.reader-list strong {
+  color: #d9a37d;
+}
+
+.reader-mini-scores {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.reader-mini-scores span {
+  padding: 0.18rem 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+
+.reader-chapter-notes article.stale,
+.knowledge-sources article.source-error {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.knowledge-panel > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #f2c09b;
+  cursor: pointer;
+}
+
+.knowledge-body,
+.knowledge-vector-settings,
+.grammar-review,
+.knowledge-results,
+.knowledge-sources {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.knowledge-search-row input {
+  flex: 1 1 12rem;
+}
+
+.knowledge-actions button {
+  flex: 1 1 8rem;
+  font-size: 0.6rem;
+}
+
+.knowledge-vector-settings {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.knowledge-vector-settings label,
+.knowledge-sources article {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.knowledge-semantic-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.knowledge-semantic-toggle input {
+  width: auto;
+}
+
+.knowledge-answer {
+  padding: 0.55rem;
+  border-left: 3px solid rgba(224, 114, 68, 0.55);
+  background: rgba(224, 114, 68, 0.07);
+  color: #e8d8cb;
+  font-size: 0.67rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.grammar-review blockquote {
+  margin: 0;
+  color: #e6d4c7;
+  font-family: Georgia, serif;
+  font-size: 0.68rem;
+}
+
+.knowledge-results,
+.knowledge-sources {
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.knowledge-results a,
+.knowledge-sources a {
+  color: #d99a70;
+  font-size: 0.6rem;
+}
+
+.knowledge-results strong,
+.knowledge-sources strong,
+.grammar-review > strong {
+  color: #e8d8cb;
+  font-size: 0.68rem;
 }
 
 @media (max-width: 1200px) {
