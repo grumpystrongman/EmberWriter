@@ -1,0 +1,204 @@
+.craft-panel {
+  margin-top: 18px;
+  border-top: 1px solid #312824;
+}
+
+.craft-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 8px;
+  color: #e2d8d3;
+  font-weight: 750;
+}
+
+.craft-panel > summary small {
+  margin-left: auto;
+  color: #8c7f79;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.craft-caption {
+  margin-bottom: 10px;
+  color: #8d817c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.heat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.heat-grid button {
+  text-align: left;
+  padding: 8px 9px;
+}
+
+.heat-grid button strong,
+.heat-grid button small {
+  display: block;
+}
+
+.heat-grid button strong {
+  font-size: 11px;
+}
+
+.heat-grid button small {
+  margin-top: 2px;
+  color: #8d817c;
+  font-size: 9px;
+}
+
+.heat-grid button.active {
+  background: #6a3022;
+  color: #ffd8c9;
+  border-color: #aa5639;
+}
+
+.heat-grid button.active small {
+  color: #e8aa94;
+}
+
+.craft-label {
+  display: block;
+  margin: 12px 0 6px;
+  color: #8d817c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.craft-ranges {
+  margin: 11px 0;
+  display: grid;
+  gap: 7px;
+}
+
+.craft-range {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 10px;
+  align-items: center;
+  color: #a89b95;
+  font-size: 10px;
+}
+
+.craft-range > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.craft-range small {
+  color: #716661;
+}
+
+.craft-range input[type="range"] {
+  height: auto;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  accent-color: #d6643e;
+}
+
+.craft-toggle {
+  margin: 7px 0 !important;
+}
+
+.voice-lab,
+.project-craft {
+  margin-top: 10px;
+  border: 1px solid #342a27;
+  border-radius: 8px;
+  background: #1b1615;
+  padding: 0 9px 9px;
+}
+
+.voice-lab > summary,
+.project-craft > summary {
+  color: #b8aaa4;
+  font-weight: 700;
+}
+
+.voice-lab label,
+.project-craft label {
+  display: block;
+  margin: 8px 0 5px;
+  color: #837772;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.voice-learn-button {
+  width: 100%;
+  margin-top: 7px;
+  font-size: 10px;
+}
+
+.craft-hint {
+  display: block;
+  margin-top: 6px;
+  color: #766b66;
+  line-height: 1.35;
+}
+
+.voice-card {
+  margin-top: 9px;
+  padding: 9px;
+  border: 1px solid #3d302b;
+  border-radius: 7px;
+  background: #211a18;
+}
+
+.voice-card > strong {
+  color: #f0ded6;
+}
+
+.voice-card p {
+  margin: 5px 0 8px;
+  color: #b5a8a2;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.voice-card div {
+  margin-top: 5px;
+  color: #9b8e88;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.voice-card div span {
+  display: block;
+  color: #6f6560;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.voice-card > small {
+  display: block;
+  margin-top: 7px;
+  color: #c18c79;
+  line-height: 1.4;
+}
+
+.project-craft textarea {
+  min-height: 84px;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.project-craft label small {
+  color: #665d59;
+  font-weight: 500;
+}
+
+.save-craft {
+  width: 100%;
+  margin-top: 8px;
+}
