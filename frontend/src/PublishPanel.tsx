@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 
+import ProjectHistoryPanel from './ProjectHistoryPanel'
+
 type Artifact = {
   format: 'docx' | 'epub' | 'pdf'
   filename: string
@@ -47,7 +49,7 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
   const [error, setError] = useState('')
 
   const selectedFormats = useMemo(
-    () => (Object.entries(formats).filter(([, enabled]) => enabled).map(([format]) => format)),
+    () => Object.entries(formats).filter(([, enabled]) => enabled).map(([format]) => format),
     [formats],
   )
 
@@ -77,52 +79,55 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
   }
 
   return (
-    <details className="authoring-panel">
-      <summary>Compile & Publish <small>EPUB · DOCX · PDF</small></summary>
-      <div className="authoring-panel-body">
-        <label>Book title</label>
-        <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled || busy} />
-        <label>Author</label>
-        <input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Author / pen name" disabled={disabled || busy} />
-        <div className="publish-grid">
-          <label>Language<input value={language} onChange={(event) => setLanguage(event.target.value)} disabled={disabled || busy} /></label>
-          <label>Trim width<input type="number" min="4" max="8.5" step="0.125" value={trimWidth} onChange={(event) => setTrimWidth(Number(event.target.value))} disabled={disabled || busy} /></label>
-          <label>Trim height<input type="number" min="6" max="11.7" step="0.125" value={trimHeight} onChange={(event) => setTrimHeight(Number(event.target.value))} disabled={disabled || busy} /></label>
-        </div>
-        <div className="publish-formats">
-          {(['epub', 'docx', 'pdf'] as const).map((format) => (
-            <label key={format}>
-              <input
-                type="checkbox"
-                checked={formats[format]}
-                onChange={(event) => setFormats((current) => ({ ...current, [format]: event.target.checked }))}
-                disabled={disabled || busy}
-              />
-              {format.toUpperCase()}
-            </label>
-          ))}
-          <label><input type="checkbox" checked={includeToc} onChange={(event) => setIncludeToc(event.target.checked)} disabled={disabled || busy} />EPUB TOC</label>
-        </div>
-        <button type="button" className="primary" onClick={() => void publish()} disabled={disabled || busy || !title.trim() || selectedFormats.length === 0}>
-          {busy ? 'Compiling…' : 'Build publishing files'}
-        </button>
-        <small className="panel-help">Compile uses Binder order and the Compile checkbox. PDF uses the selected print trim size; EPUB is reflowable for ebook distribution; DOCX is suitable for editorial/submission workflows.</small>
-        {result && (
-          <div className="publish-result">
-            <strong>{result.documents} documents · {result.words.toLocaleString()} words</strong>
-            {result.artifacts.map((artifact) => (
-              <a
-                key={artifact.relative_path}
-                href={`${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(artifact.relative_path)}`}
-                download={artifact.filename}
-              >
-                Download {artifact.filename} <small>{Math.max(1, Math.round(artifact.bytes / 1024)).toLocaleString()} KB</small>
-              </a>
-            ))}
+    <>
+      <ProjectHistoryPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
+      <details className="authoring-panel">
+        <summary>Compile & Publish <small>EPUB · DOCX · PDF</small></summary>
+        <div className="authoring-panel-body">
+          <label>Book title</label>
+          <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled || busy} />
+          <label>Author</label>
+          <input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Author / pen name" disabled={disabled || busy} />
+          <div className="publish-grid">
+            <label>Language<input value={language} onChange={(event) => setLanguage(event.target.value)} disabled={disabled || busy} /></label>
+            <label>Trim width<input type="number" min="4" max="8.5" step="0.125" value={trimWidth} onChange={(event) => setTrimWidth(Number(event.target.value))} disabled={disabled || busy} /></label>
+            <label>Trim height<input type="number" min="6" max="11.7" step="0.125" value={trimHeight} onChange={(event) => setTrimHeight(Number(event.target.value))} disabled={disabled || busy} /></label>
           </div>
-        )}
-        {error && <small className="panel-error">{error}</small>}
-      </div>
-    </details>
+          <div className="publish-formats">
+            {(['epub', 'docx', 'pdf'] as const).map((format) => (
+              <label key={format}>
+                <input
+                  type="checkbox"
+                  checked={formats[format]}
+                  onChange={(event) => setFormats((current) => ({ ...current, [format]: event.target.checked }))
+                  disabled={disabled || busy}
+                />
+                {format.toUpperCase()}
+              </label>
+            ))}
+            <label><input type="checkbox" checked={includeToc} onChange={(event) => setIncludeToc(event.target.checked)} disabled={disabled || busy} />EPUB TOC</label>
+          </div>
+          <button type="button" className="primary" onClick={() => void publish()} disabled={disabled || busy || !title.trim() || selectedFormats.length === 0}>
+            {busy ? 'Compiling…' : 'Build publishing files'}
+          </button>
+          <small className="panel-help">Compile uses Binder order and the Compile checkbox. PDF uses the selected print trim size; EPUB is reflowable for ebook distribution; DOCX is suitable for editorial/submission workflows.</small>
+          {result && (
+            <div className="publish-result">
+              <strong>{result.documents} documents · {result.words.toLocaleString()} words</strong>
+              {result.artifacts.map((artifact) => (
+                <a
+                  key={artifact.relative_path}
+                  href={`${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(artifact.relative_path)}`}
+                  download={artifact.filename}
+                >
+                  Download {artifact.filename} <small>{Math.max(1, Math.round(artifact.bytes / 1024)).toLocaleString()} KB</small>
+                </a>
+              ))}
+            </div>
+          )}
+          {error && <small className="panel-error">{error}</small>}
+        </div>
+      </details>
+    </>
   )
 }
