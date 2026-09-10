@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from app import board, storage
+from app import board, project_history, storage
 from app.board_models import BoardItemCreate, BoardItemUpdate
 
 
@@ -66,21 +66,27 @@ def test_uploaded_board_asset_is_owned_by_manuscript(tmp_path: Path) -> None:
         board.board_asset_path(first["slug"], "../project.json")
 
 
-def test_removing_board_item_preserves_asset_for_history_restore(tmp_path: Path) -> None:
+def test_project_checkpoint_restores_board_reference_and_preserved_asset(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Board Recovery")
+    slug = project["slug"]
     item = board.store_asset(
-        project["slug"],
+        slug,
         filename="notes.pdf",
         content=b"%PDF-1.4 board reference",
         content_type="application/pdf",
     )
-    asset = board.board_asset_path(project["slug"], item.asset_path)
-    assert asset.exists()
+    asset = board.board_asset_path(slug, item.asset_path)
+    checkpoint = project_history.create_project_checkpoint(slug, "Board arranged")
 
-    board.delete_item(project["slug"], item.id)
+    board.delete_item(slug, item.id)
     assert asset.exists()
-    assert board.load_board(project["slug"]).items == []
+    assert board.load_board(slug).items == []
+
+    project_history.restore_project_checkpoint(slug, checkpoint["id"])
+    restored = board.load_board(slug)
+    assert [entry.id for entry in restored.items] == [item.id]
+    assert board.board_asset_path(slug, restored.items[0].asset_path).read_bytes().startswith(b"%PDF")
 
 
 def test_board_rejects_empty_and_oversize_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
