@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import FilePayload, ProjectCreate, ProjectDetail, ProjectSummary, SearchHit, SearchRequest
+from .importer import import_project
+from .models import FilePayload, ProjectCreate, ProjectDetail, ProjectImport, ProjectSummary, SearchHit, SearchRequest
 from .routes_generation import router as generation_router
 from .storage import (
     create_project,
@@ -43,6 +44,16 @@ def new_project(payload: ProjectCreate) -> dict:
     try:
         return create_project(payload.name, payload.description)
     except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/import", response_model=ProjectDetail)
+def import_local_project(payload: ProjectImport) -> dict:
+    try:
+        return import_project(payload.source_path, payload.name)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Source path was not found") from exc
+    except (OSError, UnicodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
