@@ -4,7 +4,13 @@ import httpx
 from fastapi import APIRouter, HTTPException
 
 from .generation import build_messages, generate, list_models
-from .models import ContextRequest, ContextResponse, GenerateRequest, GenerateResponse, ProviderConfig
+from .models import (
+    ContextRequest,
+    ContextResponse,
+    GenerateRequest,
+    GenerateResponse,
+    ProviderConfig,
+)
 from .storage import compile_context
 
 router = APIRouter(prefix="/api")
