@@ -6,8 +6,9 @@ import math
 import re
 import sqlite3
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 from uuid import uuid4
 
 from .binder import get_binder
@@ -543,7 +544,7 @@ def _passive_voice(source: str, text: str) -> list[dict[str, Any]]:
     pattern = re.compile(rf"\b{be}\b(?:\s+\w+ly)?\s+([A-Za-z][A-Za-z'’-]*)", re.IGNORECASE)
     for match in pattern.finditer(text):
         participle = match.group(1).casefold()
-        if not (participle.endswith("ed") or participle.endswith("en") or participle in IRREGULAR_PARTICIPLES):
+        if not (participle.endswith(("ed", "en")) or participle in IRREGULAR_PARTICIPLES):
             continue
         findings.append(
             _finding(
