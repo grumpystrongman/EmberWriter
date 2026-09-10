@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models import FilePayload, ProjectCreate, ProjectDetail, ProjectSummary, SearchHit, SearchRequest
+from .routes_generation import router as generation_router
 from .storage import (
     create_project,
     get_project,
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(generation_router)
 
 
 @app.get("/api/health")
