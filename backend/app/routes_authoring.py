@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
@@ -48,11 +48,14 @@ class PublishRequest(BaseModel):
     trim_height: float = Field(default=9.0, ge=6.0, le=11.7)
 
 
+UploadMode = Literal["novel", "portion", "idea", "research"]
+
+
 @router.post("/import/files")
 async def upload_files(
     slug: str,
-    files: list[UploadFile] = File(...),
-    mode: Literal["novel", "portion", "idea", "research"] = Form("novel"),
+    files: Annotated[list[UploadFile], File()],
+    mode: Annotated[UploadMode, Form()] = "novel",
 ) -> dict:
     if not files:
         raise HTTPException(status_code=400, detail="Choose at least one file")
@@ -93,7 +96,11 @@ def upload_text(slug: str, payload: PastedImportRequest) -> dict:
 
 
 @router.get("/revisions")
-def revisions(slug: str, path: str = Query(..., min_length=1), limit: int = Query(200, ge=1, le=1000)) -> list[dict]:
+def revisions(
+    slug: str,
+    path: str = Query(..., min_length=1),
+    limit: int = Query(200, ge=1, le=1000),
+) -> list[dict]:
     try:
         return list_revisions(slug, path, limit)
     except FileNotFoundError as exc:
