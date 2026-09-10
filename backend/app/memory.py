@@ -120,7 +120,7 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise ValueError("Memory model returned invalid JSON") from exc
     if not isinstance(payload, dict):
-        raise ValueError("Memory model returned an invalid payload")
+        raise TypeError("Memory model returned an invalid payload")
     return payload
 
 
@@ -253,7 +253,7 @@ def list_memory(
         results.append(item)
 
     results.sort(key=lambda item: (item["score"], item["chapter_order"]), reverse=True)
-    return results[: max(1, min(limit, 200))]
+    return results[: max(1, min(limit, 5000))]
 
 
 def memory_stats(slug: str) -> dict[str, Any]:
@@ -271,18 +271,41 @@ def memory_stats(slug: str) -> dict[str, Any]:
     }
 
 
+def _recent_summaries(slug: str, limit: int = 6) -> list[dict[str, str]]:
+    _ensure_schema(slug)
+    with _connect(slug) as con:
+        rows = [
+            dict(row)
+            for row in con.execute(
+                "SELECT path, summary, analyzed_at FROM document_analysis WHERE summary != ''"
+            ).fetchall()
+        ]
+    rows.sort(key=lambda row: (chapter_order(row["path"]), row["path"]), reverse=True)
+    return rows[:limit]
+
+
 def build_memory_context(slug: str, query: str = "", limit: int = 30) -> str:
     facts = list_memory(slug, query=query, limit=limit)
     if not facts and query:
         facts = list_memory(slug, limit=min(limit, 15))
-    if not facts:
+    summaries = _recent_summaries(slug)
+    if not facts and not summaries:
         return ""
-    lines = ["## Structured narrative memory"]
-    for fact in facts:
-        lines.append(
-            f"- [{fact['kind']}] {fact['subject']} — {fact['predicate']} — {fact['object']} "
-            f"(source: {fact['source_path']}, confidence: {fact['confidence']:.2f})"
-        )
+
+    lines: list[str] = []
+    if summaries:
+        lines.append("## Recent analyzed story")
+        for item in reversed(summaries):
+            lines.append(f"- {item['path']}: {item['summary']}")
+    if facts:
+        if lines:
+            lines.append("")
+        lines.append("## Structured narrative memory")
+        for fact in facts:
+            lines.append(
+                f"- [{fact['kind']}] {fact['subject']} — {fact['predicate']} — {fact['object']} "
+                f"(source: {fact['source_path']}, confidence: {fact['confidence']:.2f})"
+            )
     return "\n".join(lines)
 
 
@@ -299,7 +322,7 @@ def export_memory(slug: str) -> Path:
         "schema_version": 1,
         "generated_at": utc_now(),
         "documents": analyses,
-        "facts": list_memory(slug, limit=200),
+        "facts": list_memory(slug, limit=5000),
     }
     path = project_root(slug) / "summaries" / "narrative-memory.json"
     path.parent.mkdir(parents=True, exist_ok=True)
