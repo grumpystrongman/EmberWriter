@@ -5,7 +5,8 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
-from .storage import _iter_story_files, project_root, read_text, save_text, utc_now
+from .revisions import record_revision
+from .storage import _iter_story_files, project_root, safe_project_path, utc_now
 
 
 def _db_path(slug: str) -> Path:
@@ -184,6 +185,14 @@ def compare_project_checkpoint(slug: str, checkpoint_id: str) -> dict:
     }
 
 
+def _restore_text_exact(slug: str, relative: str, content: str) -> None:
+    path = safe_project_path(slug, relative)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".restore")
+    temp_path.write_text(content, encoding="utf-8")
+    temp_path.replace(path)
+
+
 def restore_project_checkpoint(slug: str, checkpoint_id: str) -> dict:
     checkpoint = get_project_checkpoint(slug, checkpoint_id, include_content=True)
     safety = create_project_checkpoint(
@@ -202,15 +211,26 @@ def restore_project_checkpoint(slug: str, checkpoint_id: str) -> dict:
 
     removed: list[str] = []
     for relative in sorted(current_paths - target_paths):
-        path = root / relative
+        path = safe_project_path(slug, relative)
         if path.is_file():
             path.unlink()
             removed.append(relative)
 
     restored: list[str] = []
     for item in checkpoint["files"]:
-        save_text(slug, item["path"], item["content"])
-        restored.append(item["path"])
+        relative = item["path"]
+        content = item["content"]
+        _restore_text_exact(slug, relative, content)
+        if relative not in {"project.json", "binder.json"}:
+            record_revision(
+                slug,
+                relative,
+                content,
+                source="project_restore",
+                note=f"Restored from project checkpoint {checkpoint_id[:8]}",
+                force=True,
+            )
+        restored.append(relative)
 
     return {
         "restored_checkpoint_id": checkpoint_id,
