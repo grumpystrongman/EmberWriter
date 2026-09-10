@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import BinderPanel, {
+  type BinderNode,
+  type BinderNodeKind,
+  type BinderState,
+} from './BinderPanel'
 import ChemistryPanel, {
   type AftermathProposal,
   type ChemistryProfile,
@@ -46,6 +51,12 @@ type SceneArchitectInput = {
   participants: string[]
   location: string
   desired_heat: string
+}
+
+type BinderCreateInput = {
+  title: string
+  kind: BinderNodeKind
+  parent_id: string | null
 }
 
 type Mode = 'write' | 'continue' | 'rewrite' | 'brainstorm' | 'critic' | 'continuity'
@@ -96,14 +107,40 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+function firstDraftPath(state: BinderState): string {
+  const nodes = new Map(state.nodes.map((node) => [node.id, node]))
+  const draft = state.roots.map((id) => nodes.get(id)).find((node) => node?.title === 'Draft')
+  if (!draft) return ''
+
+  const children = new Map<string, BinderNode[]>()
+  for (const node of state.nodes) {
+    if (!node.parent_id) continue
+    const list = children.get(node.parent_id) || []
+    list.push(node)
+    children.set(node.parent_id, list)
+  }
+  for (const list of children.values()) list.sort((a, b) => a.position - b.position)
+
+  function visit(nodeId: string): string {
+    for (const child of children.get(nodeId) || []) {
+      if (child.path && !child.custom_metadata.source_missing) return child.path
+      const nested = visit(child.id)
+      if (nested) return nested
+    }
+    return ''
+  }
+
+  return visit(draft.id)
+}
+
 function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [binderState, setBinderState] = useState<BinderState | null>(null)
   const [activeFile, setActiveFile] = useState('')
   const [content, setContent] = useState('')
   const [dirty, setDirty] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
-  const [newFilePath, setNewFilePath] = useState('')
   const [prompt, setPrompt] = useState('')
   const [mode, setMode] = useState<Mode>('continue')
   const [output, setOutput] = useState('')
@@ -114,6 +151,7 @@ function App() {
   const [sceneBusy, setSceneBusy] = useState(false)
   const [craftBusy, setCraftBusy] = useState(false)
   const [chemistryBusy, setChemistryBusy] = useState(false)
+  const [binderBusy, setBinderBusy] = useState(false)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [memoryStats, setMemoryStats] = useState<MemoryStats>(emptyMemoryStats)
   const [storyIntelligence, setStoryIntelligence] = useState<StoryIntelligence>(emptyStoryIntelligence)
@@ -141,15 +179,12 @@ function App() {
     () => project?.files.filter((file) => file.startsWith('manuscript/')) ?? [],
     [project],
   )
-  const referenceFiles = useMemo(
-    () => project?.files.filter((file) => !file.startsWith('manuscript/') && file !== 'project.json') ?? [],
-    [project],
-  )
   const characterNames = useMemo(
     () => storyIntelligence.characters.map((character) => character.name),
     [storyIntelligence],
   )
   const modelOccupied = busy || memoryBusy || sceneBusy || craftBusy || chemistryBusy
+  const workspaceBusy = modelOccupied || binderBusy
 
   useEffect(() => {
     void refreshProjects()
@@ -220,6 +255,18 @@ function App() {
     setProject(detail)
   }
 
+  async function refreshBinder(slug = project?.slug): Promise<BinderState | null> {
+    if (!slug) return null
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${slug}/binder`)
+      setBinderState(state)
+      return state
+    } catch (error) {
+      setStatus(`Binder unavailable: ${(error as Error).message}`)
+      return null
+    }
+  }
+
   async function refreshMemory(slug = project?.slug, query = memoryQuery) {
     if (!slug) return
     try {
@@ -268,10 +315,17 @@ function App() {
   async function openProject(slug: string) {
     setStatus('Opening project…')
     try {
-      const detail = await jsonFetch<ProjectDetail>(`${API}/projects/${slug}`)
+      const [detail, binder] = await Promise.all([
+        jsonFetch<ProjectDetail>(`${API}/projects/${slug}`),
+        jsonFetch<BinderState>(`${API}/projects/${slug}/binder`),
+      ])
       setProject(detail)
+      setBinderState(binder)
       setMemoryQuery('')
-      const first = detail.files.find((file) => file.startsWith('manuscript/')) || detail.files[0] || ''
+      const first = firstDraftPath(binder)
+        || detail.files.find((file) => file.startsWith('manuscript/'))
+        || detail.files[0]
+        || ''
       if (first) await openFile(detail.slug, first)
       await Promise.all([
         refreshMemory(detail.slug, ''),
@@ -331,21 +385,102 @@ function App() {
     }
   }
 
-  async function createFile() {
-    if (!project || !newFilePath.trim()) return
-    let path = newFilePath.trim().replaceAll('\\', '/')
-    if (!path.includes('/')) path = `manuscript/${path}`
-    if (!/\.(md|txt|json|ya?ml)$/i.test(path)) path += '.md'
+  async function createBinderNode(input: BinderCreateInput) {
+    if (!project || binderBusy) return
+    setBinderBusy(true)
+    const before = new Set(binderState?.nodes.map((node) => node.id) || [])
     try {
-      await jsonFetch(`${API}/projects/${project.slug}/file?path=${encodeURIComponent(path)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ content: `# ${path.split('/').pop()?.replace(/\.md$/i, '') || 'Untitled'}\n\n` }),
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/nodes`, {
+        method: 'POST',
+        body: JSON.stringify(input),
       })
+      setBinderState(state)
       await refreshProjectDetail(project.slug)
-      setNewFilePath('')
-      await openFile(project.slug, path)
+      const created = state.nodes.find((node) => !before.has(node.id))
+      if (created?.path) await openFile(project.slug, created.path)
+      setStatus(`Added ${input.title} to Binder`)
     } catch (error) {
-      setStatus((error as Error).message)
+      setStatus(`Binder create failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
+    }
+  }
+
+  async function updateBinderNode(nodeId: string, patch: Record<string, unknown>) {
+    if (!project || binderBusy) return
+    setBinderBusy(true)
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/nodes/${nodeId}`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      })
+      setBinderState(state)
+      setStatus('Binder metadata saved')
+    } catch (error) {
+      setStatus(`Binder update failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
+    }
+  }
+
+  async function reorderBinder(parentId: string | null, nodeIds: string[]) {
+    if (!project || binderBusy) return
+    setBinderBusy(true)
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({ parent_id: parentId, node_ids: nodeIds }),
+      })
+      setBinderState(state)
+      setStatus('Binder order updated')
+    } catch (error) {
+      setStatus(`Binder reorder failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
+    }
+  }
+
+  async function trashBinderNode(nodeId: string) {
+    if (!project || binderBusy) return
+    setBinderBusy(true)
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/nodes/${nodeId}/trash`, { method: 'POST' })
+      setBinderState(state)
+      setStatus('Moved Binder item to Trash; source file preserved')
+    } catch (error) {
+      setStatus(`Binder Trash failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
+    }
+  }
+
+  async function restoreBinderNode(nodeId: string) {
+    if (!project || binderBusy) return
+    setBinderBusy(true)
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/nodes/${nodeId}/restore`, { method: 'POST' })
+      setBinderState(state)
+      setStatus('Binder item restored')
+    } catch (error) {
+      setStatus(`Binder restore failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
+    }
+  }
+
+  async function syncBinder() {
+    if (!project || binderBusy) return
+    setBinderBusy(true)
+    setStatus('Synchronizing Binder with project files…')
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/sync`, { method: 'POST' })
+      setBinderState(state)
+      await refreshProjectDetail(project.slug)
+      setStatus('Binder synchronized')
+    } catch (error) {
+      setStatus(`Binder sync failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
     }
   }
 
@@ -669,7 +804,7 @@ function App() {
         <h2>Library</h2>
         <div className="create-row">
           <input value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="New story project" />
-          <button onClick={() => void createProject()} disabled={modelOccupied || !newProjectName.trim()}>+</button>
+          <button onClick={() => void createProject()} disabled={workspaceBusy || !newProjectName.trim()}>+</button>
         </div>
         <div className="project-list">
           {projects.map((item) => (
@@ -679,20 +814,21 @@ function App() {
           ))}
         </div>
 
-        {project && <>
-          <div className="section-title">Manuscript</div>
-          <nav className="file-list">
-            {manuscriptFiles.map((file) => <button key={file} className={activeFile === file ? 'active' : ''} onClick={() => void openFile(project.slug, file)}>{file.replace('manuscript/', '')}</button>)}
-          </nav>
-          <div className="section-title">Story Bible</div>
-          <nav className="file-list secondary">
-            {referenceFiles.map((file) => <button key={file} className={activeFile === file ? 'active' : ''} onClick={() => void openFile(project.slug, file)}>{file}</button>)}
-          </nav>
-          <div className="create-row file-create">
-            <input value={newFilePath} onChange={(event) => setNewFilePath(event.target.value)} placeholder="characters/name.md" />
-            <button onClick={() => void createFile()}>+</button>
-          </div>
-        </>}
+        {project && binderState && (
+          <BinderPanel
+            state={binderState}
+            activePath={activeFile}
+            disabled={binderBusy}
+            onOpen={(path) => void openFile(project.slug, path)}
+            onCreate={createBinderNode}
+            onUpdate={updateBinderNode}
+            onReorder={reorderBinder}
+            onTrash={trashBinderNode}
+            onRestore={restoreBinderNode}
+            onSync={syncBinder}
+          />
+        )}
+        {project && !binderState && <small>Loading Binder…</small>}
       </aside>
 
       <main className="editor-panel">
