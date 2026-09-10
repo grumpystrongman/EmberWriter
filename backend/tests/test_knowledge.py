@@ -29,6 +29,26 @@ def test_seeded_knowledge_is_source_attributed_and_searchable(tmp_path: Path) ->
     assert all(item["authority"] for item in results)
 
 
+def test_due_source_ids_respect_each_source_refresh_cadence(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    knowledge.ensure_seeded()
+    source_id = "kdp-paperback-cover"
+
+    with knowledge._connect() as con:
+        con.execute(
+            "UPDATE knowledge_sources SET last_checked_at = ?, error = '' WHERE id = ?",
+            ("2000-01-01T00:00:00+00:00", source_id),
+        )
+    assert source_id in knowledge.due_source_ids()
+
+    with knowledge._connect() as con:
+        con.execute(
+            "UPDATE knowledge_sources SET last_checked_at = ?, error = '' WHERE id = ?",
+            (knowledge._now(), source_id),
+        )
+    assert source_id not in knowledge.due_source_ids()
+
+
 @pytest.mark.asyncio
 async def test_live_refresh_replaces_seed_without_reappearing(monkeypatch, tmp_path: Path) -> None:
     use_temp_data(tmp_path)
@@ -128,6 +148,24 @@ async def test_embedding_index_and_semantic_search(monkeypatch, tmp_path: Path) 
     indexed = await knowledge.index_embeddings(config, ["publishing"], force=True)
     assert indexed["chunks_indexed"] > 0
     assert indexed["dimensions"] == 3
+
+    unchanged = await knowledge.index_embeddings(config, ["publishing"], force=False)
+    assert unchanged["chunks_indexed"] == 0
+    assert unchanged["dimensions"] == 3
+
+    with knowledge._connect() as con:
+        row = con.execute(
+            "SELECT id, body FROM knowledge_chunks WHERE category = 'publishing' ORDER BY id LIMIT 1"
+        ).fetchone()
+        new_body = f"{row['body']} Updated requirement text."
+        con.execute(
+            "UPDATE knowledge_chunks SET body = ?, content_hash = ? WHERE id = ?",
+            (new_body, knowledge._digest(new_body), row["id"]),
+        )
+        knowledge._reindex_chunk(con, row["id"])
+
+    changed = await knowledge.index_embeddings(config, ["publishing"], force=False)
+    assert changed["chunks_indexed"] == 1
 
     results = await knowledge.search_knowledge(
         KnowledgeSearchRequest(
