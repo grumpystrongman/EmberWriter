@@ -1,0 +1,131 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #eee7e2;
+  background: #110e0d;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 1100px; min-height: 100vh; background: #110e0d; }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+
+.app-shell {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 260px minmax(520px, 1fr) 360px;
+  grid-template-rows: 52px 1fr;
+  grid-template-areas: "top top top" "library editor assistant";
+  overflow: hidden;
+}
+
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 16px;
+  background: #171211;
+  border-bottom: 1px solid #2c2421;
+}
+.brand { font-weight: 760; letter-spacing: .01em; }
+.ember { color: #eb6d43; margin-right: 7px; }
+.status { margin-left: auto; color: #928783; font-size: 12px; }
+
+.panel { background: #171312; }
+.library { grid-area: library; border-right: 1px solid #2c2421; padding: 16px 12px; overflow-y: auto; }
+.assistant { grid-area: assistant; border-left: 1px solid #2c2421; padding: 18px; overflow-y: auto; }
+.editor-panel { grid-area: editor; background: #1d1816; overflow: hidden; display: flex; flex-direction: column; }
+
+h1, h2, p { margin-top: 0; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: #a99d98; }
+
+input, textarea, select {
+  width: 100%;
+  color: #eee7e2;
+  background: #211b19;
+  border: 1px solid #382e2a;
+  border-radius: 8px;
+  outline: none;
+}
+input, select { height: 36px; padding: 0 10px; }
+textarea { padding: 12px; }
+input:focus, textarea:focus, select:focus { border-color: #8d5139; box-shadow: 0 0 0 2px rgba(235,109,67,.1); }
+
+button {
+  color: #d9cfca;
+  background: #27211e;
+  border: 1px solid #3b312d;
+  border-radius: 7px;
+  padding: 7px 10px;
+}
+button:hover:not(:disabled) { background: #322824; border-color: #564039; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { width: 100%; padding: 10px 14px; background: #bd5432; border-color: #dc6843; color: white; font-weight: 700; }
+button.primary:hover:not(:disabled) { background: #cc5c38; }
+button.quiet { padding: 5px 10px; font-size: 12px; }
+
+.create-row { display: flex; gap: 6px; }
+.create-row button { width: 38px; flex: 0 0 38px; padding: 0; }
+.project-list { display: grid; gap: 6px; margin-top: 12px; }
+.project-card { width: 100%; text-align: left; padding: 10px; background: transparent; border-color: transparent; }
+.project-card strong, .project-card small { display: block; }
+.project-card strong { color: #e8dfdb; font-size: 13px; }
+.project-card small { color: #887d78; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-card.active { background: #2a211e; border-color: #46342e; }
+.section-title { margin: 22px 8px 6px; color: #766c68; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.file-list { display: grid; gap: 1px; }
+.file-list button { text-align: left; padding: 7px 9px; background: transparent; border-color: transparent; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-list button.active { background: #30231f; color: #ffb296; }
+.file-list.secondary button { color: #a99d98; }
+.file-create { margin-top: 12px; }
+.file-create input { font-size: 11px; }
+
+.editor-header { height: 76px; padding: 15px 34px 12px; display: flex; align-items: flex-end; gap: 20px; border-bottom: 1px solid #2b2421; background: #1a1514; }
+.editor-header small { color: #766c68; }
+.editor-header h1 { margin: 2px 0 0; font-size: 16px; font-weight: 650; }
+.word-count { margin-left: auto; color: #766c68; font-size: 11px; }
+.manuscript {
+  flex: 1;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none !important;
+  background: #1d1816;
+  color: #eee8e3;
+  padding: 42px clamp(48px, 8vw, 120px) 120px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  line-height: 1.75;
+}
+
+.empty-state { margin: auto; max-width: 520px; text-align: center; color: #91847f; padding: 40px; }
+.empty-state h1 { color: #eee4df; font-family: Georgia, serif; font-size: 34px; font-weight: 500; }
+.empty-state p { line-height: 1.7; }
+.ember-mark { display: block; color: #eb6d43; font-size: 36px; margin-bottom: 24px; }
+
+.assistant-title { display: flex; align-items: center; margin-bottom: 22px; }
+.assistant-title h2 { margin: 0; color: #eee7e2; font-size: 14px; text-transform: none; letter-spacing: 0; }
+.assistant-title small { color: #817570; }
+.assistant > label, .model-settings label { display: block; margin: 12px 0 6px; color: #857a75; font-size: 11px; font-weight: 700; }
+.mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.mode-grid button { text-transform: capitalize; font-size: 11px; padding: 6px 4px; }
+.mode-grid button.active { background: #603426; color: #ffc0a8; border-color: #8d5139; }
+.prompt { height: 124px; resize: vertical; margin: 14px 0 8px; line-height: 1.45; }
+.result-card { margin-top: 16px; border: 1px solid #3a2e2a; border-radius: 9px; background: #1d1816; overflow: hidden; }
+.result-actions { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid #312824; font-size: 11px; }
+.result-actions span { margin-left: auto; display: flex; gap: 4px; }
+.result-actions button { font-size: 10px; padding: 4px 7px; }
+.result-text { white-space: pre-wrap; max-height: 430px; overflow: auto; padding: 14px; color: #ded4cf; font-family: Georgia, serif; font-size: 14px; line-height: 1.6; }
+details { color: #8f837e; font-size: 11px; }
+details summary { cursor: pointer; padding: 9px 0; }
+.result-card details { border-top: 1px solid #312824; padding: 0 10px 8px; }
+.context-file { padding: 2px 0; color: #766c68; }
+.model-settings { margin-top: 20px; border-top: 1px solid #312824; }
+.model-settings input, .model-settings select { font-size: 12px; }
+
+@media (max-width: 1250px) {
+  .app-shell { grid-template-columns: 220px minmax(500px, 1fr) 320px; }
+  .manuscript { padding-left: 52px; padding-right: 52px; }
+}
