@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 from pathlib import PurePosixPath
-from typing import Any
 from uuid import uuid4
 
 from .binder_models import (
