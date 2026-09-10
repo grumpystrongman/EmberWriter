@@ -74,8 +74,35 @@
   font-weight: 700;
 }
 
+.distribution-subpanel > summary small {
+  margin-left: 0.35rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .distribution-subpanel > .distribution-grid {
   padding: 0 0.56rem 0.56rem;
+}
+
+.contributor-stack {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0 0.56rem 0.56rem;
+}
+
+.contributor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(7rem, 0.85fr) auto;
+  gap: 0.38rem;
+  align-items: center;
+}
+
+.contributor-row button {
+  min-width: 4.6rem;
+}
+
+.contributor-stack > button {
+  justify-self: start;
 }
 
 .distribution-check {
@@ -231,11 +258,16 @@
 }
 
 @media (max-width: 1200px) {
-  .distribution-grid {
+  .distribution-grid,
+  .contributor-row {
     grid-template-columns: 1fr;
   }
 
   .distribution-wide {
     grid-column: auto;
+  }
+
+  .contributor-row button {
+    justify-self: start;
   }
 }
