@@ -5,7 +5,7 @@ import os
 import re
 import shutil
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,7 +15,7 @@ PROJECTS_ROOT = DATA_ROOT / "projects"
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def slugify(value: str) -> str:
@@ -223,7 +223,7 @@ def save_text(slug: str, relative_path: str, content: str) -> dict:
 
     if path.exists():
         snapshot_id = uuid4().hex
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
         snapshot_rel = Path(".ember") / "snapshots" / stamp / relative_path
         snapshot_path = project_root(slug) / snapshot_rel
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
