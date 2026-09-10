@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import zipfile
 from pathlib import Path
@@ -284,3 +283,38 @@ def test_release_paths_cannot_escape_exports_directory(tmp_path: Path) -> None:
 
     assert result.valid is False
     assert any(issue.code.endswith("-invalid") for issue in result.issues)
+
+
+def test_corrupt_or_renamed_release_files_are_rejected_by_content(tmp_path: Path) -> None:
+    slug = use_temp_data(tmp_path)
+    root = storage.project_root(slug)
+    bad_epub = root / "exports" / "bad" / "fake.epub"
+    bad_cover = root / "exports" / "bad" / "fake.jpg"
+    bad_epub.parent.mkdir(parents=True, exist_ok=True)
+    bad_epub.write_bytes(b"this is not an epub")
+    bad_cover.write_bytes(b"this is not a jpeg")
+
+    profile = ReleaseProfile(
+        title="Corrupt Release",
+        author="A. Writer",
+        description="A complete description.",
+        kdp_categories=["Fiction"],
+        editions=[
+            ReleaseEdition(
+                id="ebook",
+                format="ebook",
+                retailers=["kdp"],
+                identifier_mode="none",
+                price=4.99,
+                interior_path=str(bad_epub.relative_to(root)).replace("\\", "/"),
+                cover_path=str(bad_cover.relative_to(root)).replace("\\", "/"),
+            )
+        ],
+    )
+
+    result = distribution.validate_release(slug, profile)
+    messages = " ".join(issue.message for issue in result.issues)
+
+    assert result.valid is False
+    assert "not a valid EPUB container" in messages
+    assert "unreadable" in messages
