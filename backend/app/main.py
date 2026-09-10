@@ -14,6 +14,7 @@ from .models import (
     SearchRequest,
 )
 from .routes_generation import router as generation_router
+from .routes_memory import router as memory_router
 from .storage import (
     create_project,
     get_project,
@@ -25,7 +26,7 @@ from .storage import (
     search_story,
 )
 
-app = FastAPI(title="EmberWriter API", version="0.1.0")
+app = FastAPI(title="EmberWriter API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,11 +36,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(generation_router)
+app.include_router(memory_router)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.1.0"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.2.0"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])

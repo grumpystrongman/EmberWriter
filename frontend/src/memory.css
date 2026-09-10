@@ -1,0 +1,169 @@
+.memory-panel {
+  margin-top: 20px;
+  border-top: 1px solid #312824;
+}
+
+.memory-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 8px;
+  color: #d8cec9;
+  font-weight: 700;
+}
+
+.memory-panel > summary small {
+  margin-left: auto;
+  color: #766c68;
+  font-weight: 500;
+}
+
+.memory-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 34px;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.memory-toolbar button {
+  min-width: 0;
+  font-size: 11px;
+}
+
+.toggle-row {
+  display: flex !important;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 10px 0 12px !important;
+  padding: 9px;
+  border: 1px solid #342a27;
+  border-radius: 8px;
+  background: #1d1816;
+  cursor: pointer;
+}
+
+.toggle-row input {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  accent-color: #bd5432;
+}
+
+.toggle-row span {
+  min-width: 0;
+}
+
+.toggle-row strong,
+.toggle-row small {
+  display: block;
+}
+
+.toggle-row strong {
+  color: #d8cec9;
+  font-size: 11px;
+}
+
+.toggle-row small {
+  color: #786d68;
+  line-height: 1.35;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+.memory-search {
+  height: 34px;
+  font-size: 11px;
+}
+
+.memory-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 10px;
+}
+
+.memory-kinds span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #27201e;
+  color: #817570;
+  font-size: 9px;
+  text-transform: capitalize;
+}
+
+.memory-list {
+  display: grid;
+  gap: 6px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.memory-empty {
+  padding: 12px;
+  border: 1px dashed #3a302c;
+  border-radius: 8px;
+  color: #786d68;
+  line-height: 1.45;
+}
+
+.memory-fact {
+  padding: 9px;
+  border: 1px solid #342a27;
+  border-radius: 8px;
+  background: #1d1816;
+}
+
+.memory-fact-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.memory-kind {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #3a2923;
+  color: #e9a68e;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.importance {
+  margin-left: auto;
+  color: #8a4d37;
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+
+.memory-statement {
+  color: #b9aea9;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.memory-statement strong {
+  color: #e0d6d1;
+  font-weight: 650;
+}
+
+.memory-source {
+  width: 100%;
+  margin-top: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  color: #6f6460;
+  text-align: left;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memory-source:hover {
+  color: #e89a7d;
+}

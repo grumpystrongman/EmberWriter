@@ -1,10 +1,10 @@
 # EmberWriter
 
-EmberWriter is a local-first AI fiction workspace built around durable manuscripts, story memory, continuity, and model choice. The manuscript is the source of truth: readable Markdown/JSON/YAML/text files live on your machine, while SQLite stores derived state such as snapshots and future narrative-memory data.
+EmberWriter is a local-first AI fiction workspace built around durable manuscripts, structured story memory, continuity, and model choice. The manuscript is the source of truth: readable Markdown/JSON/YAML/text files live on your machine, while SQLite stores supplemental state such as snapshots and rebuildable narrative memory.
 
-The first MVP is intentionally model-agnostic. It supports Ollama directly and any OpenAI-compatible local endpoint, including servers such as LM Studio or vLLM.
+EmberWriter is model-agnostic. It supports Ollama directly and any OpenAI-compatible endpoint, including local servers such as LM Studio or vLLM.
 
-## What exists in the MVP
+## What exists in v0.2
 
 - Three-pane authoring workspace: library, manuscript editor, and Ember AI panel.
 - Local projects with manuscript, characters, world, relationships, timeline, scenes, style, and summaries folders.
@@ -12,12 +12,18 @@ The first MVP is intentionally model-agnostic. It supports Ollama directly and a
 - Autosave with automatic pre-save snapshots.
 - Snapshot listing and restore API.
 - Search across the local story library.
-- Context compiler that combines project settings, author style, rolling summary, unresolved threads, active manuscript, selected text, and relevant story files.
+- Context compiler combining project settings, author style, summaries, active manuscript, selected text, relevant story files, and structured narrative memory.
 - AI modes for Write, Continue, Rewrite, Brainstorm, Critic, and Continuity.
 - Ollama and generic OpenAI-compatible model gateways.
-- Model discovery from the configured local server.
+- Model discovery from the configured model server.
 - Import of an existing manuscript file or local story directory through the local API.
 - Windows and macOS/Linux launch scripts.
+- Narrative Memory Engine with source-aware canon, character state, character knowledge, relationships, timeline events, unresolved threads, locations, objects, and abilities.
+- Automatic chapter/scene summaries and content-hash tracking so unchanged chapters are not repeatedly analyzed.
+- Re-analysis replacement semantics: editing a chapter replaces memory derived from that source instead of accumulating stale duplicates.
+- Ranked memory retrieval injected into generation and continuity checks ahead of ordinary text retrieval.
+- Story Memory inspector with search, confidence, importance, source navigation, manual analysis, idle auto-analysis, and whole-manuscript memory building.
+- Readable narrative-memory export at `summaries/narrative-memory.json` so derived state remains inspectable and rebuildable.
 
 ## Project format
 
@@ -37,20 +43,21 @@ EmberWriter/data/projects/my-novel/
 │   └── author-profile.md
 ├── summaries/
 │   ├── rolling-summary.md
-│   └── unresolved-threads.md
+│   ├── unresolved-threads.md
+│   └── narrative-memory.json
 └── .ember/
     ├── story.db
     └── snapshots/
 ```
 
-If the application disappears, the manuscript and story bible still exist as ordinary files. `.ember/story.db` is supplemental state, not the only copy of the work.
+If the application disappears, the manuscript and story bible still exist as ordinary files. `.ember/story.db` is supplemental state, not the only copy of the work. Narrative memory can be rebuilt from the manuscript and is also exported to readable JSON.
 
 ## Requirements
 
 - Python 3.11+
 - Node.js 20+ (22 recommended)
 - npm
-- A local model server if you want AI generation
+- A model server if you want AI generation or automatic memory analysis
 
 For Ollama, start Ollama normally and make sure at least one chat/instruct model is installed. EmberWriter defaults to `http://localhost:11434` and discovers installed models from the server.
 
@@ -102,7 +109,7 @@ npm run dev
 
 ## Import an existing local story
 
-The MVP API can import either one supported text file or a directory. Directory imports preserve recognized EmberWriter folders; loose files are placed beneath `manuscript/`.
+The API can import either one supported text file or a directory. Directory imports preserve recognized EmberWriter folders; loose files are placed beneath `manuscript/`.
 
 Example request:
 
@@ -114,13 +121,32 @@ POST /api/projects/import
 }
 ```
 
-Supported source files are `.md`, `.txt`, `.json`, `.yaml`, and `.yml`. A graphical folder picker is planned for the next UI pass.
+Supported source files are `.md`, `.txt`, `.json`, `.yaml`, and `.yml`. A native graphical folder picker is planned for the desktop packaging pass.
 
-## Model gateway
+After importing a multi-chapter manuscript, select a model and use **Story memory → Build all**. EmberWriter analyzes chapters in manuscript order, skips files whose content hash is already current, and builds structured memory as it proceeds.
 
-The frontend stores only the local model connection settings in browser local storage. The backend does not persist an API key supplied for an OpenAI-compatible endpoint.
+## Narrative Memory Engine
 
-Generation flow:
+The model does not receive the entire library on every request. EmberWriter maintains a derived narrative state with atomic facts such as:
+
+```text
+[character_knowledge] Jax — knows — the vault key is beneath the chapel
+[relationship] Sera — trusts — Jax with the vault-key secret
+[object] vault key — held by — Elara
+[thread] western gate prophecy — remains unresolved — true
+```
+
+Each fact keeps its source file, confidence, importance, and chapter order. Character knowledge is deliberately distinct from objective canon so the writer does not casually give one character information only another character learned.
+
+When a manuscript file changes, its previous derived facts are replaced on re-analysis. The original manuscript remains authoritative if an extracted fact is ever wrong or stale.
+
+The Story Memory panel lets you inspect what Ember believes it knows. **Analyze now** forcibly rebuilds the active manuscript file; **Build all** processes every manuscript file while skipping content that has not changed. **Auto memory** runs an idempotent analysis pass after a changed manuscript file has been saved and left idle.
+
+Memory analysis sends the manuscript text to whichever model endpoint you configured. Keep Ollama/LM Studio/vLLM local if you want the entire workflow to remain on-device.
+
+## Model and context flow
+
+The frontend stores the configured model connection settings in browser local storage. The backend does not persist an API key supplied for an OpenAI-compatible endpoint.
 
 ```text
 Author instruction
@@ -129,7 +155,9 @@ Active manuscript / selection
        +
 Project settings + author profile
        +
-Rolling summary + unresolved threads
+Recent analyzed chapter summaries
+       +
+Ranked structured narrative memory
        +
 Relevant character/world/story files
        |
@@ -140,14 +168,14 @@ Context Compiler
 Model Gateway
        |
        +--> Ollama
-       +--> OpenAI-compatible local server
+       +--> OpenAI-compatible endpoint
 ```
 
-The current retrieval implementation is lexical and deliberately simple. The architecture leaves room for embeddings, knowledge graphs, character-state extraction, relationship state, event timelines, and multi-pass canon analysis without changing the durable project format.
+Ordinary story-file retrieval is currently lexical. Structured memory adds a second retrieval layer ranked by query matches, continuity importance, confidence, and chapter order. Future retrieval work can add embeddings without changing the project or memory formats.
 
 ## Mature fiction behavior
 
-EmberWriter is designed as an adult fiction tool rather than a general-purpose assistant. The generation layer tells compatible models not to sanitize consensual adult intimacy simply because it is explicit. The narrow baseline in the MVP requires adults for erotic sexual content and does not treat requested non-consensual sexual abuse as erotic generation. This policy is centralized in `backend/app/generation.py` so product behavior can evolve without coupling it to storage or UI code.
+EmberWriter is designed as an adult fiction tool rather than a general-purpose assistant. The generation layer tells compatible models not to sanitize consensual adult intimacy simply because it is explicit. The narrow baseline requires adults for erotic sexual content and does not treat requested non-consensual sexual abuse as erotic generation. This policy is centralized in `backend/app/generation.py` so product behavior can evolve without coupling it to storage or UI code.
 
 ## Development
 
@@ -171,4 +199,4 @@ GitHub Actions runs both sets of checks on pull requests.
 
 ## Near-term roadmap
 
-The next high-value work is the Narrative Memory Engine: automatic chapter summarization, canon extraction, character knowledge/state, relationship changes, unresolved setup/payoff tracking, timeline events, and context ranking. After that: richer editor commands, graphical import/recovery, snapshot browser, scene cards, project settings, streaming generation, document export, and native desktop packaging.
+The next product layer is richer story orchestration on top of Narrative Memory: character dossiers, relationship/timeline views, Scene Architect, explicit setup/payoff tracking, snapshot/history UI, streaming generation, native import/recovery, project-level writing controls, document export, semantic retrieval, and native desktop packaging.

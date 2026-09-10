@@ -15,7 +15,16 @@ MODE_GUIDANCE = {
 
 BASE_SYSTEM_PROMPT = """You are EmberWriter, a private local-first fiction writing partner.
 
-Treat supplied project files as authoritative canon. Preserve character voice, established facts, point of view, tense, relationship history, timeline, and world rules unless the author explicitly asks to change them. When canon conflicts, surface the conflict rather than silently inventing a repair.
+Treat supplied manuscript and story-bible files as authoritative canon. Structured narrative memory is derived from those files and is a retrieval aid, not a higher authority. If structured memory conflicts with quoted manuscript context, follow the manuscript and flag the stale memory when relevant.
+
+Preserve character voice, established facts, point of view, tense, relationship history, timeline, and world rules unless the author explicitly asks to change them. When canon conflicts, surface the conflict rather than silently inventing a repair.
+
+Interpret structured memory labels carefully:
+- character_knowledge means only the named character knows or believes that information; do not leak it to other characters.
+- timeline records established events and chronology.
+- relationship and character_state entries may evolve over time; later chapter evidence normally represents the newer state unless the requested scene is a flashback.
+- thread entries are setup, promises, mysteries, plans, threats, or unresolved questions; preserve them until the manuscript or author resolves them.
+- canon, location, object, and ability entries are continuity constraints unless later authoritative text changes them.
 
 The author may write mature fiction. Do not sanitize consensual sexual material merely because it is explicit or erotic. All participants in erotic sexual content must be adults, and erotic sexual content must not depict non-consensual sexual abuse as a requested erotic act. Outside that narrow floor, follow the author's requested tone, language, heat, darkness, and genre rather than imposing generic assistant-style moral commentary.
 
@@ -60,21 +69,30 @@ async def list_models(config: ProviderConfig) -> list[str]:
         return [item.get("id", "") for item in payload.get("data", []) if item.get("id")]
 
 
-async def generate(config: ProviderConfig, messages: list[dict[str, str]]) -> str:
+async def generate(
+    config: ProviderConfig,
+    messages: list[dict[str, str]],
+    temperature: float = 0.9,
+    top_p: float = 0.95,
+    json_mode: bool = False,
+) -> str:
     if not config.model.strip():
         raise ValueError("Choose a model before generating")
 
     timeout = httpx.Timeout(connect=15.0, read=300.0, write=60.0, pool=15.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         if config.provider == "ollama":
+            body: dict = {
+                "model": config.model,
+                "messages": messages,
+                "stream": False,
+                "options": {"temperature": temperature, "top_p": top_p},
+            }
+            if json_mode:
+                body["format"] = "json"
             response = await client.post(
                 f"{config.base_url.rstrip('/')}/api/chat",
-                json={
-                    "model": config.model,
-                    "messages": messages,
-                    "stream": False,
-                    "options": {"temperature": 0.9, "top_p": 0.95},
-                },
+                json=body,
             )
             response.raise_for_status()
             payload = response.json()
@@ -89,8 +107,8 @@ async def generate(config: ProviderConfig, messages: list[dict[str, str]]) -> st
             json={
                 "model": config.model,
                 "messages": messages,
-                "temperature": 0.9,
-                "top_p": 0.95,
+                "temperature": temperature,
+                "top_p": top_p,
             },
         )
         response.raise_for_status()

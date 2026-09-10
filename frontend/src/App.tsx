@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import MemoryPanel, { type MemoryFact, type MemoryStats } from './MemoryPanel'
+
 const API = 'http://127.0.0.1:8000/api'
 
 type ProjectSummary = {
@@ -21,6 +23,12 @@ type Provider = {
   api_key?: string
 }
 
+type AnalyzeResult = {
+  summary: string
+  facts_written: number
+  skipped: boolean
+}
+
 type Mode = 'write' | 'continue' | 'rewrite' | 'brainstorm' | 'critic' | 'continuity'
 
 const defaultProvider: Provider = {
@@ -29,6 +37,8 @@ const defaultProvider: Provider = {
   model: '',
   api_key: '',
 }
+
+const emptyMemoryStats: MemoryStats = { facts: 0, documents: 0, by_kind: {} }
 
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -62,12 +72,21 @@ function App() {
   const [contextFiles, setContextFiles] = useState<string[]>([])
   const [models, setModels] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
+  const [memoryBusy, setMemoryBusy] = useState(false)
+  const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
+  const [memoryStats, setMemoryStats] = useState<MemoryStats>(emptyMemoryStats)
+  const [memoryQuery, setMemoryQuery] = useState('')
   const [status, setStatus] = useState('Ready')
   const [provider, setProvider] = useState<Provider>(() => {
     const stored = localStorage.getItem('emberwriter.provider')
     return stored ? { ...defaultProvider, ...JSON.parse(stored) } : defaultProvider
   })
+  const [autoMemory, setAutoMemory] = useState(() => {
+    const stored = localStorage.getItem('emberwriter.autoMemory')
+    return stored === null ? true : stored === 'true'
+  })
   const editorRef = useRef<HTMLTextAreaElement>(null)
+  const lastAutoMemoryRef = useRef('')
 
   const manuscriptFiles = useMemo(
     () => project?.files.filter((file) => file.startsWith('manuscript/')) ?? [],
@@ -87,10 +106,47 @@ function App() {
   }, [provider])
 
   useEffect(() => {
+    localStorage.setItem('emberwriter.autoMemory', String(autoMemory))
+  }, [autoMemory])
+
+  useEffect(() => {
     if (!dirty || !project || !activeFile) return
     const timer = window.setTimeout(() => void saveActiveFile(), 750)
     return () => window.clearTimeout(timer)
   }, [content, dirty, project?.slug, activeFile])
+
+  useEffect(() => {
+    if (!project) return
+    const timer = window.setTimeout(() => void refreshMemory(project.slug, memoryQuery), 250)
+    return () => window.clearTimeout(timer)
+  }, [memoryQuery, project?.slug])
+
+  useEffect(() => {
+    if (
+      !autoMemory || !project || !activeFile.startsWith('manuscript/') || !provider.model ||
+      dirty || busy || memoryBusy
+    ) return
+
+    const key = `${project.slug}\u0000${activeFile}\u0000${content}`
+    if (lastAutoMemoryRef.current === key) return
+
+    const timer = window.setTimeout(() => {
+      lastAutoMemoryRef.current = key
+      void analyzeActiveFile(false)
+    }, 4500)
+    return () => window.clearTimeout(timer)
+  }, [
+    autoMemory,
+    project?.slug,
+    activeFile,
+    content,
+    provider.model,
+    provider.provider,
+    provider.base_url,
+    dirty,
+    busy,
+    memoryBusy,
+  ])
 
   async function refreshProjects() {
     try {
@@ -101,13 +157,30 @@ function App() {
     }
   }
 
+  async function refreshMemory(slug = project?.slug, query = memoryQuery) {
+    if (!slug) return
+    try {
+      const suffix = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : ''
+      const [facts, stats] = await Promise.all([
+        jsonFetch<MemoryFact[]>(`${API}/projects/${slug}/memory${suffix}`),
+        jsonFetch<MemoryStats>(`${API}/projects/${slug}/memory/stats`),
+      ])
+      setMemoryFacts(facts)
+      setMemoryStats(stats)
+    } catch (error) {
+      setStatus(`Memory unavailable: ${(error as Error).message}`)
+    }
+  }
+
   async function openProject(slug: string) {
     setStatus('Opening project…')
     try {
       const detail = await jsonFetch<ProjectDetail>(`${API}/projects/${slug}`)
       setProject(detail)
+      setMemoryQuery('')
       const first = detail.files.find((file) => file.startsWith('manuscript/')) || detail.files[0] || ''
       if (first) await openFile(detail.slug, first)
+      await refreshMemory(detail.slug, '')
       setStatus('Project loaded')
     } catch (error) {
       setStatus((error as Error).message)
@@ -140,6 +213,7 @@ function App() {
       setActiveFile(path)
       setContent(data.content)
       setDirty(false)
+      lastAutoMemoryRef.current = ''
       setStatus(path)
     } catch (error) {
       setStatus((error as Error).message)
@@ -197,6 +271,66 @@ function App() {
     }
   }
 
+  async function analyzeActiveFile(force = true) {
+    if (!project || !activeFile.startsWith('manuscript/') || !provider.model || memoryBusy) return
+    setMemoryBusy(true)
+    setStatus(`Analyzing ${activeFile} for story memory…`)
+    try {
+      if (dirty) await saveActiveFile()
+      const result = await jsonFetch<AnalyzeResult>(
+        `${API}/projects/${project.slug}/memory/analyze`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ path: activeFile, provider, force }),
+        },
+      )
+      await refreshMemory(project.slug, memoryQuery)
+      setStatus(
+        result.skipped
+          ? `Memory already current for ${activeFile}`
+          : `Remembered ${result.facts_written} story facts from ${activeFile}`,
+      )
+    } catch (error) {
+      setStatus(`Memory analysis failed: ${(error as Error).message}`)
+    } finally {
+      setMemoryBusy(false)
+    }
+  }
+
+  async function analyzeAllManuscript() {
+    if (!project || !provider.model || manuscriptFiles.length === 0 || memoryBusy) return
+    setMemoryBusy(true)
+    let learned = 0
+    let analyzed = 0
+    let skipped = 0
+    try {
+      if (dirty) await saveActiveFile()
+      for (const [index, path] of manuscriptFiles.entries()) {
+        setStatus(`Building story memory ${index + 1}/${manuscriptFiles.length}: ${path}`)
+        const result = await jsonFetch<AnalyzeResult>(
+          `${API}/projects/${project.slug}/memory/analyze`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ path, provider, force: false }),
+          },
+        )
+        if (result.skipped) {
+          skipped += 1
+        } else {
+          analyzed += 1
+          learned += result.facts_written
+        }
+      }
+      lastAutoMemoryRef.current = `${project.slug}\u0000${activeFile}\u0000${content}`
+      await refreshMemory(project.slug, memoryQuery)
+      setStatus(`Story memory built: ${learned} facts from ${analyzed} files; ${skipped} already current`)
+    } catch (error) {
+      setStatus(`Memory build stopped: ${(error as Error).message}`)
+    } finally {
+      setMemoryBusy(false)
+    }
+  }
+
   function selectionText() {
     const el = editorRef.current
     if (!el) return ''
@@ -204,7 +338,7 @@ function App() {
   }
 
   async function runGeneration() {
-    if (!project || !prompt.trim()) return
+    if (!project || !prompt.trim() || memoryBusy) return
     setBusy(true)
     setOutput('')
     setStatus(`Running ${mode}…`)
@@ -312,13 +446,31 @@ function App() {
         </div>
 
         <textarea className="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Tell Ember what you want from this scene…" />
-        <button className="primary" onClick={() => void runGeneration()} disabled={busy || !project || !prompt.trim() || !provider.model}>{busy ? 'Working…' : 'Generate'}</button>
+        <button className="primary" onClick={() => void runGeneration()} disabled={busy || memoryBusy || !project || !prompt.trim() || !provider.model}>{busy ? 'Working…' : memoryBusy ? 'Memory busy…' : 'Generate'}</button>
 
         {output && <div className="result-card">
           <div className="result-actions"><strong>Result</strong><span><button onClick={() => insertOutput(false)}>Append</button><button onClick={() => insertOutput(true)}>Replace selection</button></span></div>
           <div className="result-text">{output}</div>
           {contextFiles.length > 0 && <details><summary>Context used ({contextFiles.length})</summary>{contextFiles.map((file) => <div className="context-file" key={file}>{file}</div>)}</details>}
         </div>}
+
+        {project && (
+          <MemoryPanel
+            facts={memoryFacts}
+            stats={memoryStats}
+            query={memoryQuery}
+            autoMemory={autoMemory}
+            busy={memoryBusy}
+            canAnalyze={activeFile.startsWith('manuscript/') && Boolean(provider.model)}
+            canAnalyzeAll={manuscriptFiles.length > 0 && Boolean(provider.model)}
+            onQueryChange={setMemoryQuery}
+            onAutoMemoryChange={setAutoMemory}
+            onAnalyze={() => void analyzeActiveFile(true)}
+            onAnalyzeAll={() => void analyzeAllManuscript()}
+            onRefresh={() => void refreshMemory(project.slug, memoryQuery)}
+            onOpenSource={(path) => void openFile(project.slug, path)}
+          />
+        )}
 
         <details className="model-settings" open={!provider.model}>
           <summary>Local model</summary>
@@ -332,7 +484,7 @@ function App() {
           <label>Model</label>
           <div className="create-row">
             <input list="model-list" value={provider.model} onChange={(e) => setProvider({ ...provider, model: e.target.value })} placeholder="Choose or type model" />
-            <button onClick={() => void refreshModels()} disabled={busy}>↻</button>
+            <button onClick={() => void refreshModels()} disabled={busy || memoryBusy}>↻</button>
           </div>
           <datalist id="model-list">{models.map((model) => <option key={model} value={model} />)}</datalist>
           {provider.provider === 'openai_compatible' && <><label>API key (optional)</label><input type="password" value={provider.api_key || ''} onChange={(e) => setProvider({ ...provider, api_key: e.target.value })} /></>}
