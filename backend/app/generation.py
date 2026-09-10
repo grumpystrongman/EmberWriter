@@ -74,6 +74,7 @@ async def generate(
     messages: list[dict[str, str]],
     temperature: float = 0.9,
     top_p: float = 0.95,
+    json_mode: bool = False,
 ) -> str:
     if not config.model.strip():
         raise ValueError("Choose a model before generating")
@@ -81,14 +82,17 @@ async def generate(
     timeout = httpx.Timeout(connect=15.0, read=300.0, write=60.0, pool=15.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         if config.provider == "ollama":
+            body: dict = {
+                "model": config.model,
+                "messages": messages,
+                "stream": False,
+                "options": {"temperature": temperature, "top_p": top_p},
+            }
+            if json_mode:
+                body["format"] = "json"
             response = await client.post(
                 f"{config.base_url.rstrip('/')}/api/chat",
-                json={
-                    "model": config.model,
-                    "messages": messages,
-                    "stream": False,
-                    "options": {"temperature": temperature, "top_p": top_p},
-                },
+                json=body,
             )
             response.raise_for_status()
             payload = response.json()
