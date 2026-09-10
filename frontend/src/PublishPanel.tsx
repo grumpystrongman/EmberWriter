@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import CoverStudioPanel from './CoverStudioPanel'
 import DistributionPanel from './DistributionPanel'
 import ProjectHistoryPanel from './ProjectHistoryPanel'
+import SubmissionPanel from './SubmissionPanel'
 
 type PublishFormat = 'docx' | 'epub' | 'pdf'
 
@@ -220,6 +221,7 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
         </div>
       </details>
 
+      <SubmissionPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
       <DistributionPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
     </>
   )
