@@ -4,7 +4,15 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .importer import import_project
-from .models import FilePayload, ProjectCreate, ProjectDetail, ProjectImport, ProjectSummary, SearchHit, SearchRequest
+from .models import (
+    FilePayload,
+    ProjectCreate,
+    ProjectDetail,
+    ProjectImport,
+    ProjectSummary,
+    SearchHit,
+    SearchRequest,
+)
 from .routes_generation import router as generation_router
 from .storage import (
     create_project,
