@@ -4,6 +4,8 @@ import CorkboardView from './CorkboardView'
 import OutlinerView from './OutlinerView'
 import './binder.css'
 
+const API = 'http://127.0.0.1:8000/api'
+
 export type BinderNodeKind = 'folder' | 'document' | 'research' | 'character' | 'location' | 'note' | 'trash'
 
 export type BinderNode = {
@@ -37,6 +39,7 @@ export type BinderCollection = {
 
 export type BinderState = {
   schema_version: number
+  project_slug: string
   roots: string[]
   nodes: BinderNode[]
   collections: BinderCollection[]
@@ -49,8 +52,8 @@ type CreateInput = {
 }
 
 type Props = {
-  apiBase: string
-  slug: string
+  apiBase?: string
+  slug?: string
   state: BinderState
   activePath: string
   disabled: boolean
@@ -81,7 +84,7 @@ function textMeta(node: BinderNode, key: string): string {
 }
 
 export default function BinderPanel({
-  apiBase,
+  apiBase = API,
   slug,
   state,
   activePath,
@@ -94,6 +97,7 @@ export default function BinderPanel({
   onRestore,
   onSync,
 }: Props) {
+  const projectSlug = slug || state.project_slug
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(state.roots))
   const [selectedId, setSelectedId] = useState<string | null>(state.roots[0] || null)
   const [newTitle, setNewTitle] = useState('')
@@ -125,7 +129,7 @@ export default function BinderPanel({
   useEffect(() => {
     setSelectedId(state.roots[0] || null)
     setWorkspace('tree')
-  }, [slug])
+  }, [projectSlug])
 
   function toggle(nodeId: string) {
     setExpanded((current) => {
@@ -314,10 +318,10 @@ export default function BinderPanel({
         </details>
       )}
 
-      {workspace === 'corkboard' && (
+      {workspace === 'corkboard' && projectSlug && (
         <CorkboardView
           apiBase={apiBase}
-          slug={slug}
+          slug={projectSlug}
           state={state}
           selectedId={selectedId}
           disabled={disabled}
