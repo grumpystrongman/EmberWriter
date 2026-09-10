@@ -29,10 +29,14 @@ def _not_found(exc: FileNotFoundError) -> HTTPException:
     return HTTPException(status_code=404, detail=str(exc) or "Binder resource not found")
 
 
+def _owned(slug: str, state: BinderState) -> BinderState:
+    return state.model_copy(update={"project_slug": slug})
+
+
 @router.get("/projects/{slug}/binder", response_model=BinderState)
 def binder(slug: str) -> BinderState:
     try:
-        return get_binder(slug)
+        return _owned(slug, get_binder(slug))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -42,7 +46,7 @@ def binder(slug: str) -> BinderState:
 @router.post("/projects/{slug}/binder/sync", response_model=BinderState)
 def sync(slug: str) -> BinderState:
     try:
-        return sync_binder(slug)
+        return _owned(slug, sync_binder(slug))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -52,7 +56,7 @@ def sync(slug: str) -> BinderState:
 @router.post("/projects/{slug}/binder/nodes", response_model=BinderState)
 def new_node(slug: str, payload: BinderNodeCreate) -> BinderState:
     try:
-        return create_node(slug, payload)
+        return _owned(slug, create_node(slug, payload))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except (OSError, ValueError) as exc:
@@ -62,7 +66,7 @@ def new_node(slug: str, payload: BinderNodeCreate) -> BinderState:
 @router.put("/projects/{slug}/binder/nodes/{node_id}", response_model=BinderState)
 def edit_node(slug: str, node_id: str, payload: BinderNodeUpdate) -> BinderState:
     try:
-        return update_node(slug, node_id, payload)
+        return _owned(slug, update_node(slug, node_id, payload))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -72,7 +76,7 @@ def edit_node(slug: str, node_id: str, payload: BinderNodeUpdate) -> BinderState
 @router.post("/projects/{slug}/binder/reorder", response_model=BinderState)
 def reorder(slug: str, payload: BinderReorderRequest) -> BinderState:
     try:
-        return reorder_nodes(slug, payload)
+        return _owned(slug, reorder_nodes(slug, payload))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -82,7 +86,7 @@ def reorder(slug: str, payload: BinderReorderRequest) -> BinderState:
 @router.post("/projects/{slug}/binder/nodes/{node_id}/trash", response_model=BinderState)
 def trash(slug: str, node_id: str) -> BinderState:
     try:
-        return trash_node(slug, node_id)
+        return _owned(slug, trash_node(slug, node_id))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -92,7 +96,7 @@ def trash(slug: str, node_id: str) -> BinderState:
 @router.post("/projects/{slug}/binder/nodes/{node_id}/restore", response_model=BinderState)
 def restore(slug: str, node_id: str) -> BinderState:
     try:
-        return restore_node(slug, node_id)
+        return _owned(slug, restore_node(slug, node_id))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -102,7 +106,7 @@ def restore(slug: str, node_id: str) -> BinderState:
 @router.post("/projects/{slug}/binder/collections", response_model=BinderState)
 def new_collection(slug: str, payload: BinderCollectionCreate) -> BinderState:
     try:
-        return create_collection(slug, payload)
+        return _owned(slug, create_collection(slug, payload))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
@@ -119,7 +123,7 @@ def edit_collection(
     payload: BinderCollectionUpdate,
 ) -> BinderState:
     try:
-        return update_collection(slug, collection_id, payload)
+        return _owned(slug, update_collection(slug, collection_id, payload))
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
