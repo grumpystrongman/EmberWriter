@@ -20,12 +20,13 @@
 
 .memory-toolbar {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 1fr 34px;
   gap: 6px;
   margin: 4px 0 10px;
 }
 
 .memory-toolbar button {
+  min-width: 0;
   font-size: 11px;
 }
 
