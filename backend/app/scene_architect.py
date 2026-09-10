@@ -5,6 +5,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
+from .chemistry import build_chemistry_context
 from .craft import build_craft_context
 from .generation import generate
 from .models import CraftControls, ScenePlan, ScenePlanRequest
@@ -14,7 +15,7 @@ from .story_intelligence import build_character_context, build_story_intelligenc
 SCENE_ARCHITECT_SYSTEM_PROMPT = """You are EmberWriter's Scene Architect.
 Return ONLY valid JSON for a practical scene plan that an author can use to write the next scene.
 
-Use the supplied manuscript, story memory, character knowledge, relationship state, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict.
+Use the supplied manuscript, story memory, character knowledge, relationship state, pairing chemistry, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict.
 
 Planning rules:
 - Do not invent established canon when the context is silent; phrase optional inventions as scene choices instead.
@@ -23,8 +24,11 @@ Planning rules:
 - Carry unresolved setup/payoff forward when relevant without forcing every open thread into one scene.
 - Relationship movement should be specific to the participants and earned by the scene.
 - If intimacy is requested, treat it as character/relationship development with consequences and preserve established adult/consent constraints.
+- Pairing chemistry is relationship-specific. Preserve its verbal rhythm, attraction language, trust state, vulnerabilities, boundaries, milestones, signature elements, and lore resonance where relevant.
+- Never treat a past intimate milestone as blanket permission for a future scene. Consent and choice remain scene-specific.
 - For high-heat adult scenes, design escalation rather than a flat sequence of explicit acts: anticipation, choice, vulnerability, pressure shifts, release, and aftermath should have shape appropriate to the requested curve.
-- Do not make every character express attraction or intimacy the same way. Use dossier, relationship, and voice evidence.
+- Ask what would actually be NEW for this relationship. Repeating a previous level of intimacy is not escalation merely because the prose is more explicit.
+- Do not make every character express attraction or intimacy the same way. Use dossier, relationship, chemistry, and voice evidence.
 - The ending should create a changed state or meaningful pressure for what follows.
 - Keep beats concise enough to scan while drafting.
 
@@ -47,9 +51,9 @@ Return exactly this JSON shape:
   "emotional_arc": "emotional movement across the scene",
   "relationship_moves": ["specific relationship change to earn or test"],
   "reveals": ["information legitimately revealed in this scene"],
-  "continuity_requirements": ["fact, injury, knowledge boundary, promise, object, or world rule to preserve"],
+  "continuity_requirements": ["fact, injury, knowledge boundary, promise, object, world rule, or author-controlled relationship boundary to preserve"],
   "unresolved_threads": ["relevant setup/payoff carried into or out of the scene"],
-  "intimacy_notes": ["character-specific intimacy/romance notes when relevant; otherwise empty"],
+  "intimacy_notes": ["relationship-specific intimacy/romance notes when relevant; otherwise empty"],
   "ending_state": "how the story/characters are different at scene end",
   "next_scene_pressure": "pressure or question created for the next scene"
 }
@@ -111,6 +115,7 @@ async def create_scene_plan(slug: str, request: ScenePlanRequest) -> dict[str, A
     )
     character_context = build_character_context(slug, request.participants)
     relationship_context = _relationship_context(slug, request.participants)
+    chemistry_context, chemistry_files = build_chemistry_context(slug, request.participants)
     craft_context, craft_files = build_craft_context(
         slug,
         _scene_craft_controls(request.desired_heat),
@@ -127,6 +132,9 @@ Desired heat/intimacy level: {request.desired_heat}
 
 CRAFT / VOICE DIRECTION
 {craft_context}
+
+PAIRING / GROUP CHEMISTRY
+{chemistry_context or '(No saved chemistry profile for this participant combination.)'}
 
 CHARACTER STATE
 {character_context or '(No participant-specific structured state was found.)'}
@@ -154,7 +162,7 @@ PROJECT CONTEXT
     if request.save:
         saved_path = f"scenes/scene-plan-{uuid4().hex[:10]}.json"
         artifact = {
-            "schema_version": 2,
+            "schema_version": 3,
             "generated_at": utc_now(),
             "author_request": request.prompt,
             "active_file": request.active_file,
@@ -166,5 +174,7 @@ PROJECT CONTEXT
     return {
         "plan": plan,
         "saved_path": saved_path,
-        "context_files": list(dict.fromkeys([*craft_files, *context_files])),
+        "context_files": list(
+            dict.fromkeys([*chemistry_files, *craft_files, *context_files])
+        ),
     }

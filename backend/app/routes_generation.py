@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from fastapi import APIRouter, HTTPException
 
+from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
 from .generation import build_messages, generate, list_models
 from .memory import build_memory_context
@@ -17,6 +18,11 @@ from .storage import compile_context
 from .story_intelligence import build_character_context, relevant_character_names
 
 router = APIRouter(prefix="/api")
+
+
+def _relevant_names(slug: str, context_text: str, prompt: str, selected_text: str | None) -> list[str]:
+    probe = f"{prompt}\n{selected_text or ''}\n{context_text[-18000:]}"
+    return relevant_character_names(slug, probe)
 
 
 def _with_narrative_memory(
@@ -42,8 +48,7 @@ def _with_character_intelligence(
     prompt: str,
     selected_text: str | None,
 ) -> tuple[str, list[str]]:
-    probe = f"{prompt}\n{selected_text or ''}\n{context_text[-18000:]}"
-    names = relevant_character_names(slug, probe)
+    names = _relevant_names(slug, context_text, prompt, selected_text)
     if not names:
         return context_text, context_files
     character_text = build_character_context(slug, names)
@@ -51,6 +56,23 @@ def _with_character_intelligence(
         return context_text, context_files
     enriched = f"{character_text}\n\n---\n\n{context_text}" if context_text else character_text
     return enriched, context_files
+
+
+def _with_chemistry(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+    prompt: str,
+    selected_text: str | None,
+) -> tuple[str, list[str]]:
+    names = _relevant_names(slug, context_text, prompt, selected_text)
+    if len(names) < 2:
+        return context_text, context_files
+    chemistry_text, chemistry_files = build_chemistry_context(slug, names)
+    if not chemistry_text:
+        return context_text, context_files
+    enriched = f"{chemistry_text}\n\n---\n\n{context_text}" if context_text else chemistry_text
+    return enriched, list(dict.fromkeys([*chemistry_files, *context_files]))
 
 
 def _with_craft_context(
@@ -96,6 +118,13 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
             payload.prompt,
             payload.selected_text,
         )
+        compiled, files = _with_chemistry(
+            slug,
+            compiled,
+            files,
+            payload.prompt,
+            payload.selected_text,
+        )
         return ContextResponse(context=compiled, files=files)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
@@ -118,6 +147,13 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             payload.selected_text,
         )
         context_text, context_files = _with_character_intelligence(
+            slug,
+            context_text,
+            context_files,
+            payload.prompt,
+            payload.selected_text,
+        )
+        context_text, context_files = _with_chemistry(
             slug,
             context_text,
             context_files,

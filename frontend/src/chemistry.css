@@ -1,0 +1,129 @@
+.chemistry-panel {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.chemistry-panel > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.chemistry-panel > summary small,
+.chemistry-hint,
+.chemistry-caption {
+  color: var(--muted);
+}
+
+.chemistry-caption {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0.7rem 0;
+}
+
+.chemistry-characters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.chemistry-characters button {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.chemistry-characters button.active {
+  border-color: var(--ember);
+  color: var(--ember-bright);
+}
+
+.chemistry-editor {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+
+.chemistry-editor label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.chemistry-editor label small {
+  opacity: 0.8;
+}
+
+.chemistry-editor textarea {
+  min-height: 68px;
+  resize: vertical;
+}
+
+.chemistry-pair-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.chemistry-pair-title span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chemistry-milestones,
+.aftermath-section,
+.aftermath-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.chemistry-milestones > div,
+.aftermath-update {
+  border-top: 1px solid var(--border);
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+}
+
+.chemistry-milestones span,
+.aftermath-update span {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.chemistry-milestones p,
+.aftermath-section p,
+.aftermath-card p {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  margin: 0.35rem 0;
+}
+
+.aftermath-card {
+  display: grid;
+  gap: 0.55rem;
+  border-color: rgba(224, 114, 68, 0.45);
+}
+
+.aftermath-card > small,
+.aftermath-update small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.apply-aftermath {
+  margin-top: 0.25rem;
+}
