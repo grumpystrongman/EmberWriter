@@ -66,9 +66,9 @@ def test_uploaded_board_asset_is_owned_by_manuscript(tmp_path: Path) -> None:
         board.board_asset_path(first["slug"], "../project.json")
 
 
-def test_deleting_board_item_removes_unshared_asset(tmp_path: Path) -> None:
+def test_removing_board_item_preserves_asset_for_history_restore(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
-    project = storage.create_project("Board Cleanup")
+    project = storage.create_project("Board Recovery")
     item = board.store_asset(
         project["slug"],
         filename="notes.pdf",
@@ -79,11 +79,11 @@ def test_deleting_board_item_removes_unshared_asset(tmp_path: Path) -> None:
     assert asset.exists()
 
     board.delete_item(project["slug"], item.id)
-    assert not asset.exists()
+    assert asset.exists()
     assert board.load_board(project["slug"]).items == []
 
 
-def test_board_rejects_empty_and_oversize_uploads(tmp_path: Path) -> None:
+def test_board_rejects_empty_and_oversize_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Board Limits")
 
@@ -95,10 +95,11 @@ def test_board_rejects_empty_and_oversize_uploads(tmp_path: Path) -> None:
             content_type="text/plain",
         )
 
+    monkeypatch.setattr(board, "BOARD_ASSET_LIMIT", 8)
     with pytest.raises(ValueError, match="50 MB"):
         board.store_asset(
             project["slug"],
             filename="huge.bin",
-            content=b"x" * (board.BOARD_ASSET_LIMIT + 1),
+            content=b"012345678",
             content_type="application/octet-stream",
         )
