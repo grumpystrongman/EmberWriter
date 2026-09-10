@@ -6,6 +6,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 
 from .memory import analyze_document, list_memory, memory_stats
+from .memory_integrity import reconcile_story_memory
 from .models import AnalyzeRequest, AnalyzeResponse, MemoryFact, MemoryStats
 
 router = APIRouter(prefix="/api")
@@ -19,6 +20,7 @@ def memory(
     limit: Annotated[int, Query(ge=1, le=200)] = 80,
 ) -> list[dict]:
     try:
+        reconcile_story_memory(slug)
         return list_memory(slug, query=query, kinds=kind, limit=limit)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
@@ -27,6 +29,7 @@ def memory(
 @router.get("/projects/{slug}/memory/stats", response_model=MemoryStats)
 def stats(slug: str) -> dict:
     try:
+        reconcile_story_memory(slug)
         return memory_stats(slug)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
@@ -35,6 +38,7 @@ def stats(slug: str) -> dict:
 @router.post("/projects/{slug}/memory/analyze", response_model=AnalyzeResponse)
 async def analyze(slug: str, payload: AnalyzeRequest) -> dict:
     try:
+        reconcile_story_memory(slug)
         return await analyze_document(
             slug,
             path=payload.path,
