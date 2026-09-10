@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 
 from .models import ProviderConfig
@@ -30,6 +32,8 @@ The author may write mature fiction. Do not sanitize consensual sexual material 
 
 Never claim a story fact is established unless it appears in the provided context or the author's current instruction. If information is missing, make the smallest reasonable creative choice and keep it consistent.
 """
+
+MODEL_GATE = asyncio.Lock()
 
 
 def build_messages(mode: str, prompt: str, context: str) -> list[dict[str, str]]:
@@ -79,41 +83,42 @@ async def generate(
     if not config.model.strip():
         raise ValueError("Choose a model before generating")
 
-    timeout = httpx.Timeout(connect=15.0, read=300.0, write=60.0, pool=15.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        if config.provider == "ollama":
-            body: dict = {
-                "model": config.model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": temperature, "top_p": top_p},
-            }
-            if json_mode:
-                body["format"] = "json"
+    async with MODEL_GATE:
+        timeout = httpx.Timeout(connect=15.0, read=300.0, write=60.0, pool=15.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            if config.provider == "ollama":
+                body: dict = {
+                    "model": config.model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {"temperature": temperature, "top_p": top_p},
+                }
+                if json_mode:
+                    body["format"] = "json"
+                response = await client.post(
+                    f"{config.base_url.rstrip('/')}/api/chat",
+                    json=body,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                return payload.get("message", {}).get("content", "").strip()
+
+            headers = {"Content-Type": "application/json"}
+            if config.api_key:
+                headers["Authorization"] = f"Bearer {config.api_key}"
             response = await client.post(
-                f"{config.base_url.rstrip('/')}/api/chat",
-                json=body,
+                _openai_chat_url(config.base_url),
+                headers=headers,
+                json={
+                    "model": config.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                },
             )
             response.raise_for_status()
             payload = response.json()
-            return payload.get("message", {}).get("content", "").strip()
-
-        headers = {"Content-Type": "application/json"}
-        if config.api_key:
-            headers["Authorization"] = f"Bearer {config.api_key}"
-        response = await client.post(
-            _openai_chat_url(config.base_url),
-            headers=headers,
-            json={
-                "model": config.model,
-                "messages": messages,
-                "temperature": temperature,
-                "top_p": top_p,
-            },
-        )
-        response.raise_for_status()
-        payload = response.json()
-        choices = payload.get("choices", [])
-        if not choices:
-            raise RuntimeError("Model returned no choices")
-        return choices[0].get("message", {}).get("content", "").strip()
+            choices = payload.get("choices", [])
+            if not choices:
+                raise RuntimeError("Model returned no choices")
+            return choices[0].get("message", {}).get("content", "").strip()
