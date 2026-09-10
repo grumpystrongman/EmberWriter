@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -106,10 +107,14 @@ def test_sync_adds_external_files_without_removing_missing_nodes(tmp_path: Path)
     synced = binder.sync_binder(slug)
     external = next(node for node in synced.nodes if node.path == "manuscript/external-scene.md")
     missing = next(node for node in synced.nodes if node.id == chapter.id)
+    durable = json.loads(storage.read_text(slug, binder.BINDER_PATH))
+    durable_missing = next(node for node in durable["nodes"] if node["id"] == chapter.id)
 
     assert external.title == "External Scene"
     assert missing.custom_metadata["source_missing"] is True
     assert missing.id == chapter.id
+    assert "source_missing" not in durable_missing["custom_metadata"]
+    assert durable_missing["word_count"] == 0
 
 
 def test_trash_and_restore_are_logical_and_reversible(tmp_path: Path) -> None:
@@ -136,7 +141,7 @@ def test_trash_and_restore_are_logical_and_reversible(tmp_path: Path) -> None:
     assert path.exists()
 
 
-def test_binder_rejects_cycles_and_root_moves(tmp_path: Path) -> None:
+def test_binder_rejects_cycles_root_moves_and_orphans(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Binder Cycles")
     slug = project["slug"]
@@ -159,6 +164,9 @@ def test_binder_rejects_cycles_and_root_moves(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="root"):
         binder.update_node(slug, story_bible.id, BinderNodeUpdate(parent_id=arc.id))
+
+    with pytest.raises(ValueError, match="must have a parent"):
+        binder.update_node(slug, arc.id, BinderNodeUpdate(parent_id=None))
 
 
 def test_collection_references_stable_node_ids(tmp_path: Path) -> None:
