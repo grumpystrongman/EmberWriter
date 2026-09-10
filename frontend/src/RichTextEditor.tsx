@@ -30,6 +30,10 @@ function htmlFromMarkdown(markdown: string): string {
   return marked.parse(markdown || '', { async: false }) as string
 }
 
+function outerHtml(node: Node): string {
+  return node instanceof HTMLElement ? node.outerHTML : node.textContent || ''
+}
+
 export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
   { markdown, documentKey, disabled = false, placeholder = 'Start writing…', onChange },
   ref,
@@ -42,18 +46,27 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       emDelimiter: '*',
       strongDelimiter: '**',
     })
+    service.addRule('alignedBlocks', {
+      filter(node) {
+        if (!(node instanceof HTMLElement)) return false
+        return ['P', 'H1', 'H2', 'H3', 'H4'].includes(node.nodeName) && Boolean(node.style.textAlign)
+      },
+      replacement(_content, node) {
+        return `\n\n${outerHtml(node)}\n\n`
+      },
+    })
     service.addRule('underline', {
       filter: ['u'],
-      replacement(content) {
-        return `<u>${content}</u>`
+      replacement(_content, node) {
+        return outerHtml(node)
       },
     })
     service.addRule('highlight', {
       filter(node) {
         return node.nodeName === 'MARK'
       },
-      replacement(content) {
-        return `==${content}==`
+      replacement(_content, node) {
+        return outerHtml(node)
       },
     })
     return service
@@ -105,12 +118,12 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     },
     replaceSelection(text: string) {
       if (!editor) return
-      editor.chain().focus().insertContent(text).run()
+      editor.chain().focus().insertContent(htmlFromMarkdown(text)).run()
     },
     insertAtEnd(text: string) {
       if (!editor) return
       const end = editor.state.doc.content.size
-      editor.chain().focus().insertContentAt(end, `${end ? '\n\n' : ''}${text}`).run()
+      editor.chain().focus().insertContentAt(end, htmlFromMarkdown(text)).run()
     },
     focus() {
       editor?.commands.focus()
