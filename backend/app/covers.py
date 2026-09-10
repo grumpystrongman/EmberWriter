@@ -118,10 +118,7 @@ def cover_geometry(profile: CoverProfile) -> CoverGeometry:
         safe_inset = max(0.125, profile.safe_inset)
         spine_safe = max(0.0625, profile.spine_safe_inset)
     elif profile.platform == "ingramspark":
-        if profile.manual_spine_width <= 0:
-            spine = 0.0
-        else:
-            spine = profile.manual_spine_width
+        spine = max(0.0, profile.manual_spine_width)
         bleed = 0.125
         authority = "IngramSpark"
         authority_url = INGRAM_TEMPLATE_URL
@@ -373,7 +370,13 @@ def _draw_text_block(
     return y
 
 
-def _cover_artwork(slug: str, relative_path: str, width_px: int, height_px: int) -> ImageReader:
+def _cover_artwork(
+    slug: str,
+    relative_path: str,
+    width_px: int,
+    height_px: int,
+    opacity: float,
+) -> ImageReader:
     path = _asset_path(slug, relative_path)
     if not path.exists():
         raise FileNotFoundError(relative_path)
@@ -391,12 +394,22 @@ def _cover_artwork(slug: str, relative_path: str, width_px: int, height_px: int)
             image = image.crop((0, top, image.width, top + new_height))
         image = image.resize((width_px, height_px), Image.Resampling.LANCZOS)
         buffer = io.BytesIO()
-        image.save(buffer, format="JPEG", quality=94, optimize=True)
+        if opacity < 1.0:
+            layered = image.convert("RGBA")
+            layered.putalpha(max(0, min(255, round(opacity * 255))))
+            layered.save(buffer, format="PNG", optimize=True)
+        else:
+            image.save(buffer, format="JPEG", quality=94, optimize=True)
     buffer.seek(0)
     return ImageReader(buffer)
 
 
-def _draw_barcode_area(pdf: canvas.Canvas, slug: str, profile: CoverProfile, geometry: CoverGeometry) -> None:
+def _draw_barcode_area(
+    pdf: canvas.Canvas,
+    slug: str,
+    profile: CoverProfile,
+    geometry: CoverGeometry,
+) -> None:
     if profile.barcode_mode == "none" or profile.platform == "kdp_ebook":
         return
     width = min(profile.barcode_width, profile.trim_width - 0.5) * inch
@@ -409,10 +422,24 @@ def _draw_barcode_area(pdf: canvas.Canvas, slug: str, profile: CoverProfile, geo
     if profile.barcode_mode == "custom" and profile.barcode_path:
         path = _asset_path(slug, profile.barcode_path)
         if path.exists():
-            pdf.drawImage(str(path), x + 4, y + 4, width=width - 8, height=height - 8, preserveAspectRatio=True, anchor="c", mask="auto")
+            pdf.drawImage(
+                str(path),
+                x + 4,
+                y + 4,
+                width=width - 8,
+                height=height - 8,
+                preserveAspectRatio=True,
+                anchor="c",
+                mask="auto",
+            )
 
 
-def _render_print_pdf(slug: str, profile: CoverProfile, geometry: CoverGeometry, path: Path) -> None:
+def _render_print_pdf(
+    slug: str,
+    profile: CoverProfile,
+    geometry: CoverGeometry,
+    path: Path,
+) -> None:
     page_width = geometry.cover_width * inch
     page_height = geometry.cover_height * inch
     pdf = canvas.Canvas(str(path), pagesize=(page_width, page_height), pageCompression=1)
@@ -422,23 +449,66 @@ def _render_print_pdf(slug: str, profile: CoverProfile, geometry: CoverGeometry,
     pdf.setFillColorRGB(*_color(profile.background_color, "#15100d"))
     pdf.rect(0, 0, page_width, page_height, fill=1, stroke=0)
 
+    full_wrap_art = bool(profile.artwork_path and profile.artwork_mode == "full_wrap")
+    front_art = bool(profile.artwork_path and profile.artwork_mode == "front")
     if profile.artwork_path:
-        if profile.artwork_mode == "full_wrap":
-            art = _cover_artwork(slug, profile.artwork_path, max(1, round(geometry.cover_width * 300)), max(1, round(geometry.cover_height * 300)))
+        if full_wrap_art:
+            art = _cover_artwork(
+                slug,
+                profile.artwork_path,
+                max(1, round(geometry.cover_width * 300)),
+                max(1, round(geometry.cover_height * 300)),
+                profile.artwork_opacity,
+            )
             pdf.drawImage(art, 0, 0, width=page_width, height=page_height, mask="auto")
         else:
             art_width = profile.trim_width + geometry.bleed
-            art = _cover_artwork(slug, profile.artwork_path, max(1, round(art_width * 300)), max(1, round(geometry.cover_height * 300)))
-            pdf.drawImage(art, geometry.front_x * inch, 0, width=art_width * inch, height=page_height, mask="auto")
+            art = _cover_artwork(
+                slug,
+                profile.artwork_path,
+                max(1, round(art_width * 300)),
+                max(1, round(geometry.cover_height * 300)),
+                profile.artwork_opacity,
+            )
+            pdf.drawImage(
+                art,
+                geometry.front_x * inch,
+                0,
+                width=art_width * inch,
+                height=page_height,
+                mask="auto",
+            )
 
-    pdf.setFillColorRGB(*_color(profile.back_overlay_color, "#18110e"))
-    pdf.rect(geometry.back_x * inch, geometry.bleed * inch, profile.trim_width * inch, profile.trim_height * inch, fill=1, stroke=0)
-    if not (profile.artwork_path and profile.artwork_mode == "front"):
+    if not full_wrap_art:
+        pdf.setFillColorRGB(*_color(profile.back_overlay_color, "#18110e"))
+        pdf.rect(
+            geometry.back_x * inch,
+            geometry.bleed * inch,
+            profile.trim_width * inch,
+            profile.trim_height * inch,
+            fill=1,
+            stroke=0,
+        )
+    if not full_wrap_art and not front_art:
         pdf.setFillColorRGB(*_color(profile.front_overlay_color, "#1c1410"))
-        pdf.rect(geometry.front_x * inch, geometry.bleed * inch, profile.trim_width * inch, profile.trim_height * inch, fill=1, stroke=0)
-    if geometry.spine_width > 0:
+        pdf.rect(
+            geometry.front_x * inch,
+            geometry.bleed * inch,
+            profile.trim_width * inch,
+            profile.trim_height * inch,
+            fill=1,
+            stroke=0,
+        )
+    if geometry.spine_width > 0 and not full_wrap_art:
         pdf.setFillColorRGB(*_color(profile.spine_color, "#25170f"))
-        pdf.rect(geometry.spine_x * inch, geometry.bleed * inch, geometry.spine_width * inch, profile.trim_height * inch, fill=1, stroke=0)
+        pdf.rect(
+            geometry.spine_x * inch,
+            geometry.bleed * inch,
+            geometry.spine_width * inch,
+            profile.trim_height * inch,
+            fill=1,
+            stroke=0,
+        )
 
     safe = geometry.safe_inset
     front_x = (geometry.front_x + safe) * inch
@@ -525,7 +595,11 @@ def _render_print_pdf(slug: str, profile: CoverProfile, geometry: CoverGeometry,
         pdf.setFont(_font_name(profile.title_font, bold=True), profile.spine_size)
         available = max(0.1, profile.trim_height - geometry.spine_safe_inset * 2) * inch
         spine_text = profile.spine_text.strip()
-        while stringWidth(spine_text, _font_name(profile.title_font, bold=True), profile.spine_size) > available and len(spine_text) > 4:
+        while (
+            stringWidth(spine_text, _font_name(profile.title_font, bold=True), profile.spine_size)
+            > available
+            and len(spine_text) > 4
+        ):
             spine_text = spine_text[:-2].rstrip() + "…"
         pdf.drawCentredString(0, -profile.spine_size / 3, spine_text)
         pdf.restoreState()
@@ -541,9 +615,18 @@ def _draw_pillow_text(image: Image.Image, profile: CoverProfile) -> None:
     draw = ImageDraw.Draw(image)
     width, height = image.size
     try:
-        title_font = ImageFont.truetype("DejaVuSerif-Bold.ttf", max(20, round(profile.title_size * width / 720)))
-        subtitle_font = ImageFont.truetype("DejaVuSerif-Italic.ttf", max(14, round(profile.subtitle_size * width / 720)))
-        author_font = ImageFont.truetype("DejaVuSerif-Bold.ttf", max(14, round(profile.author_size * width / 720)))
+        title_font = ImageFont.truetype(
+            "DejaVuSerif-Bold.ttf",
+            max(20, round(profile.title_size * width / 720)),
+        )
+        subtitle_font = ImageFont.truetype(
+            "DejaVuSerif-Italic.ttf",
+            max(14, round(profile.subtitle_size * width / 720)),
+        )
+        author_font = ImageFont.truetype(
+            "DejaVuSerif-Bold.ttf",
+            max(14, round(profile.author_size * width / 720)),
+        )
     except OSError:
         title_font = ImageFont.load_default()
         subtitle_font = ImageFont.load_default()
@@ -572,14 +655,21 @@ def _draw_pillow_text(image: Image.Image, profile: CoverProfile) -> None:
 
     centered(profile.title, height * 0.13, title_font, profile.title_color, width * 0.82)
     if profile.subtitle:
-        centered(profile.subtitle, height * 0.36, subtitle_font, profile.subtitle_color, width * 0.78)
+        centered(
+            profile.subtitle,
+            height * 0.36,
+            subtitle_font,
+            profile.subtitle_color,
+            width * 0.78,
+        )
     if profile.author:
         centered(profile.author, height * 0.86, author_font, profile.author_color, width * 0.82)
 
 
 def _render_ebook(slug: str, profile: CoverProfile, jpg_path: Path, png_path: Path) -> None:
     size = (profile.ebook_width_px, profile.ebook_height_px)
-    image = Image.new("RGB", size, ImageColor.getrgb(profile.background_color))
+    background = Image.new("RGB", size, ImageColor.getrgb(profile.background_color))
+    image = background.copy()
     if profile.artwork_path:
         path = _asset_path(slug, profile.artwork_path)
         with Image.open(path) as source:
@@ -595,7 +685,7 @@ def _render_ebook(slug: str, profile: CoverProfile, jpg_path: Path, png_path: Pa
                 top = (art.height - crop_height) // 2
                 art = art.crop((0, top, art.width, top + crop_height))
             art = art.resize(size, Image.Resampling.LANCZOS)
-            image.paste(art, (0, 0))
+            image = Image.blend(background, art, profile.artwork_opacity)
     _draw_pillow_text(image, profile)
     image.save(jpg_path, format="JPEG", quality=95, optimize=True, dpi=(72, 72))
     image.save(png_path, format="PNG", optimize=True)
