@@ -209,6 +209,32 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
     return Math.max(0.8, (geometry.spine_width / geometry.cover_width) * 100)
   }, [geometry, profile?.platform])
 
+  const artworkUrl = useMemo(() => {
+    if (!profile?.artwork_path) return ''
+    return `${apiBase}/projects/${slug}/cover/assets/view?path=${encodeURIComponent(profile.artwork_path)}`
+  }, [apiBase, slug, profile?.artwork_path])
+
+  const artworkStyle = useMemo(() => {
+    if (!profile || !geometry || !artworkUrl) return undefined
+    if (profile.platform === 'kdp_ebook' || profile.artwork_mode === 'full_wrap') {
+      return {
+        inset: '0',
+        backgroundImage: `url("${artworkUrl}")`,
+        opacity: profile.artwork_opacity,
+      }
+    }
+    const left = (geometry.front_x / geometry.cover_width) * 100
+    const width = ((profile.trim_width + geometry.bleed) / geometry.cover_width) * 100
+    return {
+      left: `${left}%`,
+      top: '0',
+      bottom: '0',
+      width: `${width}%`,
+      backgroundImage: `url("${artworkUrl}")`,
+      opacity: profile.artwork_opacity,
+    }
+  }, [artworkUrl, geometry, profile])
+
   async function saveProfile() {
     if (!profile || busy) return
     setBusy(true)
@@ -309,26 +335,21 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
             </select>
           </label>
           <label className="cover-guide-toggle">
-            <input type="checkbox" checked={showGuides} onChange={(event) => setShowGuides(event.target.checked)} />
+            <input type="checkbox" checked={showGuides} onChange={(event) => setShowGuides(event.target.checked)} disabled={disabled || busy} />
             Show guides
           </label>
         </div>
 
         <div className={`cover-preview-shell ${showGuides ? 'guides-on' : ''}`}>
           <div className={`cover-preview ${printMode ? 'cover-preview-print' : 'cover-preview-ebook'}`} style={{ ...previewStyle, backgroundColor: profile.background_color }}>
-            {profile.artwork_path && (
-              <div className={`cover-art-placeholder ${profile.artwork_mode === 'full_wrap' ? 'full-wrap-art' : 'front-art'}`}>
-                <span>Artwork loaded</span>
-                <small>{artwork ? `${artwork.width_px} × ${artwork.height_px}px` : profile.artwork_path.split('/').at(-1)}</small>
-              </div>
-            )}
+            {artworkStyle && <div className="cover-artwork-preview" style={artworkStyle} aria-hidden="true" />}
             {printMode ? (
               <>
                 <section className="cover-face cover-back" style={{ ...backStyle, width: `calc((100% - ${spinePercent}%) / 2)` }}>
                   <div className="cover-safe-box">
                     <p>{profile.back_blurb || 'Back-cover blurb'}</p>
                     {profile.imprint && <small>{profile.imprint}</small>}
-                    {profile.barcode_mode !== 'none' && <span className="cover-barcode-box">{profile.barcode_mode === 'custom' ? 'BARCODE' : 'KDP BARCODE CLEARANCE'}</span>}
+                    {profile.barcode_mode !== 'none' && <span className="cover-barcode-box">{profile.barcode_mode === 'custom' ? 'BARCODE' : 'PLATFORM BARCODE CLEARANCE'}</span>}
                   </div>
                 </section>
                 <section className="cover-spine" style={{ width: `${spinePercent}%`, backgroundColor: profile.spine_color }}>
@@ -387,46 +408,46 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
 
         {printMode ? (
           <div className="cover-form-grid cover-spec-grid">
-            <label>Trim width (in)<input type="number" min="4" max="8.5" step="0.125" value={profile.trim_width} onChange={(event) => setProfile({ ...profile, trim_width: Number(event.target.value) })} /></label>
-            <label>Trim height (in)<input type="number" min="6" max="11.7" step="0.125" value={profile.trim_height} onChange={(event) => setProfile({ ...profile, trim_height: Number(event.target.value) })} /></label>
-            <label>Final page count<input type="number" min="1" max="2000" value={profile.page_count} onChange={(event) => setProfile({ ...profile, page_count: Number(event.target.value) })} /></label>
+            <label>Trim width (in)<input type="number" min="4" max="8.5" step="0.125" value={profile.trim_width} onChange={(event) => setProfile({ ...profile, trim_width: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Trim height (in)<input type="number" min="6" max="11.7" step="0.125" value={profile.trim_height} onChange={(event) => setProfile({ ...profile, trim_height: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Final page count<input type="number" min="1" max="2000" value={profile.page_count} onChange={(event) => setProfile({ ...profile, page_count: Number(event.target.value) })} disabled={disabled || busy} /></label>
             {profile.platform === 'kdp_paperback' ? (
-              <label>Interior / paper<select value={profile.paper_type} onChange={(event) => setProfile({ ...profile, paper_type: event.target.value as PaperType })}>
+              <label>Interior / paper<select value={profile.paper_type} onChange={(event) => setProfile({ ...profile, paper_type: event.target.value as PaperType })} disabled={disabled || busy}>
                 <option value="white_bw">Black &amp; white · white paper</option>
                 <option value="cream_bw">Black &amp; white · cream paper</option>
                 <option value="premium_color">Premium color</option>
                 <option value="standard_color">Standard color</option>
               </select></label>
             ) : (
-              <label>Template spine width (in)<input type="number" min="0" max="5" step="0.001" value={profile.manual_spine_width} onChange={(event) => setProfile({ ...profile, manual_spine_width: Number(event.target.value) })} /></label>
+              <label>Template spine width (in)<input type="number" min="0" max="5" step="0.001" value={profile.manual_spine_width} onChange={(event) => setProfile({ ...profile, manual_spine_width: Number(event.target.value) })} disabled={disabled || busy} /></label>
             )}
-            {profile.platform === 'custom_print' && <label>Bleed (in)<input type="number" min="0" max="0.5" step="0.001" value={profile.bleed} onChange={(event) => setProfile({ ...profile, bleed: Number(event.target.value) })} /></label>}
-            <label>Type-safe inset (in)<input type="number" min="0" max="1" step="0.025" value={profile.safe_inset} onChange={(event) => setProfile({ ...profile, safe_inset: Number(event.target.value) })} /></label>
+            {profile.platform === 'custom_print' && <label>Bleed (in)<input type="number" min="0" max="0.5" step="0.001" value={profile.bleed} onChange={(event) => setProfile({ ...profile, bleed: Number(event.target.value) })} disabled={disabled || busy} /></label>}
+            <label>Type-safe inset (in)<input type="number" min="0" max="1" step="0.025" value={profile.safe_inset} onChange={(event) => setProfile({ ...profile, safe_inset: Number(event.target.value) })} disabled={disabled || busy} /></label>
           </div>
         ) : (
           <div className="cover-form-grid cover-spec-grid">
-            <label>Width (px)<input type="number" min="625" max="10000" value={profile.ebook_width_px} onChange={(event) => setProfile({ ...profile, ebook_width_px: Number(event.target.value) })} /></label>
-            <label>Height (px)<input type="number" min="1000" max="10000" value={profile.ebook_height_px} onChange={(event) => setProfile({ ...profile, ebook_height_px: Number(event.target.value) })} /></label>
+            <label>Width (px)<input type="number" min="625" max="10000" value={profile.ebook_width_px} onChange={(event) => setProfile({ ...profile, ebook_width_px: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Height (px)<input type="number" min="1000" max="10000" value={profile.ebook_height_px} onChange={(event) => setProfile({ ...profile, ebook_height_px: Number(event.target.value) })} disabled={disabled || busy} /></label>
           </div>
         )}
 
         <details className="cover-subpanel">
           <summary>Typography &amp; color</summary>
           <div className="cover-form-grid">
-            <label>Title font<select value={profile.title_font} onChange={(event) => setProfile({ ...profile, title_font: event.target.value as FontFamily })}><option>Times</option><option>Helvetica</option><option>Courier</option></select></label>
-            <label>Body font<select value={profile.body_font} onChange={(event) => setProfile({ ...profile, body_font: event.target.value as FontFamily })}><option>Times</option><option>Helvetica</option><option>Courier</option></select></label>
-            <label>Title size<input type="number" min="7" max="120" value={profile.title_size} onChange={(event) => setProfile({ ...profile, title_size: Number(event.target.value) })} /></label>
-            <label>Subtitle size<input type="number" min="7" max="72" value={profile.subtitle_size} onChange={(event) => setProfile({ ...profile, subtitle_size: Number(event.target.value) })} /></label>
-            <label>Author size<input type="number" min="7" max="72" value={profile.author_size} onChange={(event) => setProfile({ ...profile, author_size: Number(event.target.value) })} /></label>
-            <label>Blurb size<input type="number" min="7" max="30" step="0.5" value={profile.body_size} onChange={(event) => setProfile({ ...profile, body_size: Number(event.target.value) })} /></label>
-            <label>Spine size<input type="number" min="7" max="30" step="0.5" value={profile.spine_size} onChange={(event) => setProfile({ ...profile, spine_size: Number(event.target.value) })} /></label>
-            <label>Title alignment<select value={profile.title_align} onChange={(event) => setProfile({ ...profile, title_align: event.target.value as TextAlign })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
-            <label>Background<input type="color" value={profile.background_color} onChange={(event) => setProfile({ ...profile, background_color: event.target.value })} /></label>
-            <label>Front panel<input type="color" value={profile.front_overlay_color} onChange={(event) => setProfile({ ...profile, front_overlay_color: event.target.value })} /></label>
-            <label>Back panel<input type="color" value={profile.back_overlay_color} onChange={(event) => setProfile({ ...profile, back_overlay_color: event.target.value })} /></label>
-            <label>Spine<input type="color" value={profile.spine_color} onChange={(event) => setProfile({ ...profile, spine_color: event.target.value })} /></label>
-            <label>Title text<input type="color" value={profile.title_color} onChange={(event) => setProfile({ ...profile, title_color: event.target.value })} /></label>
-            <label>Body text<input type="color" value={profile.body_color} onChange={(event) => setProfile({ ...profile, body_color: event.target.value })} /></label>
+            <label>Title font<select value={profile.title_font} onChange={(event) => setProfile({ ...profile, title_font: event.target.value as FontFamily })} disabled={disabled || busy}><option>Times</option><option>Helvetica</option><option>Courier</option></select></label>
+            <label>Body font<select value={profile.body_font} onChange={(event) => setProfile({ ...profile, body_font: event.target.value as FontFamily })} disabled={disabled || busy}><option>Times</option><option>Helvetica</option><option>Courier</option></select></label>
+            <label>Title size<input type="number" min="7" max="120" value={profile.title_size} onChange={(event) => setProfile({ ...profile, title_size: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Subtitle size<input type="number" min="7" max="72" value={profile.subtitle_size} onChange={(event) => setProfile({ ...profile, subtitle_size: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Author size<input type="number" min="7" max="72" value={profile.author_size} onChange={(event) => setProfile({ ...profile, author_size: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Blurb size<input type="number" min="7" max="30" step="0.5" value={profile.body_size} onChange={(event) => setProfile({ ...profile, body_size: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Spine size<input type="number" min="7" max="30" step="0.5" value={profile.spine_size} onChange={(event) => setProfile({ ...profile, spine_size: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            <label>Title alignment<select value={profile.title_align} onChange={(event) => setProfile({ ...profile, title_align: event.target.value as TextAlign })} disabled={disabled || busy}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+            <label>Background<input type="color" value={profile.background_color} onChange={(event) => setProfile({ ...profile, background_color: event.target.value })} disabled={disabled || busy} /></label>
+            <label>Front panel<input type="color" value={profile.front_overlay_color} onChange={(event) => setProfile({ ...profile, front_overlay_color: event.target.value })} disabled={disabled || busy} /></label>
+            <label>Back panel<input type="color" value={profile.back_overlay_color} onChange={(event) => setProfile({ ...profile, back_overlay_color: event.target.value })} disabled={disabled || busy} /></label>
+            <label>Spine<input type="color" value={profile.spine_color} onChange={(event) => setProfile({ ...profile, spine_color: event.target.value })} disabled={disabled || busy} /></label>
+            <label>Title text<input type="color" value={profile.title_color} onChange={(event) => setProfile({ ...profile, title_color: event.target.value })} disabled={disabled || busy} /></label>
+            <label>Body text<input type="color" value={profile.body_color} onChange={(event) => setProfile({ ...profile, body_color: event.target.value })} disabled={disabled || busy} /></label>
           </div>
         </details>
 
@@ -434,8 +455,9 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
           <summary>Artwork &amp; barcode</summary>
           <div className="cover-asset-grid">
             <label className="cover-upload">Artwork<input type="file" accept="image/png,image/jpeg,image/tiff,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(file, 'artwork') }} disabled={disabled || busy} /></label>
-            {printMode && <label>Artwork placement<select value={profile.artwork_mode} onChange={(event) => setProfile({ ...profile, artwork_mode: event.target.value as ArtworkMode })}><option value="front">Front cover only</option><option value="full_wrap">Full wrap</option></select></label>}
-            {printMode && <label>Barcode<select value={profile.barcode_mode} onChange={(event) => setProfile({ ...profile, barcode_mode: event.target.value as BarcodeMode })}><option value="platform">Reserve for platform barcode</option><option value="custom">Use uploaded barcode</option><option value="none">No reserved box</option></select></label>}
+            {printMode && <label>Artwork placement<select value={profile.artwork_mode} onChange={(event) => setProfile({ ...profile, artwork_mode: event.target.value as ArtworkMode })} disabled={disabled || busy}><option value="front">Front cover only</option><option value="full_wrap">Full wrap</option></select></label>}
+            <label>Artwork opacity<input type="range" min="0.15" max="1" step="0.05" value={profile.artwork_opacity} onChange={(event) => setProfile({ ...profile, artwork_opacity: Number(event.target.value) })} disabled={disabled || busy} /></label>
+            {printMode && <label>Barcode<select value={profile.barcode_mode} onChange={(event) => setProfile({ ...profile, barcode_mode: event.target.value as BarcodeMode })} disabled={disabled || busy}><option value="platform">Reserve for platform barcode</option><option value="custom">Use uploaded barcode</option><option value="none">No reserved box</option></select></label>}
             {printMode && profile.barcode_mode === 'custom' && <label className="cover-upload">Barcode image<input type="file" accept="image/png,image/jpeg,image/tiff,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(file, 'barcode') }} disabled={disabled || busy} /></label>}
           </div>
           {profile.artwork_path && <small className="panel-help">Artwork: {artwork?.filename || profile.artwork_path}</small>}
@@ -444,22 +466,26 @@ export default function CoverStudioPanel({ apiBase, slug, projectName, disabled 
 
         {validation && (
           <div className={`cover-validation ${validation.valid ? 'valid' : 'invalid'}`}>
-            <strong>{validation.valid ? 'Preflight passes blocking checks' : 'Fix blocking cover issues before export'}</strong>
-            {validation.issues.length === 0 && <small>No cover preflight issues found.</small>}
+            <strong>{validation.valid ? 'Preflight passes Ember blocking checks' : 'Fix blocking cover issues before export'}</strong>
+            {validation.issues.length === 0 && <small>No Ember cover-preflight issues found.</small>}
             {validation.issues.map((issue) => <small key={`${issue.code}-${issue.message}`} className={`cover-issue issue-${issue.level}`}><b>{issue.level.toUpperCase()}</b> {issue.message}</small>)}
           </div>
         )}
 
         {geometry && (
           <div className="cover-authority">
-            <span>{geometry.exact_platform_formula ? 'Calculated from current platform rules' : 'Template/user measurement required'}</span>
+            <span>{geometry.exact_platform_formula ? 'Geometry calculated from current platform rules' : 'Template/user measurement required'}</span>
             {geometry.authority_url ? <a href={geometry.authority_url} target="_blank" rel="noreferrer">{geometry.authority}</a> : <small>{geometry.authority}</small>}
           </div>
         )}
 
+        <small className="panel-help">
+          Ember validates geometry and common cover mistakes. Always run the exported print PDF through the target distributor preview/preflight before publishing; that final proof catches platform-specific font, transparency, color, and placement issues.
+        </small>
+
         <div className="cover-actions">
           <button type="button" onClick={() => void saveProfile()} disabled={disabled || busy}>{busy ? 'Working…' : 'Save cover project'}</button>
-          <button type="button" className="primary" onClick={() => void exportCover()} disabled={disabled || busy || validation?.valid === false}>{busy ? 'Building…' : printMode ? 'Build print-ready cover PDF' : 'Build eBook cover'}</button>
+          <button type="button" className="primary" onClick={() => void exportCover()} disabled={disabled || busy || validation?.valid === false}>{busy ? 'Building…' : printMode ? 'Build full-wrap cover PDF' : 'Build eBook cover'}</button>
         </div>
 
         {result && (
