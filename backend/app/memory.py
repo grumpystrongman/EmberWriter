@@ -359,5 +359,8 @@ MANUSCRIPT TO ANALYZE
             {"role": "system", "content": ANALYSIS_SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
+        temperature=0.2,
+        top_p=0.9,
+        json_mode=True,
     )
     return store_analysis(slug, path, content, _parse_json_object(raw))
