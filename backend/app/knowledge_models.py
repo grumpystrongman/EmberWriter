@@ -38,19 +38,19 @@ class KnowledgeChunk(BaseModel):
     semantic_score: float | None = None
 
 
-class KnowledgeSearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=4000)
-    categories: list[KnowledgeCategory] = Field(default_factory=list)
-    limit: int = Field(default=12, ge=1, le=50)
-    semantic: bool = False
-    embedding: "EmbeddingConfig | None" = None
-
-
 class EmbeddingConfig(BaseModel):
     provider: Literal["ollama", "openai_compatible"] = "ollama"
     base_url: str = "http://localhost:11434"
     model: str = ""
     api_key: str | None = None
+
+
+class KnowledgeSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=4000)
+    categories: list[KnowledgeCategory] = Field(default_factory=list)
+    limit: int = Field(default=12, ge=1, le=50)
+    semantic: bool = False
+    embedding: EmbeddingConfig | None = None
 
 
 class KnowledgeRefreshRequest(BaseModel):
