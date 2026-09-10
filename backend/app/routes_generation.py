@@ -14,6 +14,7 @@ from .models import (
     ProviderConfig,
 )
 from .storage import compile_context
+from .story_intelligence import build_character_context, relevant_character_names
 
 router = APIRouter(prefix="/api")
 
@@ -32,6 +33,24 @@ def _with_narrative_memory(
     enriched = f"{memory_text}\n\n---\n\n{context_text}" if context_text else memory_text
     files = ["summaries/narrative-memory.json", *context_files]
     return enriched, list(dict.fromkeys(files))
+
+
+def _with_character_intelligence(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+    prompt: str,
+    selected_text: str | None,
+) -> tuple[str, list[str]]:
+    probe = f"{prompt}\n{selected_text or ''}\n{context_text[-18000:]}"
+    names = relevant_character_names(slug, probe)
+    if not names:
+        return context_text, context_files
+    character_text = build_character_context(slug, names)
+    if not character_text:
+        return context_text, context_files
+    enriched = f"{character_text}\n\n---\n\n{context_text}" if context_text else character_text
+    return enriched, context_files
 
 
 def _with_craft_context(
@@ -70,6 +89,13 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
             payload.prompt,
             payload.selected_text,
         )
+        compiled, files = _with_character_intelligence(
+            slug,
+            compiled,
+            files,
+            payload.prompt,
+            payload.selected_text,
+        )
         return ContextResponse(context=compiled, files=files)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
@@ -85,6 +111,13 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             selected_text=payload.selected_text,
         )
         context_text, context_files = _with_narrative_memory(
+            slug,
+            context_text,
+            context_files,
+            payload.prompt,
+            payload.selected_text,
+        )
+        context_text, context_files = _with_character_intelligence(
             slug,
             context_text,
             context_files,
