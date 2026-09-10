@@ -25,6 +25,27 @@
   font-size: 0.68rem;
 }
 
+.binder-view-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+.binder-view-tabs button {
+  min-width: 0;
+  padding: 0.38rem 0.25rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.binder-view-tabs button.active {
+  border-color: rgba(224, 114, 68, 0.55);
+  background: rgba(224, 114, 68, 0.12);
+  color: var(--text);
+}
+
 .binder-tree {
   min-height: 120px;
   max-height: 48vh;
