@@ -60,6 +60,14 @@
   max-width: 18rem;
 }
 
+.cover-artwork-preview {
+  position: absolute;
+  z-index: 1;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
 .cover-face,
 .cover-spine {
   position: relative;
@@ -166,33 +174,6 @@
   font-size: clamp(0.28rem, 0.55vw, 0.5rem);
   font-weight: 700;
   text-align: center;
-}
-
-.cover-art-placeholder {
-  position: absolute;
-  z-index: 1;
-  display: grid;
-  place-content: center;
-  gap: 0.18rem;
-  background:
-    radial-gradient(circle at 45% 30%, rgba(230, 142, 86, 0.3), transparent 25%),
-    linear-gradient(140deg, rgba(70, 41, 28, 0.95), rgba(18, 14, 13, 0.9));
-  color: rgba(255,255,255,.7);
-  font-size: 0.7rem;
-  text-align: center;
-}
-
-.cover-art-placeholder small {
-  color: rgba(255,255,255,.48);
-  font-size: 0.55rem;
-}
-
-.full-wrap-art {
-  inset: 0;
-}
-
-.front-art {
-  inset: 0 0 0 50%;
 }
 
 .cover-geometry-strip {
