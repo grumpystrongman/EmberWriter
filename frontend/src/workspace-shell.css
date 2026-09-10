@@ -144,12 +144,14 @@
 }
 
 .workspace-app {
-  height: calc(100vh - 83px);
+  height: calc(100vh - 82px);
   overflow: hidden;
 }
 
 .workspace-app > .app-shell {
   height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "library editor assistant";
 }
 
 .workspace-shell .app-shell > .topbar {
@@ -162,11 +164,13 @@
 
 .workspace-shell .library,
 .workspace-shell .assistant {
+  min-height: 0;
   background: #101923;
   border-color: var(--ember-border);
 }
 
 .workspace-shell .editor-panel {
+  min-height: 0;
   background: #0e1720;
 }
 
@@ -225,6 +229,7 @@
 
 .workspace-shell.binder-collapsed .app-shell {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 25vw);
+  grid-template-areas: "editor assistant";
 }
 
 .workspace-shell.assistant-collapsed .assistant {
@@ -233,11 +238,13 @@
 
 .workspace-shell.assistant-collapsed .app-shell {
   grid-template-columns: minmax(230px, 19vw) minmax(0, 1fr);
+  grid-template-areas: "library editor";
 }
 
 .workspace-shell.binder-collapsed.assistant-collapsed .app-shell,
 .workspace-shell.focus-mode .app-shell {
   grid-template-columns: 1fr;
+  grid-template-areas: "editor";
 }
 
 .workspace-shell.focus-mode .library,
