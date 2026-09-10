@@ -9,8 +9,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from PIL import Image, ImageColor
-from reportlab.lib.utils import ImageReader
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
@@ -258,6 +258,12 @@ def validate_cover(slug: str, profile: CoverProfile) -> CoverValidationResponse:
             add("warning", "ebook-ratio", "KDP recommends an eBook cover height/width ratio of at least 1.6:1.")
         if (profile.ebook_width_px, profile.ebook_height_px) != (1600, 2560):
             add("info", "ebook-ideal-size", "KDP currently identifies 1600 × 2560 pixels as its ideal eBook cover dimensions.")
+    else:
+        add(
+            "info",
+            "platform-proof-required",
+            "Geometry checks are not distributor approval. Run the exported cover through the target platform preview/preflight before publishing to verify fonts, transparency, color, and final placement.",
+        )
 
     artwork = _image_info(slug, profile.artwork_path) if profile.artwork_path else None
     if profile.artwork_path and artwork is None:
