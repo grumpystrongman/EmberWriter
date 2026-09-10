@@ -162,8 +162,28 @@ def build_story_intelligence(slug: str) -> dict[str, Any]:
         key=lambda item: (item["chapter_order"], item["importance"], item["confidence"]),
         reverse=True,
     )
-    characters = sorted(profiles.values(), key=lambda item: (item["latest_chapter"], item["name"]), reverse=True)
+    characters = sorted(
+        profiles.values(),
+        key=lambda item: (item["latest_chapter"], item["name"]),
+        reverse=True,
+    )
     return {"characters": characters, "relationships": relationships[:200]}
+
+
+def relevant_character_names(slug: str, text: str, limit: int = 6) -> list[str]:
+    if not text.strip():
+        return []
+    intelligence = build_story_intelligence(slug)
+    lowered = text.casefold()
+    matches: list[tuple[int, str]] = []
+    for profile in intelligence["characters"]:
+        name = profile["name"]
+        folded = name.casefold()
+        count = len(re.findall(rf"\b{re.escape(folded)}\b", lowered))
+        if count:
+            matches.append((count, name))
+    matches.sort(key=lambda item: (item[0], len(item[1])), reverse=True)
+    return [name for _, name in matches[:limit]]
 
 
 def build_character_context(slug: str, names: list[str]) -> str:
@@ -180,7 +200,18 @@ def build_character_context(slug: str, names: list[str]) -> str:
         lines.append(f"### {profile['name']}")
         if profile["dossier_path"]:
             lines.append(f"Dossier: {profile['dossier_path']}")
-        for label, key in (("Current state", "state"), ("Knowledge", "knowledge"), ("Relationships", "relationships")):
+            try:
+                dossier = read_text(slug, profile["dossier_path"]).strip()
+            except (FileNotFoundError, OSError, ValueError):
+                dossier = ""
+            if dossier:
+                lines.append("Dossier excerpt:")
+                lines.append(dossier[:4500])
+        for label, key in (
+            ("Current state", "state"),
+            ("Knowledge", "knowledge"),
+            ("Relationships", "relationships"),
+        ):
             entries = profile[key][:12]
             if not entries:
                 continue
