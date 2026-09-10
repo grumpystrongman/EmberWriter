@@ -49,6 +49,8 @@ type CreateInput = {
 }
 
 type Props = {
+  apiBase: string
+  slug: string
   state: BinderState
   activePath: string
   disabled: boolean
@@ -79,6 +81,8 @@ function textMeta(node: BinderNode, key: string): string {
 }
 
 export default function BinderPanel({
+  apiBase,
+  slug,
   state,
   activePath,
   disabled,
@@ -117,6 +121,11 @@ export default function BinderPanel({
     })
     if (selectedId && !nodes.has(selectedId)) setSelectedId(state.roots[0] || null)
   }, [state.roots, nodes, selectedId])
+
+  useEffect(() => {
+    setSelectedId(state.roots[0] || null)
+    setWorkspace('tree')
+  }, [slug])
 
   function toggle(nodeId: string) {
     setExpanded((current) => {
@@ -307,6 +316,8 @@ export default function BinderPanel({
 
       {workspace === 'corkboard' && (
         <CorkboardView
+          apiBase={apiBase}
+          slug={slug}
           state={state}
           selectedId={selectedId}
           disabled={disabled}
