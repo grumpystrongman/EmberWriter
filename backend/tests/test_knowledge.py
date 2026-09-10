@@ -44,8 +44,9 @@ async def test_live_refresh_replaces_seed_without_reappearing(monkeypatch, tmp_p
     """
 
     class FakeResponse:
-        content = html
-        headers = {"content-type": "text/html; charset=utf-8"}
+        def __init__(self) -> None:
+            self.content = html
+            self.headers = {"content-type": "text/html; charset=utf-8"}
 
         def raise_for_status(self) -> None:
             return None
@@ -77,6 +78,37 @@ async def test_live_refresh_replaces_seed_without_reappearing(monkeypatch, tmp_p
         ).fetchall()
     assert rows
     assert all(":live:" in row["id"] for row in rows)
+
+
+@pytest.mark.asyncio
+async def test_failed_refresh_preserves_last_known_good_rules(monkeypatch, tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    before = knowledge.lexical_search("paperback cover bleed 300 DPI", ["publishing"], 20)
+    before_ids = {item["id"] for item in before}
+    assert before_ids
+
+    class FailingClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        async def get(self, url: str):
+            raise knowledge.httpx.ConnectError("offline")
+
+    monkeypatch.setattr(knowledge.httpx, "AsyncClient", FailingClient)
+    result = await knowledge.refresh_source("kdp-paperback-cover")
+    assert result["status"] == "error"
+
+    after = knowledge.lexical_search("paperback cover bleed 300 DPI", ["publishing"], 20)
+    assert before_ids <= {item["id"] for item in after}
+    source = next(item for item in knowledge.list_sources() if item["id"] == "kdp-paperback-cover")
+    assert source["status"] == "error"
+    assert "offline" in source["error"]
 
 
 @pytest.mark.asyncio
