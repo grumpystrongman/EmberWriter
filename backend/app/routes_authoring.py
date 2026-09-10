@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .binder import sync_binder
+from .binder import get_binder, sync_binder
 from .ingest import SUPPORTED_UPLOADS, import_bytes, import_pasted_text
 from .project_history import (
     compare_project_checkpoint,
@@ -203,7 +203,7 @@ def compare_full_checkpoint(slug: str, checkpoint_id: str) -> dict:
 def restore_full_checkpoint(slug: str, checkpoint_id: str) -> dict:
     try:
         result = restore_project_checkpoint(slug, checkpoint_id)
-        result["binder"] = sync_binder(slug).model_dump()
+        result["binder"] = get_binder(slug).model_dump()
         return result
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project checkpoint not found") from exc
