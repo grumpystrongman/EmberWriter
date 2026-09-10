@@ -233,3 +233,81 @@ class VoiceAnalyzeRequest(BaseModel):
 class VoiceAnalyzeResponse(BaseModel):
     profile: VoiceProfile
     saved_path: str = "style/voice-profile.json"
+
+
+class ChemistryMilestone(BaseModel):
+    label: str = Field(min_length=1, max_length=500)
+    consequence: str = Field(default="", max_length=2000)
+    source_path: str = Field(default="", max_length=500)
+    chapter_order: int = Field(default=0, ge=0)
+
+
+class RelationshipChemistryProfile(BaseModel):
+    participants: list[str] = Field(min_length=2, max_length=6)
+    dynamic_summary: str = Field(default="", max_length=4000)
+    attraction_language: str = Field(default="", max_length=3000)
+    verbal_rhythm: str = Field(default="", max_length=3000)
+    initiation_style: str = Field(default="", max_length=3000)
+    response_style: str = Field(default="", max_length=3000)
+    power_dynamic: str = Field(default="", max_length=3000)
+    trust_state: str = Field(default="", max_length=3000)
+    vulnerability_pressure: str = Field(default="", max_length=3000)
+    established_patterns: list[str] = Field(default_factory=list, max_length=40)
+    boundaries: list[str] = Field(default_factory=list, max_length=40)
+    signature_elements: list[str] = Field(default_factory=list, max_length=40)
+    lore_resonance: list[str] = Field(default_factory=list, max_length=40)
+    aftermath_needs: list[str] = Field(default_factory=list, max_length=40)
+    next_escalations: list[str] = Field(default_factory=list, max_length=40)
+    avoidances: list[str] = Field(default_factory=list, max_length=40)
+    milestones: list[ChemistryMilestone] = Field(default_factory=list, max_length=100)
+    author_notes: str = Field(default="", max_length=8000)
+    updated_at: str = ""
+
+
+class ChemistryInferRequest(BaseModel):
+    participants: list[str] = Field(min_length=2, max_length=6)
+    provider: ProviderConfig
+    author_direction: str = Field(default="", max_length=6000)
+    save: bool = True
+
+
+class ChemistryInferResponse(BaseModel):
+    profile: RelationshipChemistryProfile
+    saved_path: str | None = None
+    context_files: list[str] = Field(default_factory=list)
+
+
+class AftermathRelationshipUpdate(BaseModel):
+    participants: list[str] = Field(min_length=2, max_length=6)
+    dynamic_summary: str = Field(default="", max_length=4000)
+    trust_state: str = Field(default="", max_length=3000)
+    vulnerability_pressure: str = Field(default="", max_length=3000)
+    add_established_patterns: list[str] = Field(default_factory=list, max_length=20)
+    add_signature_elements: list[str] = Field(default_factory=list, max_length=20)
+    add_lore_resonance: list[str] = Field(default_factory=list, max_length=20)
+    add_aftermath_needs: list[str] = Field(default_factory=list, max_length=20)
+    next_escalations: list[str] = Field(default_factory=list, max_length=20)
+    milestone_label: str = Field(default="", max_length=500)
+    milestone_consequence: str = Field(default="", max_length=2000)
+
+
+class AftermathProposal(BaseModel):
+    summary: str = Field(default="", max_length=4000)
+    participants: list[str] = Field(default_factory=list, max_length=6)
+    source_path: str = Field(default="", max_length=500)
+    chapter_order: int = Field(default=0, ge=0)
+    relationship_updates: list[AftermathRelationshipUpdate] = Field(default_factory=list, max_length=20)
+    character_aftermath: list[str] = Field(default_factory=list, max_length=30)
+    open_questions: list[str] = Field(default_factory=list, max_length=30)
+
+
+class AftermathAnalyzeRequest(BaseModel):
+    scene_text: str = Field(min_length=200, max_length=60000)
+    provider: ProviderConfig
+    source_path: str = Field(default="", max_length=500)
+    participants: list[str] = Field(default_factory=list, max_length=6)
+
+
+class AftermathApplyResponse(BaseModel):
+    profiles: list[RelationshipChemistryProfile] = Field(default_factory=list)
+    saved_paths: list[str] = Field(default_factory=list)
