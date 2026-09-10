@@ -101,6 +101,7 @@ export default function CorkboardView({
         <ProjectBoard
           apiBase={apiBase}
           slug={slug}
+          binderNodes={state.nodes}
           selectedBinder={selected}
           disabled={disabled}
           onOpenBinder={onOpen}
