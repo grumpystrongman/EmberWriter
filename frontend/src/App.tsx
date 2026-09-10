@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import ChemistryPanel, {
+  type AftermathProposal,
+  type ChemistryProfile,
+} from './ChemistryPanel'
 import CraftPanel, {
   type CraftControls,
   type CraftProfile,
@@ -109,11 +113,13 @@ function App() {
   const [memoryBusy, setMemoryBusy] = useState(false)
   const [sceneBusy, setSceneBusy] = useState(false)
   const [craftBusy, setCraftBusy] = useState(false)
+  const [chemistryBusy, setChemistryBusy] = useState(false)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [memoryStats, setMemoryStats] = useState<MemoryStats>(emptyMemoryStats)
   const [storyIntelligence, setStoryIntelligence] = useState<StoryIntelligence>(emptyStoryIntelligence)
   const [craftProfile, setCraftProfile] = useState<CraftProfile>(defaultCraftProfile)
   const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null)
+  const [chemistryProfiles, setChemistryProfiles] = useState<ChemistryProfile[]>([])
   const [memoryQuery, setMemoryQuery] = useState('')
   const [status, setStatus] = useState('Ready')
   const [provider, setProvider] = useState<Provider>(() => {
@@ -139,7 +145,11 @@ function App() {
     () => project?.files.filter((file) => !file.startsWith('manuscript/') && file !== 'project.json') ?? [],
     [project],
   )
-  const modelOccupied = busy || memoryBusy || sceneBusy || craftBusy
+  const characterNames = useMemo(
+    () => storyIntelligence.characters.map((character) => character.name),
+    [storyIntelligence],
+  )
+  const modelOccupied = busy || memoryBusy || sceneBusy || craftBusy || chemistryBusy
 
   useEffect(() => {
     void refreshProjects()
@@ -204,6 +214,12 @@ function App() {
     }
   }
 
+  async function refreshProjectDetail(slug = project?.slug) {
+    if (!slug) return
+    const detail = await jsonFetch<ProjectDetail>(`${API}/projects/${slug}`)
+    setProject(detail)
+  }
+
   async function refreshMemory(slug = project?.slug, query = memoryQuery) {
     if (!slug) return
     try {
@@ -240,6 +256,15 @@ function App() {
     }
   }
 
+  async function refreshChemistry(slug = project?.slug) {
+    if (!slug) return
+    try {
+      setChemistryProfiles(await jsonFetch<ChemistryProfile[]>(`${API}/projects/${slug}/chemistry`))
+    } catch (error) {
+      setStatus(`Relationship chemistry unavailable: ${(error as Error).message}`)
+    }
+  }
+
   async function openProject(slug: string) {
     setStatus('Opening project…')
     try {
@@ -248,7 +273,11 @@ function App() {
       setMemoryQuery('')
       const first = detail.files.find((file) => file.startsWith('manuscript/')) || detail.files[0] || ''
       if (first) await openFile(detail.slug, first)
-      await Promise.all([refreshMemory(detail.slug, ''), refreshCraft(detail.slug)])
+      await Promise.all([
+        refreshMemory(detail.slug, ''),
+        refreshCraft(detail.slug),
+        refreshChemistry(detail.slug),
+      ])
       setStatus('Project loaded')
     } catch (error) {
       setStatus((error as Error).message)
@@ -312,8 +341,7 @@ function App() {
         method: 'PUT',
         body: JSON.stringify({ content: `# ${path.split('/').pop()?.replace(/\.md$/i, '') || 'Untitled'}\n\n` }),
       })
-      const refreshed = await jsonFetch<ProjectDetail>(`${API}/projects/${project.slug}`)
-      setProject(refreshed)
+      await refreshProjectDetail(project.slug)
       setNewFilePath('')
       await openFile(project.slug, path)
     } catch (error) {
@@ -345,13 +373,10 @@ function App() {
     setStatus(`Analyzing ${activeFile} for story memory…`)
     try {
       if (dirty) await saveActiveFile()
-      const result = await jsonFetch<AnalyzeResult>(
-        `${API}/projects/${project.slug}/memory/analyze`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ path: activeFile, provider, force }),
-        },
-      )
+      const result = await jsonFetch<AnalyzeResult>(`${API}/projects/${project.slug}/memory/analyze`, {
+        method: 'POST',
+        body: JSON.stringify({ path: activeFile, provider, force }),
+      })
       await refreshMemory(project.slug, memoryQuery)
       setStatus(
         result.skipped
@@ -375,13 +400,10 @@ function App() {
       if (dirty) await saveActiveFile()
       for (const [index, path] of manuscriptFiles.entries()) {
         setStatus(`Building story memory ${index + 1}/${manuscriptFiles.length}: ${path}`)
-        const result = await jsonFetch<AnalyzeResult>(
-          `${API}/projects/${project.slug}/memory/analyze`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ path, provider, force: false }),
-          },
-        )
+        const result = await jsonFetch<AnalyzeResult>(`${API}/projects/${project.slug}/memory/analyze`, {
+          method: 'POST',
+          body: JSON.stringify({ path, provider, force: false }),
+        })
         if (result.skipped) {
           skipped += 1
         } else {
@@ -448,6 +470,103 @@ function App() {
     }
   }
 
+  async function inferChemistry(
+    participants: string[],
+    authorDirection: string,
+  ): Promise<ChemistryProfile | null> {
+    if (!project || !provider.model || modelOccupied) return null
+    setChemistryBusy(true)
+    setStatus(`Building chemistry profile for ${participants.join(' + ')}…`)
+    try {
+      const result = await jsonFetch<{ profile: ChemistryProfile; saved_path: string | null }>(
+        `${API}/projects/${project.slug}/chemistry/infer`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ participants, author_direction: authorDirection, provider, save: true }),
+        },
+      )
+      await Promise.all([refreshChemistry(project.slug), refreshProjectDetail(project.slug)])
+      setStatus(result.saved_path ? `Chemistry saved to ${result.saved_path}` : 'Chemistry profile ready')
+      return result.profile
+    } catch (error) {
+      setStatus(`Chemistry analysis failed: ${(error as Error).message}`)
+      return null
+    } finally {
+      setChemistryBusy(false)
+    }
+  }
+
+  async function saveChemistry(profile: ChemistryProfile): Promise<ChemistryProfile | null> {
+    if (!project || modelOccupied) return null
+    setChemistryBusy(true)
+    try {
+      const saved = await jsonFetch<ChemistryProfile>(`${API}/projects/${project.slug}/chemistry`, {
+        method: 'PUT',
+        body: JSON.stringify(profile),
+      })
+      await Promise.all([refreshChemistry(project.slug), refreshProjectDetail(project.slug)])
+      setStatus(`Chemistry saved for ${saved.participants.join(' + ')}`)
+      return saved
+    } catch (error) {
+      setStatus(`Could not save chemistry: ${(error as Error).message}`)
+      return null
+    } finally {
+      setChemistryBusy(false)
+    }
+  }
+
+  async function analyzeAftermath(participants: string[]): Promise<AftermathProposal | null> {
+    if (!project || !provider.model || modelOccupied) return null
+    const selected = selectionText().trim()
+    const sample = selected.length >= 200 ? selected : content.trim()
+    if (sample.length < 200) {
+      setStatus('Aftermath needs at least 200 characters from the current scene or chapter')
+      return null
+    }
+
+    setChemistryBusy(true)
+    setStatus(`Analyzing aftermath for ${participants.join(' + ')}…`)
+    try {
+      if (dirty) await saveActiveFile()
+      const proposal = await jsonFetch<AftermathProposal>(`${API}/projects/${project.slug}/aftermath/analyze`, {
+        method: 'POST',
+        body: JSON.stringify({
+          scene_text: sample,
+          provider,
+          source_path: activeFile || '',
+          participants,
+        }),
+      })
+      setStatus('Aftermath proposal ready for review')
+      return proposal
+    } catch (error) {
+      setStatus(`Aftermath analysis failed: ${(error as Error).message}`)
+      return null
+    } finally {
+      setChemistryBusy(false)
+    }
+  }
+
+  async function applyAftermath(proposal: AftermathProposal): Promise<boolean> {
+    if (!project || modelOccupied) return false
+    setChemistryBusy(true)
+    setStatus('Applying reviewed relationship changes…')
+    try {
+      const result = await jsonFetch<{ profiles: ChemistryProfile[]; saved_paths: string[] }>(
+        `${API}/projects/${project.slug}/aftermath/apply`,
+        { method: 'POST', body: JSON.stringify(proposal) },
+      )
+      await Promise.all([refreshChemistry(project.slug), refreshProjectDetail(project.slug)])
+      setStatus(`Aftermath applied to ${result.profiles.length} relationship profile${result.profiles.length === 1 ? '' : 's'}`)
+      return true
+    } catch (error) {
+      setStatus(`Could not apply aftermath: ${(error as Error).message}`)
+      return false
+    } finally {
+      setChemistryBusy(false)
+    }
+  }
+
   async function runGeneration() {
     if (!project || !prompt.trim() || modelOccupied) return
     setBusy(true)
@@ -496,8 +615,7 @@ function App() {
           save: true,
         }),
       })
-      const refreshed = await jsonFetch<ProjectDetail>(`${API}/projects/${project.slug}`)
-      setProject(refreshed)
+      await refreshProjectDetail(project.slug)
       setStatus(result.saved_path ? `Scene plan saved to ${result.saved_path}` : 'Scene plan ready')
       return result
     } catch (error) {
@@ -550,7 +668,7 @@ function App() {
       <aside className="library panel">
         <h2>Library</h2>
         <div className="create-row">
-          <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="New story project" />
+          <input value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="New story project" />
           <button onClick={() => void createProject()} disabled={modelOccupied || !newProjectName.trim()}>+</button>
         </div>
         <div className="project-list">
@@ -571,7 +689,7 @@ function App() {
             {referenceFiles.map((file) => <button key={file} className={activeFile === file ? 'active' : ''} onClick={() => void openFile(project.slug, file)}>{file}</button>)}
           </nav>
           <div className="create-row file-create">
-            <input value={newFilePath} onChange={(e) => setNewFilePath(e.target.value)} placeholder="characters/name.md" />
+            <input value={newFilePath} onChange={(event) => setNewFilePath(event.target.value)} placeholder="characters/name.md" />
             <button onClick={() => void createFile()}>+</button>
           </div>
         </>}
@@ -587,7 +705,7 @@ function App() {
             ref={editorRef}
             className="manuscript"
             value={content}
-            onChange={(e) => { setContent(e.target.value); setDirty(true) }}
+            onChange={(event) => { setContent(event.target.value); setDirty(true) }}
             spellCheck
             placeholder="Start writing…"
           />
@@ -604,7 +722,7 @@ function App() {
           ))}
         </div>
 
-        <textarea className="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Tell Ember what you want from this scene…" />
+        <textarea className="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Tell Ember what you want from this scene…" />
 
         {project && (
           <CraftPanel
@@ -620,7 +738,7 @@ function App() {
         )}
 
         <button className="primary" onClick={() => void runGeneration()} disabled={modelOccupied || !project || !prompt.trim() || !provider.model}>
-          {busy ? 'Writing…' : memoryBusy ? 'Memory busy…' : sceneBusy ? 'Scene Architect busy…' : craftBusy ? 'Voice Lab busy…' : 'Generate'}
+          {busy ? 'Writing…' : memoryBusy ? 'Memory busy…' : sceneBusy ? 'Scene Architect busy…' : craftBusy ? 'Voice Lab busy…' : chemistryBusy ? 'Chemistry busy…' : 'Generate'}
         </button>
 
         {output && <div className="result-card">
@@ -640,6 +758,19 @@ function App() {
         )}
 
         {project && (
+          <ChemistryPanel
+            characterNames={characterNames}
+            profiles={chemistryProfiles}
+            disabled={modelOccupied || !provider.model}
+            canAnalyzeScene={content.trim().length >= 200}
+            onInfer={inferChemistry}
+            onSave={saveChemistry}
+            onAnalyzeAftermath={analyzeAftermath}
+            onApplyAftermath={applyAftermath}
+          />
+        )}
+
+        {project && (
           <StoryIntelligencePanel
             intelligence={storyIntelligence}
             onRefresh={() => void refreshMemory(project.slug, memoryQuery)}
@@ -653,7 +784,7 @@ function App() {
             stats={memoryStats}
             query={memoryQuery}
             autoMemory={autoMemory}
-            busy={memoryBusy || sceneBusy || craftBusy}
+            busy={memoryBusy || sceneBusy || craftBusy || chemistryBusy}
             canAnalyze={activeFile.startsWith('manuscript/') && Boolean(provider.model)}
             canAnalyzeAll={manuscriptFiles.length > 0 && Boolean(provider.model)}
             onQueryChange={setMemoryQuery}
@@ -668,19 +799,19 @@ function App() {
         <details className="model-settings" open={!provider.model}>
           <summary>Local model</summary>
           <label>Provider</label>
-          <select value={provider.provider} onChange={(e) => setProvider({ ...provider, provider: e.target.value as Provider['provider'] })}>
+          <select value={provider.provider} onChange={(event) => setProvider({ ...provider, provider: event.target.value as Provider['provider'] })}>
             <option value="ollama">Ollama</option>
             <option value="openai_compatible">OpenAI-compatible</option>
           </select>
           <label>Server</label>
-          <input value={provider.base_url} onChange={(e) => setProvider({ ...provider, base_url: e.target.value })} />
+          <input value={provider.base_url} onChange={(event) => setProvider({ ...provider, base_url: event.target.value })} />
           <label>Model</label>
           <div className="create-row">
-            <input list="model-list" value={provider.model} onChange={(e) => setProvider({ ...provider, model: e.target.value })} placeholder="Choose or type model" />
+            <input list="model-list" value={provider.model} onChange={(event) => setProvider({ ...provider, model: event.target.value })} placeholder="Choose or type model" />
             <button onClick={() => void refreshModels()} disabled={modelOccupied}>↻</button>
           </div>
           <datalist id="model-list">{models.map((model) => <option key={model} value={model} />)}</datalist>
-          {provider.provider === 'openai_compatible' && <><label>API key (optional)</label><input type="password" value={provider.api_key || ''} onChange={(e) => setProvider({ ...provider, api_key: e.target.value })} /></>}
+          {provider.provider === 'openai_compatible' && <><label>API key (optional)</label><input type="password" value={provider.api_key || ''} onChange={(event) => setProvider({ ...provider, api_key: event.target.value })} /></>}
         </details>
       </aside>
     </div>
