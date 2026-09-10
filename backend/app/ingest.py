@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import io
 import re
 import tempfile
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from ebooklib import ITEM_DOCUMENT, epub
 from pypdf import PdfReader
 from striprtf.striprtf import rtf_to_text
@@ -24,43 +26,76 @@ CHAPTER_RE = re.compile(
 )
 
 
+def _run_to_markup(run) -> str:
+    text = html.escape(run.text)
+    if not text:
+        return ""
+    if run.bold:
+        text = f"<strong>{text}</strong>"
+    if run.italic:
+        text = f"<em>{text}</em>"
+    if run.underline:
+        text = f"<u>{text}</u>"
+    if run.font.strike:
+        text = f"<s>{text}</s>"
+    if run.font.highlight_color is not None:
+        text = f"<mark>{text}</mark>"
+    return text
+
+
 def _runs_to_markdown(paragraph) -> str:
-    parts: list[str] = []
-    for run in paragraph.runs:
-        text = run.text
-        if not text:
-            continue
-        if run.bold and run.italic:
-            text = f"***{text}***"
-        elif run.bold:
-            text = f"**{text}**"
-        elif run.italic:
-            text = f"*{text}*"
-        parts.append(text)
-    return "".join(parts).strip()
+    return "".join(_run_to_markup(run) for run in paragraph.runs).strip()
+
+
+def _alignment_name(paragraph) -> str | None:
+    value = paragraph.alignment
+    if value == WD_ALIGN_PARAGRAPH.CENTER:
+        return "center"
+    if value == WD_ALIGN_PARAGRAPH.RIGHT:
+        return "right"
+    if value == WD_ALIGN_PARAGRAPH.JUSTIFY:
+        return "justify"
+    if value == WD_ALIGN_PARAGRAPH.LEFT:
+        return "left"
+    return None
 
 
 def _docx_to_markdown(data: bytes) -> str:
     document = Document(io.BytesIO(data))
-    lines: list[str] = []
+    blocks: list[str] = []
     for paragraph in document.paragraphs:
         text = _runs_to_markdown(paragraph)
         if not text:
-            lines.append("")
+            blocks.append("")
             continue
         style = (paragraph.style.name or "").casefold() if paragraph.style else ""
         heading = re.match(r"heading\s+(\d+)", style)
+        alignment = _alignment_name(paragraph)
         if heading:
             level = max(1, min(6, int(heading.group(1))))
-            lines.append(f"{'#' * level} {text}")
+            if alignment and alignment != "left":
+                blocks.append(f'<h{level} style="text-align: {alignment}">{text}</h{level}>')
+            else:
+                blocks.append(f"{'#' * level} {text}")
+        elif alignment and alignment != "left":
+            blocks.append(f'<p style="text-align: {alignment}">{text}</p>')
         else:
-            lines.append(text)
+            blocks.append(text)
+
     for table in document.tables:
-        lines.append("")
+        if not table.rows:
+            continue
+        rows = []
         for row in table.rows:
-            cells = [cell.text.replace("\n", " ").strip() for cell in row.cells]
-            lines.append(" | ".join(cells))
-    return "\n\n".join(line for line in lines if line is not None).strip()
+            cells = [cell.text.replace("\n", " ").strip().replace("|", "\\|") for cell in row.cells]
+            rows.append(cells)
+        width = max(len(row) for row in rows)
+        normalized = [row + [""] * (width - len(row)) for row in rows]
+        blocks.append(" | ".join(normalized[0]))
+        blocks.append(" | ".join(["---"] * width))
+        blocks.extend(" | ".join(row) for row in normalized[1:])
+
+    return "\n\n".join(blocks).strip()
 
 
 def _pdf_to_markdown(data: bytes) -> str:
@@ -73,13 +108,16 @@ def _pdf_to_markdown(data: bytes) -> str:
     return "\n\n".join(pages).strip()
 
 
-def _html_to_markdown(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
+def _html_to_markdown(source_html: str) -> str:
+    soup = BeautifulSoup(source_html, "html.parser")
     for tag in soup(["script", "style", "nav"]):
         tag.decompose()
     blocks: list[str] = []
     root = soup.body or soup
-    for element in root.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "blockquote", "li"]):
+    for element in root.find_all(
+        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "blockquote", "li"],
+        recursive=True,
+    ):
         text = element.get_text(" ", strip=True)
         if not text:
             continue
@@ -99,8 +137,27 @@ def _epub_to_markdown(data: bytes) -> str:
         handle.write(data)
         handle.flush()
         book = epub.read_epub(handle.name)
-    sections: list[str] = []
+
+    ordered_items = []
+    seen: set[str] = set()
+    for spine_entry in book.spine:
+        item_id = spine_entry[0] if isinstance(spine_entry, (tuple, list)) else spine_entry
+        item = book.get_item_with_id(str(item_id))
+        if item is None or item.get_type() != ITEM_DOCUMENT:
+            continue
+        key = item.get_name()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered_items.append(item)
     for item in book.get_items_of_type(ITEM_DOCUMENT):
+        key = item.get_name()
+        if key not in seen:
+            seen.add(key)
+            ordered_items.append(item)
+
+    sections: list[str] = []
+    for item in ordered_items:
         converted = _html_to_markdown(item.get_content().decode("utf-8", errors="ignore"))
         if converted:
             sections.append(converted)
@@ -127,18 +184,24 @@ def extract_text(filename: str, data: bytes) -> str:
 
 def _chapter_title(line: str, fallback: str) -> str:
     cleaned = re.sub(r"^#+\s*", "", line).strip()
+    cleaned = re.sub(r"<[^>]+>", "", cleaned).strip()
     return cleaned[:160] or fallback
 
 
 def split_novel(markdown: str, fallback_title: str) -> list[tuple[str, str]]:
     lines = markdown.splitlines()
-    starts: list[tuple[int, str]] = []
+    explicit_starts: list[tuple[int, str]] = []
+    h1_starts: list[tuple[int, str]] = []
     for index, line in enumerate(lines):
         stripped = line.strip()
         plain = re.sub(r"^#+\s*", "", stripped)
-        if stripped.startswith("# ") or CHAPTER_RE.match(plain):
-            starts.append((index, _chapter_title(stripped, f"Section {len(starts) + 1}")))
+        plain = re.sub(r"<[^>]+>", "", plain).strip()
+        if CHAPTER_RE.match(plain):
+            explicit_starts.append((index, _chapter_title(stripped, f"Section {len(explicit_starts) + 1}")))
+        if stripped.startswith("# ") or re.match(r"^<h1\b", stripped, re.IGNORECASE):
+            h1_starts.append((index, _chapter_title(stripped, f"Section {len(h1_starts) + 1}")))
 
+    starts = explicit_starts if len(explicit_starts) >= 2 else h1_starts
     if len(starts) < 2:
         return [(fallback_title, markdown.strip())]
 
@@ -192,11 +255,12 @@ def _create_imported_node(slug: str, title: str, content: str, mode: str) -> dic
     created = next(node for node in state.nodes if node.id not in before)
     if not created.path:
         raise ValueError("Imported Binder document did not receive a source path")
-    save_text(slug, created.path, content.rstrip() + "\n")
+    saved_content = content.rstrip() + "\n"
+    save_text(slug, created.path, saved_content)
     revision = record_revision(
         slug,
         created.path,
-        content.rstrip() + "\n",
+        saved_content,
         source="import",
         note=f"Imported as {mode}",
         force=True,
@@ -216,7 +280,10 @@ def import_bytes(slug: str, filename: str, data: bytes, mode: str = "novel") -> 
     text = extract_text(filename, data)
     if not text.strip():
         raise ValueError("The uploaded file did not contain readable text")
-    fallback = Path(filename).stem.replace("-", " ").replace("_", " ").strip().title() or "Imported Text"
+    fallback = (
+        Path(filename).stem.replace("-", " ").replace("_", " ").strip().title()
+        or "Imported Text"
+    )
     parts = split_novel(text, fallback) if mode == "novel" else [(fallback, text)]
     imported = [_create_imported_node(slug, title, content, mode) for title, content in parts]
     return {
