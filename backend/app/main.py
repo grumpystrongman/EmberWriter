@@ -13,6 +13,8 @@ from .models import (
     SearchHit,
     SearchRequest,
 )
+from .revisions import record_revision
+from .routes_authoring import router as authoring_router
 from .routes_binder import router as binder_router
 from .routes_chemistry import router as chemistry_router
 from .routes_craft import router as craft_router
@@ -30,7 +32,7 @@ from .storage import (
     search_story,
 )
 
-app = FastAPI(title="EmberWriter API", version="0.6.0")
+app = FastAPI(title="EmberWriter API", version="0.7.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,11 +47,12 @@ app.include_router(story_router)
 app.include_router(craft_router)
 app.include_router(chemistry_router)
 app.include_router(binder_router)
+app.include_router(authoring_router)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.6.0"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.7.0"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
@@ -96,7 +99,9 @@ def get_file(slug: str, path: str = Query(...)) -> dict:
 @app.put("/api/projects/{slug}/file")
 def put_file(slug: str, payload: FilePayload, path: str = Query(...)) -> dict:
     try:
-        return save_text(slug, path, payload.content)
+        result = save_text(slug, path, payload.content)
+        revision = record_revision(slug, path, payload.content, source="save")
+        return {**result, "revision": revision}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except ValueError as exc:
