@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -71,3 +71,38 @@ class ContextRequest(BaseModel):
 class ContextResponse(BaseModel):
     context: str
     files: list[str]
+
+
+class AnalyzeRequest(BaseModel):
+    path: str = Field(min_length=1)
+    provider: ProviderConfig
+    force: bool = False
+
+
+class AnalyzeResponse(BaseModel):
+    path: str
+    summary: str
+    facts_written: int
+    skipped: bool
+
+
+class MemoryFact(BaseModel):
+    id: str
+    kind: str
+    subject: str
+    predicate: str
+    object: str
+    source_path: str
+    confidence: float
+    importance: int
+    chapter_order: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+    updated_at: str
+    score: float
+
+
+class MemoryStats(BaseModel):
+    facts: int
+    documents: int
+    by_kind: dict[str, int]
