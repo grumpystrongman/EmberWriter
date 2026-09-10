@@ -4,6 +4,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+HeatLevel = Literal["simmer", "hot", "scorching", "inferno"]
+TensionCurve = Literal["slow_burn", "steady_rise", "pressure_cooker", "flashpoint"]
+
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
@@ -49,17 +52,29 @@ class ProviderConfig(BaseModel):
     api_key: str | None = None
 
 
+class CraftControls(BaseModel):
+    heat_level: HeatLevel | None = None
+    tension_curve: TensionCurve | None = None
+    voice_lock: bool = True
+    quality_pass: bool = False
+    sensory_intensity: int = Field(default=3, ge=1, le=5)
+    dialogue_intensity: int = Field(default=3, ge=1, le=5)
+    interiority: int = Field(default=3, ge=1, le=5)
+
+
 class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=1)
     mode: Literal["write", "continue", "rewrite", "brainstorm", "critic", "continuity"] = "write"
     active_file: str | None = None
     selected_text: str | None = None
     provider: ProviderConfig
+    craft: CraftControls = Field(default_factory=CraftControls)
 
 
 class GenerateResponse(BaseModel):
     text: str
     context_files: list[str]
+    refined: bool = False
 
 
 class ContextRequest(BaseModel):
@@ -185,3 +200,36 @@ class ScenePlanResponse(BaseModel):
     plan: ScenePlan
     saved_path: str | None = None
     context_files: list[str] = Field(default_factory=list)
+
+
+class VoiceProfile(BaseModel):
+    name: str = "Book voice"
+    prose_directive: str = ""
+    sentence_rhythm: str = ""
+    diction: str = ""
+    imagery: str = ""
+    dialogue: str = ""
+    interiority: str = ""
+    pov_distance: str = ""
+    sensual_voice: str = ""
+    signature_traits: list[str] = Field(default_factory=list)
+    avoidances: list[str] = Field(default_factory=list)
+
+
+class CraftProfile(BaseModel):
+    default_heat: HeatLevel = "hot"
+    default_tension_curve: TensionCurve = "slow_burn"
+    quality_pass_default: bool = False
+    prose_directive: str = ""
+    avoidances: list[str] = Field(default_factory=list)
+
+
+class VoiceAnalyzeRequest(BaseModel):
+    sample_text: str = Field(min_length=200, max_length=50000)
+    provider: ProviderConfig
+    profile_name: str = Field(default="Book voice", min_length=1, max_length=120)
+
+
+class VoiceAnalyzeResponse(BaseModel):
+    profile: VoiceProfile
+    saved_path: str = "style/voice-profile.json"

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import CraftPanel, {
+  type CraftControls,
+  type CraftProfile,
+  type VoiceProfile,
+} from './CraftPanel'
 import MemoryPanel, { type MemoryFact, type MemoryStats } from './MemoryPanel'
 import SceneArchitectPanel, { type ScenePlan, type ScenePlanResponse } from './SceneArchitectPanel'
 import StoryIntelligencePanel, { type StoryIntelligence } from './StoryIntelligencePanel'
@@ -48,6 +53,24 @@ const defaultProvider: Provider = {
   api_key: '',
 }
 
+const defaultCraftProfile: CraftProfile = {
+  default_heat: 'hot',
+  default_tension_curve: 'slow_burn',
+  quality_pass_default: false,
+  prose_directive: '',
+  avoidances: [],
+}
+
+const defaultCraftControls: CraftControls = {
+  heat_level: 'hot',
+  tension_curve: 'slow_burn',
+  voice_lock: true,
+  quality_pass: false,
+  sensory_intensity: 3,
+  dialogue_intensity: 3,
+  interiority: 3,
+}
+
 const emptyMemoryStats: MemoryStats = { facts: 0, documents: 0, by_kind: {} }
 const emptyStoryIntelligence: StoryIntelligence = { characters: [], relationships: [] }
 
@@ -85,14 +108,21 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [memoryBusy, setMemoryBusy] = useState(false)
   const [sceneBusy, setSceneBusy] = useState(false)
+  const [craftBusy, setCraftBusy] = useState(false)
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([])
   const [memoryStats, setMemoryStats] = useState<MemoryStats>(emptyMemoryStats)
   const [storyIntelligence, setStoryIntelligence] = useState<StoryIntelligence>(emptyStoryIntelligence)
+  const [craftProfile, setCraftProfile] = useState<CraftProfile>(defaultCraftProfile)
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null)
   const [memoryQuery, setMemoryQuery] = useState('')
   const [status, setStatus] = useState('Ready')
   const [provider, setProvider] = useState<Provider>(() => {
     const stored = localStorage.getItem('emberwriter.provider')
     return stored ? { ...defaultProvider, ...JSON.parse(stored) } : defaultProvider
+  })
+  const [craftControls, setCraftControls] = useState<CraftControls>(() => {
+    const stored = localStorage.getItem('emberwriter.craftControls')
+    return stored ? { ...defaultCraftControls, ...JSON.parse(stored) } : defaultCraftControls
   })
   const [autoMemory, setAutoMemory] = useState(() => {
     const stored = localStorage.getItem('emberwriter.autoMemory')
@@ -109,7 +139,7 @@ function App() {
     () => project?.files.filter((file) => !file.startsWith('manuscript/') && file !== 'project.json') ?? [],
     [project],
   )
-  const modelOccupied = busy || memoryBusy || sceneBusy
+  const modelOccupied = busy || memoryBusy || sceneBusy || craftBusy
 
   useEffect(() => {
     void refreshProjects()
@@ -118,6 +148,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('emberwriter.provider', JSON.stringify(provider))
   }, [provider])
+
+  useEffect(() => {
+    localStorage.setItem('emberwriter.craftControls', JSON.stringify(craftControls))
+  }, [craftControls])
 
   useEffect(() => {
     localStorage.setItem('emberwriter.autoMemory', String(autoMemory))
@@ -187,6 +221,25 @@ function App() {
     }
   }
 
+  async function refreshCraft(slug: string) {
+    try {
+      const [profile, voice] = await Promise.all([
+        jsonFetch<CraftProfile>(`${API}/projects/${slug}/craft-profile`),
+        jsonFetch<VoiceProfile | null>(`${API}/projects/${slug}/voice-profile`),
+      ])
+      setCraftProfile(profile)
+      setVoiceProfile(voice)
+      setCraftControls((current) => ({
+        ...current,
+        heat_level: profile.default_heat,
+        tension_curve: profile.default_tension_curve,
+        quality_pass: profile.quality_pass_default,
+      }))
+    } catch (error) {
+      setStatus(`Craft profile unavailable: ${(error as Error).message}`)
+    }
+  }
+
   async function openProject(slug: string) {
     setStatus('Opening project…')
     try {
@@ -195,7 +248,7 @@ function App() {
       setMemoryQuery('')
       const first = detail.files.find((file) => file.startsWith('manuscript/')) || detail.files[0] || ''
       if (first) await openFile(detail.slug, first)
-      await refreshMemory(detail.slug, '')
+      await Promise.all([refreshMemory(detail.slug, ''), refreshCraft(detail.slug)])
       setStatus('Project loaded')
     } catch (error) {
       setStatus((error as Error).message)
@@ -352,13 +405,56 @@ function App() {
     return content.slice(el.selectionStart, el.selectionEnd)
   }
 
+  async function saveCraftProfile(profile: CraftProfile) {
+    if (!project) return
+    try {
+      const saved = await jsonFetch<CraftProfile>(`${API}/projects/${project.slug}/craft-profile`, {
+        method: 'PUT',
+        body: JSON.stringify(profile),
+      })
+      setCraftProfile(saved)
+      setStatus('Project craft defaults saved')
+    } catch (error) {
+      setStatus(`Could not save craft profile: ${(error as Error).message}`)
+    }
+  }
+
+  async function analyzeVoiceFromCurrentText(profileName: string) {
+    if (!project || !provider.model || modelOccupied) return
+    const selected = selectionText().trim()
+    const sample = selected.length >= 200 ? selected : content.trim()
+    if (sample.length < 200) {
+      setStatus('Voice Lab needs at least 200 characters of prose')
+      return
+    }
+
+    setCraftBusy(true)
+    setStatus(`Learning ${profileName} from prose sample…`)
+    try {
+      if (dirty) await saveActiveFile()
+      const result = await jsonFetch<{ profile: VoiceProfile; saved_path: string }>(
+        `${API}/projects/${project.slug}/voice/analyze`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ sample_text: sample, provider, profile_name: profileName }),
+        },
+      )
+      setVoiceProfile(result.profile)
+      setStatus(`Voice Lock learned and saved to ${result.saved_path}`)
+    } catch (error) {
+      setStatus(`Voice Lab failed: ${(error as Error).message}`)
+    } finally {
+      setCraftBusy(false)
+    }
+  }
+
   async function runGeneration() {
     if (!project || !prompt.trim() || modelOccupied) return
     setBusy(true)
     setOutput('')
-    setStatus(`Running ${mode}…`)
+    setStatus(`Running ${mode}${craftControls.quality_pass ? ' + Craft Pass' : ''}…`)
     try {
-      const result = await jsonFetch<{ text: string; context_files: string[] }>(
+      const result = await jsonFetch<{ text: string; context_files: string[]; refined: boolean }>(
         `${API}/projects/${project.slug}/generate`,
         {
           method: 'POST',
@@ -368,12 +464,13 @@ function App() {
             active_file: activeFile || null,
             selected_text: selectionText() || null,
             provider,
+            craft: craftControls,
           }),
         },
       )
       setOutput(result.text)
       setContextFiles(result.context_files)
-      setStatus('Generation complete')
+      setStatus(result.refined ? 'Generation complete · Craft Pass applied' : 'Generation complete')
     } catch (error) {
       setStatus((error as Error).message)
     } finally {
@@ -391,6 +488,9 @@ function App() {
         method: 'POST',
         body: JSON.stringify({
           ...input,
+          desired_heat: input.desired_heat === 'author controlled'
+            ? (craftControls.heat_level || craftProfile.default_heat)
+            : input.desired_heat,
           provider,
           active_file: activeFile || null,
           save: true,
@@ -411,11 +511,15 @@ function App() {
   function useScenePlanAsPrompt(plan: ScenePlan) {
     const beats = plan.beats.map((beat, index) => `${index + 1}. ${beat.beat}`).join('\n')
     const guardrails = plan.continuity_requirements.map((item) => `- ${item}`).join('\n')
+    const relationshipMoves = plan.relationship_moves.map((item) => `- ${item}`).join('\n')
+    const intimacyNotes = plan.intimacy_notes.map((item) => `- ${item}`).join('\n')
     setMode('write')
     setPrompt(
       `Write the planned scene "${plan.title}" as polished manuscript prose.\n\n` +
       `POV: ${plan.pov}\nLocation: ${plan.location}\nObjective: ${plan.scene_objective}\nConflict: ${plan.conflict}\n\n` +
       `Required beats:\n${beats}\n\nContinuity guardrails:\n${guardrails || '- Preserve established canon and knowledge boundaries.'}\n\n` +
+      `Relationship movement:\n${relationshipMoves || '- Preserve established relationship state.'}\n\n` +
+      `${intimacyNotes ? `Intimacy / tension notes:\n${intimacyNotes}\n\n` : ''}` +
       `Ending state: ${plan.ending_state}\nNext-scene pressure: ${plan.next_scene_pressure}`,
     )
     setStatus('Scene plan loaded into Writer prompt')
@@ -501,8 +605,22 @@ function App() {
         </div>
 
         <textarea className="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Tell Ember what you want from this scene…" />
+
+        {project && (
+          <CraftPanel
+            controls={craftControls}
+            profile={craftProfile}
+            voiceProfile={voiceProfile}
+            disabled={modelOccupied || !provider.model}
+            sampleAvailable={content.trim().length >= 200}
+            onControlsChange={setCraftControls}
+            onSaveProfile={saveCraftProfile}
+            onAnalyzeVoice={analyzeVoiceFromCurrentText}
+          />
+        )}
+
         <button className="primary" onClick={() => void runGeneration()} disabled={modelOccupied || !project || !prompt.trim() || !provider.model}>
-          {busy ? 'Working…' : memoryBusy ? 'Memory busy…' : sceneBusy ? 'Scene Architect busy…' : 'Generate'}
+          {busy ? 'Writing…' : memoryBusy ? 'Memory busy…' : sceneBusy ? 'Scene Architect busy…' : craftBusy ? 'Voice Lab busy…' : 'Generate'}
         </button>
 
         {output && <div className="result-card">
@@ -535,7 +653,7 @@ function App() {
             stats={memoryStats}
             query={memoryQuery}
             autoMemory={autoMemory}
-            busy={memoryBusy || sceneBusy}
+            busy={memoryBusy || sceneBusy || craftBusy}
             canAnalyze={activeFile.startsWith('manuscript/') && Boolean(provider.model)}
             canAnalyzeAll={manuscriptFiles.length > 0 && Boolean(provider.model)}
             onQueryChange={setMemoryQuery}

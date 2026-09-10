@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from fastapi import APIRouter, HTTPException
 
+from .craft import build_craft_context, quality_pass
 from .generation import build_messages, generate, list_models
 from .memory import build_memory_context
 from .models import (
@@ -13,6 +14,7 @@ from .models import (
     ProviderConfig,
 )
 from .storage import compile_context
+from .story_intelligence import build_character_context, relevant_character_names
 
 router = APIRouter(prefix="/api")
 
@@ -33,6 +35,36 @@ def _with_narrative_memory(
     return enriched, list(dict.fromkeys(files))
 
 
+def _with_character_intelligence(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+    prompt: str,
+    selected_text: str | None,
+) -> tuple[str, list[str]]:
+    probe = f"{prompt}\n{selected_text or ''}\n{context_text[-18000:]}"
+    names = relevant_character_names(slug, probe)
+    if not names:
+        return context_text, context_files
+    character_text = build_character_context(slug, names)
+    if not character_text:
+        return context_text, context_files
+    enriched = f"{character_text}\n\n---\n\n{context_text}" if context_text else character_text
+    return enriched, context_files
+
+
+def _with_craft_context(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+    payload: GenerateRequest,
+) -> tuple[str, list[str], str]:
+    craft_text, craft_files = build_craft_context(slug, payload.craft)
+    enriched = f"{craft_text}\n\n---\n\n{context_text}" if context_text else craft_text
+    files = [*craft_files, *context_files]
+    return enriched, list(dict.fromkeys(files)), craft_text
+
+
 @router.post("/models")
 async def models(payload: ProviderConfig) -> dict:
     try:
@@ -51,6 +83,13 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
             selected_text=payload.selected_text,
         )
         compiled, files = _with_narrative_memory(
+            slug,
+            compiled,
+            files,
+            payload.prompt,
+            payload.selected_text,
+        )
+        compiled, files = _with_character_intelligence(
             slug,
             compiled,
             files,
@@ -78,12 +117,34 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             payload.prompt,
             payload.selected_text,
         )
+        context_text, context_files = _with_character_intelligence(
+            slug,
+            context_text,
+            context_files,
+            payload.prompt,
+            payload.selected_text,
+        )
+        context_text, context_files, craft_text = _with_craft_context(
+            slug,
+            context_text,
+            context_files,
+            payload,
+        )
         messages = build_messages(payload.mode, payload.prompt, context_text)
         text = await generate(payload.provider, messages)
-        return GenerateResponse(text=text, context_files=context_files)
+        refined = False
+        if payload.craft.quality_pass and payload.mode in {"write", "continue", "rewrite"}:
+            text = await quality_pass(
+                payload.provider,
+                draft=text,
+                author_prompt=payload.prompt,
+                craft_context=craft_text,
+            )
+            refined = True
+        return GenerateResponse(text=text, context_files=context_files, refined=refined)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Model server error: {exc}") from exc

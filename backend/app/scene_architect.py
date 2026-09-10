@@ -5,15 +5,16 @@ import re
 from typing import Any
 from uuid import uuid4
 
+from .craft import build_craft_context
 from .generation import generate
-from .models import ScenePlan, ScenePlanRequest
+from .models import CraftControls, ScenePlan, ScenePlanRequest
 from .storage import compile_context, save_text, utc_now
 from .story_intelligence import build_character_context, build_story_intelligence
 
 SCENE_ARCHITECT_SYSTEM_PROMPT = """You are EmberWriter's Scene Architect.
 Return ONLY valid JSON for a practical scene plan that an author can use to write the next scene.
 
-Use the supplied manuscript, story memory, character knowledge, relationship state, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict.
+Use the supplied manuscript, story memory, character knowledge, relationship state, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict.
 
 Planning rules:
 - Do not invent established canon when the context is silent; phrase optional inventions as scene choices instead.
@@ -22,6 +23,8 @@ Planning rules:
 - Carry unresolved setup/payoff forward when relevant without forcing every open thread into one scene.
 - Relationship movement should be specific to the participants and earned by the scene.
 - If intimacy is requested, treat it as character/relationship development with consequences and preserve established adult/consent constraints.
+- For high-heat adult scenes, design escalation rather than a flat sequence of explicit acts: anticipation, choice, vulnerability, pressure shifts, release, and aftermath should have shape appropriate to the requested curve.
+- Do not make every character express attraction or intimacy the same way. Use dossier, relationship, and voice evidence.
 - The ending should create a changed state or meaningful pressure for what follows.
 - Keep beats concise enough to scan while drafting.
 
@@ -93,6 +96,12 @@ def _relationship_context(slug: str, participants: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _scene_craft_controls(desired_heat: str) -> CraftControls:
+    normalized = desired_heat.strip().lower()
+    heat = normalized if normalized in {"simmer", "hot", "scorching", "inferno"} else None
+    return CraftControls(heat_level=heat, voice_lock=True)
+
+
 async def create_scene_plan(slug: str, request: ScenePlanRequest) -> dict[str, Any]:
     prompt_bits = [request.prompt, request.pov, request.location, *request.participants]
     context, context_files = compile_context(
@@ -102,6 +111,10 @@ async def create_scene_plan(slug: str, request: ScenePlanRequest) -> dict[str, A
     )
     character_context = build_character_context(slug, request.participants)
     relationship_context = _relationship_context(slug, request.participants)
+    craft_context, craft_files = build_craft_context(
+        slug,
+        _scene_craft_controls(request.desired_heat),
+    )
 
     user_message = f"""AUTHOR'S SCENE REQUEST
 {request.prompt}
@@ -111,6 +124,9 @@ POV: {request.pov or '(choose from context)'}
 Participants: {', '.join(request.participants) or '(infer only obvious participants)'}
 Location: {request.location or '(infer only if established or clearly requested)'}
 Desired heat/intimacy level: {request.desired_heat}
+
+CRAFT / VOICE DIRECTION
+{craft_context}
 
 CHARACTER STATE
 {character_context or '(No participant-specific structured state was found.)'}
@@ -138,10 +154,11 @@ PROJECT CONTEXT
     if request.save:
         saved_path = f"scenes/scene-plan-{uuid4().hex[:10]}.json"
         artifact = {
-            "schema_version": 1,
+            "schema_version": 2,
             "generated_at": utc_now(),
             "author_request": request.prompt,
             "active_file": request.active_file,
+            "desired_heat": request.desired_heat,
             "plan": plan.model_dump(),
         }
         save_text(slug, saved_path, json.dumps(artifact, indent=2, ensure_ascii=False))
@@ -149,5 +166,5 @@ PROJECT CONTEXT
     return {
         "plan": plan,
         "saved_path": saved_path,
-        "context_files": context_files,
+        "context_files": list(dict.fromkeys([*craft_files, *context_files])),
     }
