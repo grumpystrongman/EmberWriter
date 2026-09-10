@@ -10,6 +10,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from PIL import Image
+
 from .cover_models import CoverProfile
 from .release_models import (
     ReleaseArtifact,
@@ -199,6 +201,46 @@ def save_release_profile(slug: str, profile: ReleaseProfile) -> ReleaseProfile:
     return profile
 
 
+def _validate_artifact_content(path: Path) -> None:
+    suffix = path.suffix.casefold()
+    if path.stat().st_size == 0:
+        raise ValueError(f"Release artifact is empty: {path.name}")
+    if suffix == ".pdf":
+        if path.read_bytes()[:5] != b"%PDF-":
+            raise ValueError(f"Release artifact has a .pdf extension but is not a PDF: {path.name}")
+        return
+    if suffix == ".epub":
+        if not zipfile.is_zipfile(path):
+            raise ValueError(f"Release artifact has a .epub extension but is not a valid EPUB container: {path.name}")
+        try:
+            with zipfile.ZipFile(path) as archive:
+                if "mimetype" not in archive.namelist():
+                    raise ValueError(f"EPUB is missing its mimetype entry: {path.name}")
+                mimetype = archive.read("mimetype").decode("ascii", errors="replace").strip()
+                if mimetype != "application/epub+zip":
+                    raise ValueError(f"EPUB has an invalid mimetype declaration: {path.name}")
+        except zipfile.BadZipFile as exc:
+            raise ValueError(f"EPUB container is unreadable: {path.name}") from exc
+        return
+    if suffix in _IMAGE_SUFFIXES:
+        try:
+            with Image.open(path) as image:
+                image.verify()
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Release cover image is unreadable: {path.name}") from exc
+        return
+    if suffix == ".docx":
+        if not zipfile.is_zipfile(path):
+            raise ValueError(f"Release artifact has a .docx extension but is not a DOCX package: {path.name}")
+        try:
+            with zipfile.ZipFile(path) as archive:
+                names = set(archive.namelist())
+                if "[Content_Types].xml" not in names or "word/document.xml" not in names:
+                    raise ValueError(f"DOCX package is missing required document parts: {path.name}")
+        except zipfile.BadZipFile as exc:
+            raise ValueError(f"DOCX package is unreadable: {path.name}") from exc
+
+
 def _safe_export_path(slug: str, relative_path: str) -> Path:
     root = project_root(slug)
     export_root = (root / "exports").resolve()
@@ -209,6 +251,7 @@ def _safe_export_path(slug: str, relative_path: str) -> Path:
         raise ValueError("Unsupported release artifact type")
     if not candidate.is_file():
         raise FileNotFoundError(relative_path)
+    _validate_artifact_content(candidate)
     return candidate
 
 
@@ -220,7 +263,14 @@ def _valid_isbn13(value: str) -> bool:
     digits = _isbn13(value)
     if len(digits) != 13:
         return False
-    expected = (10 - sum((1 if index % 2 == 0 else 3) * int(digit) for index, digit in enumerate(digits[:12])) % 10) % 10
+    expected = (
+        10
+        - sum(
+            (1 if index % 2 == 0 else 3) * int(digit)
+            for index, digit in enumerate(digits[:12])
+        )
+        % 10
+    ) % 10
     return expected == int(digits[12])
 
 
@@ -280,7 +330,11 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
         add("error", "description-required", "A public book description is required for release readiness.")
     if profile.series_number.strip() and not profile.series_name.strip():
         add("error", "series-name-required", "Series number requires a series name.")
-    if profile.reading_age_min is not None and profile.reading_age_max is not None and profile.reading_age_min > profile.reading_age_max:
+    if (
+        profile.reading_age_min is not None
+        and profile.reading_age_max is not None
+        and profile.reading_age_min > profile.reading_age_max
+    ):
         add("error", "reading-age-order", "Minimum reading age cannot exceed maximum reading age.")
     for field_name, value in (
         ("publication date", profile.publication_date),
@@ -289,8 +343,14 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
     ):
         if not _valid_date(value):
             add("error", "invalid-date", f"{field_name.title()} must use YYYY-MM-DD.")
-    if profile.rights_scope == "territories" and not [item for item in profile.territories if item.strip()]:
-        add("error", "territories-required", "Choose at least one territory when rights are not worldwide.")
+    if profile.rights_scope == "territories" and not [
+        item for item in profile.territories if item.strip()
+    ]:
+        add(
+            "error",
+            "territories-required",
+            "Choose at least one territory when rights are not worldwide.",
+        )
     if not enabled:
         add("error", "edition-required", "Enable at least one release edition.")
 
@@ -298,26 +358,64 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
     owned_isbns: dict[str, str] = {}
     for edition in enabled:
         if edition.id in edition_ids:
-            add("error", "duplicate-edition-id", f"Edition id '{edition.id}' is duplicated.", edition_id=edition.id)
+            add(
+                "error",
+                "duplicate-edition-id",
+                f"Edition id '{edition.id}' is duplicated.",
+                edition_id=edition.id,
+            )
         edition_ids.add(edition.id)
         if not edition.retailers:
-            add("error", "retailer-required", "Choose at least one retailer for this edition.", edition_id=edition.id)
+            add(
+                "error",
+                "retailer-required",
+                "Choose at least one retailer for this edition.",
+                edition_id=edition.id,
+            )
         if not re.fullmatch(r"[A-Z]{3}", edition.currency.upper()):
-            add("error", "currency-code", "Currency must be a three-letter code such as USD.", edition_id=edition.id)
+            add(
+                "error",
+                "currency-code",
+                "Currency must be a three-letter code such as USD.",
+                edition_id=edition.id,
+            )
         if edition.price == 0:
-            add("warning", "price-review", "Price is zero. Confirm free-title eligibility or set the retailer list price before publication.", edition_id=edition.id)
+            add(
+                "warning",
+                "price-review",
+                "Price is zero. Confirm free-title eligibility or set the retailer list price before publication.",
+                edition_id=edition.id,
+            )
 
-        for role, relative_path in (("interior", edition.interior_path), ("cover", edition.cover_path)):
+        for role, relative_path in (
+            ("interior", edition.interior_path),
+            ("cover", edition.cover_path),
+        ):
             if not relative_path:
-                add("error", f"{role}-required", f"Select a generated {role} file for this edition.", edition_id=edition.id)
+                add(
+                    "error",
+                    f"{role}-required",
+                    f"Select a generated {role} file for this edition.",
+                    edition_id=edition.id,
+                )
                 continue
             try:
                 path = _safe_export_path(slug, relative_path)
             except FileNotFoundError:
-                add("error", f"{role}-missing", f"Selected {role} file no longer exists: {relative_path}", edition_id=edition.id)
+                add(
+                    "error",
+                    f"{role}-missing",
+                    f"Selected {role} file no longer exists: {relative_path}",
+                    edition_id=edition.id,
+                )
                 continue
             except ValueError as exc:
-                add("error", f"{role}-invalid", str(exc), edition_id=edition.id)
+                add(
+                    "error",
+                    f"{role}-invalid",
+                    str(exc),
+                    edition_id=edition.id,
+                )
                 continue
             suffix = path.suffix.casefold()
             if role == "interior":
@@ -328,22 +426,34 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
                 add(
                     "error",
                     f"{role}-format",
-                    f"{edition.format.title()} {role} should use {', '.join(sorted(expected))}; selected {suffix}.",
+                    f"{edition.format.title()} {role} should use "
+                    f"{', '.join(sorted(expected))}; selected {suffix}.",
                     edition_id=edition.id,
                 )
 
         if edition.identifier_mode == "own":
             if not edition.isbn.strip():
-                add("error", "isbn-required", "Owned-ISBN mode requires an ISBN-13.", edition_id=edition.id)
+                add(
+                    "error",
+                    "isbn-required",
+                    "Owned-ISBN mode requires an ISBN-13.",
+                    edition_id=edition.id,
+                )
             elif not _valid_isbn13(edition.isbn):
-                add("error", "isbn-invalid", "ISBN must be a valid ISBN-13 with a correct check digit.", edition_id=edition.id)
+                add(
+                    "error",
+                    "isbn-invalid",
+                    "ISBN must be a valid ISBN-13 with a correct check digit.",
+                    edition_id=edition.id,
+                )
             else:
                 normalized = _isbn13(edition.isbn)
                 if normalized in owned_isbns:
                     add(
                         "error",
                         "isbn-reused",
-                        f"ISBN {normalized} is already assigned to edition '{owned_isbns[normalized]}'. Each format/edition needs its own identifier.",
+                        f"ISBN {normalized} is already assigned to edition "
+                        f"'{owned_isbns[normalized]}'. Each format/edition needs its own identifier.",
                         edition_id=edition.id,
                     )
                 else:
@@ -352,55 +462,192 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
             add(
                 "error",
                 "retailer-isbn-not-portable",
-                "Retailer-assigned identifiers are not portable across multiple distributors. Use an owned ISBN or split the edition handoff.",
+                "Retailer-assigned identifiers are not portable across multiple distributors. "
+                "Use an owned ISBN or split the edition handoff.",
                 edition_id=edition.id,
             )
 
         for retailer in edition.retailers:
             if retailer in {"apple_books", "kobo"} and edition.format != "ebook":
-                add("error", "ebook-retailer-format", f"{retailer.replace('_', ' ').title()} handoff supports the eBook edition in Ember's current release workflow.", retailer=retailer, edition_id=edition.id)
+                add(
+                    "error",
+                    "ebook-retailer-format",
+                    f"{retailer.replace('_', ' ').title()} handoff supports the eBook edition "
+                    "in Ember's current release workflow.",
+                    retailer=retailer,
+                    edition_id=edition.id,
+                )
             if retailer == "kdp":
-                if edition.format in {"paperback", "hardcover"} and edition.identifier_mode == "none":
-                    add("error", "kdp-print-isbn", "KDP print requires an ISBN unless the title qualifies for a specific exception; choose owned or retailer-assigned ISBN mode.", retailer="kdp", edition_id=edition.id, authority="Amazon KDP", authority_url=KDP_METADATA_URL)
+                if (
+                    edition.format in {"paperback", "hardcover"}
+                    and edition.identifier_mode == "none"
+                ):
+                    add(
+                        "error",
+                        "kdp-print-isbn",
+                        "KDP print requires an ISBN unless the title qualifies for a specific "
+                        "exception; choose owned or retailer-assigned ISBN mode.",
+                        retailer="kdp",
+                        edition_id=edition.id,
+                        authority="Amazon KDP",
+                        authority_url=KDP_METADATA_URL,
+                    )
                 if edition.format == "ebook" and edition.cover_path:
                     suffix = Path(edition.cover_path).suffix.casefold()
                     if suffix not in {".jpg", ".jpeg", ".tif", ".tiff"}:
-                        add("error", "kdp-ebook-cover-format", "KDP eBook cover handoff must use JPEG or TIFF.", retailer="kdp", edition_id=edition.id, authority="Amazon KDP", authority_url=KDP_METADATA_URL)
+                        add(
+                            "error",
+                            "kdp-ebook-cover-format",
+                            "KDP eBook cover handoff must use JPEG or TIFF.",
+                            retailer="kdp",
+                            edition_id=edition.id,
+                            authority="Amazon KDP",
+                            authority_url=KDP_METADATA_URL,
+                        )
             elif retailer == "ingramspark":
                 if edition.identifier_mode == "none":
-                    add("error", "ingram-isbn", "IngramSpark distribution requires an ISBN for each distributed format.", retailer="ingramspark", edition_id=edition.id, authority="IngramSpark", authority_url=INGRAM_ISBN_URL)
+                    add(
+                        "error",
+                        "ingram-isbn",
+                        "IngramSpark distribution requires an ISBN for each distributed format.",
+                        retailer="ingramspark",
+                        edition_id=edition.id,
+                        authority="IngramSpark",
+                        authority_url=INGRAM_ISBN_URL,
+                    )
                 if edition.format != "ebook" and edition.page_count % 2:
-                    add("error", "ingram-even-pages", "IngramSpark print page count must be even for manufacturing; confirm the final interior PDF page count.", retailer="ingramspark", edition_id=edition.id, authority="IngramSpark", authority_url=INGRAM_FILE_URL)
+                    add(
+                        "error",
+                        "ingram-even-pages",
+                        "IngramSpark print page count must be even for manufacturing; confirm "
+                        "the final interior PDF page count.",
+                        retailer="ingramspark",
+                        edition_id=edition.id,
+                        authority="IngramSpark",
+                        authority_url=INGRAM_FILE_URL,
+                    )
 
     if "kdp" in selected:
         if len([item for item in profile.keywords if item.strip()]) > 7:
-            add("error", "kdp-keywords", "KDP currently allows up to seven keyword phrases.", retailer="kdp", authority="Amazon KDP", authority_url=KDP_KEYWORDS_URL)
+            add(
+                "error",
+                "kdp-keywords",
+                "KDP currently allows up to seven keyword phrases.",
+                retailer="kdp",
+                authority="Amazon KDP",
+                authority_url=KDP_KEYWORDS_URL,
+            )
         if len([item for item in profile.kdp_categories if item.strip()]) > 3:
-            add("error", "kdp-categories-max", "KDP currently allows up to three categories during title setup.", retailer="kdp", authority="Amazon KDP", authority_url=KDP_METADATA_URL)
+            add(
+                "error",
+                "kdp-categories-max",
+                "KDP currently allows up to three categories during title setup.",
+                retailer="kdp",
+                authority="Amazon KDP",
+                authority_url=KDP_METADATA_URL,
+            )
         if not [item for item in profile.kdp_categories if item.strip()]:
-            add("warning", "kdp-categories", "Choose the most accurate current KDP categories in the publishing portal before release.", retailer="kdp", authority="Amazon KDP", authority_url=KDP_METADATA_URL)
+            add(
+                "warning",
+                "kdp-categories",
+                "Choose the most accurate current KDP categories in the publishing portal "
+                "before release.",
+                retailer="kdp",
+                authority="Amazon KDP",
+                authority_url=KDP_METADATA_URL,
+            )
         tagged = [profile.title, profile.subtitle, profile.author, *profile.keywords]
         if any(_HTML_TAG.search(value) for value in tagged if value):
-            add("error", "kdp-html-metadata", "KDP title, subtitle, author, and keyword fields should not contain HTML tags.", retailer="kdp", authority="Amazon KDP", authority_url=KDP_METADATA_URL)
+            add(
+                "error",
+                "kdp-html-metadata",
+                "KDP title, subtitle, author, and keyword fields should not contain HTML tags.",
+                retailer="kdp",
+                authority="Amazon KDP",
+                authority_url=KDP_METADATA_URL,
+            )
 
     if "apple_books" in selected:
         if not profile.description.strip():
-            add("error", "apple-description", "Apple Books requires a Publisher Description.", retailer="apple_books", authority="Apple Books", authority_url=APPLE_PRODUCT_PAGE_URL)
+            add(
+                "error",
+                "apple-description",
+                "Apple Books requires a Publisher Description.",
+                retailer="apple_books",
+                authority="Apple Books",
+                authority_url=APPLE_PRODUCT_PAGE_URL,
+            )
         if not [item for item in profile.apple_categories if item.strip()]:
-            add("error", "apple-category", "Apple Books requires at least one category.", retailer="apple_books", authority="Apple Books", authority_url=APPLE_PRODUCT_PAGE_URL)
+            add(
+                "error",
+                "apple-category",
+                "Apple Books requires at least one category.",
+                retailer="apple_books",
+                authority="Apple Books",
+                authority_url=APPLE_PRODUCT_PAGE_URL,
+            )
         if not (profile.publisher.strip() or profile.author.strip()):
-            add("error", "apple-publisher", "Enter a publisher name or self-publishing author name for Apple Books.", retailer="apple_books", authority="Apple Books", authority_url=APPLE_PUBLISH_URL)
-        add("info", "apple-epubcheck", "Apple requires the submitted EPUB to pass the latest EPUBCheck. Ember packages the file but does not replace Apple's current validation portal.", retailer="apple_books", authority="Apple Books", authority_url=APPLE_PUBLISH_URL)
+            add(
+                "error",
+                "apple-publisher",
+                "Enter a publisher name or self-publishing author name for Apple Books.",
+                retailer="apple_books",
+                authority="Apple Books",
+                authority_url=APPLE_PUBLISH_URL,
+            )
+        add(
+            "info",
+            "apple-epubcheck",
+            "Apple requires the submitted EPUB to pass the latest EPUBCheck. Ember packages "
+            "the file but does not replace Apple's current validation portal.",
+            retailer="apple_books",
+            authority="Apple Books",
+            authority_url=APPLE_PUBLISH_URL,
+        )
 
     if "kobo" in selected:
-        if _URL_LIKE.search(profile.description) or any(_URL_LIKE.search(value) for value in (profile.title, profile.subtitle, profile.author) if value):
-            add("error", "kobo-links", "Kobo does not allow website links/contact redirects in store metadata fields.", retailer="kobo", authority="Kobo Writing Life", authority_url=KOBO_METADATA_URL)
+        metadata_values = (profile.title, profile.subtitle, profile.author)
+        if _URL_LIKE.search(profile.description) or any(
+            _URL_LIKE.search(value) for value in metadata_values if value
+        ):
+            add(
+                "error",
+                "kobo-links",
+                "Kobo does not allow website links/contact redirects in store metadata fields.",
+                retailer="kobo",
+                authority="Kobo Writing Life",
+                authority_url=KOBO_METADATA_URL,
+            )
         for edition in enabled:
-            if "kobo" in edition.retailers and edition.format == "ebook" and edition.identifier_mode == "none":
-                add("info", "kobo-identifier", "Kobo can issue a Kobo-specific identifier, but some partner distribution destinations may require a valid ISBN.", retailer="kobo", edition_id=edition.id, authority="Kobo Writing Life", authority_url=KOBO_ISBN_URL)
+            if (
+                "kobo" in edition.retailers
+                and edition.format == "ebook"
+                and edition.identifier_mode == "none"
+            ):
+                add(
+                    "info",
+                    "kobo-identifier",
+                    "Kobo can issue a Kobo-specific identifier, but some partner distribution "
+                    "destinations may require a valid ISBN.",
+                    retailer="kobo",
+                    edition_id=edition.id,
+                    authority="Kobo Writing Life",
+                    authority_url=KOBO_ISBN_URL,
+                )
 
-    if "ingramspark" in selected and not ([item for item in profile.bisac_codes if item.strip()] or [item for item in profile.thema_codes if item.strip()]):
-        add("warning", "ingram-subjects", "Add accurate BISAC and/or Thema subjects before Ingram distribution to improve retailer and library discoverability.", retailer="ingramspark", authority="IngramSpark", authority_url=INGRAM_ISBN_URL)
+    if "ingramspark" in selected and not (
+        [item for item in profile.bisac_codes if item.strip()]
+        or [item for item in profile.thema_codes if item.strip()]
+    ):
+        add(
+            "warning",
+            "ingram-subjects",
+            "Add accurate BISAC and/or Thema subjects before Ingram distribution to improve "
+            "retailer and library discoverability.",
+            retailer="ingramspark",
+            authority="IngramSpark",
+            authority_url=INGRAM_ISBN_URL,
+        )
 
     cover = _saved_cover_profile(slug)
     if cover and any(edition.cover_path for edition in enabled):
@@ -410,11 +657,15 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
             ("author", profile.author, cover.author),
         )
         for label, metadata_value, cover_value in comparisons:
-            if cover_value.strip() and metadata_value.strip().casefold() != cover_value.strip().casefold():
+            if (
+                cover_value.strip()
+                and metadata_value.strip().casefold() != cover_value.strip().casefold()
+            ):
                 add(
                     "error",
                     "cover-metadata-mismatch",
-                    f"Release {label} does not match the saved Cover Studio {label}. Store metadata and cover text must agree.",
+                    f"Release {label} does not match the saved Cover Studio {label}. "
+                    "Store metadata and cover text must agree.",
                     authority="Amazon KDP / Apple Books / Kobo Writing Life",
                     authority_url=KDP_METADATA_URL,
                 )
@@ -442,7 +693,11 @@ def _retailer_payload(profile: ReleaseProfile, retailer: RetailerTarget) -> dict
             "trim_height": edition.trim_height if edition.format != "ebook" else None,
             "page_count": edition.page_count if edition.format != "ebook" else None,
             "drm": edition.drm if edition.format == "ebook" else None,
-            "expanded_distribution": edition.expanded_distribution if retailer == "kdp" and edition.format == "paperback" else None,
+            "expanded_distribution": (
+                edition.expanded_distribution
+                if retailer == "kdp" and edition.format == "paperback"
+                else None
+            ),
         }
         for edition in profile.editions
         if edition.enabled and retailer in edition.retailers
@@ -474,15 +729,33 @@ def _retailer_payload(profile: ReleaseProfile, retailer: RetailerTarget) -> dict
         "editions": editions,
     }
     if retailer == "kdp":
-        payload.update(keywords=profile.keywords[:7], categories=profile.kdp_categories[:3], authority_url=KDP_METADATA_URL)
+        payload.update(
+            keywords=profile.keywords[:7],
+            categories=profile.kdp_categories[:3],
+            authority_url=KDP_METADATA_URL,
+        )
     elif retailer == "ingramspark":
-        payload.update(keywords=profile.keywords, bisac_codes=profile.bisac_codes, thema_codes=profile.thema_codes, authority_url=INGRAM_ISBN_URL)
+        payload.update(
+            keywords=profile.keywords,
+            bisac_codes=profile.bisac_codes,
+            thema_codes=profile.thema_codes,
+            authority_url=INGRAM_ISBN_URL,
+        )
     elif retailer == "apple_books":
         payload.update(categories=profile.apple_categories, authority_url=APPLE_PUBLISH_URL)
     elif retailer == "kobo":
-        payload.update(categories=profile.kobo_categories, keywords=profile.keywords, authority_url=KOBO_METADATA_URL)
+        payload.update(
+            categories=profile.kobo_categories,
+            keywords=profile.keywords,
+            authority_url=KOBO_METADATA_URL,
+        )
     else:
-        payload.update(keywords=profile.keywords, bisac_codes=profile.bisac_codes, thema_codes=profile.thema_codes, authority_url="")
+        payload.update(
+            keywords=profile.keywords,
+            bisac_codes=profile.bisac_codes,
+            thema_codes=profile.thema_codes,
+            authority_url="",
+        )
     return payload
 
 
@@ -558,11 +831,15 @@ def _metadata_csv(profile: ReleaseProfile) -> str:
 def build_release_package(slug: str, profile: ReleaseProfile) -> ReleaseBuildResponse:
     validation = validate_release(slug, profile)
     if not validation.valid:
-        messages = "; ".join(issue.message for issue in validation.issues if issue.level == "error")
+        messages = "; ".join(
+            issue.message for issue in validation.issues if issue.level == "error"
+        )
         raise ValueError(messages or "Release profile is not ready")
     save_release_profile(slug, profile)
 
-    release_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-release-" + uuid4().hex[:8]
+    release_id = (
+        datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-release-" + uuid4().hex[:8]
+    )
     root = project_root(slug)
     directory = root / "exports" / release_id
     directory.mkdir(parents=True, exist_ok=True)
@@ -573,7 +850,10 @@ def build_release_package(slug: str, profile: ReleaseProfile) -> ReleaseBuildRes
         if not edition.enabled:
             continue
         safe_id = re.sub(r"[^A-Za-z0-9._-]+", "-", edition.id).strip("-.") or "edition"
-        for role, relative in (("interior", edition.interior_path), ("cover", edition.cover_path)):
+        for role, relative in (
+            ("interior", edition.interior_path),
+            ("cover", edition.cover_path),
+        ):
             source = _safe_export_path(slug, relative)
             package_path = f"files/{safe_id}/{role}{source.suffix.casefold()}"
             digest = _hash_file(source)
@@ -601,27 +881,46 @@ def build_release_package(slug: str, profile: ReleaseProfile) -> ReleaseBuildRes
     metadata_path = directory / "release-profile.json"
     manifest_path = directory / "release-manifest.json"
     csv_path = directory / "retailer-metadata.csv"
-    metadata_path.write_text(json.dumps(profile.model_dump(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(profile.model_dump(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     csv_path.write_text(_metadata_csv(profile), encoding="utf-8", newline="")
 
     zip_path = directory / "release-package.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(
+        zip_path,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    ) as archive:
         archive.writestr("metadata/release-profile.json", metadata_path.read_bytes())
         archive.writestr("metadata/release-manifest.json", manifest_path.read_bytes())
         archive.writestr("metadata/retailer-metadata.csv", csv_path.read_bytes())
         for retailer in validation.selected_retailers:
             archive.writestr(
                 f"retailers/{retailer}.json",
-                json.dumps(_retailer_payload(profile, retailer), indent=2, ensure_ascii=False) + "\n",
+                json.dumps(
+                    _retailer_payload(profile, retailer),
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
             )
         archive.writestr(
             "README.txt",
             "EmberWriter release handoff\n\n"
             f"Release: {release_id}\n"
             f"Rules reviewed: {RULES_REVIEWED}\n\n"
-            "This package does not auto-publish or claim distributor approval. Re-open the selected files, verify metadata, then use each retailer's current portal and preview/preflight before publication.\n"
-            "Retailer rules change; the authority URLs in each retailer JSON are the final reference.\n",
+            "This package does not auto-publish or claim distributor approval. Re-open the "
+            "selected files, verify metadata, then use each retailer's current portal and "
+            "preview/preflight before publication.\n"
+            "Retailer rules change; the authority URLs in each retailer JSON are the final "
+            "reference.\n",
         )
         for source, package_path in packaged_sources:
             archive.write(source, package_path)
