@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import Any
 
 from .generation import generate
@@ -119,7 +118,7 @@ def normalize_participants(participants: list[str]) -> list[str]:
 
 def chemistry_path(participants: list[str]) -> str:
     cleaned = normalize_participants(participants)
-    key = "--".join(sorted((_slug_piece(name) for name in cleaned)))
+    key = "--".join(sorted(_slug_piece(name) for name in cleaned))
     return f"{CHEMISTRY_DIR}/{key}.json"
 
 
