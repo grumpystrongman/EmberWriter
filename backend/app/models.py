@@ -10,6 +10,11 @@ class ProjectCreate(BaseModel):
     description: str = Field(default="", max_length=1000)
 
 
+class ProjectImport(BaseModel):
+    source_path: str = Field(min_length=1)
+    name: str | None = Field(default=None, max_length=120)
+
+
 class ProjectSummary(BaseModel):
     slug: str
     name: str
