@@ -1,0 +1,137 @@
+.story-intelligence-panel,
+.scene-architect-panel {
+  margin-top: 20px;
+  border-top: 1px solid #312824;
+}
+
+.story-intelligence-panel > summary,
+.scene-architect-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 8px;
+  color: #d8cec9;
+  font-weight: 700;
+}
+
+.story-intelligence-panel > summary small,
+.scene-architect-panel > summary small {
+  margin-left: auto;
+  color: #766c68;
+  font-weight: 500;
+}
+
+.story-toolbar { display: flex; justify-content: flex-end; margin-bottom: 9px; }
+.character-chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 10px; }
+.character-chip-row button { padding: 5px 8px; font-size: 10px; }
+.character-chip-row button.active { background: #603426; color: #ffc0a8; border-color: #8d5139; }
+
+.character-dossier-card,
+.scene-plan-card {
+  border: 1px solid #382e2a;
+  border-radius: 9px;
+  background: #1d1816;
+  padding: 11px;
+}
+
+.character-card-head,
+.scene-plan-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.character-card-head > div,
+.scene-plan-head > div { min-width: 0; }
+.character-card-head > button,
+.scene-plan-head > button { margin-left: auto; white-space: nowrap; }
+.character-card-head strong { display: block; color: #eee2dc; font-size: 13px; }
+.character-card-head small { display: block; margin-top: 2px; color: #766c68; }
+
+.character-fact-group { margin-top: 10px; }
+.character-fact-group h4,
+.relationship-list h4,
+.scene-beats h4,
+.scene-plan-list h4 {
+  margin: 0 0 5px;
+  color: #8f827d;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .11em;
+}
+
+.character-fact {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 7px;
+  margin-bottom: 3px;
+  border-color: transparent;
+  background: #211b19;
+  text-align: left;
+  font-size: 10px;
+}
+.character-fact span { flex: 1; line-height: 1.35; }
+.character-fact small { flex: 0 0 auto; color: #746965; font-size: 9px; }
+
+.relationship-list { margin-top: 12px; }
+.relationship-edge {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  margin-bottom: 4px;
+  padding: 7px 8px;
+  text-align: left;
+  border-color: #302724;
+  background: #211b19;
+  font-size: 10px;
+}
+.relationship-edge > span:nth-child(2) { color: #b5a8a2; }
+.relationship-edge small { color: #6f6460; }
+
+.scene-request { min-height: 102px; resize: vertical; margin: 6px 0 8px; }
+.scene-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.scene-field-grid label,
+.scene-label,
+.scene-participants > span {
+  display: block;
+  color: #857a75;
+  font-size: 10px;
+  font-weight: 700;
+}
+.scene-field-grid input { margin-top: 4px; }
+.scene-label { margin: 9px 0 5px; }
+.scene-participants { margin-top: 10px; }
+.scene-plan-button { margin-top: 10px; }
+
+.scene-plan-card { margin-top: 12px; }
+.scene-plan-head small { color: #b25a3d; font-weight: 800; letter-spacing: .12em; }
+.scene-plan-head h3 { margin: 2px 0 0; color: #eee2dc; font-size: 14px; }
+.scene-plan-card p { margin: 8px 0; color: #bcb0aa; font-size: 10px; line-height: 1.45; }
+.scene-plan-card p strong { color: #dfd3cd; }
+.scene-plan-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.scene-plan-meta span { padding: 3px 6px; border-radius: 999px; background: #2b211e; color: #9f918b; font-size: 9px; }
+
+.scene-beats { margin-top: 11px; }
+.scene-beat { display: flex; gap: 8px; padding: 7px 0; border-top: 1px solid #302724; }
+.scene-beat > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+  background: #603426;
+  color: #ffc0a8;
+  font-size: 9px;
+  font-weight: 800;
+}
+.scene-beat > div { min-width: 0; }
+.scene-beat strong { display: block; color: #ddd0ca; font-size: 10px; line-height: 1.35; }
+.scene-beat small,
+.scene-beat em { display: block; margin-top: 3px; color: #827671; font-size: 9px; line-height: 1.35; }
+.scene-beat em { color: #ad7a67; font-style: normal; }
+.scene-plan-list { margin-top: 10px; }
+.scene-plan-list div { margin: 3px 0; color: #a99c96; font-size: 10px; line-height: 1.4; }
