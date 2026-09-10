@@ -17,6 +17,13 @@ def use_temp_data(tmp_path: Path) -> str:
     return storage.create_project("Cover Test")["slug"]
 
 
+def png_bytes(size: tuple[int, int], color: str) -> bytes:
+    image = Image.new("RGB", size, color)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def test_kdp_paperback_geometry_matches_current_formula(tmp_path: Path) -> None:
     slug = use_temp_data(tmp_path)
     profile = CoverProfile(
@@ -104,11 +111,7 @@ def test_ingram_mode_requires_official_template_spine_measurement(tmp_path: Path
 
 def test_cover_asset_upload_is_image_checked_and_project_scoped(tmp_path: Path) -> None:
     slug = use_temp_data(tmp_path)
-    image = Image.new("RGB", (1800, 2700), "#432b20")
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-
-    asset = covers.save_cover_asset(slug, "hero artwork.png", buffer.getvalue())
+    asset = covers.save_cover_asset(slug, "hero artwork.png", png_bytes((1800, 2700), "#432b20"))
     stored = storage.project_root(slug) / asset.relative_path
 
     assert stored.is_file()
@@ -150,6 +153,32 @@ def test_print_cover_export_produces_single_page_full_wrap_pdf(tmp_path: Path) -
     assert "A. Writer" in text
 
 
+def test_full_wrap_artwork_is_not_covered_by_panel_rectangles(tmp_path: Path) -> None:
+    slug = use_temp_data(tmp_path)
+    asset = covers.save_cover_asset(slug, "wrap.png", png_bytes((3900, 2775), "#8f321e"))
+    profile = CoverProfile(
+        title="Visible Artwork",
+        author="A. Writer",
+        platform="kdp_paperback",
+        trim_width=6,
+        trim_height=9,
+        page_count=300,
+        artwork_path=asset.relative_path,
+        artwork_mode="full_wrap",
+        barcode_mode="none",
+    )
+
+    result = covers.export_cover(slug, profile)
+    path = storage.project_root(slug) / result.artifacts[0].relative_path
+    page = PdfReader(str(path)).pages[0]
+    content = page.get_contents().get_data()
+
+    image_operator = content.find(b" Do")
+    assert image_operator >= 0
+    assert content.rfind(b" re") < image_operator
+    assert "/XObject" in str(page["/Resources"])
+
+
 def test_kdp_ebook_export_builds_upload_jpeg_and_lossless_proof(tmp_path: Path) -> None:
     slug = use_temp_data(tmp_path)
     profile = CoverProfile(
@@ -172,3 +201,27 @@ def test_kdp_ebook_export_builds_upload_jpeg_and_lossless_proof(tmp_path: Path) 
         with Image.open(path) as image:
             assert image.size == (625, 1000)
     assert any(issue.code == "ebook-ideal-size" for issue in validation.issues)
+
+
+def test_ebook_artwork_opacity_is_applied_to_export(tmp_path: Path) -> None:
+    slug = use_temp_data(tmp_path)
+    asset = covers.save_cover_asset(slug, "red.png", png_bytes((625, 1000), "#ff0000"))
+    profile = CoverProfile(
+        title="",
+        platform="kdp_ebook",
+        ebook_width_px=625,
+        ebook_height_px=1000,
+        background_color="#000000",
+        artwork_path=asset.relative_path,
+        artwork_opacity=0.5,
+    )
+    profile.title = "Opacity Test"
+
+    result = covers.export_cover(slug, profile)
+    png_artifact = next(item for item in result.artifacts if item.format == "png")
+    with Image.open(storage.project_root(slug) / png_artifact.relative_path) as image:
+        red, green, blue = image.getpixel((20, 500))[:3]
+
+    assert 120 <= red <= 135
+    assert green == 0
+    assert blue == 0
