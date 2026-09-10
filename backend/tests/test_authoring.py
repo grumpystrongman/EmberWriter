@@ -8,7 +8,7 @@ from ebooklib import epub
 from pypdf import PdfReader
 
 from app import binder, ingest, publishing, revisions, storage
-from app.binder_models import BinderNodeCreate, BinderReorderRequest
+from app.binder_models import BinderNodeCreate, BinderNodeUpdate, BinderReorderRequest
 
 
 def use_temp_data(tmp_path: Path) -> None:
@@ -80,8 +80,18 @@ def test_pasted_ideas_and_research_land_outside_compile_draft(tmp_path: Path) ->
     project = storage.create_project("Idea Test")
     slug = project["slug"]
 
-    idea = ingest.import_pasted_text(slug, "Ending possibility", "The crown is never destroyed.", "idea")
-    research = ingest.import_pasted_text(slug, "Mars Notes", "Orbital periods and dust storms.", "research")
+    idea = ingest.import_pasted_text(
+        slug,
+        "Ending possibility",
+        "The crown is never destroyed.",
+        "idea",
+    )
+    research = ingest.import_pasted_text(
+        slug,
+        "Mars Notes",
+        "Orbital periods and dust storms.",
+        "research",
+    )
     state = binder.get_binder(slug)
     nodes = {node.id: node for node in state.nodes}
 
@@ -100,19 +110,29 @@ def test_compile_order_drives_docx_epub_and_pdf_exports(tmp_path: Path) -> None:
     state = binder.get_binder(slug)
     draft = next(node for node in state.nodes if node.title == "Draft")
     first = next(node for node in state.nodes if node.path == "manuscript/chapter-001.md")
+    assert first.path
     storage.save_text(slug, first.path, "# First Scene\n\nThe first scene text.\n")
-    state = binder.update_node(slug, first.id, __import__("app.binder_models", fromlist=["BinderNodeUpdate"]).BinderNodeUpdate(title="First Scene"))
+    state = binder.update_node(slug, first.id, BinderNodeUpdate(title="First Scene"))
 
     before = {node.id for node in state.nodes}
-    state = binder.create_node(slug, BinderNodeCreate(title="Second Scene", kind="document", parent_id=draft.id))
+    state = binder.create_node(
+        slug,
+        BinderNodeCreate(title="Second Scene", kind="document", parent_id=draft.id),
+    )
     second = next(node for node in state.nodes if node.id not in before)
     assert second.path
     storage.save_text(slug, second.path, "# Second Scene\n\nThe second scene text.\n")
 
-    siblings = sorted((node for node in state.nodes if node.parent_id == draft.id), key=lambda node: node.position)
-    state = binder.reorder_nodes(
+    siblings = sorted(
+        (node for node in state.nodes if node.parent_id == draft.id),
+        key=lambda node: node.position,
+    )
+    binder.reorder_nodes(
         slug,
-        BinderReorderRequest(parent_id=draft.id, node_ids=[second.id, *[node.id for node in siblings if node.id != second.id]]),
+        BinderReorderRequest(
+            parent_id=draft.id,
+            node_ids=[second.id, *[node.id for node in siblings if node.id != second.id]],
+        ),
     )
     ordered = publishing.compiled_documents(slug)
     assert ordered[0]["title"] == "Second Scene"
@@ -128,7 +148,10 @@ def test_compile_order_drives_docx_epub_and_pdf_exports(tmp_path: Path) -> None:
         trim_height=9,
     )
     root = storage.project_root(slug)
-    paths = {artifact["format"]: root / artifact["relative_path"] for artifact in result["artifacts"]}
+    paths = {
+        artifact["format"]: root / artifact["relative_path"]
+        for artifact in result["artifacts"]
+    }
 
     assert paths["docx"].read_bytes()[:2] == b"PK"
     assert paths["epub"].read_bytes()[:2] == b"PK"
@@ -139,7 +162,11 @@ def test_compile_order_drives_docx_epub_and_pdf_exports(tmp_path: Path) -> None:
     assert docx_text.index("Second Scene") < docx_text.index("First Scene")
 
     exported_epub = epub.read_epub(str(paths["epub"]))
-    epub_titles = [item.title for item in exported_epub.get_items() if getattr(item, "title", None)]
+    epub_titles = [
+        item.title
+        for item in exported_epub.get_items()
+        if getattr(item, "title", None)
+    ]
     assert "Second Scene" in epub_titles
 
     pdf = PdfReader(str(paths["pdf"]))
