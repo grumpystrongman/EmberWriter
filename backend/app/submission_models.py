@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .models import ProviderConfig
+
 SubmissionMethod = Literal["email", "query_manager", "web_form", "postal", "other"]
 SubmissionTargetKind = Literal["agent", "publisher", "editor", "contest", "other"]
 SampleKind = Literal["none", "pages", "chapters", "words", "full"]
@@ -55,6 +57,14 @@ class SubmissionRecord(BaseModel):
     notes: str = Field(default="", max_length=12000)
     created_at: str
     updated_at: str
+
+
+class SubmissionRecordUpdate(BaseModel):
+    status: SubmissionStatus | None = None
+    submitted_at: str | None = None
+    follow_up_on: str | None = None
+    response_at: str | None = None
+    notes: str | None = Field(default=None, max_length=12000)
 
 
 class SubmissionProfile(BaseModel):
@@ -109,11 +119,12 @@ class SubmissionBuildResponse(BaseModel):
     validation: SubmissionValidationResponse
     artifacts: list[SubmissionPackageArtifact] = Field(default_factory=list)
     included_files: list[str] = Field(default_factory=list)
+    profile: SubmissionProfile | None = None
 
 
 class SubmissionMaterialDraftRequest(BaseModel):
     kind: SubmissionMaterialKind
-    provider: dict
+    provider: ProviderConfig
     destination_id: str | None = None
     profile: SubmissionProfile
 
