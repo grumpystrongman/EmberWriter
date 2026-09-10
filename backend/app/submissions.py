@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import html
-import io
 import json
 import re
+import sqlite3
 import zipfile
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -22,7 +22,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate
 
 from .distribution import load_release_profile
 from .generation import generate
@@ -61,18 +61,22 @@ def _ensure_project(slug: str) -> Path:
     return root
 
 
-def _safe_id(value: str, fallback: str = "submission") -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-.")
-    return cleaned or fallback
-
-
 def _word_count(documents: list[dict]) -> int:
     return sum(len(re.findall(r"\b[\w’'-]+\b", item["content"])) for item in documents)
 
 
+def _compiled_or_empty(slug: str) -> list[dict]:
+    try:
+        return compiled_documents(slug)
+    except ValueError as exc:
+        if str(exc) != "No Binder documents are enabled for Compile":
+            raise
+        return []
+
+
 def default_submission_profile(slug: str) -> SubmissionProfile:
     _ensure_project(slug)
-    documents = compiled_documents(slug)
+    documents = _compiled_or_empty(slug)
     release = load_release_profile(slug)
     return SubmissionProfile(
         author_name=release.author,
@@ -160,17 +164,28 @@ def validate_submission(
         add(
             "info",
             "page-boundary",
-            "Page-count samples are cut from Ember's standardized 8.5×11 submission PDF. Word processors can repaginate DOCX files, so verify the destination's preferred page boundary before sending.",
+            "Page-count samples are cut from Ember's standardized 8.5×11 submission PDF. "
+            "Word processors can repaginate DOCX files, so verify the destination's preferred "
+            "page boundary before sending.",
         )
     if destination.method == "email" and not destination.email.strip():
-        add("warning", "email-missing", "This destination is marked as email submission but has no email address saved.")
+        add(
+            "warning",
+            "email-missing",
+            "This destination is marked as email submission but has no email address saved.",
+        )
     if destination.method in {"query_manager", "web_form"} and not destination.submission_url.strip():
-        add("warning", "submission-url-missing", "Save the current submission portal URL for this destination.")
+        add(
+            "warning",
+            "submission-url-missing",
+            "Save the current submission portal URL for this destination.",
+        )
     if not destination.guidelines_url.strip():
         add(
             "warning",
             "guidelines-source-missing",
-            "Save the destination's current guidelines URL. Individual agent/publisher requirements override Ember's manuscript preset.",
+            "Save the destination's current guidelines URL. Individual agent/publisher "
+            "requirements override Ember's manuscript preset.",
         )
     if not destination.accepted_formats and destination.attachment_mode != "body":
         add("error", "formats-required", "Attachment submissions need at least one accepted file format.")
@@ -193,7 +208,11 @@ def validate_submission(
             ("response_at", record.response_at),
         ):
             if value and not _valid_iso_date(value[:10]):
-                add("error", "record-date", f"Submission record {field_name} must begin with YYYY-MM-DD.")
+                add(
+                    "error",
+                    "record-date",
+                    f"Submission record {field_name} must begin with YYYY-MM-DD.",
+                )
                 break
 
     sample_description = {
@@ -227,7 +246,12 @@ def _add_page_field(paragraph) -> None:
     run._r.addnext(field)
 
 
-def _configure_submission_doc(doc: Document, *, profile: SubmissionProfile, include_header: bool) -> None:
+def _configure_submission_doc(
+    doc: Document,
+    *,
+    profile: SubmissionProfile,
+    include_header: bool,
+) -> None:
     section = doc.sections[0]
     section.top_margin = Inches(1)
     section.bottom_margin = Inches(1)
@@ -260,7 +284,13 @@ def _write_manuscript_docx(
         contact = doc.add_paragraph()
         contact.paragraph_format.first_line_indent = Inches(0)
         contact.paragraph_format.line_spacing = 1
-        for line in [profile.author_name, profile.address, profile.phone, profile.email, profile.website]:
+        for line in [
+            profile.author_name,
+            profile.address,
+            profile.phone,
+            profile.email,
+            profile.website,
+        ]:
             if line.strip():
                 contact.add_run(line.strip()).add_break()
         title = doc.add_paragraph()
@@ -272,7 +302,10 @@ def _write_manuscript_docx(
             meta = doc.add_paragraph()
             meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
             meta.paragraph_format.first_line_indent = Inches(0)
-            pieces = [profile.genre.strip(), f"approximately {profile.word_count:,} words" if profile.word_count else ""]
+            pieces = [
+                profile.genre.strip(),
+                f"approximately {profile.word_count:,} words" if profile.word_count else "",
+            ]
             meta.add_run(" · ".join(piece for piece in pieces if piece))
         doc.add_page_break()
 
@@ -373,7 +406,11 @@ def _write_manuscript_pdf(
         title=profile.title,
         author=profile.author_name,
     )
-    document.build(flow, onFirstPage=lambda c, d: _pdf_page_header(c, d, profile=profile), onLaterPages=lambda c, d: _pdf_page_header(c, d, profile=profile))
+    document.build(
+        flow,
+        onFirstPage=lambda canvas, doc: _pdf_page_header(canvas, doc, profile=profile),
+        onLaterPages=lambda canvas, doc: _pdf_page_header(canvas, doc, profile=profile),
+    )
 
 
 def _plain_document(item: dict) -> str:
@@ -403,7 +440,10 @@ def _trim_words(documents: list[dict], limit: int) -> list[dict]:
     return result
 
 
-def _sample_documents(documents: list[dict], destination: SubmissionDestination) -> list[dict]:
+def _sample_documents(
+    documents: list[dict],
+    destination: SubmissionDestination,
+) -> list[dict]:
     if destination.sample_kind == "chapters":
         return documents[: destination.sample_count]
     if destination.sample_kind == "words":
@@ -462,19 +502,43 @@ def _write_page_sample(
         return [pdf_path, txt_path, docx_path], text
 
 
+def _text_digest(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _representative_documents(documents: list[dict], limit: int = 40) -> list[dict]:
+    if len(documents) <= limit:
+        return documents
+    if limit <= 1:
+        return documents[:1]
+    indexes = {
+        round(index * (len(documents) - 1) / (limit - 1))
+        for index in range(limit)
+    }
+    return [documents[index] for index in sorted(indexes)]
+
+
 def _submission_context(slug: str, profile: SubmissionProfile) -> tuple[str, int, bool]:
     documents = compiled_documents(slug)
-    summaries: list[tuple[int, str, str]] = []
+    by_path = {item["path"]: item for item in documents}
+    current_summaries: dict[str, tuple[int, str]] = {}
     try:
         with _connect(slug) as con:
-            rows = con.execute("SELECT path, summary FROM document_analysis").fetchall()
+            rows = con.execute(
+                "SELECT path, content_hash, summary FROM document_analysis"
+            ).fetchall()
         for row in rows:
+            item = by_path.get(row["path"])
             summary = str(row["summary"] or "").strip()
-            if summary:
-                summaries.append((chapter_order(row["path"]), row["path"], summary))
-    except Exception:
-        summaries = []
-    summaries.sort(key=lambda item: (item[0], item[1]))
+            if (
+                item is not None
+                and summary
+                and row["content_hash"] == _text_digest(item["content"])
+            ):
+                current_summaries[row["path"]] = (chapter_order(row["path"]), summary)
+    except sqlite3.Error:
+        current_summaries = {}
+
     lines = [
         f"TITLE: {profile.title}",
         f"GENRE: {profile.genre or '(not specified)'}",
@@ -482,16 +546,22 @@ def _submission_context(slug: str, profile: SubmissionProfile) -> tuple[str, int
         f"LOGLINE: {profile.logline or '(not specified)'}",
         f"COMPS: {', '.join(profile.comp_titles) or '(not specified)'}",
         "",
+        "STORY CONTEXT IN BINDER ORDER",
     ]
-    if summaries:
-        lines.append("STORY SUMMARIES IN MANUSCRIPT ORDER")
-        lines.extend(f"- {path}: {summary}" for _, path, summary in summaries)
-        return "\n".join(lines), len(documents), True
-    lines.append("MANUSCRIPT EXCERPT MAP")
-    for item in documents[:40]:
-        plain = _plain_document(item)
-        lines.append(f"\n## {item['title']}\n{plain[:1800]}")
-    return "\n".join(lines), len(documents), False
+    excerpt_paths = {item["path"] for item in _representative_documents(documents)}
+    for item in documents:
+        current = current_summaries.get(item["path"])
+        if current:
+            lines.append(f"\n## {item['title']} [{item['path']}]\nSUMMARY: {current[1]}")
+        elif item["path"] in excerpt_paths:
+            plain = _plain_document(item)
+            lines.append(f"\n## {item['title']} [{item['path']}]\nEXCERPT: {plain[:1800]}")
+        else:
+            lines.append(
+                f"\n## {item['title']} [{item['path']}]\n"
+                "No current chapter summary is available; do not invent its events."
+            )
+    return "\n".join(lines), len(documents), bool(current_summaries)
 
 
 async def draft_submission_material(
@@ -514,30 +584,39 @@ async def draft_submission_material(
         )
     instructions = {
         "query": (
-            "Draft a polished literary query letter. Include a concise hook/story pitch, title/genre/word count, and bio only from supplied facts. "
-            "Do not invent awards, publishing credits, representation history, comp titles, credentials, or personalization. If personalization is missing, omit it rather than fabricate it."
+            "Draft a polished literary query letter. Include a concise hook/story pitch, "
+            "title/genre/word count, and bio only from supplied facts. Do not invent awards, "
+            "publishing credits, representation history, comp titles, credentials, or "
+            "personalization. If personalization is missing, omit it rather than fabricate it."
         ),
         "synopsis": (
-            "Draft a clear full-story fiction synopsis that includes major turns, character causality, climax, and ending/spoilers. Do not hide the ending. "
-            "Do not invent connective events that are absent from the supplied story summaries/excerpts."
+            "Draft a clear full-story fiction synopsis that includes major turns, character "
+            "causality, climax, and ending/spoilers. Do not hide the ending. Do not invent "
+            "connective events that are absent from the supplied story summaries/excerpts."
         ),
         "pitch": (
-            "Draft a compact pitch suitable for a query form: protagonist, destabilizing problem, goal, stakes, central complication, and genre promise. "
-            "Keep it specific and avoid empty marketing superlatives."
+            "Draft a compact pitch suitable for a query form: protagonist, destabilizing problem, "
+            "goal, stakes, central complication, and genre promise. Keep it specific and avoid "
+            "empty marketing superlatives."
         ),
         "bio": (
-            "Draft a concise author bio using only the author facts supplied below. Do not invent credentials, awards, occupations, publications, locations, or memberships."
+            "Draft a concise author bio using only the author facts supplied below. Do not invent "
+            "credentials, awards, occupations, publications, locations, or memberships."
         ),
     }[kind]
     author_facts = (
-        f"\nAUTHOR FACTS\nName: {profile.author_name}\nExisting bio: {profile.bio or '(none)'}\nWebsite: {profile.website or '(none)'}\n"
+        f"\nAUTHOR FACTS\nName: {profile.author_name}\n"
+        f"Existing bio: {profile.bio or '(none)'}\n"
+        f"Website: {profile.website or '(none)'}\n"
     )
     messages = [
         {
             "role": "system",
             "content": (
-                "You are EmberWriter's submission editor. Produce professional publishing material grounded only in the supplied manuscript facts and author facts. "
-                "Never fabricate credentials, story facts, agent preferences, or submission requirements. Return only the requested draft, without commentary."
+                "You are EmberWriter's submission editor. Produce professional publishing "
+                "material grounded only in the supplied manuscript facts and author facts. "
+                "Never fabricate credentials, story facts, agent preferences, or submission "
+                "requirements. Return only the requested draft, without commentary."
             ),
         },
         {
@@ -549,10 +628,17 @@ async def draft_submission_material(
     return text.strip(), document_count, used_summaries
 
 
-def _due_follow_up(destination: SubmissionDestination) -> str:
+def _follow_up_from_sent(
+    destination: SubmissionDestination,
+    submitted_at: str,
+) -> str:
     if destination.expected_response_days is None:
         return ""
-    return (date.today() + timedelta(days=destination.expected_response_days)).isoformat()
+    if submitted_at and _valid_iso_date(submitted_at[:10]):
+        sent_date = date.fromisoformat(submitted_at[:10])
+    else:
+        sent_date = datetime.now(UTC).date()
+    return (sent_date + timedelta(days=destination.expected_response_days)).isoformat()
 
 
 def update_submission_record(
@@ -574,6 +660,7 @@ def update_submission_record(
             updated_records.append(record)
             continue
         found = True
+        destination = _destination(profile, record.destination_id)
         changes: dict = {"updated_at": now}
         if status is not None:
             changes["status"] = status
@@ -585,6 +672,13 @@ def update_submission_record(
             changes["response_at"] = response_at
         if notes is not None:
             changes["notes"] = notes
+        if status == "sent":
+            sent_value = submitted_at if submitted_at is not None else record.submitted_at
+            if not sent_value:
+                sent_value = datetime.now(UTC).date().isoformat()
+                changes["submitted_at"] = sent_value
+            if follow_up_on is None and not record.follow_up_on:
+                changes["follow_up_on"] = _follow_up_from_sent(destination, sent_value)
         updated_records.append(record.model_copy(update=changes))
     if not found:
         raise FileNotFoundError(record_id)
@@ -600,11 +694,17 @@ def build_submission_package(
 ) -> tuple[SubmissionBuildResponse, SubmissionProfile]:
     validation = validate_submission(slug, profile, destination_id)
     if not validation.valid:
-        errors = "; ".join(issue.message for issue in validation.issues if issue.level == "error")
+        errors = "; ".join(
+            issue.message for issue in validation.issues if issue.level == "error"
+        )
         raise ValueError(errors or "Submission profile is not ready")
     destination = _destination(profile, destination_id)
     documents = compiled_documents(slug)
-    package_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-submission-" + uuid4().hex[:8]
+    package_id = (
+        datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        + "-submission-"
+        + uuid4().hex[:8]
+    )
     root = project_root(slug)
     directory = root / "exports" / package_id
     directory.mkdir(parents=True, exist_ok=True)
@@ -689,10 +789,16 @@ def build_submission_package(
         "manuscript_preset": profile.manuscript_preset,
         "preset_reference": SHUNN_FORMAT_URL,
         "files": manifest_entries,
-        "warning": "Destination-specific current guidelines override Ember presets. Verify every file and field before sending.",
+        "warning": (
+            "Destination-specific current guidelines override Ember presets. "
+            "Verify every file and field before sending."
+        ),
     }
     manifest_path = directory / "submission-manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     included.append(manifest_path)
 
     readme = directory / "README.txt"
@@ -702,13 +808,19 @@ def build_submission_package(
         f"Package: {package_id}\n"
         f"Guidelines: {destination.guidelines_url or '(not recorded)'}\n"
         f"Sample: {validation.sample_description}\n\n"
-        "This package is a preparation aid, not an automated submission. Re-open the files and compare them to the destination's current guidelines before sending.\n",
+        "This package is a preparation aid, not an automated submission. Re-open the files "
+        "and compare them to the destination's current guidelines before sending.\n",
         encoding="utf-8",
     )
     included.append(readme)
 
     zip_path = directory / "submission-package.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(
+        zip_path,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    ) as archive:
         for path in included:
             archive.write(path, path.name)
 
@@ -718,7 +830,7 @@ def build_submission_package(
         destination_id=destination.id,
         status="ready",
         package_id=package_id,
-        follow_up_on=_due_follow_up(destination),
+        follow_up_on="",
         created_at=now,
         updated_at=now,
     )
