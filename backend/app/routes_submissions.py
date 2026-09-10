@@ -68,7 +68,7 @@ def build(slug: str, payload: SubmissionBuildRequest) -> SubmissionBuildResponse
         return response.model_copy(update={"profile": profile})
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project or submission destination not found") from exc
-    except (OSError, UnicodeError, ValueError, zipfile.BadZipFile) as exc:
+    except (OSError, UnicodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
