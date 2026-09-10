@@ -1,0 +1,324 @@
+.cover-studio-panel > summary {
+  color: #f0b37f;
+}
+
+.cover-studio-body {
+  gap: 0.7rem;
+}
+
+.cover-platform-row,
+.cover-actions,
+.cover-geometry-strip,
+.cover-authority {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cover-platform-row > label:first-child {
+  flex: 1 1 16rem;
+}
+
+.cover-guide-toggle {
+  display: flex;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.35rem;
+  padding-bottom: 0.4rem;
+}
+
+.cover-guide-toggle input {
+  width: auto;
+}
+
+.cover-preview-shell {
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background:
+    linear-gradient(45deg, rgba(255,255,255,.025) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,.025) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255,255,255,.025) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.025) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.cover-preview {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-height: 28rem;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
+}
+
+.cover-preview-ebook {
+  max-width: 18rem;
+}
+
+.cover-artwork-preview {
+  position: absolute;
+  z-index: 1;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.cover-face,
+.cover-spine {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.cover-face {
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.ebook-face {
+  width: 100% !important;
+}
+
+.cover-spine {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(255,255,255,.15);
+  border-right: 1px solid rgba(255,255,255,.15);
+}
+
+.cover-spine span {
+  display: block;
+  max-width: 24rem;
+  overflow: hidden;
+  color: #f3e7da;
+  font-family: Georgia, serif;
+  font-size: clamp(0.4rem, 0.8vw, 0.78rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: rotate(-90deg);
+}
+
+.cover-safe-box {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  margin: 5%;
+  padding: 5%;
+  overflow: hidden;
+}
+
+.guides-on .cover-safe-box {
+  outline: 1px dashed rgba(240, 179, 127, 0.62);
+  outline-offset: -1px;
+}
+
+.guides-on .cover-spine {
+  outline: 1px dashed rgba(240, 179, 127, 0.58);
+  outline-offset: -2px;
+}
+
+.cover-front h3 {
+  margin: 0;
+  font-size: clamp(1rem, 3vw, 2.35rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.cover-front strong {
+  font-size: clamp(0.68rem, 1.3vw, 1.05rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cover-subtitle {
+  margin: 0.5rem 0 0;
+  font-size: clamp(0.58rem, 1.25vw, 1rem);
+  font-style: italic;
+  line-height: 1.2;
+}
+
+.cover-back p {
+  margin: 0;
+  overflow: hidden;
+  font-size: clamp(0.44rem, 0.92vw, 0.77rem);
+  line-height: 1.42;
+}
+
+.cover-back small {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  font-size: clamp(0.36rem, 0.72vw, 0.62rem);
+}
+
+.cover-barcode-box {
+  align-self: end;
+  width: 38%;
+  min-width: 4rem;
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.35rem;
+  background: #fff;
+  color: #222;
+  font-family: Arial, sans-serif;
+  font-size: clamp(0.28rem, 0.55vw, 0.5rem);
+  font-weight: 700;
+  text-align: center;
+}
+
+.cover-geometry-strip {
+  align-items: stretch;
+}
+
+.cover-geometry-strip span {
+  flex: 1 1 8rem;
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255,255,255,.025);
+  color: var(--muted);
+  font-size: 0.57rem;
+  text-align: center;
+}
+
+.cover-geometry-strip b {
+  color: var(--text);
+  font-size: 0.7rem;
+}
+
+.cover-form-grid,
+.cover-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.cover-form-grid label,
+.cover-asset-grid label,
+.cover-platform-row label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+
+.cover-wide-field {
+  grid-column: 1 / -1;
+}
+
+.cover-wide-field textarea {
+  resize: vertical;
+  min-height: 6rem;
+}
+
+.cover-subpanel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255,255,255,.018);
+}
+
+.cover-subpanel > summary {
+  padding: 0.48rem 0.55rem;
+  color: #dcb394;
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.cover-subpanel > .cover-form-grid,
+.cover-subpanel > .cover-asset-grid,
+.cover-subpanel > .panel-help {
+  margin: 0 0.55rem 0.55rem;
+}
+
+.cover-upload input[type="file"] {
+  padding: 0.35rem;
+  font-size: 0.58rem;
+}
+
+.cover-validation {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.cover-validation.valid {
+  border-color: rgba(116, 173, 132, 0.45);
+  background: rgba(80, 137, 94, 0.07);
+}
+
+.cover-validation.invalid {
+  border-color: rgba(205, 91, 71, 0.5);
+  background: rgba(160, 55, 45, 0.08);
+}
+
+.cover-validation strong {
+  color: var(--text);
+  font-size: 0.67rem;
+}
+
+.cover-issue {
+  line-height: 1.4;
+}
+
+.cover-issue b {
+  margin-right: 0.25rem;
+  font-size: 0.53rem;
+  letter-spacing: 0.05em;
+}
+
+.issue-error b { color: #e27e68; }
+.issue-warning b { color: #dca05f; }
+.issue-info b { color: #89a9bf; }
+
+.cover-authority {
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.cover-authority a {
+  color: #e6a879;
+  font-size: 0.61rem;
+}
+
+.cover-actions button {
+  flex: 1 1 10rem;
+}
+
+.cover-export-result {
+  margin-top: 0;
+}
+
+@media (max-width: 1200px) {
+  .cover-form-grid,
+  .cover-asset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cover-wide-field {
+    grid-column: auto;
+  }
+
+  .cover-back p {
+    font-size: 0.46rem;
+  }
+}
