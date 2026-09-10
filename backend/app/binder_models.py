@@ -46,6 +46,7 @@ class BinderCollection(BaseModel):
 
 class BinderState(BaseModel):
     schema_version: int = 1
+    project_slug: str = ""
     roots: list[str] = Field(default_factory=list)
     nodes: list[BinderNode] = Field(default_factory=list)
     collections: list[BinderCollection] = Field(default_factory=list)
