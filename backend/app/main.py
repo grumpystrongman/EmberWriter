@@ -21,6 +21,7 @@ from .routes_craft import router as craft_router
 from .routes_editorial import router as editorial_router
 from .routes_generation import router as generation_router
 from .routes_memory import router as memory_router
+from .routes_reader import router as reader_router
 from .routes_story import router as story_router
 from .storage import (
     create_project,
@@ -50,6 +51,7 @@ app.include_router(chemistry_router)
 app.include_router(binder_router)
 app.include_router(authoring_router)
 app.include_router(editorial_router)
+app.include_router(reader_router)
 
 
 @app.get("/api/health")
