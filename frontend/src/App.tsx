@@ -23,6 +23,12 @@ type Provider = {
   api_key?: string
 }
 
+type AnalyzeResult = {
+  summary: string
+  facts_written: number
+  skipped: boolean
+}
+
 type Mode = 'write' | 'continue' | 'rewrite' | 'brainstorm' | 'critic' | 'continuity'
 
 const defaultProvider: Provider = {
@@ -271,7 +277,7 @@ function App() {
     setStatus(`Analyzing ${activeFile} for story memory…`)
     try {
       if (dirty) await saveActiveFile()
-      const result = await jsonFetch<{ summary: string; facts_written: number; skipped: boolean }>(
+      const result = await jsonFetch<AnalyzeResult>(
         `${API}/projects/${project.slug}/memory/analyze`,
         {
           method: 'POST',
@@ -291,6 +297,40 @@ function App() {
     }
   }
 
+  async function analyzeAllManuscript() {
+    if (!project || !provider.model || manuscriptFiles.length === 0 || memoryBusy) return
+    setMemoryBusy(true)
+    let learned = 0
+    let analyzed = 0
+    let skipped = 0
+    try {
+      if (dirty) await saveActiveFile()
+      for (const [index, path] of manuscriptFiles.entries()) {
+        setStatus(`Building story memory ${index + 1}/${manuscriptFiles.length}: ${path}`)
+        const result = await jsonFetch<AnalyzeResult>(
+          `${API}/projects/${project.slug}/memory/analyze`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ path, provider, force: false }),
+          },
+        )
+        if (result.skipped) {
+          skipped += 1
+        } else {
+          analyzed += 1
+          learned += result.facts_written
+        }
+      }
+      lastAutoMemoryRef.current = `${project.slug}\u0000${activeFile}\u0000${content}`
+      await refreshMemory(project.slug, memoryQuery)
+      setStatus(`Story memory built: ${learned} facts from ${analyzed} files; ${skipped} already current`)
+    } catch (error) {
+      setStatus(`Memory build stopped: ${(error as Error).message}`)
+    } finally {
+      setMemoryBusy(false)
+    }
+  }
+
   function selectionText() {
     const el = editorRef.current
     if (!el) return ''
@@ -298,7 +338,7 @@ function App() {
   }
 
   async function runGeneration() {
-    if (!project || !prompt.trim()) return
+    if (!project || !prompt.trim() || memoryBusy) return
     setBusy(true)
     setOutput('')
     setStatus(`Running ${mode}…`)
@@ -406,7 +446,7 @@ function App() {
         </div>
 
         <textarea className="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Tell Ember what you want from this scene…" />
-        <button className="primary" onClick={() => void runGeneration()} disabled={busy || !project || !prompt.trim() || !provider.model}>{busy ? 'Working…' : 'Generate'}</button>
+        <button className="primary" onClick={() => void runGeneration()} disabled={busy || memoryBusy || !project || !prompt.trim() || !provider.model}>{busy ? 'Working…' : memoryBusy ? 'Memory busy…' : 'Generate'}</button>
 
         {output && <div className="result-card">
           <div className="result-actions"><strong>Result</strong><span><button onClick={() => insertOutput(false)}>Append</button><button onClick={() => insertOutput(true)}>Replace selection</button></span></div>
@@ -422,9 +462,11 @@ function App() {
             autoMemory={autoMemory}
             busy={memoryBusy}
             canAnalyze={activeFile.startsWith('manuscript/') && Boolean(provider.model)}
+            canAnalyzeAll={manuscriptFiles.length > 0 && Boolean(provider.model)}
             onQueryChange={setMemoryQuery}
             onAutoMemoryChange={setAutoMemory}
             onAnalyze={() => void analyzeActiveFile(true)}
+            onAnalyzeAll={() => void analyzeAllManuscript()}
             onRefresh={() => void refreshMemory(project.slug, memoryQuery)}
             onOpenSource={(path) => void openFile(project.slug, path)}
           />
@@ -442,7 +484,7 @@ function App() {
           <label>Model</label>
           <div className="create-row">
             <input list="model-list" value={provider.model} onChange={(e) => setProvider({ ...provider, model: e.target.value })} placeholder="Choose or type model" />
-            <button onClick={() => void refreshModels()} disabled={busy}>↻</button>
+            <button onClick={() => void refreshModels()} disabled={busy || memoryBusy}>↻</button>
           </div>
           <datalist id="model-list">{models.map((model) => <option key={model} value={model} />)}</datalist>
           {provider.provider === 'openai_compatible' && <><label>API key (optional)</label><input type="password" value={provider.api_key || ''} onChange={(e) => setProvider({ ...provider, api_key: e.target.value })} /></>}
