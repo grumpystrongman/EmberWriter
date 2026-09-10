@@ -1,0 +1,114 @@
+[
+  {
+    "id": "gmu-punctuation",
+    "category": "grammar",
+    "authority": "George Mason University Writing Center",
+    "title": "Commas, Semicolons, and Colons",
+    "url": "https://writingcenter.gmu.edu/writing-resources/grammar-style/commas-semicolons-and-colons",
+    "refresh_days": 30
+  },
+  {
+    "id": "gmu-subject-verb",
+    "category": "grammar",
+    "authority": "George Mason University Writing Center",
+    "title": "Subject-Verb Agreement",
+    "url": "https://writingcenter.gmu.edu/writing-resources/grammar-style/subject-verb-agreement",
+    "refresh_days": 30
+  },
+  {
+    "id": "gmu-pronouns",
+    "category": "grammar",
+    "authority": "George Mason University Writing Center",
+    "title": "Pronouns",
+    "url": "https://writingcenter.gmu.edu/writing-resources/grammar-style/pronouns",
+    "refresh_days": 30
+  },
+  {
+    "id": "gmu-passive",
+    "category": "grammar",
+    "authority": "George Mason University Writing Center",
+    "title": "Active and Passive Voice",
+    "url": "https://writingcenter.gmu.edu/writing-resources/grammar-style/active-and-passive-voice",
+    "refresh_days": 30
+  },
+  {
+    "id": "gmu-runons",
+    "category": "grammar",
+    "authority": "George Mason University Writing Center",
+    "title": "Run-on Sentences",
+    "url": "https://writingcenter.gmu.edu/writing-resources/grammar-style/run-on-sentences",
+    "refresh_days": 30
+  },
+  {
+    "id": "gmu-parallel",
+    "category": "grammar",
+    "authority": "George Mason University Writing Center",
+    "title": "Parallel Structure",
+    "url": "https://writingcenter.gmu.edu/writing-resources/grammar-style/parallel-structure",
+    "refresh_days": 30
+  },
+  {
+    "id": "fordham-fragments",
+    "category": "grammar",
+    "authority": "Fordham University Writing Center",
+    "title": "Sentence Fragments",
+    "url": "https://www.fordham.edu/academics/academic-resources/writing-center/writing-resources/grammar/sentence-fragments/",
+    "refresh_days": 30
+  },
+  {
+    "id": "kdp-paperback-cover",
+    "category": "publishing",
+    "authority": "Amazon Kindle Direct Publishing",
+    "title": "Create a Paperback Cover",
+    "url": "https://kdp.amazon.com/en_US/help/topic/G201953020",
+    "refresh_days": 7
+  },
+  {
+    "id": "kdp-hardcover-cover",
+    "category": "publishing",
+    "authority": "Amazon Kindle Direct Publishing",
+    "title": "Create a Hardcover Cover",
+    "url": "https://kdp.amazon.com/en_US/help/topic/GDTKFJPNQCBTMRV6",
+    "refresh_days": 7
+  },
+  {
+    "id": "kdp-ebook-cover",
+    "category": "publishing",
+    "authority": "Amazon Kindle Direct Publishing",
+    "title": "Cover Image Guidelines",
+    "url": "https://kdp.amazon.com/en_US/help/topic/G6GTK3T3NUHKLEFX",
+    "refresh_days": 7
+  },
+  {
+    "id": "kdp-paperback-submission",
+    "category": "publishing",
+    "authority": "Amazon Kindle Direct Publishing",
+    "title": "Paperback Submission Guidelines",
+    "url": "https://kdp.amazon.com/en_US/help/topic/G201857950",
+    "refresh_days": 7
+  },
+  {
+    "id": "ingramspark-print-files",
+    "category": "publishing",
+    "authority": "IngramSpark",
+    "title": "Print Book File Guidelines",
+    "url": "https://www.ingramspark.com/hubfs/downloads/Print-Book-File-Guidelines.pdf",
+    "refresh_days": 7
+  },
+  {
+    "id": "apple-books-assets",
+    "category": "publishing",
+    "authority": "Apple Books",
+    "title": "Apple Books Asset Guide",
+    "url": "https://help.apple.com/itc/booksassetguide/en.lproj/static.html",
+    "refresh_days": 14
+  },
+  {
+    "id": "kobo-cover",
+    "category": "publishing",
+    "authority": "Kobo Writing Life",
+    "title": "Cover Image Tips",
+    "url": "https://kobowritinglife.zendesk.com/hc/en-us/articles/360059385711-Cover-Image-Tips",
+    "refresh_days": 14
+  }
+]
