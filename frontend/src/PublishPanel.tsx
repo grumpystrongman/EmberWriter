@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import CoverStudioPanel from './CoverStudioPanel'
+import DistributionPanel from './DistributionPanel'
 import ProjectHistoryPanel from './ProjectHistoryPanel'
 
 type PublishFormat = 'docx' | 'epub' | 'pdf'
@@ -218,6 +219,8 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
           {error && <small className="panel-error">{error}</small>}
         </div>
       </details>
+
+      <DistributionPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
     </>
   )
 }

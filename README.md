@@ -1,12 +1,12 @@
 # EmberWriter
 
-EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, structured story intelligence, scene planning, author voice, relationship state, editorial analysis, AI readers, cover production, and model-agnostic AI writing.
+EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, commercial cover production, release/distribution handoff, structured story intelligence, scene planning, author voice, relationship state, editorial analysis, AI readers, and model-agnostic AI writing.
 
 The design rule is simple: **your manuscript is the source of truth**. Ordinary readable project files live on your machine. SQLite accelerates revision history, Story Intelligence, editorial analysis, reader history, and trusted reference retrieval, but the application does not trap the novel inside a proprietary database.
 
 EmberWriter supports Ollama directly and generic OpenAI-compatible endpoints such as LM Studio, vLLM, and compatible hosted gateways.
 
-## Implemented through v0.9
+## Implemented through v0.10
 
 ### Authoring workspace
 
@@ -81,6 +81,40 @@ The Cover Studio provides a live front/spine/back preview with optional guides a
 Cover preflight checks include page-count constraints, spine-text eligibility, missing artwork/barcode assets, effective print-art resolution, KDP ebook minimum/maximum dimensions and aspect guidance, Ingram template-spine requirements, and common back-cover density issues.
 
 Print output is a single-page full-wrap PDF at the calculated/requested physical dimensions. That geometry validation is **not a claim of final distributor approval**. Before publishing, run the PDF through the target distributor's current preview/preflight to verify platform-specific font embedding, transparency, color-space, barcode, and placement requirements. EmberWriter's trusted publishing knowledge base keeps the current authority links available because those rules can change.
+
+### Release & Distribution Studio
+
+v0.10 adds a final publication-handoff layer that treats metadata, editions, identifiers, and exact generated files as one release object instead of a collection of disconnected notes.
+
+A portable `publishing/release-profile.json` stores the master title record: title/subtitle, series, primary author, contributors, publisher/imprint, public descriptions, author bio, language, publication/release dates, rights/territories, public-domain state, explicit-content disclosure, reading age, keywords, KDP categories, Apple categories, Kobo categories, BISAC codes, Thema codes, and edition definitions.
+
+Each ebook/paperback/hardcover edition independently tracks:
+
+- enabled/disabled state;
+- retailer targets;
+- owned, retailer-assigned, or no-ISBN strategy;
+- ISBN-13 when owned;
+- price and currency;
+- exact selected interior and cover export paths;
+- print trim and final page count;
+- eBook DRM request;
+- KDP paperback Expanded Distribution request.
+
+The Release Studio inventories generated files beneath `exports/`, classifies their likely role, fingerprints them with SHA-256, and lets the author bind exact artifacts to each edition. Preflight catches missing or escaped paths, wrong file types, invalid/reused ISBN-13 values, retailer-assigned identifier portability mistakes, cover/metadata title-subtitle-author mismatches, rights/date issues, and current retailer-specific metadata constraints.
+
+Current retailer-aware checks include KDP's seven-keyword and three-category limits; IngramSpark identifier and even-print-page requirements; Apple Books Publisher Description/category/EPUBCheck handoff requirements; and Kobo metadata/link/identifier guidance. These checks are tied to source URLs and a review date because distributor rules remain externally controlled.
+
+A successful build creates a reproducible release handoff containing:
+
+- the selected interior/cover binaries grouped by edition;
+- master release metadata JSON;
+- one retailer-specific JSON worksheet per selected retailer;
+- a flat retailer/edition CSV worksheet;
+- a SHA-256/byte-size release manifest;
+- a README reminding the publisher that the retailer's current upload portal and preview/preflight remain the final authority;
+- a single ZIP suitable for archiving or manual retailer handoff.
+
+EmberWriter deliberately does **not** claim to auto-publish or bypass retailer validation. The goal is to make the handoff complete, consistent, auditable, and repeatable while leaving account credentials, final legal attestations, pricing confirmation, and submission inside each retailer's controlled portal.
 
 ### Editorial Studio
 
@@ -225,7 +259,8 @@ data/
     ├── research/
     ├── notes/
     ├── publishing/
-    │   └── cover-profile.json
+    │   ├── cover-profile.json
+    │   └── release-profile.json
     ├── assets/
     │   └── covers/
     ├── style/
@@ -238,12 +273,16 @@ data/
     │   ├── unresolved-threads.md
     │   └── narrative-memory.json
     ├── exports/
+    │   └── <release-id>/
+    │       ├── release-package.zip
+    │       ├── release-manifest.json
+    │       └── retailer-metadata.csv
     └── .ember/
         ├── story.db
         └── snapshots/
 ```
 
-If EmberWriter disappears, the manuscript, story-bible material, cover configuration, and original uploaded cover assets remain ordinary files. Derived Narrative Memory and reference indexes can be rebuilt.
+If EmberWriter disappears, the manuscript, story-bible material, cover configuration, release metadata, and original uploaded cover assets remain ordinary files. Derived Narrative Memory and reference indexes can be rebuilt.
 
 ## Requirements
 
@@ -313,8 +352,9 @@ The formal checklists are:
 - `docs/REAL_MANUSCRIPT_ACCEPTANCE.md`
 - `docs/EDITORIAL_READER_KNOWLEDGE_ACCEPTANCE.md`
 - `docs/COVER_STUDIO_ACCEPTANCE.md`
+- `docs/RELEASE_DISTRIBUTION_ACCEPTANCE.md`
 
-The final dogfood gate requires real import, editing, deterministic editorial reports, actual configured-model Reader runs, source-backed grammar/publishing guidance, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, interior compile, and DOCX/EPUB/PDF verification. Cover acceptance additionally checks real high-resolution artwork, correct final formatted page count/paper choice, visual safe zones, barcode clearance, exact exported dimensions, and the distributor's own preview/preflight. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
+The final dogfood gate requires real import, editing, deterministic editorial reports, actual configured-model Reader runs, source-backed grammar/publishing guidance, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, interior compile, and DOCX/EPUB/PDF verification. Cover acceptance additionally checks real high-resolution artwork, correct final formatted page count/paper choice, visual safe zones, barcode clearance, exact exported dimensions, and the distributor's own preview/preflight. Release acceptance then binds the exact approved artifacts to edition metadata, verifies identifiers and retailer rules, archives a checksum manifest/package, and still requires the target retailer's current portal validation. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
 
 ## Product direction
 
@@ -326,6 +366,6 @@ EmberWriter is being built as one integrated author studio rather than disconnec
 - prose/voice/relationship/intimacy craft;
 - trusted grammar/publishing reference knowledge;
 - local-first ownership and model choice;
-- professional compile, recovery, publishing, and commercial cover workflows.
+- professional compile, recovery, cover design, release packaging, and distribution readiness.
 
-v0.9 establishes distributor-aware cover geometry and deterministic editable layout. Future cover work can deepen design sophistication—custom embedded typography, template overlays, crop/position controls, stronger color/prepress tooling, and optional image-generation integrations—without flattening title/spine/back text into generated artwork.
+v0.10 closes the loop from drafting through a reproducible retailer handoff. The next product track can focus on **desktop-grade release hardening**: EPUBCheck integration, stronger PDF/font/color-space inspection, richer BISAC/Thema/category lookup, embedded/custom cover typography, release history/diffing, and optional retailer/account integrations where an official supported API makes that safe and maintainable.
