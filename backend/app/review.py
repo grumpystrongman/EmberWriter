@@ -49,14 +49,6 @@ def _save(slug: str, collection: ReviewAnnotationCollection) -> None:
     temporary.replace(path)
 
 
-def _resolve(annotation: ReviewAnnotation) -> ReviewAnnotation:
-    try:
-        content = read_text(annotation.path.split("\u0000", 1)[0], "")
-    except Exception:
-        content = ""
-    return annotation
-
-
 def _find_anchor(content: str, anchor: str, preferred_start: int | None = None) -> int:
     starts: list[int] = []
     offset = 0
@@ -137,10 +129,11 @@ def list_annotations(
 def create_annotation(slug: str, payload: ReviewAnnotationCreate) -> ReviewAnnotation:
     _ensure_project(slug)
     content = read_text(slug, payload.path)
-    preferred = payload.source_start
-    start = _find_anchor(content, payload.anchor_text, preferred)
+    start = _find_anchor(content, payload.anchor_text, payload.source_start)
     if start < 0:
-        raise ValueError("Selected text could not be found in the saved document. Save the document and try again.")
+        raise ValueError(
+            "Selected text could not be found in the saved document. Save the document and try again."
+        )
     now = utc_now()
     annotation = ReviewAnnotation(
         id=uuid4().hex,
@@ -166,7 +159,11 @@ def create_annotation(slug: str, payload: ReviewAnnotationCreate) -> ReviewAnnot
     return annotation
 
 
-def update_annotation(slug: str, annotation_id: str, payload: ReviewAnnotationUpdate) -> ReviewAnnotation:
+def update_annotation(
+    slug: str,
+    annotation_id: str,
+    payload: ReviewAnnotationUpdate,
+) -> ReviewAnnotation:
     collection = _load(slug)
     for index, annotation in enumerate(collection.annotations):
         if annotation.id != annotation_id:
