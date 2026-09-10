@@ -1,12 +1,12 @@
 # EmberWriter
 
-EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, structured story intelligence, scene planning, author voice, relationship state, editorial analysis, AI readers, and model-agnostic AI writing.
+EmberWriter is a local-first fiction authoring studio that combines manuscript organization, rich editing, durable version control, publishing/compile workflows, structured story intelligence, scene planning, author voice, relationship state, editorial analysis, AI readers, cover production, and model-agnostic AI writing.
 
 The design rule is simple: **your manuscript is the source of truth**. Ordinary readable project files live on your machine. SQLite accelerates revision history, Story Intelligence, editorial analysis, reader history, and trusted reference retrieval, but the application does not trap the novel inside a proprietary database.
 
 EmberWriter supports Ollama directly and generic OpenAI-compatible endpoints such as LM Studio, vLLM, and compatible hosted gateways.
 
-## Implemented through v0.8
+## Implemented through v0.9
 
 ### Authoring workspace
 
@@ -47,15 +47,15 @@ EmberWriter has multiple recovery layers:
 
 Each distinct document revision stores a stable ID, parent revision, timestamp, source, note, SHA-256 content hash, word count, and complete recoverable content. You can compare an older revision to the current document, restore it, and later restore the version you disliked less; restoration never deletes the later history.
 
-Whole-project checkpoints capture the author-owned project state, including Binder organization and editable project files. Project restore automatically creates a pre-restore safety checkpoint first, so the rollback itself can be undone.
+Whole-project checkpoints capture the author-owned text/project state, including Binder organization and editable project files. Project restore automatically creates a pre-restore safety checkpoint first, so the rollback itself can be undone. Binary cover artwork lives as ordinary project-local files under `assets/covers/`; those image files should be included in normal filesystem/project backups because the current text checkpoint store does not duplicate binary assets.
 
 Derived Story Memory is checked against current manuscript hashes before generation and Story Intelligence operations. Facts extracted from a changed or deleted manuscript source are invalidated instead of surviving as stale AI context.
 
-### Compile and publishing
+### Interior compile and publishing
 
 Compile order comes from the Binder, not filesystem naming. Documents with Compile disabled are excluded.
 
-EmberWriter currently generates:
+EmberWriter generates:
 
 - **DOCX** for editorial/submission workflows;
 - **EPUB** for reflowable ebook distribution;
@@ -65,7 +65,22 @@ Publishing supports book title, author/pen name, language, EPUB TOC, and print t
 
 Generated files are written beneath the project `exports/` directory and are downloadable from the app.
 
-Distributor requirements can change. EmberWriter's trusted publishing knowledge base tracks source authority and refresh dates, and final platform compatibility is rechecked during release acceptance rather than treated as a permanent claim.
+### Cover Studio
+
+v0.9 adds a separate cover-production project that persists as readable JSON at `publishing/cover-profile.json` and stores uploaded artwork beneath `assets/covers/`.
+
+Current output targets:
+
+- **KDP Paperback** — calculates full-wrap width, spine, front/back positions, bleed, and type-safe guidance from the selected final page count and paper/interior type.
+- **KDP eBook** — validates raster dimensions/ratio and produces an upload JPEG plus lossless PNG proof.
+- **IngramSpark / official template** — deliberately requires the spine width from the exact IngramSpark product template instead of pretending one universal spine formula applies to every binding/paper combination.
+- **Custom Print** — accepts author/publisher-supplied trim, bleed, and spine measurements.
+
+The Cover Studio provides a live front/spine/back preview with optional guides and controls for title, subtitle, author/pen name, back blurb, imprint, ISBN, typography, alignment, colors, artwork placement/opacity, and barcode handling. Uploaded PNG/JPEG/TIFF/WebP assets are validated as real images and kept inside the story project.
+
+Cover preflight checks include page-count constraints, spine-text eligibility, missing artwork/barcode assets, effective print-art resolution, KDP ebook minimum/maximum dimensions and aspect guidance, Ingram template-spine requirements, and common back-cover density issues.
+
+Print output is a single-page full-wrap PDF at the calculated/requested physical dimensions. That geometry validation is **not a claim of final distributor approval**. Before publishing, run the PDF through the target distributor's current preview/preflight to verify platform-specific font embedding, transparency, color-space, barcode, and placement requirements. EmberWriter's trusted publishing knowledge base keeps the current authority links available because those rules can change.
 
 ### Editorial Studio
 
@@ -113,16 +128,7 @@ v0.8 adds a separate global `data/knowledge.db` reference store. It is source-at
 
 The initial authority set includes university writing-center material for grammar and official/current publishing documentation from Amazon KDP, IngramSpark, Apple Books, and Kobo Writing Life.
 
-Knowledge records retain:
-
-- authority and source title;
-- source URL;
-- category;
-- refresh cadence;
-- last checked / last successful refresh time;
-- source and chunk hashes;
-- refresh error state;
-- indexed chunks.
+Knowledge records retain authority/source title, source URL, category, refresh cadence, last checked/last successful refresh time, source/chunk hashes, refresh error state, and indexed chunks.
 
 On startup EmberWriter seeds a last-known-good local rule set and runs a scheduled refresh loop. Only sources due under their configured cadence are checked. A failed network refresh records the error but does **not** erase the last good rules, so reference search remains useful offline.
 
@@ -218,6 +224,10 @@ data/
     ├── scenes/
     ├── research/
     ├── notes/
+    ├── publishing/
+    │   └── cover-profile.json
+    ├── assets/
+    │   └── covers/
     ├── style/
     │   ├── author-profile.md
     │   ├── craft-profile.json
@@ -233,7 +243,7 @@ data/
         └── snapshots/
 ```
 
-If EmberWriter disappears, the manuscript and story-bible files still exist as readable files. Derived Narrative Memory and reference indexes can be rebuilt.
+If EmberWriter disappears, the manuscript, story-bible material, cover configuration, and original uploaded cover assets remain ordinary files. Derived Narrative Memory and reference indexes can be rebuilt.
 
 ## Requirements
 
@@ -296,14 +306,15 @@ Knowledge refresh scheduler defaults can be overridden for development/deploymen
 
 ## Release acceptance standard
 
-Unit tests are necessary but not sufficient. Before a release is treated as author-ready, EmberWriter is tested against a real author-owned manuscript rather than generated filler.
+Unit tests are necessary but not sufficient. Before a release is treated as author-ready, EmberWriter is tested against a real author-owned manuscript and real representative cover artwork rather than generated filler.
 
 The formal checklists are:
 
 - `docs/REAL_MANUSCRIPT_ACCEPTANCE.md`
 - `docs/EDITORIAL_READER_KNOWLEDGE_ACCEPTANCE.md`
+- `docs/COVER_STUDIO_ACCEPTANCE.md`
 
-The final dogfood gate requires real import, editing, deterministic editorial reports, actual configured-model Reader runs, source-backed grammar/publishing guidance, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, compile, and DOCX/EPUB/PDF verification. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
+The final dogfood gate requires real import, editing, deterministic editorial reports, actual configured-model Reader runs, source-backed grammar/publishing guidance, memory, character/relationship, Scene Architect, craft, revision, project rollback, recovery, interior compile, and DOCX/EPUB/PDF verification. Cover acceptance additionally checks real high-resolution artwork, correct final formatted page count/paper choice, visual safe zones, barcode clearance, exact exported dimensions, and the distributor's own preview/preflight. Export files must be reopened and inspected; a successful return code or matching file extension is not enough.
 
 ## Product direction
 
@@ -317,4 +328,4 @@ EmberWriter is being built as one integrated author studio rather than disconnec
 - local-first ownership and model choice;
 - professional compile, recovery, publishing, and commercial cover workflows.
 
-The next dedicated milestone after v0.8 is the publishing/cover design track: editable commercial front/spine/back projects, distributor-aware geometry/preflight, front-only ebook variants, deterministic typography/layout, and high-quality source-art workflows rather than flattened AI-generated cover text.
+v0.9 establishes distributor-aware cover geometry and deterministic editable layout. Future cover work can deepen design sophistication—custom embedded typography, template overlays, crop/position controls, stronger color/prepress tooling, and optional image-generation integrations—without flattening title/spine/back text into generated artwork.
