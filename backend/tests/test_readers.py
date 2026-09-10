@@ -1,6 +1,5 @@
+import asyncio
 from pathlib import Path
-
-import pytest
 
 from app import binder, readers, storage
 from app.models import ProviderConfig
@@ -12,8 +11,7 @@ def use_temp_data(tmp_path: Path) -> None:
     storage.PROJECTS_ROOT = tmp_path / "projects"
 
 
-@pytest.mark.asyncio
-async def test_reader_walks_binder_order_and_synthesizes(monkeypatch, tmp_path: Path) -> None:
+def test_reader_walks_binder_order_and_synthesizes(monkeypatch, tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Reader Book")
     slug = project["slug"]
@@ -50,24 +48,23 @@ async def test_reader_walks_binder_order_and_synthesizes(monkeypatch, tmp_path: 
     assert run["status"] == "reading"
 
     provider = ProviderConfig(model="test")
-    first_step = await readers.step_reader_run(slug, run["id"], provider)
+    first_step = asyncio.run(readers.step_reader_run(slug, run["id"], provider))
     assert first_step["action"] == "chapter_read"
     assert first_step["chapter_note"]["chapter_title"] == first.title
     assert first_step["run"]["current_index"] == 1
 
-    second_step = await readers.step_reader_run(slug, run["id"], provider)
+    second_step = asyncio.run(readers.step_reader_run(slug, run["id"], provider))
     assert second_step["run"]["status"] == "ready_to_synthesize"
     assert second_step["chapter_note"]["chapter_title"] == second.title
 
-    final_step = await readers.step_reader_run(slug, run["id"], provider)
+    final_step = asyncio.run(readers.step_reader_run(slug, run["id"], provider))
     assert final_step["action"] == "synthesized"
     assert final_step["run"]["status"] == "completed"
     assert final_step["run"]["verdict"]["score"] == 9
     assert readers.list_reader_runs(slug)[0]["score"] == 9
 
 
-@pytest.mark.asyncio
-async def test_reader_notes_become_stale_when_source_changes(monkeypatch, tmp_path: Path) -> None:
+def test_reader_notes_become_stale_when_source_changes(monkeypatch, tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Reader Stale")
     slug = project["slug"]
@@ -79,7 +76,7 @@ async def test_reader_notes_become_stale_when_source_changes(monkeypatch, tmp_pa
 
     monkeypatch.setattr(readers, "generate", fake_generate)
     run = readers.create_reader_run(slug, ReaderRunCreate(persona="casual_reader", genre="Thriller"))
-    await readers.step_reader_run(slug, run["id"], ProviderConfig(model="test"))
+    asyncio.run(readers.step_reader_run(slug, run["id"], ProviderConfig(model="test")))
     assert readers.get_reader_run(slug, run["id"])["stale_documents"] == 0
 
     storage.save_text(slug, path, "# One\n\nThe room held a body.\n")
