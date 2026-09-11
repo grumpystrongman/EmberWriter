@@ -11,6 +11,8 @@
 }
 
 .workspace-shell {
+  --workspace-library-width: 260px;
+  --workspace-assistant-width: 360px;
   height: 100vh;
   overflow: hidden;
   background: var(--ember-bg);
@@ -144,6 +146,7 @@
 }
 
 .workspace-app {
+  position: relative;
   height: calc(100vh - 82px);
   overflow: hidden;
 }
@@ -223,6 +226,19 @@
   font-weight: 800;
 }
 
+/* Outside Write, the right rail is a contextual AI rail rather than a warehouse for major tools. */
+.workspace-shell:not(.workspace-write) .assistant > .authoring-panel,
+.workspace-shell:not(.workspace-write) .assistant > .story-intelligence-panel,
+.workspace-shell:not(.workspace-write) .assistant > .memory-panel,
+.workspace-shell:not(.workspace-write) .assistant > .chemistry-panel,
+.workspace-shell:not(.workspace-write) .assistant > .scene-architect-panel {
+  display: none;
+}
+
+.workspace-shell.binder-collapsed {
+  --workspace-library-width: 0px;
+}
+
 .workspace-shell.binder-collapsed .library {
   display: none;
 }
@@ -230,6 +246,10 @@
 .workspace-shell.binder-collapsed .app-shell {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 25vw);
   grid-template-areas: "editor assistant";
+}
+
+.workspace-shell.assistant-collapsed {
+  --workspace-assistant-width: 0px;
 }
 
 .workspace-shell.assistant-collapsed .assistant {
@@ -245,6 +265,11 @@
 .workspace-shell.focus-mode .app-shell {
   grid-template-columns: 1fr;
   grid-template-areas: "editor";
+}
+
+.workspace-shell.focus-mode {
+  --workspace-library-width: 0px;
+  --workspace-assistant-width: 0px;
 }
 
 .workspace-shell.focus-mode .library,
@@ -273,6 +298,15 @@
   width: min(48rem, calc(100% - 2rem));
   font-size: 1.08rem;
   line-height: 1.8;
+}
+
+@media (max-width: 1250px) {
+  .workspace-shell {
+    --workspace-library-width: 220px;
+    --workspace-assistant-width: 320px;
+  }
+  .workspace-shell.binder-collapsed { --workspace-library-width: 0px; }
+  .workspace-shell.assistant-collapsed { --workspace-assistant-width: 0px; }
 }
 
 @media (max-width: 1050px) {
