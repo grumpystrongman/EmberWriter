@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import type { MemoryFact } from './MemoryPanel'
+import ScenePlannerWorkspace from './ScenePlannerWorkspace'
 import type { ProviderConfig, WorkspaceProject } from './workspace-types'
 
 type Props = {
@@ -118,6 +119,15 @@ export default function PlanWorkspace({ apiBase, project, onOpenSource }: Props)
     void load()
   }, [project.slug])
 
+  async function refreshFiles() {
+    try {
+      const detail = await request<ProjectDetail>(`${apiBase}/projects/${project.slug}`)
+      setFiles(detail.files)
+    } catch (cause) {
+      setError((cause as Error).message)
+    }
+  }
+
   async function load() {
     setError('')
     try {
@@ -159,6 +169,7 @@ export default function PlanWorkspace({ apiBase, project, onOpenSource }: Props)
         body: JSON.stringify({ content: beatSheet }),
       })
       setBeatDirty(false)
+      await refreshFiles()
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -214,6 +225,7 @@ export default function PlanWorkspace({ apiBase, project, onOpenSource }: Props)
         method: 'PUT',
         body: JSON.stringify({ content: JSON.stringify({ schema_version: 1, events: next }, null, 2) }),
       })
+      await refreshFiles()
     } catch (cause) {
       setError((cause as Error).message)
     }
@@ -249,7 +261,7 @@ export default function PlanWorkspace({ apiBase, project, onOpenSource }: Props)
         <div>
           <small>PLAN · {project.name}</small>
           <h1>Story Planning</h1>
-          <p>See the story as a system. Ember can build deeply from the manuscript, or you can plan every beat and event yourself.</p>
+          <p>See the story as a system. Ember can build deeply from the manuscript, or you can plan every beat, event, and scene yourself.</p>
         </div>
         <div className="center-tool-actions">
           <button type="button" onClick={() => void load()} disabled={busy}>↻ Refresh story state</button>
@@ -264,7 +276,7 @@ export default function PlanWorkspace({ apiBase, project, onOpenSource }: Props)
       <nav className="center-subtabs" aria-label="Planning tools">
         <button type="button" className={tab === 'timeline' ? 'active' : ''} onClick={() => setTab('timeline')}>Timeline <span>{events.length}</span></button>
         <button type="button" className={tab === 'beats' ? 'active' : ''} onClick={() => setTab('beats')}>Beat Sheet</button>
-        <button type="button" className={tab === 'scenes' ? 'active' : ''} onClick={() => setTab('scenes')}>Scene Plans <span>{sceneFiles.length}</span></button>
+        <button type="button" className={tab === 'scenes' ? 'active' : ''} onClick={() => setTab('scenes')}>Scene Architect <span>{sceneFiles.length}</span></button>
       </nav>
 
       {tab === 'timeline' && (
@@ -335,17 +347,13 @@ export default function PlanWorkspace({ apiBase, project, onOpenSource }: Props)
       )}
 
       {tab === 'scenes' && (
-        <div className="scene-plan-browser">
-          <div className="center-section-heading"><div><h2>Saved Scene Plans</h2><p>Scene Architect outputs remain ordinary project files. Open any one in Write to edit it directly.</p></div></div>
-          {sceneFiles.length === 0 && <div className="center-empty">No saved scene plans yet. Use Scene Architect from Ember while writing, then they will appear here.</div>}
-          <div className="artifact-grid">
-            {sceneFiles.map((path) => (
-              <button type="button" className="artifact-card" key={path} onClick={() => onOpenSource(path)}>
-                <span>SCENE PLAN</span><strong>{path.split('/').at(-1)?.replace(/\.json$|\.md$/i, '')}</strong><small>{path}</small>
-              </button>
-            ))}
-          </div>
-        </div>
+        <ScenePlannerWorkspace
+          apiBase={apiBase}
+          project={project}
+          sceneFiles={sceneFiles}
+          onOpenSource={onOpenSource}
+          onFilesChanged={() => void refreshFiles()}
+        />
       )}
 
       {error && <div className="center-error">{error}</div>}
