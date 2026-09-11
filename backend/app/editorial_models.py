@@ -104,3 +104,21 @@ class EditorialFixProposal(BaseModel):
     target_start: int = Field(ge=0)
     target_end: int = Field(ge=0)
     changed: bool
+
+
+class EditorialFixApplyRequest(BaseModel):
+    finding_id: str
+    path: str = Field(min_length=1, max_length=500)
+    original: str = Field(max_length=20_000)
+    replacement: str = Field(max_length=20_000)
+    source_hash: str = Field(min_length=64, max_length=64)
+    target_start: int = Field(ge=0)
+    target_end: int = Field(ge=0)
+    rationale: str = Field(default="", max_length=4000)
+
+
+class EditorialFixApplyResult(BaseModel):
+    path: str
+    content: str
+    finding: EditorialFinding
+    revision: dict
