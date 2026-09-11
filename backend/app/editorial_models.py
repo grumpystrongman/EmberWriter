@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from .models import ProviderConfig
+
 EditorialSeverity = Literal["info", "warning", "strong"]
 EditorialStatus = Literal["open", "resolved", "ignored"]
 EditorialScope = Literal["draft", "document"]
@@ -82,3 +84,23 @@ class EditorialRunResult(EditorialRunSummary):
 
 class EditorialFindingStatusUpdate(BaseModel):
     status: EditorialStatus
+
+
+class EditorialFixRequest(BaseModel):
+    finding_id: str
+    provider: ProviderConfig
+    instruction: str = Field(default="", max_length=2000)
+
+
+class EditorialFixProposal(BaseModel):
+    finding_id: str
+    path: str
+    report_id: str
+    report_name: str
+    original: str
+    replacement: str
+    rationale: str
+    source_hash: str
+    target_start: int = Field(ge=0)
+    target_end: int = Field(ge=0)
+    changed: bool
