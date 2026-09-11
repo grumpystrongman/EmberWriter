@@ -75,8 +75,17 @@ export default function WorkspaceShell() {
         if (next) openWorkspace(next.id)
       }
     }
+    function onFocusMode(event: Event) {
+      const custom = event as CustomEvent<boolean>
+      setWorkspace('write')
+      setFocusMode(custom.detail ?? true)
+    }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('emberwriter:focus-mode', onFocusMode)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('emberwriter:focus-mode', onFocusMode)
+    }
   }, [])
 
   function openWorkspace(next: Workspace) {
