@@ -27,39 +27,54 @@ export default function ImportPanel({ disabled, onFiles, onText }: Props) {
   }
 
   return (
-    <details className="authoring-panel" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>Import <small>novel · portions · ideas</small></summary>
-      <div className="authoring-panel-body">
-        <label>Import as</label>
-        <select value={mode} onChange={(event) => setMode(event.target.value as ImportMode)} disabled={disabled}>
-          <option value="novel">Novel — split detected chapters</option>
-          <option value="portion">Novel portion — one document</option>
-          <option value="idea">Idea / notes</option>
-          <option value="research">Research</option>
-        </select>
-        <input
-          ref={inputRef}
-          className="hidden-file-input"
-          type="file"
-          multiple
-          accept=".docx,.pdf,.epub,.rtf,.md,.txt,.html,.htm"
-          onChange={(event) => {
-            const files = Array.from(event.target.files || [])
-            if (files.length) void onFiles(files, mode)
-            event.target.value = ''
-          }}
-        />
-        <button type="button" disabled={disabled} onClick={() => inputRef.current?.click()}>
-          Choose files…
-        </button>
-        <small className="panel-help">DOCX, PDF, EPUB, RTF, Markdown, text, and HTML. Novel mode detects chapter/prologue/epilogue boundaries and creates Binder documents.</small>
+    <section className="authoring-panel import-panel" aria-label="Import manuscript and writing material">
+      <button
+        type="button"
+        className="primary import-toggle"
+        disabled={disabled}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        title="Import a complete novel, novel portion, idea, or research file"
+      >
+        <span>{open ? '▾' : '▸'} Import Manuscript</span>
+        <small>DOCX · PDF · EPUB · RTF · MD · TXT · HTML</small>
+      </button>
 
-        <div className="panel-divider" />
-        <label>Paste material</label>
-        <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title / idea name" disabled={disabled} />
-        <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Paste a novel, scene, outline, lore, or raw idea…" disabled={disabled} />
-        <button type="button" disabled={disabled || !text.trim()} onClick={() => void submitText()}>Import pasted text</button>
-      </div>
-    </details>
+      {open && (
+        <div className="authoring-panel-body">
+          <label>Import as</label>
+          <select value={mode} onChange={(event) => setMode(event.target.value as ImportMode)} disabled={disabled}>
+            <option value="novel">Whole novel — detect and split chapters</option>
+            <option value="portion">Novel portion — one document</option>
+            <option value="idea">Idea / notes</option>
+            <option value="research">Research</option>
+          </select>
+          <input
+            ref={inputRef}
+            className="hidden-file-input"
+            type="file"
+            multiple
+            accept=".docx,.pdf,.epub,.rtf,.md,.txt,.html,.htm"
+            onChange={(event) => {
+              const files = Array.from(event.target.files || [])
+              if (files.length) void onFiles(files, mode)
+              event.target.value = ''
+            }}
+          />
+          <button type="button" disabled={disabled} onClick={() => inputRef.current?.click()}>
+            Choose manuscript file…
+          </button>
+          <small className="panel-help">
+            Whole novel mode detects chapter, prologue, epilogue, interlude, and part boundaries and creates real Binder documents.
+          </small>
+
+          <div className="panel-divider" />
+          <label>Or paste writing material</label>
+          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title / idea name" disabled={disabled} />
+          <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Paste a novel, scene, outline, lore, or raw idea…" disabled={disabled} />
+          <button type="button" disabled={disabled || !text.trim()} onClick={() => void submitText()}>Import pasted text</button>
+        </div>
+      )}
+    </section>
   )
 }
