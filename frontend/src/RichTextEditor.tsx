@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import CharacterCount from '@tiptap/extension-character-count'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -28,8 +28,21 @@ type Props = {
   onChange: (markdown: string) => void
 }
 
+type EditorialApplyDetail = {
+  path: string
+  original: string
+  replacement: string
+  respond?: (applied: boolean) => void
+}
+
 function htmlFromMarkdown(markdown: string): string {
   return marked.parse(markdown || '', { async: false }) as string
+}
+
+function inlineHtmlFromMarkdown(markdown: string): string {
+  const html = htmlFromMarkdown(markdown).trim()
+  const singleParagraph = html.match(/^<p>([\s\S]*)<\/p>$/)
+  return singleParagraph ? singleParagraph[1] : html
 }
 
 function outerHtml(node: Node): string {
@@ -40,6 +53,10 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
   { markdown, documentKey, disabled = false, placeholder = 'Start writing…', onChange },
   ref,
 ) {
+  const [findOpen, setFindOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const [findStatus, setFindStatus] = useState('')
   const turndown = useMemo(() => {
     const service = new TurndownService({
       headingStyle: 'atx',
@@ -111,6 +128,10 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     editor?.setEditable(!disabled)
   }, [disabled, editor])
 
+  const separator = documentKey.indexOf(':')
+  const projectSlug = separator >= 0 ? documentKey.slice(0, separator) : ''
+  const activePath = separator >= 0 ? documentKey.slice(separator + 1) : ''
+
   function selectedText() {
     if (!editor) return ''
     const { from, to } = editor.state.selection
@@ -118,8 +139,8 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     return editor.state.doc.textBetween(from, to, '\n')
   }
 
-  function selectText(text: string) {
-    if (!editor || !text.trim()) return false
+  function textRanges(text: string) {
+    if (!editor || !text.trim()) return [] as { from: number; to: number }[]
     const root = editor.view.dom
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     const segments: { node: Node; start: number; end: number }[] = []
@@ -133,39 +154,129 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       currentNode = walker.nextNode()
     }
 
+    const needle = text.trim()
+    const lowerHaystack = haystack.toLocaleLowerCase()
+    const lowerNeedle = needle.toLocaleLowerCase()
+    const ranges: { from: number; to: number }[] = []
+    let cursor = 0
+    while (cursor <= lowerHaystack.length - lowerNeedle.length) {
+      const matchStart = lowerHaystack.indexOf(lowerNeedle, cursor)
+      if (matchStart < 0) break
+      const matchEnd = matchStart + needle.length
+      const startSegment = segments.find((segment) => matchStart >= segment.start && matchStart < segment.end)
+      const endSegment = segments.find((segment) => matchEnd > segment.start && matchEnd <= segment.end)
+      if (startSegment && endSegment) {
+        const startOffset = Math.max(0, matchStart - startSegment.start)
+        const endOffset = Math.max(0, matchEnd - endSegment.start)
+        try {
+          const from = editor.view.posAtDOM(startSegment.node, startOffset)
+          const to = editor.view.posAtDOM(endSegment.node, endOffset)
+          if (to > from) ranges.push({ from, to })
+        } catch {
+          // Ignore DOM positions that cannot be mapped back into the editor document.
+        }
+      }
+      cursor = matchStart + Math.max(1, needle.length)
+    }
+    return ranges
+  }
+
+  function selectText(text: string, next = false) {
+    if (!editor || !text.trim()) return false
     const candidates = [
       text.trim(),
+      text.trim().split(/\s+/).slice(0, 12).join(' '),
       text.trim().split(/\s+/).slice(0, 8).join(' '),
       text.trim().split(/\s+/).slice(0, 4).join(' '),
     ].filter((value, index, items) => value.length >= 2 && items.indexOf(value) === index)
-    let matchStart = -1
-    let matchText = ''
-    for (const candidate of candidates) {
-      matchStart = haystack.indexOf(candidate)
-      if (matchStart >= 0) {
-        matchText = candidate
-        break
-      }
-    }
-    if (matchStart < 0) return false
-    const matchEnd = matchStart + matchText.length
-    const startSegment = segments.find((segment) => matchStart >= segment.start && matchStart <= segment.end)
-    const endSegment = segments.find((segment) => matchEnd >= segment.start && matchEnd <= segment.end)
-    if (!startSegment || !endSegment) return false
 
-    const startOffset = Math.max(0, matchStart - startSegment.start)
-    const endOffset = Math.max(0, matchEnd - endSegment.start)
-    const from = editor.view.posAtDOM(startSegment.node, startOffset)
-    const to = editor.view.posAtDOM(endSegment.node, endOffset)
-    editor.chain().focus().setTextSelection({ from, to }).scrollIntoView().run()
-    return true
+    for (const candidate of candidates) {
+      const ranges = textRanges(candidate)
+      if (!ranges.length) continue
+      let target = ranges[0]
+      if (next) {
+        const current = editor.state.selection.from
+        target = ranges.find((range) => range.from > current) || ranges[0]
+      }
+      editor.chain().focus().setTextSelection(target).scrollIntoView().run()
+      return true
+    }
+    return false
   }
+
+  function findNext() {
+    if (!findText.trim()) return
+    const ranges = textRanges(findText)
+    if (!ranges.length) {
+      setFindStatus('No matches')
+      return
+    }
+    const selected = selectText(findText, true)
+    setFindStatus(selected ? `${ranges.length} match${ranges.length === 1 ? '' : 'es'}` : 'No matches')
+  }
+
+  function replaceCurrent() {
+    if (!editor || !findText.trim()) return
+    const current = selectedText()
+    if (current.toLocaleLowerCase() !== findText.trim().toLocaleLowerCase()) {
+      findNext()
+      return
+    }
+    editor.chain().focus().insertContent(inlineHtmlFromMarkdown(replaceText)).run()
+    setFindStatus('Replaced 1 match')
+    window.setTimeout(findNext, 0)
+  }
+
+  function replaceAll() {
+    if (!editor || !findText.trim()) return
+    const query = findText.trim().toLocaleLowerCase()
+    const ranges: { from: number; to: number }[] = []
+    editor.state.doc.descendants((node, pos) => {
+      if (!node.isText || !node.text) return
+      const lower = node.text.toLocaleLowerCase()
+      let cursor = 0
+      while (cursor <= lower.length - query.length) {
+        const index = lower.indexOf(query, cursor)
+        if (index < 0) break
+        ranges.push({ from: pos + index, to: pos + index + query.length })
+        cursor = index + Math.max(1, query.length)
+      }
+    })
+    if (!ranges.length) {
+      setFindStatus('No matches')
+      return
+    }
+    const transaction = editor.state.tr
+    for (const range of [...ranges].reverse()) {
+      transaction.insertText(replaceText, range.from, range.to)
+    }
+    editor.view.dispatch(transaction)
+    editor.commands.focus()
+    setFindStatus(`Replaced ${ranges.length} match${ranges.length === 1 ? '' : 'es'}`)
+  }
+
+  useEffect(() => {
+    function applyEditorialFix(event: Event) {
+      const custom = event as CustomEvent<EditorialApplyDetail>
+      const detail = custom.detail
+      if (!detail || detail.path !== activePath || !editor) return
+      const selected = selectText(detail.original)
+      if (!selected) {
+        detail.respond?.(false)
+        return
+      }
+      editor.chain().focus().insertContent(inlineHtmlFromMarkdown(detail.replacement)).run()
+      detail.respond?.(true)
+    }
+    window.addEventListener('emberwriter:apply-editorial-fix', applyEditorialFix)
+    return () => window.removeEventListener('emberwriter:apply-editorial-fix', applyEditorialFix)
+  }, [editor, activePath])
 
   useImperativeHandle(ref, () => ({
     getSelectedText: selectedText,
     replaceSelection(text: string) {
       if (!editor) return
-      editor.chain().focus().insertContent(htmlFromMarkdown(text)).run()
+      editor.chain().focus().insertContent(inlineHtmlFromMarkdown(text)).run()
     },
     insertAtEnd(text: string) {
       if (!editor) return
@@ -180,10 +291,6 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
 
   if (!editor) return <div className="rich-editor-loading">Opening editor…</div>
 
-  const separator = documentKey.indexOf(':')
-  const projectSlug = separator >= 0 ? documentKey.slice(0, separator) : ''
-  const activePath = separator >= 0 ? documentKey.slice(separator + 1) : ''
-
   function openAnnotation(annotation: ReviewAnnotation) {
     if (annotation.stale) return
     selectText(annotation.anchor_text)
@@ -194,6 +301,7 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       <div className="editor-toolbar" role="toolbar" aria-label="Formatting">
         <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">↶</button>
         <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">↷</button>
+        <button type="button" className={findOpen ? 'active' : ''} onClick={() => setFindOpen((value) => !value)} title="Find and replace">⌕</button>
         <span className="toolbar-divider" />
         <button type="button" className={editor.isActive('bold') ? 'active' : ''} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"><strong>B</strong></button>
         <button type="button" className={editor.isActive('italic') ? 'active' : ''} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"><em>I</em></button>
@@ -221,6 +329,17 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
         <button type="button" className={editor.isActive({ textAlign: 'right' }) ? 'active' : ''} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Align right">≡</button>
         <span className="editor-count">{editor.storage.characterCount.words().toLocaleString()} words</span>
       </div>
+      {findOpen && (
+        <div className="editor-findbar">
+          <input value={findText} onChange={(event) => { setFindText(event.target.value); setFindStatus('') }} placeholder="Find" onKeyDown={(event) => { if (event.key === 'Enter') findNext() }} autoFocus />
+          <input value={replaceText} onChange={(event) => setReplaceText(event.target.value)} placeholder="Replace with" />
+          <button type="button" onClick={findNext} disabled={!findText.trim()}>Next</button>
+          <button type="button" onClick={replaceCurrent} disabled={!findText.trim() || disabled}>Replace</button>
+          <button type="button" onClick={replaceAll} disabled={!findText.trim() || disabled}>Replace all</button>
+          <small>{findStatus}</small>
+          <button type="button" className="quiet" onClick={() => setFindOpen(false)} aria-label="Close find and replace">×</button>
+        </div>
+      )}
       <EditorContent editor={editor} className="editor-scroll" />
       {projectSlug && activePath && (
         <ReviewPanel
