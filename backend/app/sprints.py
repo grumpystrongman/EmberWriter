@@ -5,11 +5,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from .storage import project_root, utc_now
+from .storage import project_root, safe_project_path, utc_now
+
+
+def _require_project(slug: str) -> Path:
+    root = project_root(slug)
+    if not (root / "project.json").exists():
+        raise FileNotFoundError(slug)
+    return root
 
 
 def _db_path(slug: str) -> Path:
-    path = project_root(slug) / ".ember" / "story.db"
+    root = _require_project(slug)
+    path = root / ".ember" / "story.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -73,9 +81,9 @@ def start_sprint(
     target_words: int,
     duration_minutes: int,
 ) -> dict:
-    project_meta = project_root(slug) / "project.json"
-    if not project_meta.exists():
-        raise FileNotFoundError(slug)
+    source_path = safe_project_path(slug, path)
+    if not source_path.exists() or not source_path.is_file():
+        raise FileNotFoundError(path)
     sprint_id = uuid4().hex
     started_at = utc_now()
     with _connect(slug) as con:
