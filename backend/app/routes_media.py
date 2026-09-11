@@ -4,6 +4,7 @@ import base64
 import io
 import json
 from pathlib import Path
+from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -116,7 +117,7 @@ def portrait_image(slug: str, character: str) -> FileResponse:
 async def upload_portrait(
     slug: str,
     character: str,
-    image: UploadFile = File(...),
+    image: Annotated[UploadFile, File()],
 ) -> dict:
     try:
         raw = await image.read(_MAX_UPLOAD_BYTES + 1)
