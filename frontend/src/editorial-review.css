@@ -1,0 +1,218 @@
+.editorial-review-overlay {
+  position: fixed;
+  inset: 4.35rem 1rem 1rem;
+  z-index: 1200;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(75, 58, 45, 0.35);
+  border-radius: 12px;
+  background: #1c1917;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+}
+
+.editorial-review-overlay::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgba(10, 8, 7, 0.68);
+  backdrop-filter: blur(3px);
+}
+
+.editorial-review-tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.45rem 0.65rem 0;
+  border-bottom: 1px solid #3a312b;
+  background: #211d1a;
+}
+
+.editorial-review-tabs button {
+  min-width: 8rem;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: #a99b90;
+  box-shadow: none;
+}
+
+.editorial-review-tabs button.active {
+  background: #f5efe6;
+  color: #4a3d34;
+  font-weight: 700;
+}
+
+.editorial-review-pane {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.2rem 1.35rem 2rem;
+  background: #f5efe6;
+  color: #2c2723;
+}
+
+.editorial-review-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #d5c9ba;
+}
+
+.editorial-review-header > div {
+  min-width: 0;
+}
+
+.editorial-review-header small {
+  color: #8a7768;
+  font-size: 0.72rem;
+}
+
+.editorial-review-header h2 {
+  margin: 0.18rem 0 0.35rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.45rem;
+}
+
+.editorial-review-header p {
+  max-width: 62rem;
+  margin: 0;
+  color: #65584d;
+  line-height: 1.45;
+}
+
+.editorial-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.8rem 0;
+}
+
+.editorial-review-meta span {
+  padding: 0.32rem 0.5rem;
+  border: 1px solid #d7c8b9;
+  border-radius: 999px;
+  background: #fff9f2;
+  color: #6f6257;
+  font-size: 0.68rem;
+}
+
+.editorial-review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: stretch;
+}
+
+.editorial-review-side {
+  min-width: 0;
+  border: 1px solid #d7c8b9;
+  border-radius: 10px;
+  background: #fffaf4;
+  overflow: hidden;
+}
+
+.editorial-review-side.original {
+  border-top: 3px solid #b56a61;
+}
+
+.editorial-review-side.proposed {
+  border-top: 3px solid #6e8f6d;
+}
+
+.editorial-review-side-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid #e1d6ca;
+  background: #eee5da;
+}
+
+.editorial-review-side-heading strong {
+  font-size: 0.78rem;
+}
+
+.editorial-review-side-heading small {
+  color: #87796d;
+  font-size: 0.62rem;
+  text-align: right;
+}
+
+.editorial-review-prose {
+  min-height: 18rem;
+  max-height: 52vh;
+  overflow: auto;
+  padding: 1.25rem 1.35rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1rem;
+  line-height: 1.72;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.editorial-token-delete {
+  border-radius: 3px;
+  background: rgba(191, 84, 72, 0.2);
+  color: #8a332b;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.editorial-token-insert {
+  border-radius: 3px;
+  background: rgba(79, 137, 82, 0.2);
+  color: #285d2d;
+}
+
+.editorial-review-rationale {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.8rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #d7c8b9;
+  border-radius: 9px;
+  background: #eee5da;
+}
+
+.editorial-review-rationale p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.editorial-review-rationale small {
+  color: #7f7064;
+}
+
+.editorial-review-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+  background: linear-gradient(to bottom, rgba(245, 239, 230, 0), #f5efe6 28%);
+}
+
+.editorial-review-actions button {
+  min-width: 9rem;
+}
+
+@media (max-width: 1000px) {
+  .editorial-review-overlay {
+    inset: 4.2rem 0.4rem 0.4rem;
+  }
+
+  .editorial-review-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .editorial-review-prose {
+    max-height: none;
+  }
+}

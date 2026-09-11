@@ -6,10 +6,16 @@ import re
 import sqlite3
 from typing import Any
 
-from .editorial import report_catalog
-from .editorial_models import EditorialFixProposal, EditorialFixRequest
+from .editorial import report_catalog, update_finding_status
+from .editorial_models import (
+    EditorialFixApplyRequest,
+    EditorialFixApplyResult,
+    EditorialFixProposal,
+    EditorialFixRequest,
+)
 from .generation import generate
-from .storage import project_root, read_text
+from .revisions import record_revision
+from .storage import project_root, read_text, save_text
 
 _SENTENCE_RE = re.compile(r"[^.!?\n]+(?:[.!?]+[\"'’”)]*|$)", re.MULTILINE)
 _PARAGRAPH_REPORTS = {"paragraph_length"}
@@ -184,4 +190,64 @@ AUTHOR / BOOK STYLE CONTEXT
         target_start=target_start,
         target_end=target_end,
         changed=replacement != original,
+    )
+
+
+def apply_editorial_fix(slug: str, request: EditorialFixApplyRequest) -> EditorialFixApplyResult:
+    finding = _load_finding(slug, request.finding_id)
+    if finding["status"] != "open":
+        raise ValueError("This editorial finding is no longer open")
+    if finding["path"] != request.path:
+        raise ValueError("Editorial fix path does not match the finding")
+
+    source = read_text(slug, finding["path"])
+    current_hash = _hash(source)
+    if current_hash != finding["source_hash"] or current_hash != request.source_hash:
+        raise ValueError("This finding is stale because the manuscript changed. Rerun Editorial Studio before applying the fix.")
+
+    expected_start, expected_end = _target_span(source, finding)
+    if (request.target_start, request.target_end) != (expected_start, expected_end):
+        raise ValueError("Editorial fix target no longer matches the analyzed passage")
+    if request.target_end > len(source) or request.target_start > request.target_end:
+        raise ValueError("Editorial fix target is outside the manuscript")
+
+    original = source[request.target_start:request.target_end]
+    if original != request.original:
+        raise ValueError("Editorial fix source passage changed before apply")
+    if request.replacement == request.original:
+        raise ValueError("The proposal does not change the manuscript")
+
+    updated = source[:request.target_start] + request.replacement + source[request.target_end:]
+    note = f"{finding['report_name']} AI fix"
+    if request.rationale.strip():
+        note = f"{note}: {request.rationale.strip()[:500]}"
+
+    save_text(slug, request.path, updated)
+    try:
+        revision = record_revision(
+            slug,
+            request.path,
+            updated,
+            source="editorial_fix",
+            note=note,
+            force=True,
+        )
+        resolved = update_finding_status(slug, request.finding_id, "resolved")
+    except Exception:
+        save_text(slug, request.path, source)
+        record_revision(
+            slug,
+            request.path,
+            source,
+            source="editorial_fix_rollback",
+            note="Automatic rollback after editorial fix apply failure",
+            force=True,
+        )
+        raise
+
+    return EditorialFixApplyResult(
+        path=request.path,
+        content=updated,
+        finding=resolved,
+        revision=revision,
     )
