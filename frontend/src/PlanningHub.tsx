@@ -31,7 +31,7 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
       </nav>
 
       {tab === 'timeline' ? (
-        <PlanWorkspace apiBase={apiBase} project={project} onOpenSource={onOpenSource} embedded />
+        <PlanWorkspace apiBase={apiBase} project={project} onOpenSource={onOpenSource} />
       ) : (
         <DevelopmentWorkspace apiBase={apiBase} project={project} onOpenSource={onOpenSource} />
       )}
