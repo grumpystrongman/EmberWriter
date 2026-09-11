@@ -180,6 +180,23 @@
   text-shadow: none;
 }
 
+.ember-diagnostic {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1.25px;
+  text-underline-offset: 0.16em;
+  cursor: help;
+}
+
+.ember-diagnostic-error { text-decoration-color: #c7352f; }
+.ember-diagnostic-warning { text-decoration-color: #d9851c; }
+.ember-diagnostic-info { text-decoration-color: #3979b8; }
+
+.diagnostics-off .ember-diagnostic {
+  text-decoration: none;
+  cursor: text;
+}
+
 @media (max-width: 1100px) {
   .prose-editor {
     width: calc(100% - 1.5rem);

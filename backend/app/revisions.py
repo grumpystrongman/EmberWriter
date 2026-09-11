@@ -49,6 +49,71 @@ def _word_count(content: str) -> int:
     return len(content.split())
 
 
+def _side_by_side_rows(older_content: str, newer_content: str) -> list[dict]:
+    older_lines = older_content.splitlines()
+    newer_lines = newer_content.splitlines()
+    matcher = difflib.SequenceMatcher(a=older_lines, b=newer_lines, autojunk=False)
+    rows: list[dict] = []
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for offset in range(i2 - i1):
+                rows.append(
+                    {
+                        "kind": "equal",
+                        "older_line": i1 + offset + 1,
+                        "newer_line": j1 + offset + 1,
+                        "older_text": older_lines[i1 + offset],
+                        "newer_text": newer_lines[j1 + offset],
+                    }
+                )
+            continue
+
+        if tag == "delete":
+            for index in range(i1, i2):
+                rows.append(
+                    {
+                        "kind": "delete",
+                        "older_line": index + 1,
+                        "newer_line": None,
+                        "older_text": older_lines[index],
+                        "newer_text": "",
+                    }
+                )
+            continue
+
+        if tag == "insert":
+            for index in range(j1, j2):
+                rows.append(
+                    {
+                        "kind": "insert",
+                        "older_line": None,
+                        "newer_line": index + 1,
+                        "older_text": "",
+                        "newer_text": newer_lines[index],
+                    }
+                )
+            continue
+
+        width = max(i2 - i1, j2 - j1)
+        for offset in range(width):
+            older_index = i1 + offset
+            newer_index = j1 + offset
+            has_older = older_index < i2
+            has_newer = newer_index < j2
+            rows.append(
+                {
+                    "kind": "change" if has_older and has_newer else ("delete" if has_older else "insert"),
+                    "older_line": older_index + 1 if has_older else None,
+                    "newer_line": newer_index + 1 if has_newer else None,
+                    "older_text": older_lines[older_index] if has_older else "",
+                    "newer_text": newer_lines[newer_index] if has_newer else "",
+                }
+            )
+
+    return rows
+
+
 def record_revision(
     slug: str,
     path: str,
@@ -154,6 +219,7 @@ def compare_revisions(slug: str, older_id: str, newer_id: str | None = None) -> 
         "older": {key: value for key, value in older.items() if key != "content"},
         "newer": {key: value for key, value in newer.items() if key != "content"},
         "diff": diff,
+        "rows": _side_by_side_rows(older["content"], newer["content"]),
     }
 
 

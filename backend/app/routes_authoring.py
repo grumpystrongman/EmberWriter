@@ -24,6 +24,7 @@ from .revisions import (
     record_revision,
     restore_revision,
 )
+from .sprints import active_sprint, finish_sprint, list_sprints, start_sprint
 from .storage import project_root, read_text
 
 router = APIRouter(prefix="/api/projects/{slug}")
@@ -48,6 +49,18 @@ class ProjectCheckpointRequest(BaseModel):
 
 class RestoreRequest(BaseModel):
     note: str = Field(default="", max_length=1000)
+
+
+class SprintCreateRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start_words: int = Field(ge=0, le=10_000_000)
+    target_words: int = Field(default=500, ge=1, le=100_000)
+    duration_minutes: int = Field(default=25, ge=1, le=480)
+
+
+class SprintFinishRequest(BaseModel):
+    end_words: int = Field(ge=0, le=10_000_000)
+    status: Literal["completed", "cancelled"] = "completed"
 
 
 class PublishRequest(BaseModel):
@@ -162,6 +175,48 @@ def restore(slug: str, revision_id: str, payload: RestoreRequest) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Revision not found") from exc
     except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/sprints")
+def sprint_history(slug: str, limit: Annotated[int, Query(ge=1, le=500)] = 50) -> list[dict]:
+    try:
+        return list_sprints(slug, limit)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+
+
+@router.get("/sprints/active")
+def current_sprint(slug: str) -> dict | None:
+    try:
+        return active_sprint(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+
+
+@router.post("/sprints")
+def create_sprint(slug: str, payload: SprintCreateRequest) -> dict:
+    try:
+        return start_sprint(
+            slug,
+            payload.path,
+            payload.start_words,
+            payload.target_words,
+            payload.duration_minutes,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put("/sprints/{sprint_id}")
+def update_sprint(slug: str, sprint_id: str, payload: SprintFinishRequest) -> dict:
+    try:
+        return finish_sprint(slug, sprint_id, payload.end_words, payload.status)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Sprint not found") from exc
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

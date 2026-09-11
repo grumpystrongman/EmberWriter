@@ -9,7 +9,9 @@ import StarterKit from '@tiptap/starter-kit'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 
+import { diagnoseText, LiveDiagnostics } from './LiveDiagnostics'
 import ReviewPanel, { type ReviewAnnotation } from './ReviewPanel'
+import SprintPanel from './SprintPanel'
 import './editor.css'
 
 export type RichEditorHandle = {
@@ -49,6 +51,10 @@ function outerHtml(node: Node): string {
   return node instanceof HTMLElement ? node.outerHTML : node.textContent || ''
 }
 
+function wordCount(text: string): number {
+  return text.trim() ? text.trim().split(/\s+/).length : 0
+}
+
 export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
   { markdown, documentKey, disabled = false, placeholder = 'Start writing…', onChange },
   ref,
@@ -57,6 +63,11 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
   const [findText, setFindText] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const [findStatus, setFindStatus] = useState('')
+  const [selectionWords, setSelectionWords] = useState(0)
+  const [documentWords, setDocumentWords] = useState(() => wordCount(markdown))
+  const [liveIssueCount, setLiveIssueCount] = useState(0)
+  const [spellcheckEnabled, setSpellcheckEnabled] = useState(() => localStorage.getItem('emberwriter.spellcheck') !== 'false')
+  const [liveDiagnosticsEnabled, setLiveDiagnosticsEnabled] = useState(() => localStorage.getItem('emberwriter.liveDiagnostics') !== 'false')
   const turndown = useMemo(() => {
     const service = new TurndownService({
       headingStyle: 'atx',
@@ -101,6 +112,7 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder }),
       CharacterCount,
+      LiveDiagnostics,
     ],
     content: htmlFromMarkdown(markdown),
     editable: !disabled,
@@ -111,9 +123,19 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
         autocapitalize: 'sentences',
       },
     },
+    onCreate({ editor: current }) {
+      setDocumentWords(current.storage.characterCount.words())
+      setLiveIssueCount(diagnoseText(current.state.doc.textContent).length)
+    },
     onUpdate({ editor: current }) {
       const next = turndown.turndown(current.getHTML()).trimEnd() + '\n'
+      setDocumentWords(current.storage.characterCount.words())
+      setLiveIssueCount(diagnoseText(current.state.doc.textContent).length)
       onChange(next === '\n' ? '' : next)
+    },
+    onSelectionUpdate({ editor: current }) {
+      const { from, to } = current.state.selection
+      setSelectionWords(from === to ? 0 : wordCount(current.state.doc.textBetween(from, to, ' ')))
     },
   })
 
@@ -122,11 +144,22 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     const current = turndown.turndown(editor.getHTML()).trimEnd()
     const incoming = markdown.trimEnd()
     if (current !== incoming) editor.commands.setContent(htmlFromMarkdown(markdown), false)
+    setDocumentWords(editor.storage.characterCount.words())
+    setLiveIssueCount(diagnoseText(editor.state.doc.textContent).length)
   }, [documentKey, markdown, editor, turndown])
 
   useEffect(() => {
     editor?.setEditable(!disabled)
   }, [disabled, editor])
+
+  useEffect(() => {
+    localStorage.setItem('emberwriter.spellcheck', String(spellcheckEnabled))
+    if (editor) editor.view.dom.setAttribute('spellcheck', spellcheckEnabled ? 'true' : 'false')
+  }, [spellcheckEnabled, editor])
+
+  useEffect(() => {
+    localStorage.setItem('emberwriter.liveDiagnostics', String(liveDiagnosticsEnabled))
+  }, [liveDiagnosticsEnabled])
 
   const separator = documentKey.indexOf(':')
   const projectSlug = separator >= 0 ? documentKey.slice(0, separator) : ''
@@ -297,11 +330,13 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
   }
 
   return (
-    <div className="rich-editor-shell">
+    <div className={`rich-editor-shell ${liveDiagnosticsEnabled ? '' : 'diagnostics-off'}`}>
       <div className="editor-toolbar" role="toolbar" aria-label="Formatting">
         <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">↶</button>
         <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">↷</button>
         <button type="button" className={findOpen ? 'active' : ''} onClick={() => setFindOpen((value) => !value)} title="Find and replace">⌕</button>
+        <button type="button" className={spellcheckEnabled ? 'active' : ''} onClick={() => setSpellcheckEnabled((value) => !value)} title="Browser spelling suggestions">ABC</button>
+        <button type="button" className={liveDiagnosticsEnabled ? 'active' : ''} onClick={() => setLiveDiagnosticsEnabled((value) => !value)} title="Live Ember prose diagnostics">Style {liveIssueCount}</button>
         <span className="toolbar-divider" />
         <button type="button" className={editor.isActive('bold') ? 'active' : ''} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"><strong>B</strong></button>
         <button type="button" className={editor.isActive('italic') ? 'active' : ''} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"><em>I</em></button>
@@ -327,7 +362,10 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
         <button type="button" className={editor.isActive({ textAlign: 'left' }) ? 'active' : ''} onClick={() => editor.chain().focus().setTextAlign('left').run()} title="Align left">≡</button>
         <button type="button" className={editor.isActive({ textAlign: 'center' }) ? 'active' : ''} onClick={() => editor.chain().focus().setTextAlign('center').run()} title="Center">≣</button>
         <button type="button" className={editor.isActive({ textAlign: 'right' }) ? 'active' : ''} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Align right">≡</button>
-        <span className="editor-count">{editor.storage.characterCount.words().toLocaleString()} words</span>
+        <span className="editor-count">
+          {selectionWords > 0 ? `${selectionWords.toLocaleString()} selected · ` : ''}
+          {documentWords.toLocaleString()} words · {editor.storage.characterCount.characters().toLocaleString()} chars
+        </span>
       </div>
       {findOpen && (
         <div className="editor-findbar">
@@ -339,6 +377,15 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
           <small>{findStatus}</small>
           <button type="button" className="quiet" onClick={() => setFindOpen(false)} aria-label="Close find and replace">×</button>
         </div>
+      )}
+      {projectSlug && activePath && (
+        <SprintPanel
+          apiBase="http://127.0.0.1:8000/api"
+          slug={projectSlug}
+          path={activePath}
+          wordCount={documentWords}
+          disabled={disabled}
+        />
       )}
       <EditorContent editor={editor} className="editor-scroll" />
       {projectSlug && activePath && (
