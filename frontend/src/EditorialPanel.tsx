@@ -67,7 +67,7 @@ type Provider = {
   api_key?: string
 }
 
-type EditorialFixProposal = {
+export type EditorialFixProposal = {
   finding_id: string
   path: string
   report_id: string
@@ -88,6 +88,8 @@ type Props = {
   disabled: boolean
   refreshToken: number
   onOpenFinding: (finding: EditorialFinding) => Promise<void>
+  onReviewFix: (finding: EditorialFinding, proposal: EditorialFixProposal) => Promise<void> | void
+  onApplyFix: (finding: EditorialFinding, proposal: EditorialFixProposal) => Promise<boolean>
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -120,7 +122,16 @@ function configuredProvider(): Provider | null {
   }
 }
 
-export default function EditorialPanel({ apiBase, slug, activePath, disabled, refreshToken, onOpenFinding }: Props) {
+export default function EditorialPanel({
+  apiBase,
+  slug,
+  activePath,
+  disabled,
+  refreshToken,
+  onOpenFinding,
+  onReviewFix,
+  onApplyFix,
+}: Props) {
   const [catalog, setCatalog] = useState<ReportDefinition[]>([])
   const [profile, setProfile] = useState<EditorialProfile | null>(null)
   const [runs, setRuns] = useState<RunSummary[]>([])
@@ -253,40 +264,27 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     }
   }
 
-  async function applyFix(finding: EditorialFinding, proposal: EditorialFixProposal) {
-    setError('')
-    await onOpenFinding(finding)
-    const applied = await new Promise<boolean>((resolve) => {
-      let finished = false
-      const respond = (value: boolean) => {
-        if (finished) return
-        finished = true
-        window.clearTimeout(timeout)
-        resolve(value)
-      }
-      const timeout = window.setTimeout(() => respond(false), 1800)
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('emberwriter:apply-editorial-fix', {
-          detail: {
-            path: proposal.path,
-            original: proposal.original,
-            replacement: proposal.replacement,
-            respond,
-          },
-        }))
-      }, 180)
-    })
-    if (!applied) {
-      setError('Could not locate the proposed source passage in the editor. Rerun the editorial report before applying this fix.')
-      return false
-    }
-    await setFindingStatus(finding, 'resolved')
+  function removeProposal(findingId: string) {
     setFixes((current) => {
       const next = { ...current }
-      delete next[finding.id]
+      delete next[findingId]
       return next
     })
-    return true
+  }
+
+  async function applyProposal(finding: EditorialFinding, proposal: EditorialFixProposal) {
+    setError('')
+    const applied = await onApplyFix(finding, proposal)
+    if (applied) {
+      removeProposal(finding.id)
+      if (result) {
+        setResult({
+          ...result,
+          items: result.items.map((item) => item.id === finding.id ? { ...item, status: 'resolved', stale: true } : item),
+        })
+      }
+    }
+    return applied
   }
 
   async function requestFix(finding: EditorialFinding, autoApply: boolean) {
@@ -304,10 +302,9 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
         body: JSON.stringify({ finding_id: finding.id, provider, instruction: '' }),
       })
       setFixes((current) => ({ ...current, [finding.id]: proposal }))
-      if (autoApply && proposal.changed) await applyFix(finding, proposal)
-      if (autoApply && !proposal.changed) {
-        setError(`AI recommends keeping this passage: ${proposal.rationale}`)
-      }
+      if (autoApply && proposal.changed) await applyProposal(finding, proposal)
+      else if (!autoApply && proposal.changed) await onReviewFix(finding, proposal)
+      else if (!proposal.changed) setError(`AI recommends keeping this passage: ${proposal.rationale}`)
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -417,7 +414,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
               {typeof result.metrics.readability === 'number' && <span><b>{result.metrics.readability.toFixed(1)}</b> readability</span>}
               {typeof result.metrics.dialogue_percent === 'number' && <span><b>{result.metrics.dialogue_percent.toFixed(1)}%</b> dialogue</span>}
             </div>
-            <small className="editorial-navigation-help">Click a finding header to open its document and highlight the exact flagged prose. Use AI Fix to preview a line edit, or AI Fix &amp; Apply for one-click repair with revision history still protecting the manuscript.</small>
+            <small className="editorial-navigation-help">Click a finding to jump to the exact prose. AI Fix opens a full Revision Review in the main writing space; AI Fix &amp; Apply uses the same verified backend apply path without the review stop.</small>
             <div className="editorial-filters">
               <select value={reportFilter} onChange={(event) => setReportFilter(event.target.value)}>
                 <option value="all">All reports</option>
@@ -449,7 +446,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
                       {!finding.stale && finding.status === 'open' && (
                         <>
                           <button type="button" className="editorial-ai-fix" disabled={disabled || Boolean(fixingId)} onClick={() => void requestFix(finding, false)}>
-                            {fixingId === finding.id ? 'AI editing…' : 'AI Fix'}
+                            {fixingId === finding.id ? 'AI editing…' : 'AI Fix · Review'}
                           </button>
                           <button type="button" className="editorial-ai-apply" disabled={disabled || Boolean(fixingId)} onClick={() => void requestFix(finding, true)}>
                             AI Fix &amp; Apply
@@ -462,19 +459,12 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
                     </div>
                     {proposal && (
                       <div className={`editorial-fix-preview ${proposal.changed ? '' : 'no-change'}`}>
-                        <strong>{proposal.changed ? 'AI line-edit proposal' : 'AI recommends keeping the passage'}</strong>
-                        <div>
-                          <label>Original</label>
-                          <blockquote>{proposal.original}</blockquote>
-                        </div>
-                        <div>
-                          <label>Proposed</label>
-                          <blockquote>{proposal.replacement}</blockquote>
-                        </div>
+                        <strong>{proposal.changed ? 'AI proposal ready' : 'AI recommends keeping the passage'}</strong>
                         <small>{proposal.rationale}</small>
                         <div className="editorial-fix-actions">
-                          {proposal.changed && <button type="button" className="primary" onClick={() => void applyFix(finding, proposal)} disabled={disabled || Boolean(fixingId)}>Apply &amp; resolve</button>}
-                          <button type="button" onClick={() => setFixes((current) => { const next = { ...current }; delete next[finding.id]; return next })}>Dismiss proposal</button>
+                          {proposal.changed && <button type="button" className="primary" onClick={() => void onReviewFix(finding, proposal)}>Open full review</button>}
+                          {proposal.changed && <button type="button" onClick={() => void applyProposal(finding, proposal)} disabled={disabled || Boolean(fixingId)}>Apply &amp; resolve</button>}
+                          <button type="button" onClick={() => removeProposal(finding.id)}>Dismiss</button>
                         </div>
                       </div>
                     )}
