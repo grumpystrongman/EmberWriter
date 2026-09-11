@@ -4,9 +4,16 @@ import hashlib
 import json
 import re
 import sqlite3
+from collections import Counter
 from typing import Any
+from uuid import uuid4
 
-from .editorial import report_catalog, update_finding_status
+from .editorial import (
+    analyze_text,
+    get_editorial_profile,
+    report_catalog,
+    update_finding_status,
+)
 from .editorial_models import (
     EditorialFixApplyRequest,
     EditorialFixApplyResult,
@@ -15,7 +22,7 @@ from .editorial_models import (
 )
 from .generation import generate
 from .revisions import record_revision
-from .storage import project_root, read_text, save_text
+from .storage import project_root, read_text, save_text, utc_now
 
 _SENTENCE_RE = re.compile(r"[^.!?\n]+(?:[.!?]+[\"'’”)]*|$)", re.MULTILINE)
 _PARAGRAPH_REPORTS = {"paragraph_length"}
@@ -113,6 +120,144 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TypeError("Editorial fix model response must be a JSON object")
     return value
+
+
+def _decision_key(item: sqlite3.Row | dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(item["anchor_text"]).strip().casefold(),
+        str(item["message"]).strip(),
+    )
+
+
+def _shifted_review_position(
+    item: sqlite3.Row,
+    *,
+    edit_start: int,
+    edit_end: int,
+    delta: int,
+) -> int:
+    start = int(item["start_offset"])
+    if start >= edit_end:
+        return max(0, start + delta)
+    if start >= edit_start:
+        return edit_start
+    return start
+
+
+def _refresh_applied_report(
+    slug: str,
+    finding: dict[str, Any],
+    *,
+    edit_start: int,
+    edit_end: int,
+    delta: int,
+) -> None:
+    """Replace stale open findings for this report/document with fresh analysis.
+
+    Resolved and ignored findings remain as durable editorial decisions. Reviewed
+    occurrences are matched to fresh analysis using their expected shifted source
+    position so identical repeated wording does not cause unrelated findings to vanish.
+    """
+    source = read_text(slug, finding["path"])
+    source_hash = _hash(source)
+    profile = get_editorial_profile(slug)
+    fresh_findings, _ = analyze_text(source, [finding["report_id"]], profile)
+    created_at = utc_now()
+
+    db_path = project_root(slug) / ".ember" / "story.db"
+    with sqlite3.connect(db_path) as con:
+        con.row_factory = sqlite3.Row
+        existing = con.execute(
+            """
+            SELECT * FROM editorial_findings
+            WHERE run_id = ? AND path = ? AND report_id = ?
+            """,
+            (finding["run_id"], finding["path"], finding["report_id"]),
+        ).fetchall()
+        reviewed = [row for row in existing if row["status"] in {"resolved", "ignored"}]
+        matched_fresh: set[int] = set()
+
+        for reviewed_item in reviewed:
+            key = _decision_key(reviewed_item)
+            expected_start = _shifted_review_position(
+                reviewed_item,
+                edit_start=edit_start,
+                edit_end=edit_end,
+                delta=delta,
+            )
+            candidates = [
+                (index, item)
+                for index, item in enumerate(fresh_findings)
+                if index not in matched_fresh and _decision_key(item) == key
+            ]
+            if not candidates:
+                continue
+            best_index, _ = min(
+                candidates,
+                key=lambda pair: abs(int(pair[1]["start_offset"]) - expected_start),
+            )
+            matched_fresh.add(best_index)
+
+        con.execute(
+            """
+            DELETE FROM editorial_findings
+            WHERE run_id = ? AND path = ? AND report_id = ? AND status = 'open'
+            """,
+            (finding["run_id"], finding["path"], finding["report_id"]),
+        )
+
+        rows = []
+        for index, item in enumerate(fresh_findings):
+            if index in matched_fresh:
+                continue
+            rows.append(
+                (
+                    uuid4().hex,
+                    finding["run_id"],
+                    item["report_id"],
+                    item["severity"],
+                    "open",
+                    finding["path"],
+                    finding.get("binder_node_id"),
+                    item["start_offset"],
+                    item["end_offset"],
+                    item["line"],
+                    item["excerpt"],
+                    item["anchor_text"],
+                    item["message"],
+                    item["suggestion"],
+                    source_hash,
+                    created_at,
+                )
+            )
+        if rows:
+            con.executemany(
+                """
+                INSERT INTO editorial_findings
+                (id, run_id, report_id, severity, status, path, binder_node_id, start_offset,
+                 end_offset, line, excerpt, anchor_text, message, suggestion, source_hash, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+
+        run_row = con.execute(
+            "SELECT summary_json FROM editorial_runs WHERE id = ?",
+            (finding["run_id"],),
+        ).fetchone()
+        if run_row is None:
+            raise FileNotFoundError(finding["run_id"])
+        all_rows = con.execute(
+            "SELECT report_id, severity FROM editorial_findings WHERE run_id = ?",
+            (finding["run_id"],),
+        ).fetchall()
+        summary = json.loads(run_row["summary_json"])
+        summary["by_report"] = dict(Counter(row["report_id"] for row in all_rows))
+        summary["by_severity"] = dict(Counter(row["severity"] for row in all_rows))
+        con.execute(
+            "UPDATE editorial_runs SET findings = ?, summary_json = ? WHERE id = ?",
+            (len(all_rows), json.dumps(summary), finding["run_id"]),
+        )
 
 
 async def propose_editorial_fix(slug: str, request: EditorialFixRequest) -> EditorialFixProposal:
@@ -233,7 +378,18 @@ def apply_editorial_fix(slug: str, request: EditorialFixApplyRequest) -> Editori
             force=True,
         )
         resolved = update_finding_status(slug, request.finding_id, "resolved")
+        _refresh_applied_report(
+            slug,
+            finding,
+            edit_start=request.target_start,
+            edit_end=request.target_end,
+            delta=len(request.replacement) - len(request.original),
+        )
     except Exception:
+        try:
+            update_finding_status(slug, request.finding_id, "open")
+        except (FileNotFoundError, ValueError):
+            pass
         save_text(slug, request.path, source)
         record_revision(
             slug,
