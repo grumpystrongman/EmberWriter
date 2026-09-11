@@ -15,10 +15,12 @@ from .editorial import (
     save_editorial_profile,
     update_finding_status,
 )
-from .editorial_fix import propose_editorial_fix
+from .editorial_fix import apply_editorial_fix, propose_editorial_fix
 from .editorial_models import (
     EditorialFinding,
     EditorialFindingStatusUpdate,
+    EditorialFixApplyRequest,
+    EditorialFixApplyResult,
     EditorialFixProposal,
     EditorialFixRequest,
     EditorialProfile,
@@ -137,5 +139,16 @@ async def editorial_fix(slug: str, payload: EditorialFixRequest) -> EditorialFix
         raise HTTPException(status_code=404, detail="Project, document, or editorial finding not found") from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Model endpoint error: {exc}") from exc
+    except (OSError, RuntimeError, TypeError, UnicodeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/fix/apply", response_model=EditorialFixApplyResult)
+def editorial_fix_apply(slug: str, payload: EditorialFixApplyRequest) -> EditorialFixApplyResult:
+    try:
+        _require_project(slug)
+        return apply_editorial_fix(slug, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project, document, or editorial finding not found") from exc
     except (OSError, RuntimeError, TypeError, UnicodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
