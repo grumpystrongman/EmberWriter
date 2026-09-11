@@ -122,19 +122,41 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     return value
 
 
-def _decision_key(item: sqlite3.Row | dict[str, Any]) -> tuple[str, str, str]:
+def _decision_key(item: sqlite3.Row | dict[str, Any]) -> tuple[str, str]:
     return (
         str(item["anchor_text"]).strip().casefold(),
         str(item["message"]).strip(),
-        str(item["excerpt"]).strip(),
     )
 
 
-def _refresh_applied_report(slug: str, finding: dict[str, Any]) -> None:
+def _shifted_review_position(
+    item: sqlite3.Row,
+    *,
+    edit_start: int,
+    edit_end: int,
+    delta: int,
+) -> int:
+    start = int(item["start_offset"])
+    if start >= edit_end:
+        return max(0, start + delta)
+    if start >= edit_start:
+        return edit_start
+    return start
+
+
+def _refresh_applied_report(
+    slug: str,
+    finding: dict[str, Any],
+    *,
+    edit_start: int,
+    edit_end: int,
+    delta: int,
+) -> None:
     """Replace stale open findings for this report/document with fresh analysis.
 
-    Resolved and ignored findings remain as durable editorial decisions. If the exact
-    same finding still appears after the edit, it is not re-added as open.
+    Resolved and ignored findings remain as durable editorial decisions. Reviewed
+    occurrences are matched to fresh analysis using their expected shifted source
+    position so identical repeated wording does not cause unrelated findings to vanish.
     """
     source = read_text(slug, finding["path"])
     source_hash = _hash(source)
@@ -152,11 +174,29 @@ def _refresh_applied_report(slug: str, finding: dict[str, Any]) -> None:
             """,
             (finding["run_id"], finding["path"], finding["report_id"]),
         ).fetchall()
-        reviewed_keys = {
-            _decision_key(row)
-            for row in existing
-            if row["status"] in {"resolved", "ignored"}
-        }
+        reviewed = [row for row in existing if row["status"] in {"resolved", "ignored"}]
+        matched_fresh: set[int] = set()
+
+        for reviewed_item in reviewed:
+            key = _decision_key(reviewed_item)
+            expected_start = _shifted_review_position(
+                reviewed_item,
+                edit_start=edit_start,
+                edit_end=edit_end,
+                delta=delta,
+            )
+            candidates = [
+                (index, item)
+                for index, item in enumerate(fresh_findings)
+                if index not in matched_fresh and _decision_key(item) == key
+            ]
+            if not candidates:
+                continue
+            best_index, _ = min(
+                candidates,
+                key=lambda pair: abs(int(pair[1]["start_offset"]) - expected_start),
+            )
+            matched_fresh.add(best_index)
 
         con.execute(
             """
@@ -167,8 +207,8 @@ def _refresh_applied_report(slug: str, finding: dict[str, Any]) -> None:
         )
 
         rows = []
-        for item in fresh_findings:
-            if _decision_key(item) in reviewed_keys:
+        for index, item in enumerate(fresh_findings):
+            if index in matched_fresh:
                 continue
             rows.append(
                 (
@@ -338,7 +378,13 @@ def apply_editorial_fix(slug: str, request: EditorialFixApplyRequest) -> Editori
             force=True,
         )
         resolved = update_finding_status(slug, request.finding_id, "resolved")
-        _refresh_applied_report(slug, finding)
+        _refresh_applied_report(
+            slug,
+            finding,
+            edit_start=request.target_start,
+            edit_end=request.target_end,
+            delta=len(request.replacement) - len(request.original),
+        )
     except Exception:
         try:
             update_finding_status(slug, request.finding_id, "open")
