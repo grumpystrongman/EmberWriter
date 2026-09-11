@@ -166,7 +166,7 @@ AUTHOR / BOOK STYLE CONTEXT
     replacement = payload.get("replacement")
     rationale = payload.get("rationale")
     if not isinstance(replacement, str):
-        raise ValueError("Editorial fix response did not contain replacement text")
+        raise TypeError("Editorial fix response did not contain replacement text")
     if not isinstance(rationale, str):
         rationale = "AI line-edit proposal"
     if len(replacement) > max(4000, len(original) * 5):
