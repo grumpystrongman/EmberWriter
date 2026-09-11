@@ -11,6 +11,7 @@ import TurndownService from 'turndown'
 
 import { diagnoseText, LiveDiagnostics } from './LiveDiagnostics'
 import ReviewPanel, { type ReviewAnnotation } from './ReviewPanel'
+import SprintPanel from './SprintPanel'
 import './editor.css'
 
 export type RichEditorHandle = {
@@ -63,6 +64,7 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
   const [replaceText, setReplaceText] = useState('')
   const [findStatus, setFindStatus] = useState('')
   const [selectionWords, setSelectionWords] = useState(0)
+  const [documentWords, setDocumentWords] = useState(() => wordCount(markdown))
   const [liveIssueCount, setLiveIssueCount] = useState(0)
   const [spellcheckEnabled, setSpellcheckEnabled] = useState(() => localStorage.getItem('emberwriter.spellcheck') !== 'false')
   const [liveDiagnosticsEnabled, setLiveDiagnosticsEnabled] = useState(() => localStorage.getItem('emberwriter.liveDiagnostics') !== 'false')
@@ -122,10 +124,12 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
       },
     },
     onCreate({ editor: current }) {
+      setDocumentWords(current.storage.characterCount.words())
       setLiveIssueCount(diagnoseText(current.state.doc.textContent).length)
     },
     onUpdate({ editor: current }) {
       const next = turndown.turndown(current.getHTML()).trimEnd() + '\n'
+      setDocumentWords(current.storage.characterCount.words())
       setLiveIssueCount(diagnoseText(current.state.doc.textContent).length)
       onChange(next === '\n' ? '' : next)
     },
@@ -140,6 +144,7 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     const current = turndown.turndown(editor.getHTML()).trimEnd()
     const incoming = markdown.trimEnd()
     if (current !== incoming) editor.commands.setContent(htmlFromMarkdown(markdown), false)
+    setDocumentWords(editor.storage.characterCount.words())
     setLiveIssueCount(diagnoseText(editor.state.doc.textContent).length)
   }, [documentKey, markdown, editor, turndown])
 
@@ -359,7 +364,7 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
         <button type="button" className={editor.isActive({ textAlign: 'right' }) ? 'active' : ''} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Align right">≡</button>
         <span className="editor-count">
           {selectionWords > 0 ? `${selectionWords.toLocaleString()} selected · ` : ''}
-          {editor.storage.characterCount.words().toLocaleString()} words · {editor.storage.characterCount.characters().toLocaleString()} chars
+          {documentWords.toLocaleString()} words · {editor.storage.characterCount.characters().toLocaleString()} chars
         </span>
       </div>
       {findOpen && (
@@ -372,6 +377,15 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
           <small>{findStatus}</small>
           <button type="button" className="quiet" onClick={() => setFindOpen(false)} aria-label="Close find and replace">×</button>
         </div>
+      )}
+      {projectSlug && activePath && (
+        <SprintPanel
+          apiBase="http://127.0.0.1:8000/api"
+          slug={projectSlug}
+          path={activePath}
+          wordCount={documentWords}
+          disabled={disabled}
+        />
       )}
       <EditorContent editor={editor} className="editor-scroll" />
       {projectSlug && activePath && (
