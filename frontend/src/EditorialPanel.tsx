@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import EditorialReviewPane from './EditorialReviewPane'
 import KnowledgePanel from './KnowledgePanel'
 import ReaderPanel from './ReaderPanel'
+import './editorial-triage.css'
 
 export type EditorialFinding = {
   id: string
@@ -99,6 +100,16 @@ type Props = {
   onOpenFinding: (finding: EditorialFinding) => Promise<void>
 }
 
+type TriageMode = 'smart' | 'top20' | 'all'
+
+type FindingGroup = {
+  key: string
+  label: string
+  findings: EditorialFinding[]
+  representative: EditorialFinding
+  score: number
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -129,6 +140,67 @@ function configuredProvider(): Provider | null {
   }
 }
 
+function severityWeight(finding: EditorialFinding) {
+  if (finding.severity === 'strong') return 300
+  if (finding.severity === 'warning') return 200
+  return 100
+}
+
+function findingImpact(finding: EditorialFinding) {
+  let score = severityWeight(finding)
+  if (finding.category.toLowerCase().includes('grammar')) score += 55
+  if (/repeat|phrase/i.test(finding.report_id)) score += 35
+  if (/passive|sticky|readability/i.test(finding.report_id)) score += 20
+  if (/adverb|filler/i.test(finding.report_id)) score += 10
+  if (finding.stale) score -= 1000
+  return score
+}
+
+function normalizedAnchor(finding: EditorialFinding) {
+  return finding.anchor_text.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
+function findingGroupKey(finding: EditorialFinding) {
+  const anchor = normalizedAnchor(finding)
+  const anchorSensitive = /(repeat|phrase|adverb|filler|cliche|crutch)/i.test(finding.report_id)
+  if (anchorSensitive && anchor && anchor !== '\u0000' && anchor.length <= 100) {
+    return `${finding.report_id}|${anchor}`
+  }
+  return `${finding.report_id}|${finding.severity}`
+}
+
+function buildGroups(findings: EditorialFinding[]): FindingGroup[] {
+  const grouped = new Map<string, EditorialFinding[]>()
+  for (const finding of findings) {
+    const key = findingGroupKey(finding)
+    const items = grouped.get(key) || []
+    items.push(finding)
+    grouped.set(key, items)
+  }
+  return Array.from(grouped.entries())
+    .map(([key, items]) => {
+      const ranked = [...items].sort((a, b) => findingImpact(b) - findingImpact(a) || a.line - b.line)
+      const representative = ranked[0]
+      const anchor = normalizedAnchor(representative)
+      const label = items.length > 1 && anchor && /(repeat|phrase|adverb|filler|cliche|crutch)/i.test(representative.report_id)
+        ? `${representative.report_name}: “${representative.anchor_text.trim()}”`
+        : representative.report_name
+      return {
+        key,
+        label,
+        findings: ranked,
+        representative,
+        score: findingImpact(representative) + Math.min(80, items.length * 4),
+      }
+    })
+    .sort((a, b) => b.score - a.score || b.findings.length - a.findings.length)
+}
+
+function scopeLabel(result: RunResult) {
+  if (result.scope === 'draft') return 'Whole Draft'
+  return result.path?.split('/').at(-1) || 'Current document'
+}
+
 export default function EditorialPanel({ apiBase, slug, activePath, disabled, refreshToken, onOpenFinding }: Props) {
   const [catalog, setCatalog] = useState<ReportDefinition[]>([])
   const [profile, setProfile] = useState<EditorialProfile | null>(null)
@@ -137,6 +209,8 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
   const [scope, setScope] = useState<'draft' | 'document'>('document')
   const [reportFilter, setReportFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<'open' | 'resolved' | 'ignored' | 'all'>('open')
+  const [triageMode, setTriageMode] = useState<TriageMode>('smart')
+  const [groupFocus, setGroupFocus] = useState<string | null>(null)
   const [showReports, setShowReports] = useState(false)
   const [showThresholds, setShowThresholds] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -186,6 +260,15 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     })
   }, [result, reportFilter, statusFilter])
 
+  const ranked = useMemo(
+    () => [...filtered].sort((a, b) => findingImpact(b) - findingImpact(a) || a.path.localeCompare(b.path) || a.line - b.line),
+    [filtered],
+  )
+  const groups = useMemo(() => buildGroups(filtered), [filtered])
+  const focusedGroup = useMemo(() => groups.find((group) => group.key === groupFocus) || null, [groups, groupFocus])
+  const openFreshCount = result?.items.filter((item) => item.status === 'open' && !item.stale).length || 0
+  const openStaleCount = result?.items.filter((item) => item.status === 'open' && item.stale).length || 0
+
   const groupedCatalog = useMemo(() => {
     const groups = new Map<string, ReportDefinition[]>()
     for (const report of catalog) {
@@ -215,6 +298,8 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
       setReview(null)
       setStatusFilter('open')
       setReportFilter('all')
+      setTriageMode('smart')
+      setGroupFocus(null)
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -227,9 +312,12 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     setBusy(true)
     setError('')
     try {
-      setResult(await request<RunResult>(`${apiBase}/projects/${slug}/editorial/runs/${runId}`))
+      const next = await request<RunResult>(`${apiBase}/projects/${slug}/editorial/runs/${runId}`)
+      setResult(next)
+      setScope(next.scope)
       setFixes({})
       setReview(null)
+      setGroupFocus(null)
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -294,6 +382,8 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
       })
       removeProposal(finding.id)
       setReview(null)
+      setStatusFilter('open')
+      setGroupFocus(null)
       if (result) {
         const refreshed = await request<RunResult>(`${apiBase}/projects/${slug}/editorial/runs/${result.id}`)
         setResult(refreshed)
@@ -313,7 +403,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     }
   }
 
-  async function requestFix(finding: EditorialFinding, autoApply: boolean) {
+  async function requestFix(finding: EditorialFinding) {
     if (finding.stale || fixingId) return
     const provider = configuredProvider()
     if (!provider?.model?.trim()) {
@@ -328,9 +418,8 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
         body: JSON.stringify({ finding_id: finding.id, provider, instruction: '' }),
       })
       setFixes((current) => ({ ...current, [finding.id]: proposal }))
-      if (autoApply && proposal.changed) await applyProposal(finding, proposal)
-      else if (!autoApply && proposal.changed) setReview({ finding, proposal })
-      else if (!proposal.changed) setError(`AI recommends keeping this passage: ${proposal.rationale}`)
+      if (proposal.changed) setReview({ finding, proposal })
+      else setError(`AI recommends keeping this passage: ${proposal.rationale}`)
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -353,16 +442,54 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     })
   }
 
+  function renderFinding(finding: EditorialFinding) {
+    const proposal = fixes[finding.id]
+    return (
+      <article key={finding.id} className={`editorial-finding severity-${finding.severity} ${finding.stale ? 'stale' : ''}`}>
+        <button type="button" className="editorial-source" onClick={() => void onOpenFinding(finding)} title="Open this document and highlight the flagged prose">
+          <span>{finding.report_name} · {finding.path.split('/').at(-1)}:{finding.line}</span>
+          <small>{finding.stale ? 'STALE — rerun after edit' : `${finding.severity.toUpperCase()} · JUMP + HIGHLIGHT`}</small>
+        </button>
+        <p>{finding.message}</p>
+        <blockquote>{finding.excerpt}</blockquote>
+        <small className="editorial-suggestion">{finding.suggestion}</small>
+        <div className="editorial-finding-actions">
+          {!finding.stale && finding.status === 'open' && (
+            <button type="button" className="editorial-ai-fix" disabled={disabled || Boolean(fixingId) || Boolean(applyingId)} onClick={() => void requestFix(finding)}>
+              {fixingId === finding.id ? 'AI preparing review…' : 'AI Fix · Side-by-side'}
+            </button>
+          )}
+          {finding.status !== 'resolved' && <button type="button" onClick={() => void setFindingStatus(finding, 'resolved')}>Resolve</button>}
+          {finding.status !== 'ignored' && <button type="button" onClick={() => void setFindingStatus(finding, 'ignored')}>Ignore</button>}
+          {finding.status !== 'open' && <button type="button" onClick={() => void setFindingStatus(finding, 'open')}>Reopen</button>}
+        </div>
+        {proposal && (
+          <div className={`editorial-fix-preview ${proposal.changed ? '' : 'no-change'}`}>
+            <strong>{proposal.changed ? 'AI proposal ready for side-by-side review' : 'AI recommends keeping the passage'}</strong>
+            <small>{proposal.rationale}</small>
+            <div className="editorial-fix-actions">
+              {proposal.changed && <button type="button" className="primary" onClick={() => setReview({ finding, proposal })}>Open side-by-side review</button>}
+              <button type="button" onClick={() => removeProposal(finding.id)}>Dismiss</button>
+            </div>
+          </div>
+        )}
+      </article>
+    )
+  }
+
   if (!profile) {
     return <details className="authoring-panel"><summary>Editorial Studio</summary><small>Loading editorial profile…</small></details>
   }
+
+  const smartGroups = groups.slice(0, 18)
+  const topFindings = ranked.slice(0, 20)
 
   return (
     <>
       <details className="authoring-panel editorial-panel" open>
         <summary>
           Editorial Studio
-          <small>{result ? `${result.findings} findings` : `${profile.enabled_reports.length} reports enabled`}</small>
+          <small>{result ? `${openFreshCount} open · ${result.findings} logged` : `${profile.enabled_reports.length} reports enabled`}</small>
         </summary>
         <div className="authoring-panel-body">
           <div className="editorial-scope">
@@ -418,63 +545,90 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
 
           {result && (
             <>
+              <div className="editorial-run-scope">
+                <div>
+                  <small>ANALYSIS SCOPE</small>
+                  <strong>{result.scope === 'draft' ? 'Whole Draft' : 'Current document'}</strong>
+                  <span>{scopeLabel(result)}</span>
+                </div>
+                <div className="editorial-run-counts">
+                  <b>{openFreshCount.toLocaleString()}</b><span>open now</span>
+                  {openStaleCount > 0 && <><b>{openStaleCount.toLocaleString()}</b><span>stale</span></>}
+                </div>
+              </div>
+
               <div className="editorial-metrics">
                 <span><b>{result.documents}</b> docs</span>
                 <span><b>{result.words.toLocaleString()}</b> words</span>
-                <span><b>{result.findings}</b> findings</span>
+                <span><b>{result.findings}</b> logged findings</span>
                 {typeof result.metrics.readability === 'number' && <span><b>{result.metrics.readability.toFixed(1)}</b> readability</span>}
                 {typeof result.metrics.dialogue_percent === 'number' && <span><b>{result.metrics.dialogue_percent.toFixed(1)}%</b> dialogue</span>}
               </div>
-              <small className="editorial-navigation-help">Click a finding to jump to the exact prose. AI Fix opens a full-screen Revision Review; AI Fix &amp; Apply uses the same verified backend apply path immediately.</small>
+
+              <div className="editorial-triage-intro">
+                <div>
+                  <strong>Editorial Triage</strong>
+                  <small>Condense hundreds of flags into patterns, or review the highest-impact issues first. AI rewrites always open side-by-side before they can be applied.</small>
+                </div>
+                <button type="button" className="primary" disabled={disabled || Boolean(fixingId) || topFindings.length === 0} onClick={() => topFindings[0] && void requestFix(topFindings[0])}>
+                  {fixingId ? 'Preparing review…' : 'AI review next best'}
+                </button>
+              </div>
+
+              <div className="editorial-triage-modes" role="tablist" aria-label="Editorial triage mode">
+                <button type="button" className={triageMode === 'smart' ? 'active' : ''} onClick={() => { setTriageMode('smart'); setGroupFocus(null) }}>Smart groups</button>
+                <button type="button" className={triageMode === 'top20' ? 'active' : ''} onClick={() => { setTriageMode('top20'); setGroupFocus(null) }}>Top 20</button>
+                <button type="button" className={triageMode === 'all' ? 'active' : ''} onClick={() => { setTriageMode('all'); setGroupFocus(null) }}>All findings</button>
+              </div>
+
+              <small className="editorial-navigation-help">Click a finding to jump to the exact prose. Any AI rewrite opens the full Revision Review first; only the Apply &amp; Resolve button inside that side-by-side view can change the manuscript.</small>
               <div className="editorial-filters">
-                <select value={reportFilter} onChange={(event) => setReportFilter(event.target.value)}>
+                <select value={reportFilter} onChange={(event) => { setReportFilter(event.target.value); setGroupFocus(null) }}>
                   <option value="all">All reports</option>
                   {catalog.filter((item) => result.by_report[item.id]).map((item) => (
                     <option key={item.id} value={item.id}>{item.name} ({result.by_report[item.id]})</option>
                   ))}
                 </select>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+                <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setGroupFocus(null) }}>
                   <option value="open">Open</option><option value="resolved">Resolved</option><option value="ignored">Ignored</option><option value="all">All states</option>
                 </select>
               </div>
+
               <div className="editorial-findings">
                 {filtered.length === 0 && <small className="panel-help">No findings match these filters.</small>}
-                {filtered.map((finding) => {
-                  const proposal = fixes[finding.id]
-                  return (
-                    <article key={finding.id} className={`editorial-finding severity-${finding.severity} ${finding.stale ? 'stale' : ''}`}>
-                      <button type="button" className="editorial-source" onClick={() => void onOpenFinding(finding)} title="Open this document and highlight the flagged prose">
-                        <span>{finding.report_name} · {finding.path.split('/').at(-1)}:{finding.line}</span>
-                        <small>{finding.stale ? 'STALE — rerun after edit' : `${finding.severity.toUpperCase()} · JUMP + HIGHLIGHT`}</small>
-                      </button>
-                      <p>{finding.message}</p>
-                      <blockquote>{finding.excerpt}</blockquote>
-                      <small className="editorial-suggestion">{finding.suggestion}</small>
-                      <div className="editorial-finding-actions">
-                        {!finding.stale && finding.status === 'open' && (
-                          <>
-                            <button type="button" className="editorial-ai-fix" disabled={disabled || Boolean(fixingId) || Boolean(applyingId)} onClick={() => void requestFix(finding, false)}>{fixingId === finding.id ? 'AI editing…' : 'AI Fix · Review'}</button>
-                            <button type="button" className="editorial-ai-apply" disabled={disabled || Boolean(fixingId) || Boolean(applyingId)} onClick={() => void requestFix(finding, true)}>{applyingId === finding.id ? 'Applying…' : 'AI Fix & Apply'}</button>
-                          </>
-                        )}
-                        {finding.status !== 'resolved' && <button type="button" onClick={() => void setFindingStatus(finding, 'resolved')}>Resolve</button>}
-                        {finding.status !== 'ignored' && <button type="button" onClick={() => void setFindingStatus(finding, 'ignored')}>Ignore</button>}
-                        {finding.status !== 'open' && <button type="button" onClick={() => void setFindingStatus(finding, 'open')}>Reopen</button>}
+
+                {triageMode === 'smart' && focusedGroup && (
+                  <div className="editorial-group-focus">
+                    <button type="button" onClick={() => setGroupFocus(null)}>← Back to smart groups</button>
+                    <div><strong>{focusedGroup.label}</strong><small>{focusedGroup.findings.length} remaining in this pattern</small></div>
+                  </div>
+                )}
+
+                {triageMode === 'smart' && !focusedGroup && smartGroups.map((group) => (
+                  <article key={group.key} className={`editorial-triage-group severity-${group.representative.severity}`}>
+                    <div className="editorial-triage-group-heading">
+                      <div>
+                        <small>{group.representative.severity.toUpperCase()} · {group.representative.category.replaceAll('_', ' ')}</small>
+                        <strong>{group.label}</strong>
+                        <span>{group.findings.length === 1 ? '1 finding' : `${group.findings.length} similar findings`}</span>
                       </div>
-                      {proposal && (
-                        <div className={`editorial-fix-preview ${proposal.changed ? '' : 'no-change'}`}>
-                          <strong>{proposal.changed ? 'AI proposal ready' : 'AI recommends keeping the passage'}</strong>
-                          <small>{proposal.rationale}</small>
-                          <div className="editorial-fix-actions">
-                            {proposal.changed && <button type="button" className="primary" onClick={() => setReview({ finding, proposal })}>Open full review</button>}
-                            {proposal.changed && <button type="button" onClick={() => void applyProposal(finding, proposal)} disabled={Boolean(applyingId)}>{applyingId === finding.id ? 'Applying…' : 'Apply & resolve'}</button>}
-                            <button type="button" onClick={() => removeProposal(finding.id)}>Dismiss</button>
-                          </div>
-                        </div>
-                      )}
-                    </article>
-                  )
-                })}
+                      <b>{group.findings.length}</b>
+                    </div>
+                    <p>{group.representative.message}</p>
+                    <blockquote>{group.representative.excerpt}</blockquote>
+                    <div className="editorial-triage-group-actions">
+                      <button type="button" className="primary" disabled={disabled || Boolean(fixingId) || group.representative.stale} onClick={() => void requestFix(group.representative)}>
+                        {fixingId === group.representative.id ? 'Preparing…' : 'Review best example'}
+                      </button>
+                      {group.findings.length > 1 && <button type="button" onClick={() => setGroupFocus(group.key)}>Review all {group.findings.length}</button>}
+                      <button type="button" onClick={() => void onOpenFinding(group.representative)}>Jump to example</button>
+                    </div>
+                  </article>
+                ))}
+
+                {triageMode === 'smart' && focusedGroup && focusedGroup.findings.map(renderFinding)}
+                {triageMode === 'top20' && topFindings.map(renderFinding)}
+                {triageMode === 'all' && filtered.map(renderFinding)}
               </div>
             </>
           )}
