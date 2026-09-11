@@ -122,8 +122,9 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     return value
 
 
-def _decision_key(item: sqlite3.Row | dict[str, Any]) -> tuple[str, str]:
+def _decision_key(item: sqlite3.Row | dict[str, Any]) -> tuple[str, str, str]:
     return (
+        str(item["report_id"]),
         str(item["anchor_text"]).strip().casefold(),
         str(item["message"]).strip(),
     )
@@ -144,7 +145,7 @@ def _shifted_review_position(
     return start
 
 
-def _refresh_applied_report(
+def _refresh_applied_document(
     slug: str,
     finding: dict[str, Any],
     *,
@@ -152,27 +153,39 @@ def _refresh_applied_report(
     edit_end: int,
     delta: int,
 ) -> None:
-    """Replace stale open findings for this report/document with fresh analysis.
+    """Refresh every report in this run for the document that was just edited.
 
-    Resolved and ignored findings remain as durable editorial decisions. Reviewed
-    occurrences are matched to fresh analysis using their expected shifted source
-    position so identical repeated wording does not cause unrelated findings to vanish.
+    Any prose edit invalidates every source-anchored finding in the changed document,
+    not merely the report category that produced the accepted fix. Open findings for
+    the document are therefore rebuilt from the current manuscript across the run's
+    complete report set. Resolved and ignored findings remain durable decisions and
+    are matched to refreshed occurrences using expected shifted source positions.
     """
     source = read_text(slug, finding["path"])
     source_hash = _hash(source)
     profile = get_editorial_profile(slug)
-    fresh_findings, _ = analyze_text(source, [finding["report_id"]], profile)
     created_at = utc_now()
 
     db_path = project_root(slug) / ".ember" / "story.db"
     with sqlite3.connect(db_path) as con:
         con.row_factory = sqlite3.Row
+        run_row = con.execute(
+            "SELECT reports_json, scope, path, summary_json FROM editorial_runs WHERE id = ?",
+            (finding["run_id"],),
+        ).fetchone()
+        if run_row is None:
+            raise FileNotFoundError(finding["run_id"])
+        reports = json.loads(run_row["reports_json"])
+        if not isinstance(reports, list) or not reports:
+            reports = [finding["report_id"]]
+
+        fresh_findings, metrics = analyze_text(source, reports, profile)
         existing = con.execute(
             """
             SELECT * FROM editorial_findings
-            WHERE run_id = ? AND path = ? AND report_id = ?
+            WHERE run_id = ? AND path = ?
             """,
-            (finding["run_id"], finding["path"], finding["report_id"]),
+            (finding["run_id"], finding["path"]),
         ).fetchall()
         reviewed = [row for row in existing if row["status"] in {"resolved", "ignored"}]
         matched_fresh: set[int] = set()
@@ -201,9 +214,9 @@ def _refresh_applied_report(
         con.execute(
             """
             DELETE FROM editorial_findings
-            WHERE run_id = ? AND path = ? AND report_id = ? AND status = 'open'
+            WHERE run_id = ? AND path = ? AND status = 'open'
             """,
-            (finding["run_id"], finding["path"], finding["report_id"]),
+            (finding["run_id"], finding["path"]),
         )
 
         rows = []
@@ -241,12 +254,6 @@ def _refresh_applied_report(
                 rows,
             )
 
-        run_row = con.execute(
-            "SELECT summary_json FROM editorial_runs WHERE id = ?",
-            (finding["run_id"],),
-        ).fetchone()
-        if run_row is None:
-            raise FileNotFoundError(finding["run_id"])
         all_rows = con.execute(
             "SELECT report_id, severity FROM editorial_findings WHERE run_id = ?",
             (finding["run_id"],),
@@ -254,10 +261,18 @@ def _refresh_applied_report(
         summary = json.loads(run_row["summary_json"])
         summary["by_report"] = dict(Counter(row["report_id"] for row in all_rows))
         summary["by_severity"] = dict(Counter(row["severity"] for row in all_rows))
-        con.execute(
-            "UPDATE editorial_runs SET findings = ?, summary_json = ? WHERE id = ?",
-            (len(all_rows), json.dumps(summary), finding["run_id"]),
-        )
+        if run_row["scope"] == "document" and run_row["path"] == finding["path"]:
+            summary["metrics"] = metrics
+            words = int(metrics.get("words", 0))
+            con.execute(
+                "UPDATE editorial_runs SET findings = ?, words = ?, summary_json = ? WHERE id = ?",
+                (len(all_rows), words, json.dumps(summary), finding["run_id"]),
+            )
+        else:
+            con.execute(
+                "UPDATE editorial_runs SET findings = ?, summary_json = ? WHERE id = ?",
+                (len(all_rows), json.dumps(summary), finding["run_id"]),
+            )
 
 
 async def propose_editorial_fix(slug: str, request: EditorialFixRequest) -> EditorialFixProposal:
@@ -378,7 +393,7 @@ def apply_editorial_fix(slug: str, request: EditorialFixApplyRequest) -> Editori
             force=True,
         )
         resolved = update_finding_status(slug, request.finding_id, "resolved")
-        _refresh_applied_report(
+        _refresh_applied_document(
             slug,
             finding,
             edit_start=request.target_start,

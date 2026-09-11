@@ -54,19 +54,24 @@ async def test_editorial_fix_targets_sentence_and_preserves_source(monkeypatch, 
 
 
 @pytest.mark.asyncio
-async def test_editorial_fix_apply_updates_manuscript_revision_and_refreshes_report(monkeypatch, tmp_path: Path) -> None:
+async def test_editorial_fix_apply_updates_manuscript_revision_and_refreshes_document(monkeypatch, tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Editorial Fix Apply")
     slug = project["slug"]
     path = "manuscript/chapter-001.md"
-    source = "# Chapter 1\n\nMara walked quietly across the empty room. The lantern shook quickly.\n"
+    source = (
+        "# Chapter 1\n\n"
+        "Mara walked quietly across the empty room. "
+        "The lantern shook quickly. It was very dim.\n"
+    )
     storage.save_text(slug, path, source)
     revisions.record_revision(slug, path, source, source="save")
     run = editorial.run_editorial(
         slug,
-        EditorialRunRequest(scope="document", path=path, reports=["adverb"]),
+        EditorialRunRequest(scope="document", path=path, reports=["adverb", "filler_word"]),
     )
     finding = next(item for item in run["items"] if item["anchor_text"].casefold() == "quietly")
+    old_filler = next(item for item in run["items"] if item["report_id"] == "filler_word")
 
     async def fake_generate(config, messages, temperature=0.9, top_p=0.95, json_mode=False):
         return '{"replacement":"Mara crept across the empty room.","rationale":"Use the verb to carry the movement."}'
@@ -103,14 +108,25 @@ async def test_editorial_fix_apply_updates_manuscript_revision_and_refreshes_rep
     resolved = next(item for item in refreshed["items"] if item["id"] == finding["id"])
     assert resolved["status"] == "resolved"
     assert resolved["stale"] is True
-    remaining_open = [
+
+    remaining_adverbs = [
         item
         for item in refreshed["items"]
         if item["report_id"] == "adverb" and item["status"] == "open"
     ]
-    assert len(remaining_open) == 1
-    assert remaining_open[0]["anchor_text"].casefold() == "quickly"
-    assert remaining_open[0]["stale"] is False
+    assert len(remaining_adverbs) == 1
+    assert remaining_adverbs[0]["anchor_text"].casefold() == "quickly"
+    assert remaining_adverbs[0]["stale"] is False
+
+    current_fillers = [
+        item
+        for item in refreshed["items"]
+        if item["report_id"] == "filler_word" and item["status"] == "open"
+    ]
+    assert len(current_fillers) == 1
+    assert current_fillers[0]["anchor_text"].casefold() == "very"
+    assert current_fillers[0]["stale"] is False
+    assert current_fillers[0]["id"] != old_filler["id"]
 
 
 @pytest.mark.asyncio
