@@ -66,14 +66,31 @@
   gap: 0.35rem;
 }
 
-.history-actions {
+.history-compare-label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.history-actions,
+.revision-view-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.35rem;
 }
 
+.revision-compare {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.revision-view-toggle button.active {
+  border-color: rgba(224, 114, 68, 0.7);
+  background: rgba(224, 114, 68, 0.16);
+  color: #f3b081;
+}
+
 .revision-diff {
-  max-height: 18rem;
+  max-height: 24rem;
   overflow: auto;
   margin: 0;
   padding: 0.6rem;
