@@ -260,11 +260,20 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     })
   }, [result, reportFilter, statusFilter])
 
-  const ranked = useMemo(
-    () => [...filtered].sort((a, b) => findingImpact(b) - findingImpact(a) || a.path.localeCompare(b.path) || a.line - b.line),
+  const actionable = useMemo(
+    () => filtered.filter((finding) => finding.status === 'open' && !finding.stale),
     [filtered],
   )
-  const groups = useMemo(() => buildGroups(filtered), [filtered])
+  const triageFindings = statusFilter === 'open' ? actionable : filtered
+  const ranked = useMemo(
+    () => [...triageFindings].sort((a, b) => findingImpact(b) - findingImpact(a) || a.path.localeCompare(b.path) || a.line - b.line),
+    [triageFindings],
+  )
+  const actionableRanked = useMemo(
+    () => [...actionable].sort((a, b) => findingImpact(b) - findingImpact(a) || a.path.localeCompare(b.path) || a.line - b.line),
+    [actionable],
+  )
+  const groups = useMemo(() => buildGroups(triageFindings), [triageFindings])
   const focusedGroup = useMemo(() => groups.find((group) => group.key === groupFocus) || null, [groups, groupFocus])
   const openFreshCount = result?.items.filter((item) => item.status === 'open' && !item.stale).length || 0
   const openStaleCount = result?.items.filter((item) => item.status === 'open' && item.stale).length || 0
@@ -354,6 +363,13 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     }
   }
 
+  async function resolveNoChange(finding: EditorialFinding) {
+    await setFindingStatus(finding, 'resolved')
+    setReview(null)
+    setStatusFilter('open')
+    setGroupFocus(null)
+  }
+
   function removeProposal(findingId: string) {
     setFixes((current) => {
       const next = { ...current }
@@ -404,7 +420,15 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
   }
 
   async function requestFix(finding: EditorialFinding) {
-    if (finding.stale || fixingId) return
+    if (fixingId) return
+    if (finding.status !== 'open') {
+      setError('Only open editorial findings can be sent to Revision Review.')
+      return
+    }
+    if (finding.stale) {
+      setError('This finding is stale because the manuscript changed. Run the current document reports once to refresh it before requesting an AI review.')
+      return
+    }
     const provider = configuredProvider()
     if (!provider?.model?.trim()) {
       setError('Choose an AI model in EmberWriter before asking AI to repair an editorial finding.')
@@ -418,10 +442,9 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
         body: JSON.stringify({ finding_id: finding.id, provider, instruction: '' }),
       })
       setFixes((current) => ({ ...current, [finding.id]: proposal }))
-      if (proposal.changed) setReview({ finding, proposal })
-      else setError(`AI recommends keeping this passage: ${proposal.rationale}`)
+      setReview({ finding, proposal })
     } catch (cause) {
-      setError((cause as Error).message)
+      setError(`AI review could not open: ${(cause as Error).message}`)
     } finally {
       setFixingId('')
     }
@@ -468,7 +491,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
             <strong>{proposal.changed ? 'AI proposal ready for side-by-side review' : 'AI recommends keeping the passage'}</strong>
             <small>{proposal.rationale}</small>
             <div className="editorial-fix-actions">
-              {proposal.changed && <button type="button" className="primary" onClick={() => setReview({ finding, proposal })}>Open side-by-side review</button>}
+              <button type="button" className="primary" onClick={() => setReview({ finding, proposal })}>Open side-by-side review</button>
               <button type="button" onClick={() => removeProposal(finding.id)}>Dismiss</button>
             </div>
           </div>
@@ -483,6 +506,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
 
   const smartGroups = groups.slice(0, 18)
   const topFindings = ranked.slice(0, 20)
+  const nextBest = actionableRanked[0] || null
 
   return (
     <>
@@ -568,12 +592,14 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
               <div className="editorial-triage-intro">
                 <div>
                   <strong>Editorial Triage</strong>
-                  <small>Condense hundreds of flags into patterns, or review the highest-impact issues first. AI rewrites always open side-by-side before they can be applied.</small>
+                  <small>Condense hundreds of flags into patterns, or review the highest-impact issues first. Every successful AI review opens side-by-side before anything can be applied.</small>
                 </div>
-                <button type="button" className="primary" disabled={disabled || Boolean(fixingId) || topFindings.length === 0} onClick={() => topFindings[0] && void requestFix(topFindings[0])}>
+                <button type="button" className="primary" disabled={disabled || Boolean(fixingId) || !nextBest} onClick={() => nextBest && void requestFix(nextBest)}>
                   {fixingId ? 'Preparing review…' : 'AI review next best'}
                 </button>
               </div>
+
+              {error && <div className="panel-error" role="alert" aria-live="assertive">{error}</div>}
 
               <div className="editorial-triage-modes" role="tablist" aria-label="Editorial triage mode">
                 <button type="button" className={triageMode === 'smart' ? 'active' : ''} onClick={() => { setTriageMode('smart'); setGroupFocus(null) }}>Smart groups</button>
@@ -581,7 +607,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
                 <button type="button" className={triageMode === 'all' ? 'active' : ''} onClick={() => { setTriageMode('all'); setGroupFocus(null) }}>All findings</button>
               </div>
 
-              <small className="editorial-navigation-help">Click a finding to jump to the exact prose. Any AI rewrite opens the full Revision Review first; only the Apply &amp; Resolve button inside that side-by-side view can change the manuscript.</small>
+              <small className="editorial-navigation-help">Click a finding to jump to the exact prose. Any successful AI response opens the full Revision Review—even when Ember recommends keeping the original. Only the controls inside that side-by-side view can finish the review.</small>
               <div className="editorial-filters">
                 <select value={reportFilter} onChange={(event) => { setReportFilter(event.target.value); setGroupFocus(null) }}>
                   <option value="all">All reports</option>
@@ -595,7 +621,10 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
               </div>
 
               <div className="editorial-findings">
-                {filtered.length === 0 && <small className="panel-help">No findings match these filters.</small>}
+                {triageFindings.length === 0 && statusFilter === 'open' && openStaleCount > 0 && (
+                  <small className="panel-help">No fresh open findings are actionable yet. This saved run contains stale findings; run the current document reports once to rebuild the queue against the latest manuscript.</small>
+                )}
+                {triageFindings.length === 0 && !(statusFilter === 'open' && openStaleCount > 0) && <small className="panel-help">No findings match these filters.</small>}
 
                 {triageMode === 'smart' && focusedGroup && (
                   <div className="editorial-group-focus">
@@ -617,7 +646,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
                     <p>{group.representative.message}</p>
                     <blockquote>{group.representative.excerpt}</blockquote>
                     <div className="editorial-triage-group-actions">
-                      <button type="button" className="primary" disabled={disabled || Boolean(fixingId) || group.representative.stale} onClick={() => void requestFix(group.representative)}>
+                      <button type="button" className="primary" disabled={disabled || Boolean(fixingId) || group.representative.stale || group.representative.status !== 'open'} onClick={() => void requestFix(group.representative)}>
                         {fixingId === group.representative.id ? 'Preparing…' : 'Review best example'}
                       </button>
                       {group.findings.length > 1 && <button type="button" onClick={() => setGroupFocus(group.key)}>Review all {group.findings.length}</button>}
@@ -628,14 +657,14 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
 
                 {triageMode === 'smart' && focusedGroup && focusedGroup.findings.map(renderFinding)}
                 {triageMode === 'top20' && topFindings.map(renderFinding)}
-                {triageMode === 'all' && filtered.map(renderFinding)}
+                {triageMode === 'all' && triageFindings.map(renderFinding)}
               </div>
             </>
           )}
 
           <ReaderPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} onOpenSource={(path) => void openReaderSource(path)} />
           <KnowledgePanel apiBase={apiBase} slug={slug} activePath={activePath} disabled={disabled || busy} />
-          {error && <small className="panel-error">{error}</small>}
+          {!result && error && <small className="panel-error">{error}</small>}
         </div>
       </details>
 
@@ -651,6 +680,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
             busy={applyingId === review.finding.id}
             onClose={() => setReview(null)}
             onApply={() => applyProposal(review.finding, review.proposal)}
+            onResolveNoChange={() => resolveNoChange(review.finding)}
           />
         </div>,
         document.body,
