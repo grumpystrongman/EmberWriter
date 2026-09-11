@@ -1,0 +1,240 @@
+.project-board-shell {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  gap: .65rem;
+  padding: .8rem;
+  color: #e9edf2;
+  background: #101821;
+}
+
+.project-board-toolbar,
+.board-link-row {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+
+.project-board-toolbar {
+  justify-content: space-between;
+}
+
+.project-board-toolbar > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: .08rem;
+}
+
+.project-board-toolbar small {
+  color: #8796a7;
+}
+
+.project-board-actions {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+
+.board-upload-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 .7rem;
+  border: 1px solid #334354;
+  border-radius: 6px;
+  background: #172432;
+  color: #dce5ee;
+  cursor: pointer;
+  font-size: .75rem;
+}
+
+.board-upload-button input {
+  display: none;
+}
+
+.board-link-row input {
+  min-width: 0;
+  flex: 1;
+}
+
+.project-board-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 38rem;
+  overflow: auto;
+  border: 1px solid #2a3847;
+  border-radius: 10px;
+  background-color: #0d141c;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 24px 24px;
+  touch-action: none;
+}
+
+.project-board-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .4rem;
+  max-width: 34rem;
+  margin: auto;
+  padding: 2rem;
+  text-align: center;
+  color: #738294;
+}
+
+.board-item {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  box-sizing: border-box;
+  padding: .65rem;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 9px;
+  box-shadow: 0 14px 30px rgba(0,0,0,.24);
+  background: #192430;
+  user-select: none;
+  cursor: grab;
+}
+
+.board-item:active {
+  cursor: grabbing;
+}
+
+.board-stale {
+  border-style: dashed;
+  opacity: .75;
+}
+
+.board-color-amber { background: #3a2d16; border-color: #74572a; }
+.board-color-blue { background: #172b3f; border-color: #2f567a; }
+.board-color-slate { background: #1a2530; border-color: #374654; }
+.board-color-rose { background: #3a2028; border-color: #70404e; }
+.board-color-green { background: #183329; border-color: #315f4c; }
+
+.board-item-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: .35rem;
+  flex: 0 0 auto;
+}
+
+.board-item-head input,
+.board-item textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+.board-item-head input {
+  padding: .15rem .2rem;
+  font-weight: 700;
+}
+
+.board-item-head button {
+  width: 1.6rem;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: transparent;
+  color: #9cacbc;
+}
+
+.board-item textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  line-height: 1.45;
+}
+
+.board-item img {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  object-fit: contain;
+  border-radius: 5px;
+  background: #0c1218;
+  pointer-events: none;
+}
+
+.board-item a {
+  color: #83b9ed;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.board-binder-status {
+  color: #8ea6ba;
+  font-size: .67rem;
+}
+
+.board-color-row {
+  display: flex;
+  gap: .3rem;
+  align-items: center;
+  margin-top: auto;
+}
+
+.board-color-dot {
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.board-color-dot.active {
+  outline: 2px solid rgba(255,255,255,.72);
+  outline-offset: 2px;
+}
+
+.color-amber { background: #b7832f; }
+.color-blue { background: #3f78a8; }
+.color-rose { background: #9d596c; }
+.color-green { background: #4d8b70; }
+.color-slate { background: #697a89; }
+
+.board-resize-handle {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 25px;
+  min-width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.42);
+  cursor: nwse-resize;
+  box-shadow: none;
+}
+
+.board-resize-handle:hover:not(:disabled) {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .project-board-toolbar,
+  .board-link-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-board-actions {
+    width: 100%;
+  }
+}

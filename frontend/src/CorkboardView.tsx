@@ -1,9 +1,12 @@
 import { useMemo, useState, type DragEvent } from 'react'
 
 import type { BinderNode, BinderState } from './BinderPanel'
+import ProjectBoard from './ProjectBoard'
 import './workspace.css'
 
 type Props = {
+  apiBase: string
+  slug: string
   state: BinderState
   selectedId: string | null
   disabled: boolean
@@ -14,12 +17,16 @@ type Props = {
   onClose: () => void
 }
 
+type CorkboardMode = 'scenes' | 'visual'
+
 function textMeta(node: BinderNode, key: string): string {
   const value = node.custom_metadata[key]
   return typeof value === 'string' ? value : ''
 }
 
 export default function CorkboardView({
+  apiBase,
+  slug,
   state,
   selectedId,
   disabled,
@@ -30,6 +37,7 @@ export default function CorkboardView({
   onClose,
 }: Props) {
   const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [mode, setMode] = useState<CorkboardMode>('scenes')
   const nodes = useMemo(() => new Map(state.nodes.map((node) => [node.id, node])), [state.nodes])
   const selected = selectedId ? nodes.get(selectedId) || null : null
   const scope = selected && ['folder', 'trash'].includes(selected.kind)
@@ -79,12 +87,26 @@ export default function CorkboardView({
         <div>
           <small>Corkboard</small>
           <h1>{scope?.title || 'Draft'}</h1>
-          <p>{cards.length} cards · {totalWords.toLocaleString()} words · {included} compile</p>
+          <p>{mode === 'scenes' ? `${cards.length} cards · ${totalWords.toLocaleString()} words · ${included} compile` : 'Visual references, uploads, notes and pinned manuscript items'}</p>
         </div>
         <button type="button" className="quiet" onClick={onClose}>Back to Editor</button>
       </header>
 
-      {cards.length === 0 ? (
+      <div className="binder-view-tabs" aria-label="Corkboard modes">
+        <button type="button" className={mode === 'scenes' ? 'active' : ''} onClick={() => setMode('scenes')}>Scene Cards</button>
+        <button type="button" className={mode === 'visual' ? 'active' : ''} onClick={() => setMode('visual')}>Visual Board</button>
+      </div>
+
+      {mode === 'visual' ? (
+        <ProjectBoard
+          apiBase={apiBase}
+          slug={slug}
+          binderNodes={state.nodes}
+          selectedBinder={selected}
+          disabled={disabled}
+          onOpenBinder={onOpen}
+        />
+      ) : cards.length === 0 ? (
         <div className="workspace-empty">
           <strong>No cards in this Binder section.</strong>
           <span>Create or move documents into this folder from the Binder.</span>
