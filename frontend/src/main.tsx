@@ -4,6 +4,7 @@ import WorkspaceShell from './WorkspaceShell'
 import './styles.css'
 import './story.css'
 import './editorial.css'
+import './editorial-fix.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
