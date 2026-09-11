@@ -10,7 +10,7 @@ type Props = {
   finding: EditorialFinding
   proposal: EditorialFixProposal
   busy: boolean
-  onApply: () => Promise<void> | void
+  onApply: () => Promise<unknown> | unknown
   onClose: () => void
 }
 
