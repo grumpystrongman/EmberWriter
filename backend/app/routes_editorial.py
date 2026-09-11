@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 
 from .editorial import (
@@ -14,9 +15,12 @@ from .editorial import (
     save_editorial_profile,
     update_finding_status,
 )
+from .editorial_fix import propose_editorial_fix
 from .editorial_models import (
     EditorialFinding,
     EditorialFindingStatusUpdate,
+    EditorialFixProposal,
+    EditorialFixRequest,
     EditorialProfile,
     EditorialReportDefinition,
     EditorialRunRequest,
@@ -121,4 +125,17 @@ def set_finding_status(slug: str, finding_id: str, payload: EditorialFindingStat
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Editorial finding not found") from exc
     except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/fix", response_model=EditorialFixProposal)
+async def editorial_fix(slug: str, payload: EditorialFixRequest) -> EditorialFixProposal:
+    try:
+        _require_project(slug)
+        return await propose_editorial_fix(slug, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project, document, or editorial finding not found") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Model endpoint error: {exc}") from exc
+    except (OSError, RuntimeError, TypeError, UnicodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
