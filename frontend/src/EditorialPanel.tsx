@@ -60,6 +60,27 @@ type RunSummary = {
 
 type RunResult = RunSummary & { items: EditorialFinding[] }
 
+type Provider = {
+  provider: 'ollama' | 'openai_compatible'
+  base_url: string
+  model: string
+  api_key?: string
+}
+
+type EditorialFixProposal = {
+  finding_id: string
+  path: string
+  report_id: string
+  report_name: string
+  original: string
+  replacement: string
+  rationale: string
+  source_hash: string
+  target_start: number
+  target_end: number
+  changed: boolean
+}
+
 type Props = {
   apiBase: string
   slug: string
@@ -87,6 +108,18 @@ function runLabel(run: RunSummary) {
   return `${date} · ${run.scope === 'draft' ? 'Draft' : 'Document'} · ${run.findings} findings`
 }
 
+function configuredProvider(): Provider | null {
+  try {
+    const stored = localStorage.getItem('emberwriter.provider')
+    if (!stored) return null
+    const provider = JSON.parse(stored) as Provider
+    if (!provider?.provider || !provider?.base_url) return null
+    return provider
+  } catch {
+    return null
+  }
+}
+
 export default function EditorialPanel({ apiBase, slug, activePath, disabled, refreshToken, onOpenFinding }: Props) {
   const [catalog, setCatalog] = useState<ReportDefinition[]>([])
   const [profile, setProfile] = useState<EditorialProfile | null>(null)
@@ -98,6 +131,8 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
   const [showReports, setShowReports] = useState(false)
   const [showThresholds, setShowThresholds] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [fixingId, setFixingId] = useState('')
+  const [fixes, setFixes] = useState<Record<string, EditorialFixProposal>>({})
   const [error, setError] = useState('')
 
   async function loadBase() {
@@ -165,6 +200,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
       })
       setResult(next)
       setRuns(await request<RunSummary[]>(`${apiBase}/projects/${slug}/editorial/runs`))
+      setFixes({})
       setStatusFilter('open')
       setReportFilter('all')
     } catch (cause) {
@@ -180,6 +216,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
     setError('')
     try {
       setResult(await request<RunResult>(`${apiBase}/projects/${slug}/editorial/runs/${runId}`))
+      setFixes({})
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -213,6 +250,68 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
       setResult({ ...result, items: result.items.map((item) => item.id === updated.id ? updated : item) })
     } catch (cause) {
       setError((cause as Error).message)
+    }
+  }
+
+  async function applyFix(finding: EditorialFinding, proposal: EditorialFixProposal) {
+    setError('')
+    await onOpenFinding(finding)
+    const applied = await new Promise<boolean>((resolve) => {
+      let finished = false
+      const respond = (value: boolean) => {
+        if (finished) return
+        finished = true
+        window.clearTimeout(timeout)
+        resolve(value)
+      }
+      const timeout = window.setTimeout(() => respond(false), 1800)
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('emberwriter:apply-editorial-fix', {
+          detail: {
+            path: proposal.path,
+            original: proposal.original,
+            replacement: proposal.replacement,
+            respond,
+          },
+        }))
+      }, 180)
+    })
+    if (!applied) {
+      setError('Could not locate the proposed source passage in the editor. Rerun the editorial report before applying this fix.')
+      return false
+    }
+    await setFindingStatus(finding, 'resolved')
+    setFixes((current) => {
+      const next = { ...current }
+      delete next[finding.id]
+      return next
+    })
+    return true
+  }
+
+  async function requestFix(finding: EditorialFinding, autoApply: boolean) {
+    if (finding.stale || fixingId) return
+    const provider = configuredProvider()
+    if (!provider?.model?.trim()) {
+      setError('Choose an AI model in EmberWriter before asking AI to repair an editorial finding.')
+      return
+    }
+    setFixingId(finding.id)
+    setError('')
+    try {
+      const proposal = await request<EditorialFixProposal>(`${apiBase}/projects/${slug}/editorial/fix`, {
+        method: 'POST',
+        body: JSON.stringify({ finding_id: finding.id, provider, instruction: '' }),
+      })
+      setFixes((current) => ({ ...current, [finding.id]: proposal }))
+      if (autoApply && proposal.changed) await applyFix(finding, proposal)
+      if (autoApply && !proposal.changed) {
+        setError(`AI recommends keeping this passage: ${proposal.rationale}`)
+      }
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setFixingId('')
     }
   }
 
@@ -318,6 +417,7 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
               {typeof result.metrics.readability === 'number' && <span><b>{result.metrics.readability.toFixed(1)}</b> readability</span>}
               {typeof result.metrics.dialogue_percent === 'number' && <span><b>{result.metrics.dialogue_percent.toFixed(1)}%</b> dialogue</span>}
             </div>
+            <small className="editorial-navigation-help">Click a finding header to open its document and highlight the exact flagged prose. Use AI Fix to preview a line edit, or AI Fix &amp; Apply for one-click repair with revision history still protecting the manuscript.</small>
             <div className="editorial-filters">
               <select value={reportFilter} onChange={(event) => setReportFilter(event.target.value)}>
                 <option value="all">All reports</option>
@@ -334,22 +434,53 @@ export default function EditorialPanel({ apiBase, slug, activePath, disabled, re
             </div>
             <div className="editorial-findings">
               {filtered.length === 0 && <small className="panel-help">No findings match these filters.</small>}
-              {filtered.map((finding) => (
-                <article key={finding.id} className={`editorial-finding severity-${finding.severity} ${finding.stale ? 'stale' : ''}`}>
-                  <button type="button" className="editorial-source" onClick={() => void onOpenFinding(finding)}>
-                    <span>{finding.report_name} · {finding.path.split('/').at(-1)}:{finding.line}</span>
-                    <small>{finding.stale ? 'STALE — rerun after edit' : finding.severity.toUpperCase()}</small>
-                  </button>
-                  <p>{finding.message}</p>
-                  <blockquote>{finding.excerpt}</blockquote>
-                  <small className="editorial-suggestion">{finding.suggestion}</small>
-                  <div className="editorial-finding-actions">
-                    {finding.status !== 'resolved' && <button type="button" onClick={() => void setFindingStatus(finding, 'resolved')}>Resolve</button>}
-                    {finding.status !== 'ignored' && <button type="button" onClick={() => void setFindingStatus(finding, 'ignored')}>Ignore</button>}
-                    {finding.status !== 'open' && <button type="button" onClick={() => void setFindingStatus(finding, 'open')}>Reopen</button>}
-                  </div>
-                </article>
-              ))}
+              {filtered.map((finding) => {
+                const proposal = fixes[finding.id]
+                return (
+                  <article key={finding.id} className={`editorial-finding severity-${finding.severity} ${finding.stale ? 'stale' : ''}`}>
+                    <button type="button" className="editorial-source" onClick={() => void onOpenFinding(finding)} title="Open this document and highlight the flagged prose">
+                      <span>{finding.report_name} · {finding.path.split('/').at(-1)}:{finding.line}</span>
+                      <small>{finding.stale ? 'STALE — rerun after edit' : `${finding.severity.toUpperCase()} · JUMP + HIGHLIGHT`}</small>
+                    </button>
+                    <p>{finding.message}</p>
+                    <blockquote>{finding.excerpt}</blockquote>
+                    <small className="editorial-suggestion">{finding.suggestion}</small>
+                    <div className="editorial-finding-actions">
+                      {!finding.stale && finding.status === 'open' && (
+                        <>
+                          <button type="button" className="editorial-ai-fix" disabled={disabled || Boolean(fixingId)} onClick={() => void requestFix(finding, false)}>
+                            {fixingId === finding.id ? 'AI editing…' : 'AI Fix'}
+                          </button>
+                          <button type="button" className="editorial-ai-apply" disabled={disabled || Boolean(fixingId)} onClick={() => void requestFix(finding, true)}>
+                            AI Fix &amp; Apply
+                          </button>
+                        </>
+                      )}
+                      {finding.status !== 'resolved' && <button type="button" onClick={() => void setFindingStatus(finding, 'resolved')}>Resolve</button>}
+                      {finding.status !== 'ignored' && <button type="button" onClick={() => void setFindingStatus(finding, 'ignored')}>Ignore</button>}
+                      {finding.status !== 'open' && <button type="button" onClick={() => void setFindingStatus(finding, 'open')}>Reopen</button>}
+                    </div>
+                    {proposal && (
+                      <div className={`editorial-fix-preview ${proposal.changed ? '' : 'no-change'}`}>
+                        <strong>{proposal.changed ? 'AI line-edit proposal' : 'AI recommends keeping the passage'}</strong>
+                        <div>
+                          <label>Original</label>
+                          <blockquote>{proposal.original}</blockquote>
+                        </div>
+                        <div>
+                          <label>Proposed</label>
+                          <blockquote>{proposal.replacement}</blockquote>
+                        </div>
+                        <small>{proposal.rationale}</small>
+                        <div className="editorial-fix-actions">
+                          {proposal.changed && <button type="button" className="primary" onClick={() => void applyFix(finding, proposal)} disabled={disabled || Boolean(fixingId)}>Apply &amp; resolve</button>}
+                          <button type="button" onClick={() => setFixes((current) => { const next = { ...current }; delete next[finding.id]; return next })}>Dismiss proposal</button>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
             </div>
           </>
         )}

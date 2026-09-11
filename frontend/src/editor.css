@@ -64,6 +64,47 @@
   white-space: nowrap;
 }
 
+.editor-findbar {
+  position: sticky;
+  top: 2.75rem;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) auto auto auto minmax(4rem, auto) auto;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #d5c9ba;
+  background: #f1e8dc;
+}
+
+.editor-findbar input {
+  min-width: 0;
+  height: 2rem;
+  border: 1px solid #cbbdac;
+  border-radius: 5px;
+  background: #fffaf4;
+  color: #332c27;
+  padding: 0 0.55rem;
+}
+
+.editor-findbar button {
+  min-height: 2rem;
+  padding: 0 0.55rem;
+  border: 1px solid #c8b6a5;
+  border-radius: 5px;
+  background: #e5d7c8;
+  color: #43372e;
+}
+
+.editor-findbar button:hover:not(:disabled) {
+  background: #d9c5b2;
+}
+
+.editor-findbar small {
+  color: #7a6859;
+  white-space: nowrap;
+}
+
 .editor-scroll {
   flex: 1;
   min-height: 0;
@@ -134,12 +175,22 @@
 }
 
 .prose-editor ::selection {
-  background: rgba(197, 112, 57, 0.27);
+  background: #f0a24d;
+  color: #1e160f;
+  text-shadow: none;
 }
 
 @media (max-width: 1100px) {
   .prose-editor {
     width: calc(100% - 1.5rem);
     padding: 2rem 1.5rem 5rem;
+  }
+
+  .editor-findbar {
+    grid-template-columns: 1fr 1fr auto auto;
+  }
+
+  .editor-findbar small {
+    grid-column: 1 / -2;
   }
 }
