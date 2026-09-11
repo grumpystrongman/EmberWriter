@@ -29,6 +29,7 @@ from .routes_distribution import router as distribution_router
 from .routes_editorial import router as editorial_router
 from .routes_generation import router as generation_router
 from .routes_knowledge import router as knowledge_router
+from .routes_media import router as media_router
 from .routes_memory import router as memory_router
 from .routes_reader import router as reader_router
 from .routes_review import router as review_router
@@ -82,6 +83,7 @@ app.include_router(cover_router)
 app.include_router(distribution_router)
 app.include_router(review_router)
 app.include_router(submissions_router)
+app.include_router(media_router)
 
 
 @app.get("/api/health")
