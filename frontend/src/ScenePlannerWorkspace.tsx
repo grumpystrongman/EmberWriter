@@ -12,6 +12,11 @@ type Props = {
   onFilesChanged: () => void
 }
 
+type SavedSceneArtifact = {
+  author_request?: string
+  plan?: ScenePlan
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -109,6 +114,26 @@ export default function ScenePlannerWorkspace({ apiBase, project, sceneFiles, on
     }
   }
 
+  async function loadSavedPlan(path: string) {
+    setBusy(true)
+    setError('')
+    try {
+      const saved = await request<{ content: string }>(`${apiBase}/projects/${project.slug}/file?path=${encodeURIComponent(path)}`)
+      const artifact = JSON.parse(saved.content) as SavedSceneArtifact & ScenePlan
+      const plan = artifact.plan || artifact
+      if (!plan?.title || !Array.isArray(plan.beats)) throw new Error('Saved scene plan has an invalid format')
+      setResult({ plan, saved_path: path, context_files: [] })
+      if (artifact.author_request) setPrompt(artifact.author_request)
+      setPov(plan.pov || '')
+      setLocation(plan.location || '')
+      setParticipants(plan.participants || [])
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function sendToWriter(plan: ScenePlan) {
     window.dispatchEvent(new CustomEvent('emberwriter:writer-brief', { detail: { prompt: writerPrompt(plan), mode: 'write' } }))
   }
@@ -117,7 +142,7 @@ export default function ScenePlannerWorkspace({ apiBase, project, sceneFiles, on
     <div className="scene-center-workspace">
       <div className="scene-center-grid">
         <section className="scene-center-form">
-          <div className="center-section-heading"><div><h2>Scene Architect</h2><p>Build a story-aware scene plan before prose. You can specify as much or as little as you want.</p></div></div>
+          <div className="center-section-heading"><div><h2>Scene Architect</h2><p>Build a story-aware scene plan before prose. You can specify as much or as little as you want.</p></div>{project.activePath && <button type="button" onClick={() => onOpenSource(project.activePath)}>Open current manuscript</button>}</div>
           <label>What must happen<textarea rows={7} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="The protagonist confronts the witness, learns the alibi is false, but chooses not to expose her yet. Slow-burn tension with…" /></label>
           <div className="scene-center-fields">
             <label>POV<input value={pov} onChange={(event) => setPov(event.target.value)} placeholder="infer or specify" /></label>
@@ -126,18 +151,18 @@ export default function ScenePlannerWorkspace({ apiBase, project, sceneFiles, on
           </div>
           {characterNames.length > 0 && <div className="scene-center-participants"><small>PARTICIPANTS</small><div className="tag-choice-row">{characterNames.slice(0, 30).map((name) => <button type="button" key={name} className={participants.includes(name) ? 'active' : ''} onClick={() => toggleParticipant(name)}>{name}</button>)}</div></div>}
           <button type="button" className="primary" onClick={() => void architect()} disabled={busy || !prompt.trim()}>{busy ? 'Architecting from story state…' : 'Architect scene'}</button>
-          <small className="center-help">Ember uses Story Memory, character knowledge, relationship chemistry, unresolved threads, and nearby manuscript context. The saved plan is a normal project artifact you can inspect and edit.</small>
+          <small className="center-help">Ember uses Story Memory, character knowledge, relationship chemistry, unresolved threads, and nearby manuscript context. The saved plan is a normal project artifact you can inspect and reuse.</small>
         </section>
 
         <aside className="scene-plan-library">
           <div className="center-section-heading"><div><h2>Saved plans</h2><p>{sceneFiles.length} project artifact{sceneFiles.length === 1 ? '' : 's'}</p></div></div>
           {sceneFiles.length === 0 && <div className="center-empty">No saved scene plans yet.</div>}
-          <div className="scene-plan-file-list">{sceneFiles.map((path) => <button type="button" key={path} onClick={() => onOpenSource(path)}><span>▤</span><div><strong>{path.split('/').at(-1)?.replace(/\.(json|md)$/i, '')}</strong><small>{path}</small></div></button>)}</div>
+          <div className="scene-plan-file-list">{sceneFiles.map((path) => <button type="button" key={path} onClick={() => void loadSavedPlan(path)}><span>▤</span><div><strong>{path.split('/').at(-1)?.replace(/\.(json|md)$/i, '')}</strong><small>{path}</small></div></button>)}</div>
         </aside>
       </div>
 
       {result && <section className="scene-center-result">
-        <div className="scene-center-result-head"><div><small>SCENE PLAN</small><h2>{result.plan.title}</h2></div><div><button type="button" className="primary" onClick={() => sendToWriter(result.plan)}>Send plan to Write</button>{result.saved_path && <button type="button" onClick={() => onOpenSource(result.saved_path!)}>Open saved plan</button>}</div></div>
+        <div className="scene-center-result-head"><div><small>SCENE PLAN</small><h2>{result.plan.title}</h2></div><div><button type="button" className="primary" onClick={() => sendToWriter(result.plan)}>Send plan to Write</button>{result.saved_path && <button type="button" onClick={() => void loadSavedPlan(result.saved_path!)}>Reload saved</button>}</div></div>
         <div className="scene-center-meta"><span><b>POV</b> {result.plan.pov || '—'}</span><span><b>Location</b> {result.plan.location || '—'}</span><span><b>Participants</b> {result.plan.participants.join(', ') || '—'}</span></div>
         <div className="scene-center-core"><p><strong>Objective:</strong> {result.plan.scene_objective}</p><p><strong>Conflict:</strong> {result.plan.conflict}</p>{result.plan.opening_state && <p><strong>Opening state:</strong> {result.plan.opening_state}</p>}{result.plan.emotional_arc && <p><strong>Emotional arc:</strong> {result.plan.emotional_arc}</p>}</div>
         <div className="scene-center-beats"><h3>Beats</h3>{result.plan.beats.map((beat, index) => <article key={`${beat.beat}-${index}`}><span>{index + 1}</span><div><strong>{beat.beat}</strong>{beat.purpose && <p>{beat.purpose}</p>}{beat.character_shift && <small>{beat.character_shift}</small>}</div></article>)}</div>
