@@ -11,6 +11,7 @@ type Props = {
   proposal: EditorialFixProposal
   busy: boolean
   onApply: () => Promise<unknown> | unknown
+  onResolveNoChange: () => Promise<unknown> | unknown
   onClose: () => void
 }
 
@@ -71,9 +72,10 @@ function DiffText({ text, ops, side }: { text: string; ops: DiffOp[] | null; sid
   )
 }
 
-export default function EditorialReviewPane({ finding, proposal, busy, onApply, onClose }: Props) {
+export default function EditorialReviewPane({ finding, proposal, busy, onApply, onResolveNoChange, onClose }: Props) {
   const ops = tokenDiff(proposal.original, proposal.replacement)
   const changedWords = ops?.filter((op) => op.kind !== 'equal').length ?? null
+  const changed = proposal.changed && proposal.original !== proposal.replacement
 
   return (
     <section className="editorial-review-pane">
@@ -88,38 +90,45 @@ export default function EditorialReviewPane({ finding, proposal, busy, onApply, 
 
       <div className="editorial-review-meta">
         <span><b>Original</b> {proposal.original.trim().split(/\s+/).filter(Boolean).length} words</span>
-        <span><b>Proposed</b> {proposal.replacement.trim().split(/\s+/).filter(Boolean).length} words</span>
+        <span><b>{changed ? 'Proposed' : 'AI verdict'}</b> {proposal.replacement.trim().split(/\s+/).filter(Boolean).length} words</span>
         {changedWords !== null && <span><b>{changedWords}</b> changed tokens</span>}
+        {!changed && <span><b>No rewrite</b> recommended</span>}
       </div>
 
       <div className="editorial-review-columns">
         <article className="editorial-review-side original">
           <div className="editorial-review-side-heading">
             <strong>Current manuscript</strong>
-            <small>Removed or replaced language is highlighted</small>
+            <small>{changed ? 'Removed or replaced language is highlighted' : 'The passage Ember reviewed'}</small>
           </div>
           <DiffText text={proposal.original} ops={ops} side="older" />
         </article>
         <article className="editorial-review-side proposed">
           <div className="editorial-review-side-heading">
-            <strong>AI proposal</strong>
-            <small>New language is highlighted</small>
+            <strong>{changed ? 'AI proposal' : 'AI recommends keeping this'}</strong>
+            <small>{changed ? 'New language is highlighted' : 'No textual change proposed'}</small>
           </div>
           <DiffText text={proposal.replacement} ops={ops} side="newer" />
         </article>
       </div>
 
       <div className="editorial-review-rationale">
-        <strong>Why Ember suggested this</strong>
+        <strong>{changed ? 'Why Ember suggested this' : 'Why Ember recommends no change'}</strong>
         <p>{proposal.rationale}</p>
         <small>{finding.suggestion}</small>
       </div>
 
       <footer className="editorial-review-actions">
-        <button type="button" onClick={onClose} disabled={busy}>Keep original</button>
-        <button type="button" className="primary" onClick={() => void onApply()} disabled={busy || !proposal.changed}>
-          {busy ? 'Applying verified edit…' : 'Apply & resolve'}
-        </button>
+        <button type="button" onClick={onClose} disabled={busy}>Back without resolving</button>
+        {changed ? (
+          <button type="button" className="primary" onClick={() => void onApply()} disabled={busy}>
+            {busy ? 'Applying verified edit…' : 'Apply & resolve'}
+          </button>
+        ) : (
+          <button type="button" className="primary" onClick={() => void onResolveNoChange()} disabled={busy}>
+            Keep original & resolve
+          </button>
+        )}
       </footer>
     </section>
   )
