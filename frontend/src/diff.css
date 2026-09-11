@@ -1,0 +1,88 @@
+.split-diff {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.split-diff-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  color: #dcc8b9;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.split-diff-head > :last-child { text-align: right; }
+.split-diff-head small { color: var(--muted); font-size: 0.56rem; font-weight: 500; }
+
+.split-diff-grid {
+  overflow: auto;
+  max-height: 34rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(7, 10, 14, 0.45);
+}
+
+.split-diff-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.split-diff-row:last-child { border-bottom: 0; }
+
+.diff-cell {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  min-width: 0;
+}
+
+.diff-cell + .diff-cell { border-left: 1px solid rgba(255, 255, 255, 0.08); }
+
+.diff-line-number {
+  padding: 0.28rem 0.35rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  color: #756e69;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.55rem;
+  text-align: right;
+  user-select: none;
+}
+
+.diff-cell pre {
+  min-width: 0;
+  margin: 0;
+  padding: 0.28rem 0.45rem;
+  overflow-wrap: anywhere;
+  color: #d9cec6;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.61rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.kind-delete .diff-old,
+.kind-change .diff-old { background: rgba(188, 71, 71, 0.14); }
+.kind-insert .diff-new,
+.kind-change .diff-new { background: rgba(62, 151, 92, 0.14); }
+.kind-delete .diff-new,
+.kind-insert .diff-old { background: rgba(255, 255, 255, 0.018); }
+.kind-equal { opacity: 0.72; }
+
+.split-diff.compact .split-diff-grid { max-height: 18rem; }
+.split-diff.compact .diff-line-number { display: none; }
+.split-diff.compact .diff-cell { grid-template-columns: 1fr; }
+
+.split-diff-empty {
+  padding: 0.8rem;
+  color: var(--muted);
+  font-size: 0.64rem;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .split-diff-row { grid-template-columns: 1fr; }
+  .diff-cell + .diff-cell { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+}
