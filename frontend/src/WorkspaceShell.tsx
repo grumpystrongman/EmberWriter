@@ -34,6 +34,11 @@ type BinderState = {
   nodes: BinderNode[]
 }
 
+type WriterBrief = {
+  prompt?: string
+  mode?: string
+}
+
 function cleanText(value: string | null | undefined) {
   return (value || '').replace(/\s+/g, ' ').trim()
 }
@@ -45,6 +50,12 @@ function sleep(ms: number) {
 function binderButton(title: string): HTMLButtonElement | null {
   return Array.from(document.querySelectorAll<HTMLButtonElement>('.binder-node-button'))
     .find((button) => cleanText(button.querySelector('strong')?.textContent) === title) || null
+}
+
+function setControlledTextarea(textarea: HTMLTextAreaElement, value: string) {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
+  descriptor?.set?.call(textarea, value)
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 function highlightEditorText(anchor: string) {
@@ -76,8 +87,7 @@ function highlightEditorText(anchor: string) {
   const selection = window.getSelection()
   selection?.removeAllRanges()
   selection?.addRange(range)
-  const parent = first.node.parentElement
-  parent?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  first.node.parentElement?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 
 export default function WorkspaceShell() {
@@ -164,16 +174,39 @@ export default function WorkspaceShell() {
         if (next) openWorkspace(next.id)
       }
     }
+
     function onFocusMode(event: Event) {
       const custom = event as CustomEvent<boolean>
       setWorkspace('write')
       setFocusMode(custom.detail ?? true)
     }
+
+    function onWriterBrief(event: Event) {
+      const detail = (event as CustomEvent<WriterBrief>).detail || {}
+      const writerPrompt = detail.prompt?.trim()
+      if (!writerPrompt) return
+      setWorkspace('write')
+      setFocusMode(false)
+      window.setTimeout(() => {
+        const desiredMode = detail.mode || 'write'
+        const modeButton = Array.from(document.querySelectorAll<HTMLButtonElement>('.mode-grid button'))
+          .find((button) => cleanText(button.textContent).toLowerCase() === desiredMode.toLowerCase())
+        modeButton?.click()
+        const textarea = document.querySelector<HTMLTextAreaElement>('.assistant textarea.prompt')
+        if (!textarea) return
+        setControlledTextarea(textarea, writerPrompt)
+        textarea.focus()
+        textarea.scrollIntoView({ block: 'center' })
+      }, 100)
+    }
+
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('emberwriter:focus-mode', onFocusMode)
+    window.addEventListener('emberwriter:writer-brief', onWriterBrief)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('emberwriter:focus-mode', onFocusMode)
+      window.removeEventListener('emberwriter:writer-brief', onWriterBrief)
     }
   }, [])
 
