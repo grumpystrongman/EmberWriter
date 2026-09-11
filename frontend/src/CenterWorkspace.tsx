@@ -6,6 +6,7 @@ import SubmissionPanel from './SubmissionPanel'
 import WorldWorkspace from './WorldWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './center-workspaces.css'
+import './scene-center.css'
 
 type Props = {
   workspace: Workspace
