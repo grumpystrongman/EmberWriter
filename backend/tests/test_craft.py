@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from app import craft, storage, story_intelligence
+from app import craft, storage, story_intelligence, style_fidelity
 from app.models import CraftControls, CraftProfile, ProviderConfig, VoiceProfile
 
 
@@ -39,6 +39,17 @@ def test_craft_profile_and_voice_lock_round_trip(tmp_path: Path) -> None:
             avoidances=["interchangeable reactions"],
         ),
     )
+    style_fidelity.save_style_fidelity(
+        slug,
+        {
+            "metrics": {"avg_sentence_words": 11.5, "dialogue_ratio": 0.31},
+            "human_irregularities": ["Keep blunt fragments under pressure."],
+            "anti_ai_rules": ["Do not restate the emotion after showing it."],
+            "dialogue_rules": ["Let interruptions carry tension."],
+            "interiority_rules": ["Filter emotion through physical perception."],
+            "author_notes": "Rough edges are intentional.",
+        },
+    )
 
     loaded = craft.get_craft_profile(slug)
     assert loaded.default_heat == "scorching"
@@ -58,8 +69,11 @@ def test_craft_profile_and_voice_lock_round_trip(tmp_path: Path) -> None:
     assert "maximum on-page explicitness" in context
     assert "Nexus voice" in context
     assert "physicalized emotion" in context
+    assert "Do not restate the emotion" in context
+    assert "Rough edges are intentional" in context
     assert craft.CRAFT_PROFILE_PATH in files
     assert craft.VOICE_PROFILE_PATH in files
+    assert style_fidelity.STYLE_FIDELITY_PATH in files
 
 
 def test_voice_lab_saves_structured_profile(tmp_path: Path, monkeypatch) -> None:
@@ -92,6 +106,36 @@ def test_voice_lab_saves_structured_profile(tmp_path: Path, monkeypatch) -> None
     saved = craft.get_voice_profile(slug)
     assert saved is not None
     assert saved.signature_traits == ["compressed emotional turns"]
+
+
+def test_style_fidelity_measurement_and_round_trip(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Style Fidelity Test")
+    slug = project["slug"]
+    sample = (
+        '"You came back?" Mara asked.\n\n'
+        'He nodded. Too late.\n\n'
+        'She laughed once—sharp, unbelieving—and looked toward the door. '
+        'There were ten things she could have said; none of them survived the silence.'
+    )
+    saved = style_fidelity.build_style_fidelity_from_sample(
+        slug,
+        sample,
+        {
+            "human_irregularities": ["Keep clipped fragments in tense scenes."],
+            "anti_ai_rules": ["No symmetrical summary paragraphs."],
+            "dialogue_rules": ["Dialogue may trail into action."],
+            "interiority_rules": ["Use implication before explanation."],
+        },
+    )
+    assert saved["metrics"]["avg_sentence_words"] > 0
+    assert saved["metrics"]["dialogue_ratio"] > 0
+    loaded = style_fidelity.get_style_fidelity(slug)
+    assert loaded is not None
+    assert loaded["anti_ai_rules"] == ["No symmetrical summary paragraphs."]
+    context = style_fidelity.build_style_fidelity_context(slug)
+    assert "Keep clipped fragments" in context
+    assert "Dialogue may trail" in context
 
 
 def test_quality_pass_preserves_craft_instruction(monkeypatch) -> None:
