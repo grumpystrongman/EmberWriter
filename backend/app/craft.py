@@ -7,6 +7,7 @@ from typing import Any
 from .generation import generate
 from .models import CraftControls, CraftProfile, ProviderConfig, VoiceProfile
 from .storage import project_root, read_text, save_text
+from .style_fidelity import STYLE_FIDELITY_PATH, build_style_fidelity_context
 
 CRAFT_PROFILE_PATH = "style/craft-profile.json"
 VOICE_PROFILE_PATH = "style/voice-profile.json"
@@ -36,7 +37,8 @@ Improve the prose rather than rewriting for rewriting's sake:
 - let the scene change the relationship or emotional state when the draft intends that;
 - avoid purple euphemism unless the supplied voice profile calls for it;
 - avoid clinical/anatomical detachment unless the supplied voice profile calls for it;
-- keep metaphors coherent with the book's existing imagery and lore.
+- keep metaphors coherent with the book's existing imagery and lore;
+- preserve measured author cadence and useful irregularity instead of polishing everything into generic smooth prose.
 
 Aim to keep roughly the same length unless tightening clearly improves the passage.
 """
@@ -167,6 +169,10 @@ def build_craft_context(slug: str, controls: CraftControls) -> tuple[str, list[s
     if controls.voice_lock and voice is not None:
         lines.extend(["", "## Voice lock", _voice_directive(voice)])
         files.append(VOICE_PROFILE_PATH)
+        fidelity = build_style_fidelity_context(slug)
+        if fidelity:
+            lines.extend(["", fidelity])
+            files.append(STYLE_FIDELITY_PATH)
     elif controls.voice_lock:
         lines.append("Voice lock is enabled, but no analyzed voice profile exists. Follow style/author-profile.md and manuscript cadence closely.")
 
@@ -265,6 +271,6 @@ def craft_files(slug: str) -> list[str]:
     root = _require_project(slug)
     return [
         path
-        for path in (CRAFT_PROFILE_PATH, VOICE_PROFILE_PATH)
+        for path in (CRAFT_PROFILE_PATH, VOICE_PROFILE_PATH, STYLE_FIDELITY_PATH)
         if (root / Path(path)).exists()
     ]
