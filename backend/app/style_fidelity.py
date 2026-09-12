@@ -45,7 +45,16 @@ def measure_style(text: str) -> StyleMetrics:
     paragraph_lengths = [len(_words(paragraph)) for paragraph in paragraphs if _words(paragraph)]
     total_words = max(1, len(_words(text)))
     dialogue_words = sum(len(_words(match)) for match in re.findall(r'[“"]([^”"]+)[”"]', text))
-    fragments = [sentence for sentence in sentences if len(_words(sentence)) <= 4 and not re.search(r"\b(is|are|was|were|be|been|am|do|did|does|have|has|had|can|could|will|would|shall|should|may|might|must)\b", sentence, re.I)]
+    fragments = [
+        sentence
+        for sentence in sentences
+        if len(_words(sentence)) <= 4
+        and not re.search(
+            r"\b(is|are|was|were|be|been|am|do|did|does|have|has|had|can|could|will|would|shall|should|may|might|must)\b",
+            sentence,
+            re.IGNORECASE,
+        )
+    ]
     return StyleMetrics(
         avg_sentence_words=round(mean(sentence_lengths), 2) if sentence_lengths else 0.0,
         sentence_stddev=round(pstdev(sentence_lengths), 2) if len(sentence_lengths) > 1 else 0.0,
