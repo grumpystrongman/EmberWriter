@@ -6,7 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .storage import project_root, read_text, save_text
+from .generation import generate
+from .models import ProviderConfig
+from .storage import compile_context, project_root, read_text, save_text
+from .story_intelligence import build_character_context
 
 VOICE_PATH = "style/character-voices.json"
 
@@ -28,6 +31,27 @@ class CharacterVoiceCard(BaseModel):
 class CharacterVoiceState(BaseModel):
     schema_version: int = 1
     voices: list[CharacterVoiceCard] = Field(default_factory=list)
+
+
+VOICE_ANALYSIS_PROMPT = """You are EmberWriter's character voice analyst.
+Return ONLY valid JSON for the requested fictional character. Analyze how this person sounds and behaves on the page from manuscript evidence and author dossier material. Do not invent traits that are not supported. Describe reusable performance rules, not plot summary.
+
+Distinguish the character from generic dialogue. Pay attention to syntax, sentence length, vocabulary, profanity/formality, humor, evasions, directness, emotional masking, subtext, recurring physical mannerisms, and how attraction/romance/intimacy changes their speech or behavior when the evidence supports it. Preserve contradictions. Do not turn signature language into repetitive catchphrases.
+
+Return exactly:
+{
+  "speech_rhythm":"",
+  "vocabulary":"",
+  "humor":"",
+  "emotional_expression":"",
+  "subtext":"",
+  "physical_mannerisms":"",
+  "intimacy_expression":"",
+  "signature_phrases":[],
+  "avoidances":[],
+  "author_notes":""
+}
+"""
 
 
 def _require_project(slug: str) -> None:
@@ -127,3 +151,51 @@ def parse_voice_card_json(text: str, character: str) -> CharacterVoiceCard:
         raise ValueError("Character voice analysis returned invalid JSON") from exc
     payload["character"] = character
     return CharacterVoiceCard.model_validate(payload)
+
+
+async def infer_character_voice(
+    slug: str,
+    character: str,
+    provider: ProviderConfig,
+    author_notes: str = "",
+) -> CharacterVoiceCard:
+    _require_project(slug)
+    manuscript_context, _ = compile_context(
+        slug,
+        prompt=f"{character} dialogue speech mannerisms emotional reactions",
+    )
+    structured = build_character_context(slug, [character])
+    current = next(
+        (item for item in load_character_voices(slug).voices if item.character.casefold() == character.casefold()),
+        None,
+    )
+    user_message = f"""CHARACTER
+{character}
+
+AUTHOR NOTES / OVERRIDES
+{author_notes.strip() or '(none)'}
+
+CURRENT VOICE CARD
+{current.model_dump_json(indent=2) if current else '(none)'}
+
+STRUCTURED CHARACTER CONTEXT
+{structured or '(none)'}
+
+RELEVANT MANUSCRIPT CONTEXT
+{manuscript_context or '(none found)'}
+"""
+    raw = await generate(
+        provider,
+        [
+            {"role": "system", "content": VOICE_ANALYSIS_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+        temperature=0.25,
+        top_p=0.9,
+        json_mode=True,
+    )
+    card = parse_voice_card_json(raw, character)
+    if author_notes.strip():
+        card.author_notes = author_notes.strip()
+    upsert_character_voice(slug, card)
+    return card
