@@ -5,6 +5,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
+from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context
 from .development import DEVELOPMENT_PATH, build_development_context
@@ -16,7 +17,7 @@ from .story_intelligence import build_character_context, build_story_intelligenc
 SCENE_ARCHITECT_SYSTEM_PROMPT = """You are EmberWriter's Scene Architect.
 Return ONLY valid JSON for a practical scene plan that an author can use to write the next scene.
 
-Use the supplied manuscript, story memory, author-owned development map, character knowledge, relationship state, pairing chemistry, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict. Explicit author-owned planning intent should be preserved unless the author asks to change it.
+Use the supplied manuscript, story memory, author-owned development map, character knowledge, character voice cards, relationship state, pairing chemistry, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict. Explicit author-owned planning intent should be preserved unless the author asks to change it.
 
 Planning rules:
 - Do not invent established canon when the context is silent; phrase optional inventions as scene choices instead.
@@ -25,6 +26,7 @@ Planning rules:
 - Carry unresolved setup/payoff forward when relevant without forcing every open thread into one scene.
 - Use planned plot beats and character arcs when they apply; do not silently skip an author-designated payoff or turning point.
 - Relationship movement should be specific to the participants and earned by the scene.
+- Preserve each participant's distinct speech rhythm, humor, subtext, mannerisms, and emotional-expression habits from their voice card.
 - If intimacy is requested, treat it as character/relationship development with consequences and preserve established adult/consent constraints.
 - Pairing chemistry is relationship-specific. Preserve its verbal rhythm, attraction language, trust state, vulnerabilities, boundaries, milestones, signature elements, and lore resonance where relevant.
 - Never treat a past intimate milestone as blanket permission for a future scene. Consent and choice remain scene-specific.
@@ -116,6 +118,10 @@ async def create_scene_plan(slug: str, request: ScenePlanRequest) -> dict[str, A
         active_file=request.active_file,
     )
     character_context = build_character_context(slug, request.participants)
+    character_voice_context, character_voice_files = build_character_voice_context(
+        slug,
+        request.participants,
+    )
     relationship_context = _relationship_context(slug, request.participants)
     development_context = build_development_context(slug, max_items=120)
     chemistry_context, chemistry_files = build_chemistry_context(slug, request.participants)
@@ -138,6 +144,9 @@ AUTHOR-OWNED STORY DEVELOPMENT MAP
 
 CRAFT / VOICE DIRECTION
 {craft_context}
+
+CHARACTER VOICE CARDS
+{character_voice_context or '(No saved character-specific voice cards.)'}
 
 PAIRING / GROUP CHEMISTRY
 {chemistry_context or '(No saved chemistry profile for this participant combination.)'}
@@ -168,7 +177,7 @@ PROJECT CONTEXT
     if request.save:
         saved_path = f"scenes/scene-plan-{uuid4().hex[:10]}.json"
         artifact = {
-            "schema_version": 4,
+            "schema_version": 5,
             "generated_at": utc_now(),
             "author_request": request.prompt,
             "active_file": request.active_file,
@@ -184,6 +193,7 @@ PROJECT CONTEXT
             dict.fromkeys(
                 [
                     *([DEVELOPMENT_PATH] if development_context else []),
+                    *character_voice_files,
                     *chemistry_files,
                     *craft_files,
                     *context_files,
