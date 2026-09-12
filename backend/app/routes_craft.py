@@ -11,7 +11,13 @@ from .craft import (
     get_voice_profile,
     save_craft_profile,
 )
-from .models import CraftProfile, ProviderConfig, VoiceAnalyzeRequest, VoiceAnalyzeResponse, VoiceProfile
+from .models import (
+    CraftProfile,
+    ProviderConfig,
+    VoiceAnalyzeRequest,
+    VoiceAnalyzeResponse,
+    VoiceProfile,
+)
 from .voice_fingerprint import analyze_manuscript_voice
 
 router = APIRouter(prefix="/api")
