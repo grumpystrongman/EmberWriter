@@ -1,0 +1,16 @@
+.editor-header:has(.write-tabs-bar) {
+  height: auto;
+  min-height: 96px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 0.55rem;
+}
+
+.editor-header:has(.write-tabs-bar) > .write-tabs-bar {
+  order: 10;
+  flex: 1 0 100%;
+}
+
+.editor-header:has(.write-tabs-bar) > .word-count {
+  margin-left: auto;
+}
