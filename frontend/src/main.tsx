@@ -8,6 +8,7 @@ import './styles.css'
 import './story.css'
 import './editorial.css'
 import './editorial-fix.css'
+import './write-workspace-header.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
