@@ -7,6 +7,7 @@ from .craft import save_voice_profile
 from .generation import generate
 from .models import ProviderConfig, VoiceProfile
 from .storage import project_root, read_text
+from .style_fidelity import build_style_fidelity_from_sample
 
 MAX_SAMPLE_CHARS = 48000
 MAX_FILES = 12
@@ -101,7 +102,7 @@ This is a manuscript-wide fingerprint, not generic writing advice. Find habits t
 
 Study sentence-length variation, fragments, punctuation, paragraph cadence, diction, contractions, humor, understatement, repetition, imagery, dialogue rhythm, subtext, interiority, point-of-view distance, and transitions. Identify how characters sound different from one another when the samples support it.
 
-Identify generic model-writing habits the author does not normally use, such as over-explaining, overly symmetrical phrasing, generic sensory inventories, repeated emotional labels, fake-poetic abstraction, polished therapy language, and interchangeable banter. Put those in avoidances.
+Identify generic model-writing habits the author does not normally use, such as over-explaining, overly symmetrical phrasing, generic sensory inventories, repeated emotional labels, fake-poetic abstraction, polished therapy language, and interchangeable banter.
 
 Describe techniques concretely enough to guide fresh prose without copying sentences from the samples. Do not quote long passages.
 """
@@ -109,17 +110,26 @@ Describe techniques concretely enough to guide fresh prose without copying sente
 
 Return this JSON shape:
 {{
-  "name": "profile name",
-  "prose_directive": "detailed author fingerprint directive",
-  "sentence_rhythm": "cadence, syntax, punctuation, fragments and paragraph habits",
-  "diction": "register and word-choice habits",
-  "imagery": "metaphor and image habits",
-  "dialogue": "dialogue rhythm, subtext, tags, interruptions, humor and differentiation",
-  "interiority": "how thought and emotion are rendered",
-  "pov_distance": "narrative distance and filtering",
-  "sensual_voice": "relationship and attraction prose technique when evidenced, otherwise note limited evidence",
-  "signature_traits": ["repeatable human author trait"],
-  "avoidances": ["generic or model-like tendency to avoid"]
+  "voice_profile": {{
+    "name": "profile name",
+    "prose_directive": "detailed author fingerprint directive",
+    "sentence_rhythm": "cadence, syntax, punctuation, fragments and paragraph habits",
+    "diction": "register and word-choice habits",
+    "imagery": "metaphor and image habits",
+    "dialogue": "dialogue rhythm, subtext, tags, interruptions, humor and differentiation",
+    "interiority": "how thought and emotion are rendered",
+    "pov_distance": "narrative distance and filtering",
+    "sensual_voice": "relationship and attraction prose technique when evidenced, otherwise note limited evidence",
+    "signature_traits": ["repeatable human author trait"],
+    "avoidances": ["generic or model-like tendency to avoid"]
+  }},
+  "style_fidelity": {{
+    "human_irregularities": ["intentional roughness, asymmetry, fragments, or cadence quirks worth preserving"],
+    "anti_ai_rules": ["specific generic model habit that would make this author's prose sound wrong"],
+    "dialogue_rules": ["specific rule for dialogue rhythm, tags, interruption, subtext, humor, or differentiation"],
+    "interiority_rules": ["specific rule for thought, emotion, filtering, restraint, or narrative distance"],
+    "author_notes": "short high-priority summary of what must remain recognizably human and author-specific"
+  }}
 }}
 
 REPRESENTATIVE MANUSCRIPT SAMPLES
@@ -135,6 +145,10 @@ REPRESENTATIVE MANUSCRIPT SAMPLES
         top_p=0.88,
         json_mode=True,
     )
-    profile = VoiceProfile.model_validate(_parse_json_object(raw))
+    payload = _parse_json_object(raw)
+    voice_payload = payload.get("voice_profile") if isinstance(payload.get("voice_profile"), dict) else payload
+    profile = VoiceProfile.model_validate(voice_payload)
     save_voice_profile(slug, profile)
+    fidelity = payload.get("style_fidelity") if isinstance(payload.get("style_fidelity"), dict) else {}
+    build_style_fidelity_from_sample(slug, sample, fidelity)
     return profile, sources
