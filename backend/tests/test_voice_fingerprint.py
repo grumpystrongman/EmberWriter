@@ -38,6 +38,7 @@ def test_voice_fingerprint_rejects_empty_manuscript(tmp_path: Path) -> None:
     try:
         build_manuscript_voice_sample(project["slug"])
     except ValueError as exc:
-        assert "No manuscript prose" in str(exc)
+        message = str(exc).lower()
+        assert "prose" in message and "learn" in message
     else:
         raise AssertionError("Expected empty manuscript to be rejected")
