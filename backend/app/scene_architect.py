@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context
+from .development import DEVELOPMENT_PATH, build_development_context
 from .generation import generate
 from .models import CraftControls, ScenePlan, ScenePlanRequest
 from .storage import compile_context, save_text, utc_now
@@ -15,18 +16,19 @@ from .story_intelligence import build_character_context, build_story_intelligenc
 SCENE_ARCHITECT_SYSTEM_PROMPT = """You are EmberWriter's Scene Architect.
 Return ONLY valid JSON for a practical scene plan that an author can use to write the next scene.
 
-Use the supplied manuscript, story memory, character knowledge, relationship state, pairing chemistry, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict.
+Use the supplied manuscript, story memory, author-owned development map, character knowledge, relationship state, pairing chemistry, craft/voice profile, and author instruction as constraints. The manuscript and explicit author instruction outrank derived memory if they conflict. Explicit author-owned planning intent should be preserved unless the author asks to change it.
 
 Planning rules:
 - Do not invent established canon when the context is silent; phrase optional inventions as scene choices instead.
 - Protect point-of-view knowledge boundaries. A character cannot act on information they have not learned.
 - Prefer causal beats: each beat should change pressure, knowledge, emotion, relationship, or goal state.
 - Carry unresolved setup/payoff forward when relevant without forcing every open thread into one scene.
+- Use planned plot beats and character arcs when they apply; do not silently skip an author-designated payoff or turning point.
 - Relationship movement should be specific to the participants and earned by the scene.
 - If intimacy is requested, treat it as character/relationship development with consequences and preserve established adult/consent constraints.
 - Pairing chemistry is relationship-specific. Preserve its verbal rhythm, attraction language, trust state, vulnerabilities, boundaries, milestones, signature elements, and lore resonance where relevant.
 - Never treat a past intimate milestone as blanket permission for a future scene. Consent and choice remain scene-specific.
-- For high-heat adult scenes, design escalation rather than a flat sequence of explicit acts: anticipation, choice, vulnerability, pressure shifts, release, and aftermath should have shape appropriate to the requested curve.
+- For high-heat adult scenes, design escalation rather than a flat sequence: anticipation, choice, vulnerability, pressure shifts, release, and aftermath should have shape appropriate to the requested curve.
 - Ask what would actually be NEW for this relationship. Repeating a previous level of intimacy is not escalation merely because the prose is more explicit.
 - Do not make every character express attraction or intimacy the same way. Use dossier, relationship, chemistry, and voice evidence.
 - The ending should create a changed state or meaningful pressure for what follows.
@@ -51,7 +53,7 @@ Return exactly this JSON shape:
   "emotional_arc": "emotional movement across the scene",
   "relationship_moves": ["specific relationship change to earn or test"],
   "reveals": ["information legitimately revealed in this scene"],
-  "continuity_requirements": ["fact, injury, knowledge boundary, promise, object, world rule, or author-controlled relationship boundary to preserve"],
+  "continuity_requirements": ["fact, injury, knowledge boundary, promise, object, world rule, author plan, or relationship boundary to preserve"],
   "unresolved_threads": ["relevant setup/payoff carried into or out of the scene"],
   "intimacy_notes": ["relationship-specific intimacy/romance notes when relevant; otherwise empty"],
   "ending_state": "how the story/characters are different at scene end",
@@ -115,6 +117,7 @@ async def create_scene_plan(slug: str, request: ScenePlanRequest) -> dict[str, A
     )
     character_context = build_character_context(slug, request.participants)
     relationship_context = _relationship_context(slug, request.participants)
+    development_context = build_development_context(slug, max_items=120)
     chemistry_context, chemistry_files = build_chemistry_context(slug, request.participants)
     craft_context, craft_files = build_craft_context(
         slug,
@@ -129,6 +132,9 @@ POV: {request.pov or '(choose from context)'}
 Participants: {', '.join(request.participants) or '(infer only obvious participants)'}
 Location: {request.location or '(infer only if established or clearly requested)'}
 Desired heat/intimacy level: {request.desired_heat}
+
+AUTHOR-OWNED STORY DEVELOPMENT MAP
+{development_context or '(No structured author development map exists yet.)'}
 
 CRAFT / VOICE DIRECTION
 {craft_context}
@@ -162,7 +168,7 @@ PROJECT CONTEXT
     if request.save:
         saved_path = f"scenes/scene-plan-{uuid4().hex[:10]}.json"
         artifact = {
-            "schema_version": 3,
+            "schema_version": 4,
             "generated_at": utc_now(),
             "author_request": request.prompt,
             "active_file": request.active_file,
@@ -175,6 +181,13 @@ PROJECT CONTEXT
         "plan": plan,
         "saved_path": saved_path,
         "context_files": list(
-            dict.fromkeys([*chemistry_files, *craft_files, *context_files])
+            dict.fromkeys(
+                [
+                    *([DEVELOPMENT_PATH] if development_context else []),
+                    *chemistry_files,
+                    *craft_files,
+                    *context_files,
+                ]
+            )
         ),
     }

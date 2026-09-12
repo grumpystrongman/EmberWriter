@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
+from .development import DEVELOPMENT_PATH, build_development_context
 from .generation import build_messages, generate, list_models
 from .memory import build_memory_context
 from .memory_integrity import reconcile_story_memory
@@ -40,6 +41,18 @@ def _with_narrative_memory(
     enriched = f"{memory_text}\n\n---\n\n{context_text}" if context_text else memory_text
     files = ["summaries/narrative-memory.json", *context_files]
     return enriched, list(dict.fromkeys(files))
+
+
+def _with_development_map(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+) -> tuple[str, list[str]]:
+    development_text = build_development_context(slug, max_items=100)
+    if not development_text:
+        return context_text, context_files
+    enriched = f"{development_text}\n\n---\n\n{context_text}" if context_text else development_text
+    return enriched, list(dict.fromkeys([DEVELOPMENT_PATH, *context_files]))
 
 
 def _with_character_intelligence(
@@ -113,6 +126,7 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
             payload.prompt,
             payload.selected_text,
         )
+        compiled, files = _with_development_map(slug, compiled, files)
         compiled, files = _with_character_intelligence(
             slug,
             compiled,
@@ -149,6 +163,7 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             payload.prompt,
             payload.selected_text,
         )
+        context_text, context_files = _with_development_map(slug, context_text, context_files)
         context_text, context_files = _with_character_intelligence(
             slug,
             context_text,

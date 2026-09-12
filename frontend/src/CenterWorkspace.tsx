@@ -1,6 +1,6 @@
 import CharactersWorkspace from './CharactersWorkspace'
 import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
-import PlanWorkspace from './PlanWorkspace'
+import PlanningHub from './PlanningHub'
 import PublishPanel from './PublishPanel'
 import SubmissionPanel from './SubmissionPanel'
 import WorldWorkspace from './WorldWorkspace'
@@ -37,7 +37,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
 
   return (
     <div className={`center-workspace-overlay center-workspace-${workspace}`}>
-      {workspace === 'plan' && <PlanWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
+      {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
       {workspace === 'characters' && <CharactersWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
       {workspace === 'world' && <WorldWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
       {workspace === 'analyze' && (
