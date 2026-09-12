@@ -4,19 +4,23 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
+$Installer = Join-Path $Root "install.ps1"
 
-if (-not (Test-Path $Venv)) {
-    Write-Host "Creating Python environment..."
-    py -3.11 -m venv $Venv
+if (-not (Test-Path $Venv) -or -not (Test-Path (Join-Path $Frontend "node_modules"))) {
+    Write-Host "First-run setup is required..." -ForegroundColor Yellow
+    & $Installer
 }
 
 $Python = Join-Path $Venv "Scripts\python.exe"
 & $Python -m pip install -e $Backend
 
 if (-not (Test-Path (Join-Path $Frontend "node_modules"))) {
-    Write-Host "Installing frontend dependencies..."
     Push-Location $Frontend
     try { npm install } finally { Pop-Location }
+}
+
+if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+    Write-Host "Local AI is not installed. Run .\install.ps1 to install Ollama and EmberWriter's recommended writing model." -ForegroundColor Yellow
 }
 
 $BackendProcess = Start-Process -FilePath $Python -ArgumentList @(
