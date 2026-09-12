@@ -3,7 +3,6 @@ from __future__ import annotations
 import html
 import json
 import zipfile
-from pathlib import Path
 from uuid import uuid4
 
 import markdown as markdown_lib
