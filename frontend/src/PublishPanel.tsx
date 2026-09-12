@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import CoverStudioPanel from './CoverStudioPanel'
 import DistributionPanel from './DistributionPanel'
+import PreviewStudioPanel from './PreviewStudioPanel'
 import ProjectHistoryPanel from './ProjectHistoryPanel'
 import SubmissionPanel from './SubmissionPanel'
 
@@ -97,6 +98,7 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
   return (
     <>
       <ProjectHistoryPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
+      <PreviewStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
       <CoverStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
 
       <details className="authoring-panel">
