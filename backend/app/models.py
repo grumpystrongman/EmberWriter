@@ -75,6 +75,7 @@ class GenerateResponse(BaseModel):
     text: str
     context_files: list[str]
     refined: bool = False
+    assistance_event_id: str | None = None
 
 
 class ContextRequest(BaseModel):
