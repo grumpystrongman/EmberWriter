@@ -1,4 +1,5 @@
 import { mkdir } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
 const baseUrl = process.env.EMBER_DEMO_UI || 'http://127.0.0.1:5173'
@@ -10,7 +11,7 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, de
 
 async function shot(name) {
   await page.waitForTimeout(500)
-  await page.screenshot({ path: new URL(name, outputDir), fullPage: false })
+  await page.screenshot({ path: fileURLToPath(new URL(name, outputDir)), fullPage: false })
 }
 
 try {
