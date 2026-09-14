@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -20,6 +21,7 @@ from .models import (
     SearchRequest,
 )
 from .project_recovery import recover_legacy_projects
+from .project_restore import restore_uploaded_project
 from .revisions import record_revision
 from .routes_atlas import router as atlas_router
 from .routes_authoring import router as authoring_router
@@ -55,6 +57,8 @@ from .storage import (
     search_story,
 )
 
+MAX_PROJECT_RESTORE_FILE_BYTES = 250 * 1024 * 1024
+MAX_PROJECT_RESTORE_TOTAL_BYTES = 1024 * 1024 * 1024
 _recovery_attempted = False
 _last_recovery_report: dict = {
     "attempted": False,
@@ -64,6 +68,7 @@ _last_recovery_report: dict = {
     "skipped": [],
     "active_projects_root": str(PROJECTS_ROOT),
     "searched_roots": [],
+    "historical_launch_roots": [],
     "drive_wide_scan": False,
 }
 
@@ -83,6 +88,7 @@ def _run_project_recovery() -> dict:
             "skipped": [],
             "active_projects_root": str(PROJECTS_ROOT),
             "searched_roots": [],
+            "historical_launch_roots": [],
             "drive_wide_scan": False,
             "error": f"{type(exc).__name__}: {exc}",
         }
@@ -104,7 +110,7 @@ async def lifespan(_: FastAPI):
             await refresh_task
 
 
-app = FastAPI(title="EmberWriter API", version="0.14.1", lifespan=lifespan)
+app = FastAPI(title="EmberWriter API", version="0.14.2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -157,7 +163,7 @@ async def ember_http_exception_handler(_: Request, exc: HTTPException) -> JSONRe
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.14.1"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.14.2"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
@@ -184,6 +190,33 @@ def new_project(payload: ProjectCreate) -> dict:
     try:
         return create_project(payload.name, payload.description)
     except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/restore-upload")
+async def restore_project_upload(
+    files: Annotated[list[UploadFile], File()],
+    paths: Annotated[list[str], Form()],
+    name: Annotated[str | None, Form()] = None,
+) -> dict:
+    if not files:
+        raise HTTPException(status_code=400, detail="Choose an EmberWriter project folder")
+    if len(files) != len(paths):
+        raise HTTPException(status_code=400, detail="Project folder upload paths are incomplete")
+
+    entries: list[tuple[str, bytes]] = []
+    total = 0
+    try:
+        for upload, relative_path in zip(files, paths, strict=True):
+            data = await upload.read(MAX_PROJECT_RESTORE_FILE_BYTES + 1)
+            if len(data) > MAX_PROJECT_RESTORE_FILE_BYTES:
+                raise ValueError(f"{upload.filename or relative_path} exceeds the 250 MB per-file restore limit")
+            total += len(data)
+            if total > MAX_PROJECT_RESTORE_TOTAL_BYTES:
+                raise ValueError("Project folder exceeds the 1 GB restore limit")
+            entries.append((relative_path, data))
+        return restore_uploaded_project(entries, name=name)
+    except (OSError, UnicodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
