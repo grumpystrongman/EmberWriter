@@ -58,7 +58,7 @@ class AtlasConnection(BaseModel):
     notes: str = Field(default="", max_length=4000)
 
     @model_validator(mode="after")
-    def validate_window(self) -> "AtlasConnection":
+    def validate_window(self) -> AtlasConnection:
         if self.active_until_chapter is not None and self.active_until_chapter < self.active_from_chapter:
             raise ValueError("active_until_chapter must be greater than or equal to active_from_chapter")
         for mode, multiplier in self.mode_multipliers.items():
@@ -106,7 +106,7 @@ class StoryAtlas(BaseModel):
     events: list[AtlasEvent] = Field(default_factory=list, max_length=10000)
 
     @model_validator(mode="after")
-    def validate_graph(self) -> "StoryAtlas":
+    def validate_graph(self) -> StoryAtlas:
         location_ids = [item.id for item in self.locations]
         if len(location_ids) != len(set(location_ids)):
             raise ValueError("Atlas location IDs must be unique")
