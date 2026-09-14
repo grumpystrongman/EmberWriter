@@ -1,3 +1,7 @@
+param(
+    [switch]$SkipManagedImageEngine
+)
+
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -5,10 +9,13 @@ $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $Installer = Join-Path $Root "install.ps1"
+$ImageEngineConfig = Join-Path $Root ".ember\image-engine.json"
+$ImageEngineInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
+$ImageEngineLauncher = Join-Path $Root "scripts\start-image-engine.ps1"
 
 if (-not (Test-Path $Venv) -or -not (Test-Path (Join-Path $Frontend "node_modules"))) {
     Write-Host "First-run setup is required..." -ForegroundColor Yellow
-    & $Installer
+    & $Installer -SkipImageEngineInstall:$SkipManagedImageEngine
 }
 
 $Python = Join-Path $Venv "Scripts\python.exe"
@@ -21,6 +28,34 @@ if (-not (Test-Path (Join-Path $Frontend "node_modules"))) {
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "Local AI is not installed. Run .\install.ps1 to install Ollama and EmberWriter's recommended writing model." -ForegroundColor Yellow
+}
+
+$ImageEnginePid = $null
+if (-not $SkipManagedImageEngine) {
+    if (-not (Test-Path $ImageEngineConfig)) {
+        Write-Host "Managed image engine is not installed yet. Installing Forge..." -ForegroundColor Yellow
+        try {
+            & $ImageEngineInstaller -Engine forge
+        } catch {
+            Write-Host "Image-engine installation could not complete: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "EmberWriter will still open; Visual Canon will show repair guidance." -ForegroundColor Yellow
+        }
+    }
+
+    if (Test-Path $ImageEngineConfig) {
+        try {
+            $imageState = & $ImageEngineLauncher -PassThru
+            if ($imageState -and $imageState.Started -and $imageState.Pid) {
+                $ImageEnginePid = [int]$imageState.Pid
+            }
+            if ($imageState -and $imageState.BaseUrl) {
+                Write-Host "Image engine:    $($imageState.BaseUrl)"
+            }
+        } catch {
+            Write-Host "Managed image engine could not start: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "EmberWriter will still open; use the image-server status control for diagnostics." -ForegroundColor Yellow
+        }
+    }
 }
 
 $BackendProcess = Start-Process -FilePath $Python -ArgumentList @(
@@ -44,4 +79,9 @@ try {
 finally {
     if (-not $BackendProcess.HasExited) { Stop-Process -Id $BackendProcess.Id }
     if (-not $FrontendProcess.HasExited) { Stop-Process -Id $FrontendProcess.Id }
+    if ($ImageEnginePid) {
+        try {
+            & taskkill.exe /PID $ImageEnginePid /T /F 2>$null | Out-Null
+        } catch { }
+    }
 }
