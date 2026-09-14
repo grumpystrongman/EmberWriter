@@ -1,0 +1,114 @@
+.sd-status {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 80;
+  font-size: 0.82rem;
+}
+
+.sd-status-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(176, 143, 112, 0.32);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  background: rgba(24, 20, 18, 0.94);
+  color: inherit;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.sd-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #b8826c;
+  box-shadow: 0 0 0 3px rgba(184, 130, 108, 0.12);
+}
+
+.sd-status.ready .sd-dot {
+  background: #87aa8a;
+  box-shadow: 0 0 0 3px rgba(135, 170, 138, 0.13);
+}
+
+.sd-status-card {
+  width: min(430px, calc(100vw - 2rem));
+  margin-top: 0.55rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(176, 143, 112, 0.28);
+  border-radius: 12px;
+  background: rgba(24, 20, 18, 0.98);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+}
+
+.sd-status-card p {
+  margin: 0.45rem 0;
+  color: #b9aaa0;
+  line-height: 1.45;
+}
+
+.sd-status-card small {
+  display: block;
+  color: #9d8f85;
+  overflow-wrap: anywhere;
+}
+
+.sd-attempt {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.sd-attempt b,
+.sd-attempt span {
+  overflow-wrap: anywhere;
+}
+
+.sd-attempt span {
+  color: #a89990;
+  font-size: 0.76rem;
+}
+
+.sd-status-card ul {
+  margin: 0.7rem 0 0;
+  padding-left: 1.15rem;
+  color: #b9aaa0;
+}
+
+.sd-status-card li + li {
+  margin-top: 0.3rem;
+}
+
+.sd-status-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.sd-status-actions button,
+.sd-apply {
+  border: 1px solid rgba(176, 143, 112, 0.35);
+  border-radius: 8px;
+  background: rgba(176, 143, 112, 0.09);
+  color: inherit;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+}
+
+.sd-apply {
+  width: 100%;
+  margin-top: 0.55rem;
+  text-align: left;
+}
+
+@media (max-width: 700px) {
+  .sd-status {
+    right: 0.65rem;
+    bottom: 0.65rem;
+  }
+}

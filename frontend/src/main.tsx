@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import WorkspaceShell from './WorkspaceShell'
 import AuthorCaptureOverlay from './AuthorCaptureOverlay'
+import StableDiffusionStatus from './StableDiffusionStatus'
 import VoiceFingerprintOverlay from './VoiceFingerprintOverlay'
 import WriteWorkspacePro from './WriteWorkspacePro'
 import './styles.css'
@@ -16,5 +17,6 @@ createRoot(document.getElementById('root')!).render(
     <WriteWorkspacePro />
     <AuthorCaptureOverlay />
     <VoiceFingerprintOverlay />
+    <StableDiffusionStatus />
   </StrictMode>,
 )
