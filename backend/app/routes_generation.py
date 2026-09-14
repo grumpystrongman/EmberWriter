@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from fastapi import APIRouter, HTTPException
 
+from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
 from .development import DEVELOPMENT_PATH, build_development_context
@@ -16,6 +17,7 @@ from .models import (
     GenerateResponse,
     ProviderConfig,
 )
+from .prose_quality import quality_guidance
 from .storage import compile_context
 from .story_intelligence import build_character_context, relevant_character_names
 
@@ -70,6 +72,21 @@ def _with_character_intelligence(
         return context_text, context_files
     enriched = f"{character_text}\n\n---\n\n{context_text}" if context_text else character_text
     return enriched, context_files
+
+
+def _with_character_voices(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+    prompt: str,
+    selected_text: str | None,
+) -> tuple[str, list[str]]:
+    names = _relevant_names(slug, context_text, prompt, selected_text)
+    voice_text, voice_files = build_character_voice_context(slug, names)
+    if not voice_text:
+        return context_text, context_files
+    enriched = f"{voice_text}\n\n---\n\n{context_text}" if context_text else voice_text
+    return enriched, list(dict.fromkeys([*voice_files, *context_files]))
 
 
 def _with_chemistry(
@@ -134,6 +151,13 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
             payload.prompt,
             payload.selected_text,
         )
+        compiled, files = _with_character_voices(
+            slug,
+            compiled,
+            files,
+            payload.prompt,
+            payload.selected_text,
+        )
         compiled, files = _with_chemistry(
             slug,
             compiled,
@@ -171,6 +195,13 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             payload.prompt,
             payload.selected_text,
         )
+        context_text, context_files = _with_character_voices(
+            slug,
+            context_text,
+            context_files,
+            payload.prompt,
+            payload.selected_text,
+        )
         context_text, context_files = _with_chemistry(
             slug,
             context_text,
@@ -188,10 +219,14 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
         text = await generate(payload.provider, messages)
         refined = False
         if payload.craft.quality_pass and payload.mode in {"write", "continue", "rewrite"}:
+            targets = quality_guidance(text)
             text = await quality_pass(
                 payload.provider,
                 draft=text,
-                author_prompt=payload.prompt,
+                author_prompt=(
+                    f"{payload.prompt}\n\nDETERMINISTIC PROSE-QUALITY TARGETS\n{targets}\n\n"
+                    "Repair only issues that are genuinely present. Preserve intentional repetition, roughness, rhythm, and character-specific language."
+                ),
                 craft_context=craft_text,
             )
             refined = True

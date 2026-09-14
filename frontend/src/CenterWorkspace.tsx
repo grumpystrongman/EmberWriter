@@ -1,3 +1,4 @@
+import CharacterVoiceStudio from './CharacterVoiceStudio'
 import CharactersWorkspace from './CharactersWorkspace'
 import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
 import PlanningHub from './PlanningHub'
@@ -38,7 +39,12 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
   return (
     <div className={`center-workspace-overlay center-workspace-${workspace}`}>
       {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
-      {workspace === 'characters' && <CharactersWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
+      {workspace === 'characters' && (
+        <>
+          <CharactersWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />
+          <CharacterVoiceStudio apiBase={API} slug={project.slug} />
+        </>
+      )}
       {workspace === 'world' && <WorldWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
       {workspace === 'analyze' && (
         <section className="center-tool analyze-workspace">
