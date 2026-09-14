@@ -33,6 +33,19 @@ type ProjectDetail = {
   name: string
 }
 
+const EMPTY_REPORT: RecoveryReport = {
+  attempted: false,
+  found: 0,
+  recovered_count: 0,
+  history_restored_count: 0,
+  recovered: [],
+  skipped: [],
+  active_projects_root: '',
+  searched_roots: [],
+  historical_launch_roots: [],
+  drive_wide_scan: false,
+}
+
 export default function ProjectRecoveryStatus() {
   const [report, setReport] = useState<RecoveryReport | null>(null)
   const [busy, setBusy] = useState(false)
@@ -47,7 +60,7 @@ export default function ProjectRecoveryStatus() {
       if (!response.ok) return
       setReport(await response.json() as RecoveryReport)
     } catch {
-      // The main application already surfaces API connectivity problems.
+      // Loading/importing must remain available even if recovery status fails.
     }
   }
 
@@ -71,15 +84,8 @@ export default function ProjectRecoveryStatus() {
     } catch (error) {
       setActionMessage(`Recovery failed: ${(error as Error).message}`)
       setReport((current) => ({
+        ...(current || EMPTY_REPORT),
         attempted: true,
-        found: current?.found || 0,
-        recovered_count: current?.recovered_count || 0,
-        recovered: current?.recovered || [],
-        skipped: current?.skipped || [],
-        active_projects_root: current?.active_projects_root || '',
-        searched_roots: current?.searched_roots || [],
-        historical_launch_roots: current?.historical_launch_roots || [],
-        drive_wide_scan: current?.drive_wide_scan || false,
         error: (error as Error).message,
       }))
     } finally {
@@ -91,7 +97,7 @@ export default function ProjectRecoveryStatus() {
     if (!files.length || busy) return
     setBusy(true)
     setExpanded(true)
-    setActionMessage(`Restoring ${files.length} file${files.length === 1 ? '' : 's'} from the selected EmberWriter folder…`)
+    setActionMessage(`Loading ${files.length} file${files.length === 1 ? '' : 's'} from the selected EmberWriter project…`)
     try {
       const form = new FormData()
       for (const file of files) {
@@ -106,12 +112,12 @@ export default function ProjectRecoveryStatus() {
       }
       if (!response.ok) throw new Error(body.detail || `${response.status} ${response.statusText}`)
       setActionMessage(
-        `Restored ${body.project?.name || 'EmberWriter project'}` +
+        `Loaded ${body.project?.name || 'EmberWriter project'}` +
         `${body.history_restored_count ? ` · reconstructed ${body.history_restored_count} manuscript file${body.history_restored_count === 1 ? '' : 's'} from history` : ''}.`,
       )
       window.setTimeout(() => window.location.reload(), 900)
     } catch (error) {
-      setActionMessage(`Folder restore failed: ${(error as Error).message}`)
+      setActionMessage(`Project load failed: ${(error as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -159,52 +165,59 @@ export default function ProjectRecoveryStatus() {
   useEffect(() => {
     folderRef.current?.setAttribute('webkitdirectory', '')
     folderRef.current?.setAttribute('directory', '')
-    const timer = window.setTimeout(() => void loadStatus(), 1200)
-    return () => window.clearTimeout(timer)
+    const timer = window.setTimeout(() => void loadStatus(), 300)
+
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
+        event.preventDefault()
+        setExpanded(true)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('keydown', onKeyDown)
+    }
   }, [])
 
-  if (!report) return null
-
-  const label = busy
-    ? 'Recovery / import working…'
-    : report.recovered_count > 0
-      ? `Recovered ${report.recovered_count} project${report.recovered_count === 1 ? '' : 's'}`
-      : report.error
-        ? 'Project recovery error'
-        : `Recovery scan: ${report.found} candidate${report.found === 1 ? '' : 's'}`
+  const current = report || EMPTY_REPORT
 
   return (
     <div className={`project-recovery-status${expanded ? ' expanded' : ''}`}>
-      <button className="project-recovery-chip" type="button" onClick={() => setExpanded((value) => !value)}>
-        <span className={report.recovered_count > 0 ? 'recovery-dot found' : report.error ? 'recovery-dot error' : 'recovery-dot'} />
-        {label}
-      </button>
+      <div className="load-import-launch-row">
+        <button
+          className="load-import-launcher"
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={expanded}
+          title="Load an EmberWriter project or import a manuscript · Ctrl/Cmd+O"
+        >
+          <span className="load-import-icon">↥</span>
+          <span><strong>LOAD / IMPORT</strong><small>Project folder or manuscript</small></span>
+        </button>
+        {current.attempted && (
+          <button
+            className="project-recovery-chip"
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            title="Recovery status"
+          >
+            <span className={current.recovered_count > 0 ? 'recovery-dot found' : current.error ? 'recovery-dot error' : 'recovery-dot'} />
+            {current.recovered_count > 0 ? `${current.recovered_count} recovered` : `${current.found} found`}
+          </button>
+        )}
+      </div>
+
       {expanded && (
-        <div className="project-recovery-card">
-          <strong>Recovery & import</strong>
-          <p>
-            EmberWriter now checks the storage locations used by its older Windows launchers, including inherited PowerShell working directories and available version-history data.
-          </p>
-          <dl>
-            <div><dt>Found</dt><dd>{report.found}</dd></div>
-            <div><dt>Recovered</dt><dd>{report.recovered_count}</dd></div>
-            <div><dt>From history</dt><dd>{report.history_restored_count ?? 0}</dd></div>
-            <div><dt>Library</dt><dd>{report.projects_count ?? '—'}</dd></div>
-          </dl>
+        <div className="project-recovery-card load-import-card">
+          <div className="load-import-heading">
+            <div><strong>Load / Import</strong><p>Open existing EmberWriter work or bring a manuscript into a new project.</p></div>
+            <button type="button" className="load-import-close" onClick={() => setExpanded(false)} aria-label="Close Load / Import">×</button>
+          </div>
+
           {actionMessage && <p className="project-recovery-message">{actionMessage}</p>}
-          {report.error && <p className="project-recovery-error">{report.error}</p>}
-          {report.recovered.length > 0 && (
-            <details open>
-              <summary>Recovered projects</summary>
-              {report.recovered.map((item, index) => (
-                <div key={`${item.source_path || item.path || item.name}-${index}`} className="recovery-path">
-                  <strong>{item.name}</strong>
-                  <span>{item.source_path || item.path}</span>
-                  {item.history_restored_count ? <span>{item.history_restored_count} manuscript file(s) reconstructed from EmberWriter history</span> : null}
-                </div>
-              ))}
-            </details>
-          )}
+          {current.error && <p className="project-recovery-error">{current.error}</p>}
 
           <input
             ref={folderRef}
@@ -230,29 +243,58 @@ export default function ProjectRecoveryStatus() {
             }}
           />
 
-          <div className="project-recovery-actions project-recovery-actions-stacked">
-            <button type="button" onClick={() => void recover()} disabled={busy}>
-              {busy ? 'Working…' : 'Forensic recovery scan'}
+          <div className="load-import-primary-actions">
+            <button type="button" className="load-import-action primary-action" onClick={() => folderRef.current?.click()} disabled={busy}>
+              <span>▣</span>
+              <span><strong>Load EmberWriter Project Folder</strong><small>Loads the whole project, including Binder, manuscript, revisions, snapshots, and .ember history.</small></span>
             </button>
-            <button type="button" onClick={() => folderRef.current?.click()} disabled={busy}>
-              Restore EmberWriter folder…
+            <button type="button" className="load-import-action" onClick={() => manuscriptRef.current?.click()} disabled={busy}>
+              <span>＋</span>
+              <span><strong>Import Manuscript</strong><small>DOCX, PDF, EPUB, RTF, Markdown, text, or HTML. Creates a new project automatically.</small></span>
             </button>
-            <button type="button" onClick={() => manuscriptRef.current?.click()} disabled={busy}>
-              Import manuscript into new project…
-            </button>
-            <button type="button" onClick={() => setExpanded(false)}>Close</button>
           </div>
 
-          {(report.historical_launch_roots?.length || 0) > 0 && (
-            <details>
-              <summary>Historical launcher locations ({report.historical_launch_roots?.length || 0})</summary>
-              {report.historical_launch_roots?.map((root) => <div className="recovery-path" key={`history-${root}`}>{root}</div>)}
+          <div className="recovery-separator"><span>Lost work?</span></div>
+          <button type="button" className="forensic-recovery-button" onClick={() => void recover()} disabled={busy}>
+            {busy ? 'Working…' : 'Search this computer for older EmberWriter projects'}
+          </button>
+
+          {current.recovered.length > 0 && (
+            <details open>
+              <summary>Recovered projects</summary>
+              {current.recovered.map((item, index) => (
+                <div key={`${item.source_path || item.path || item.name}-${index}`} className="recovery-path">
+                  <strong>{item.name}</strong>
+                  <span>{item.source_path || item.path}</span>
+                  {item.history_restored_count ? <span>{item.history_restored_count} manuscript file(s) reconstructed from EmberWriter history</span> : null}
+                </div>
+              ))}
             </details>
           )}
-          <details>
-            <summary>All searched locations ({report.searched_roots.length})</summary>
-            {report.searched_roots.map((root) => <div className="recovery-path" key={root}>{root}</div>)}
-          </details>
+
+          {current.attempted && (
+            <details>
+              <summary>Recovery scan details</summary>
+              <dl>
+                <div><dt>Found</dt><dd>{current.found}</dd></div>
+                <div><dt>Recovered</dt><dd>{current.recovered_count}</dd></div>
+                <div><dt>From history</dt><dd>{current.history_restored_count ?? 0}</dd></div>
+                <div><dt>Library</dt><dd>{current.projects_count ?? '—'}</dd></div>
+              </dl>
+              {(current.historical_launch_roots?.length || 0) > 0 && (
+                <details>
+                  <summary>Historical launcher locations ({current.historical_launch_roots?.length || 0})</summary>
+                  {current.historical_launch_roots?.map((root) => <div className="recovery-path" key={`history-${root}`}>{root}</div>)}
+                </details>
+              )}
+              {current.searched_roots.length > 0 && (
+                <details>
+                  <summary>All searched locations ({current.searched_roots.length})</summary>
+                  {current.searched_roots.map((root) => <div className="recovery-path" key={root}>{root}</div>)}
+                </details>
+              )}
+            </details>
+          )}
         </div>
       )}
     </div>
