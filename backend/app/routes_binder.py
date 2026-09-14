@@ -21,6 +21,8 @@ from .binder_models import (
     BinderReorderRequest,
     BinderState,
 )
+from .local_project_loader import load_projects_from_path
+from .models import ProjectImport
 
 router = APIRouter(prefix="/api")
 
@@ -31,6 +33,16 @@ def _not_found(exc: FileNotFoundError) -> HTTPException:
 
 def _owned(slug: str, state: BinderState) -> BinderState:
     return state.model_copy(update={"project_slug": slug})
+
+
+@router.post("/projects/load-path")
+def load_local_project_path(payload: ProjectImport) -> dict:
+    try:
+        return load_projects_from_path(payload.source_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="That local folder was not found") from exc
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/projects/{slug}/binder", response_model=BinderState)
