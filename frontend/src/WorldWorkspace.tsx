@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import StoryAtlasPanel from './StoryAtlasPanel'
+import VisualStudioPanel from './VisualStudioPanel'
 import type { MemoryFact } from './MemoryPanel'
 import type { ProviderConfig, WorkspaceProject } from './workspace-types'
+import './world-atlas.css'
 
 type Props = {
   apiBase: string
@@ -11,7 +14,7 @@ type Props = {
 
 type ProjectDetail = { files: string[] }
 type Depth = 'focused' | 'detailed' | 'exhaustive'
-
+type WorldSection = 'atlas' | 'bible' | 'visuals'
 type GenerationResponse = { text: string }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -50,6 +53,7 @@ function depthInstruction(depth: Depth) {
 }
 
 export default function WorldWorkspace({ apiBase, project, onOpenSource }: Props) {
+  const [section, setSection] = useState<WorldSection>('atlas')
   const [facts, setFacts] = useState<MemoryFact[]>([])
   const [files, setFiles] = useState<string[]>([])
   const [selectedFile, setSelectedFile] = useState('')
@@ -87,7 +91,7 @@ export default function WorldWorkspace({ apiBase, project, onOpenSource }: Props
     setError('')
     try {
       const [memory, detail] = await Promise.all([
-        request<MemoryFact[]>(`${apiBase}/projects/${project.slug}/memory?limit=200`),
+        request<MemoryFact[]>(`${apiBase}/projects/${project.slug}/memory?limit=500`),
         request<ProjectDetail>(`${apiBase}/projects/${project.slug}`),
       ])
       setFacts(memory)
@@ -190,55 +194,64 @@ export default function WorldWorkspace({ apiBase, project, onOpenSource }: Props
   }
 
   return (
-    <section className="center-tool world-workspace">
-      <header className="center-tool-header">
-        <div><small>WORLD · {project.name}</small><h1>World Bible</h1><p>Canon, locations, objects, abilities, factions, rules, and lore—derived from the book where possible and always editable by you.</p></div>
-        <div className="center-tool-actions">
-          <button type="button" onClick={() => void load()} disabled={busy}>↻ Refresh</button>
-          <select value={depth} onChange={(event) => setDepth(event.target.value as Depth)}><option value="focused">AI depth: Focused</option><option value="detailed">AI depth: Detailed</option><option value="exhaustive">AI depth: Exhaustive</option></select>
-        </div>
+    <section className="center-tool world-workspace world-studio">
+      <header className="center-tool-header world-studio-header">
+        <div><small>WORLD · {project.name}</small><h1>World Studio</h1><p>Spatial continuity, travel, visual canon, and the editable World Bible share one story-aware workspace.</p></div>
+        <div className="center-tool-actions"><button type="button" onClick={() => void load()} disabled={busy}>↻ Refresh story context</button></div>
       </header>
 
-      <div className="world-layout">
-        <aside className="world-index">
-          <div className="world-create-card">
-            <strong>New World Bible article</strong>
-            <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Location, faction, rule…" />
-            <select value={newKind} onChange={(event) => setNewKind(event.target.value)}><option>Location</option><option>Faction</option><option>Magic / Ability</option><option>Technology</option><option>Object</option><option>History</option><option>Culture</option><option>Rule</option><option>General Canon</option></select>
-            <button type="button" className="primary" onClick={() => void createNote()} disabled={busy || !newTitle.trim()}>Create article</button>
-          </div>
-          <div className="world-file-list">
-            <strong>Author Bible</strong>
-            {worldFiles.length === 0 && <small>No authored world articles yet.</small>}
-            {worldFiles.map((path) => <button type="button" key={path} className={selectedFile === path ? 'active' : ''} onClick={() => setSelectedFile(path)}><span>◇</span><div><b>{titleFromPath(path)}</b><small>{path}</small></div></button>)}
-          </div>
-        </aside>
+      <nav className="world-studio-tabs" aria-label="World Studio sections">
+        <button type="button" className={section === 'atlas' ? 'active' : ''} onClick={() => setSection('atlas')}><b>Story Atlas</b><span>Map · routes · timeline · AI story GPS</span></button>
+        <button type="button" className={section === 'visuals' ? 'active' : ''} onClick={() => setSection('visuals')}><b>Visual Canon</b><span>Images · references · consistency</span></button>
+        <button type="button" className={section === 'bible' ? 'active' : ''} onClick={() => setSection('bible')}><b>World Bible</b><span>Canon · lore · rules · reference</span></button>
+      </nav>
 
-        <main className="world-main">
-          <section className="world-canon-browser">
-            <div className="center-section-heading"><div><h2>Story-derived canon</h2><p>These facts come from Story Memory. Click any fact to inspect the manuscript source.</p></div></div>
-            <div className="world-fact-filters">
-              <button type="button" className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All <span>{worldFacts.length}</span></button>
-              {['canon', 'location', 'object', 'ability', 'thread'].map((kind) => <button type="button" key={kind} className={filter === kind ? 'active' : ''} onClick={() => setFilter(kind)}>{kind.replaceAll('_', ' ')} <span>{counts[kind] || 0}</span></button>)}
-            </div>
-            <div className="world-fact-grid">
-              {filteredFacts.slice(0, 60).map((fact) => (
-                <button type="button" className="world-fact-card" key={fact.id} onClick={() => onOpenSource(fact.source_path, fact.object)}>
-                  <small>{fact.kind.toUpperCase()} · ch {fact.chapter_order || '?'}</small>
-                  <strong>{fact.subject}</strong>
-                  <span>{fact.predicate} {fact.object}</span>
-                </button>
-              ))}
-              {filteredFacts.length === 0 && <div className="center-empty">No matching Story Memory facts yet.</div>}
-            </div>
-          </section>
+      {section === 'atlas' && <StoryAtlasPanel apiBase={apiBase} project={project} facts={facts} onOpenSource={onOpenSource} />}
+      {section === 'visuals' && <VisualStudioPanel apiBase={apiBase} project={project} />}
 
-          <section className="world-editor-card">
-            <div className="center-section-heading"><div><h2>{selectedFile ? titleFromPath(selectedFile) : 'World article editor'}</h2><p>{selectedFile || 'Create an article to begin.'}</p></div><div className="center-tool-actions"><button type="button" className="primary" onClick={() => void generateNote(false)} disabled={busy || !selectedFile}>{busy ? 'Working…' : 'AI generate article'}</button><button type="button" onClick={() => void generateNote(true)} disabled={busy || !selectedFile || !note.trim()}>AI expand / deepen</button><button type="button" onClick={() => void saveNote()} disabled={busy || !dirty}>{dirty ? 'Save article' : 'Saved'}</button></div></div>
-            <textarea className="planning-document world-note-editor" value={note} onChange={(event) => { setNote(event.target.value); setDirty(true) }} disabled={!selectedFile} spellCheck placeholder="Select or create a World Bible article…" />
-          </section>
-        </main>
-      </div>
+      {section === 'bible' && <>
+        <div className="world-bible-toolbar"><div><b>World Bible</b><span>Manuscript-grounded reference articles remain editable Markdown in the project.</span></div><select value={depth} onChange={(event) => setDepth(event.target.value as Depth)}><option value="focused">AI depth: Focused</option><option value="detailed">AI depth: Detailed</option><option value="exhaustive">AI depth: Exhaustive</option></select></div>
+        <div className="world-layout">
+          <aside className="world-index">
+            <div className="world-create-card">
+              <strong>New World Bible article</strong>
+              <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Location, faction, rule…" />
+              <select value={newKind} onChange={(event) => setNewKind(event.target.value)}><option>Location</option><option>Faction</option><option>Magic / Ability</option><option>Technology</option><option>Object</option><option>History</option><option>Culture</option><option>Rule</option><option>General Canon</option></select>
+              <button type="button" className="primary" onClick={() => void createNote()} disabled={busy || !newTitle.trim()}>Create article</button>
+            </div>
+            <div className="world-file-list">
+              <strong>Author Bible</strong>
+              {worldFiles.length === 0 && <small>No authored world articles yet.</small>}
+              {worldFiles.map((path) => <button type="button" key={path} className={selectedFile === path ? 'active' : ''} onClick={() => setSelectedFile(path)}><span>◇</span><div><b>{titleFromPath(path)}</b><small>{path}</small></div></button>)}
+            </div>
+          </aside>
+
+          <main className="world-main">
+            <section className="world-canon-browser">
+              <div className="center-section-heading"><div><h2>Story-derived canon</h2><p>These facts come from Story Memory. Click any fact to inspect the manuscript source.</p></div></div>
+              <div className="world-fact-filters">
+                <button type="button" className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All <span>{worldFacts.length}</span></button>
+                {['canon', 'location', 'object', 'ability', 'thread'].map((kind) => <button type="button" key={kind} className={filter === kind ? 'active' : ''} onClick={() => setFilter(kind)}>{kind.replaceAll('_', ' ')} <span>{counts[kind] || 0}</span></button>)}
+              </div>
+              <div className="world-fact-grid">
+                {filteredFacts.slice(0, 60).map((fact) => (
+                  <button type="button" className="world-fact-card" key={fact.id} onClick={() => onOpenSource(fact.source_path, fact.object)}>
+                    <small>{fact.kind.toUpperCase()} · ch {fact.chapter_order || '?'}</small>
+                    <strong>{fact.subject}</strong>
+                    <span>{fact.predicate} {fact.object}</span>
+                  </button>
+                ))}
+                {filteredFacts.length === 0 && <div className="center-empty">No matching Story Memory facts yet.</div>}
+              </div>
+            </section>
+
+            <section className="world-editor-card">
+              <div className="center-section-heading"><div><h2>{selectedFile ? titleFromPath(selectedFile) : 'World article editor'}</h2><p>{selectedFile || 'Create an article to begin.'}</p></div><div className="center-tool-actions"><button type="button" className="primary" onClick={() => void generateNote(false)} disabled={busy || !selectedFile}>{busy ? 'Working…' : 'AI generate article'}</button><button type="button" onClick={() => void generateNote(true)} disabled={busy || !selectedFile || !note.trim()}>AI expand / deepen</button><button type="button" onClick={() => void saveNote()} disabled={busy || !dirty}>{dirty ? 'Save article' : 'Saved'}</button></div></div>
+              <textarea className="planning-document world-note-editor" value={note} onChange={(event) => { setNote(event.target.value); setDirty(true) }} disabled={!selectedFile} spellCheck placeholder="Select or create a World Bible article…" />
+            </section>
+          </main>
+        </div>
+      </>}
 
       {error && <div className="center-error">{error}</div>}
     </section>
