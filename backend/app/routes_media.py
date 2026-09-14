@@ -62,6 +62,53 @@ def _visual_paths(slug: str, asset_id: str) -> tuple[Path, Path, str]:
     return folder / f"{key}.png", folder / f"{key}.json", f"assets/visuals/{key}.png"
 
 
+def _ensure_visual_id_available(slug: str, asset_id: str) -> None:
+    image_path, metadata_path, _ = _visual_paths(slug, asset_id)
+    if image_path.exists() or metadata_path.exists():
+        raise ValueError(
+            f"Visual asset already exists: {asset_id}. Choose a new asset id to preserve the existing reference."
+        )
+
+
+def _validate_reference_asset(slug: str, asset_id: str, reference_asset_id: str) -> Path:
+    normalized_asset = asset_id.strip().lower()
+    normalized_reference = reference_asset_id.strip().lower()
+    if normalized_asset == normalized_reference:
+        raise ValueError("A visual asset cannot reference itself")
+    reference_path, reference_metadata, _ = _visual_paths(slug, normalized_reference)
+    if not reference_path.exists() or not reference_metadata.exists():
+        raise ValueError(f"Reference visual asset not found: {reference_asset_id}")
+    return reference_path
+
+
+def _visual_asset_dependencies(slug: str, asset_id: str) -> list[str]:
+    root = _project(slug)
+    normalized = asset_id.strip().lower()
+    dependencies: list[str] = []
+    visuals_dir = root / "assets" / "visuals"
+    if visuals_dir.exists():
+        for metadata_path in sorted(visuals_dir.glob("*.json")):
+            if metadata_path.stem == normalized:
+                continue
+            try:
+                payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if str(payload.get("reference_asset_id") or "").strip().lower() == normalized:
+                dependencies.append(f"visual:{metadata_path.stem}")
+    try:
+        atlas = load_atlas(slug)
+    except FileNotFoundError:
+        atlas = None
+    if atlas is not None:
+        if str(atlas.map.background_asset_id or "").strip().lower() == normalized:
+            dependencies.append("atlas:map-background")
+        for location in atlas.locations:
+            if str(location.image_asset_id or "").strip().lower() == normalized:
+                dependencies.append(f"atlas:location:{location.id}")
+    return list(dict.fromkeys(dependencies))
+
+
 def _load_image(raw: bytes) -> Image.Image:
     if not raw:
         raise ValueError("Image is empty")
@@ -116,6 +163,7 @@ def _save_visual_asset(
     notes: str = "",
     reference_asset_id: str | None = None,
 ) -> dict:
+    _ensure_visual_id_available(slug, asset_id)
     image_path, metadata_path, relative_path = _visual_paths(slug, asset_id)
     image.save(image_path, format="PNG", optimize=True)
     metadata = {
@@ -256,8 +304,10 @@ def _visual_context(slug: str, subject: str) -> tuple[str, list[str]]:
     remaining = 12000
     world_root = root / "world"
     for path in sorted(world_root.glob("*.md")) if world_root.exists() else []:
-        if remaining <= 0 or path.name.lower() == "readme.md":
+        if remaining <= 0:
             break
+        if path.name.lower() == "readme.md":
+            continue
         text = path.read_text(encoding="utf-8")
         if (
             subject.casefold() not in text.casefold()
@@ -509,6 +559,7 @@ async def upload_visual_asset(
     kind: str = Query(default="reference", max_length=80),
 ) -> dict:
     try:
+        _ensure_visual_id_available(slug, asset_id)
         raw = await image.read(_MAX_UPLOAD_BYTES + 1)
         visual = _load_image(raw)
         return _save_visual_asset(
@@ -534,13 +585,12 @@ async def generate_visual_asset(
 ) -> dict:
     try:
         _project(slug)
+        _ensure_visual_id_available(slug, payload.asset_id)
         init_image = None
         if payload.reference_asset_id:
-            reference_path, _, _ = _visual_paths(slug, payload.reference_asset_id)
-            if not reference_path.exists():
-                raise ValueError(
-                    f"Reference visual asset not found: {payload.reference_asset_id}"
-                )
+            reference_path = _validate_reference_asset(
+                slug, payload.asset_id, payload.reference_asset_id
+            )
             init_image = _load_image(reference_path.read_bytes())
         visual = await _stable_diffusion_image(
             base_url=payload.base_url,
@@ -594,7 +644,9 @@ def update_visual_asset_metadata(
         current = VisualAssetResponse.model_validate_json(
             metadata_path.read_text(encoding="utf-8")
         ).model_dump(mode="json")
-        updates = payload.model_dump(exclude_none=True, mode="json")
+        updates = payload.model_dump(exclude_unset=True, mode="json")
+        if "reference_asset_id" in updates and updates["reference_asset_id"] is not None:
+            _validate_reference_asset(slug, asset_id, str(updates["reference_asset_id"]))
         current.update(updates)
         normalized = VisualAssetResponse.model_validate(current)
         metadata_path.write_text(
@@ -615,6 +667,16 @@ def delete_visual_asset(slug: str, asset_id: str) -> None:
         image_path, metadata_path, _ = _visual_paths(slug, asset_id)
         if not image_path.exists() and not metadata_path.exists():
             raise FileNotFoundError(asset_id)
+        dependencies = _visual_asset_dependencies(slug, asset_id)
+        if dependencies:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Visual asset is still referenced by: "
+                    + ", ".join(dependencies[:20])
+                    + ". Remove those references before deleting it."
+                ),
+            )
         image_path.unlink(missing_ok=True)
         metadata_path.unlink(missing_ok=True)
         _touch_project(slug)
