@@ -4,6 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$LaunchDirectory = (Get-Location).Path
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
@@ -12,6 +13,32 @@ $Installer = Join-Path $Root "install.ps1"
 $ImageEngineConfig = Join-Path $Root ".ember\image-engine.json"
 $ImageEngineInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
 $ImageEngineLauncher = Join-Path $Root "scripts\start-image-engine.ps1"
+$DefaultDataRoot = Join-Path $Root "data"
+
+function Test-ProjectDataRoot([string]$DataRoot) {
+    if (-not $DataRoot) { return $false }
+    $projects = Join-Path $DataRoot "projects"
+    if (-not (Test-Path $projects)) { return $false }
+    $projectFile = Get-ChildItem -Path $projects -Filter "project.json" -File -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1
+    return $null -ne $projectFile
+}
+
+if (-not $env:EMBER_DATA_DIR) {
+    $legacyDataRoot = Join-Path $LaunchDirectory "data"
+    $defaultResolved = [System.IO.Path]::GetFullPath($DefaultDataRoot)
+    $legacyResolved = [System.IO.Path]::GetFullPath($legacyDataRoot)
+
+    if (Test-ProjectDataRoot $DefaultDataRoot) {
+        $env:EMBER_DATA_DIR = $DefaultDataRoot
+    } elseif ($legacyResolved -ne $defaultResolved -and (Test-ProjectDataRoot $legacyDataRoot)) {
+        $env:EMBER_DATA_DIR = $legacyDataRoot
+        Write-Host "Recovered existing EmberWriter projects from legacy data location: $legacyDataRoot" -ForegroundColor Green
+    } else {
+        $env:EMBER_DATA_DIR = $DefaultDataRoot
+    }
+}
+
+Write-Host "Project data:    $env:EMBER_DATA_DIR"
 
 if (-not (Test-Path $Venv) -or -not (Test-Path (Join-Path $Frontend "node_modules"))) {
     Write-Host "First-run setup is required..." -ForegroundColor Yellow
@@ -63,11 +90,11 @@ $BackendProcess = Start-Process -FilePath $Python -ArgumentList @(
     "--app-dir", $Backend,
     "--host", "127.0.0.1",
     "--port", "8000"
-) -PassThru
+) -WorkingDirectory $Root -PassThru
 
 $Npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
 if (-not $Npm) { $Npm = (Get-Command npm).Source }
-$FrontendProcess = Start-Process -FilePath $Npm -ArgumentList @("run", "dev", "--prefix", $Frontend) -PassThru
+$FrontendProcess = Start-Process -FilePath $Npm -ArgumentList @("run", "dev", "--prefix", $Frontend) -WorkingDirectory $Root -PassThru
 
 Write-Host "EmberWriter API: http://127.0.0.1:8000"
 Write-Host "EmberWriter UI:  http://127.0.0.1:5173"
