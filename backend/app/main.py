@@ -19,6 +19,7 @@ from .models import (
     SearchRequest,
 )
 from .revisions import record_revision
+from .routes_atlas import router as atlas_router
 from .routes_authoring import router as authoring_router
 from .routes_binder import router as binder_router
 from .routes_board import router as board_router
@@ -54,7 +55,9 @@ from .storage import (
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_seeded()
-    refresh_task = asyncio.create_task(knowledge_refresh_loop(), name="ember-knowledge-refresh")
+    refresh_task = asyncio.create_task(
+        knowledge_refresh_loop(), name="ember-knowledge-refresh"
+    )
     try:
         yield
     finally:
@@ -63,7 +66,7 @@ async def lifespan(_: FastAPI):
             await refresh_task
 
 
-app = FastAPI(title="EmberWriter API", version="0.13.0", lifespan=lifespan)
+app = FastAPI(title="EmberWriter API", version="0.14.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,6 +78,7 @@ app.add_middleware(
 app.include_router(generation_router)
 app.include_router(memory_router)
 app.include_router(story_router)
+app.include_router(atlas_router)
 app.include_router(craft_router)
 app.include_router(chemistry_router)
 app.include_router(binder_router)
@@ -95,7 +99,7 @@ app.include_router(provenance_router)
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.13.0"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.14.0"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
