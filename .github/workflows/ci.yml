@@ -19,6 +19,19 @@ jobs:
       - run: python -m compileall -q backend/app
       - run: pytest backend/tests -q
       - run: ruff check backend/app backend/tests
+      - name: Smoke-test API startup and health
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          with TestClient(app) as client:
+              response = client.get('/api/health')
+              response.raise_for_status()
+              payload = response.json()
+              assert payload['ok'] is True
+              assert payload['service'] == 'EmberWriter'
+          PY
       - run: python -m pip install pip-audit
       - run: pip-audit --skip-editable
 
@@ -37,5 +50,49 @@ jobs:
       - name: Block high-severity development dependency risk
         run: npm audit --audit-level=high
         working-directory: frontend
-      - run: npm run build
+      - name: Build hosted production frontend
+        run: npm run build
         working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.example.invalid/api
+      - name: Verify hosted API rewrite
+        working-directory: frontend
+        run: |
+          if grep -R "127.0.0.1:8000/api" dist; then
+            echo "Local API URL leaked into hosted production output."
+            exit 1
+          fi
+          grep -R "https://api.example.invalid/api" dist >/dev/null
+      - name: Enforce JavaScript chunk budget
+        working-directory: frontend
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const path = require('path')
+          const dir = path.join('dist', 'assets')
+          const limit = 500 * 1024
+          const chunks = fs.readdirSync(dir)
+            .filter((name) => name.endsWith('.js'))
+            .map((name) => ({ name, bytes: fs.statSync(path.join(dir, name)).size }))
+            .sort((a, b) => b.bytes - a.bytes)
+          console.log(chunks.map(({ name, bytes }) => `${name}: ${(bytes / 1024).toFixed(1)} KiB`).join('\n'))
+          const oversized = chunks.filter(({ bytes }) => bytes > limit)
+          if (oversized.length) {
+            console.error(`JavaScript chunk budget exceeded (${limit / 1024} KiB):`, oversized)
+            process.exit(1)
+          }
+          NODE
+      - name: Smoke-test production preview
+        working-directory: frontend
+        run: |
+          npm run preview -- --port 4173 > /tmp/emberwriter-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ > /tmp/emberwriter-index.html; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/ > /tmp/emberwriter-index.html
+          grep -q '<div id="root"></div>' /tmp/emberwriter-index.html
