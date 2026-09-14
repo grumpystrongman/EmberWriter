@@ -33,6 +33,15 @@ type ProjectDetail = {
   name: string
 }
 
+type ProjectLoadResult = {
+  detail?: string
+  project?: ProjectDetail
+  projects?: ProjectDetail[]
+  loaded_count?: number
+  reused_count?: number
+  history_restored_count?: number
+}
+
 const EMPTY_REPORT: RecoveryReport = {
   attempted: false,
   found: 0,
@@ -97,7 +106,7 @@ export default function ProjectRecoveryStatus() {
     if (!files.length || busy) return
     setBusy(true)
     setExpanded(true)
-    setActionMessage(`Loading ${files.length} file${files.length === 1 ? '' : 's'} from the selected EmberWriter project…`)
+    setActionMessage(`Loading ${files.length} file${files.length === 1 ? '' : 's'} from the selected EmberWriter project or library…`)
     try {
       const form = new FormData()
       for (const file of files) {
@@ -105,16 +114,24 @@ export default function ProjectRecoveryStatus() {
         form.append('paths', file.webkitRelativePath || file.name)
       }
       const response = await fetch(`${API}/projects/restore-upload`, { method: 'POST', body: form })
-      const body = await response.json().catch(() => ({})) as {
-        detail?: string
-        project?: ProjectDetail
-        history_restored_count?: number
-      }
+      const body = await response.json().catch(() => ({})) as ProjectLoadResult
       if (!response.ok) throw new Error(body.detail || `${response.status} ${response.statusText}`)
-      setActionMessage(
-        `Loaded ${body.project?.name || 'EmberWriter project'}` +
-        `${body.history_restored_count ? ` · reconstructed ${body.history_restored_count} manuscript file${body.history_restored_count === 1 ? '' : 's'} from history` : ''}.`,
-      )
+
+      const loadedCount = body.loaded_count ?? body.projects?.length ?? (body.project ? 1 : 0)
+      const reusedCount = body.reused_count ?? 0
+      if (loadedCount > 1) {
+        setActionMessage(
+          `Loaded ${loadedCount} EmberWriter projects from the selected library folder` +
+          `${reusedCount ? ` · ${reusedCount} already in this library` : ''}` +
+          `${body.history_restored_count ? ` · reconstructed ${body.history_restored_count} manuscript files from history` : ''}.`,
+        )
+      } else {
+        setActionMessage(
+          `Loaded ${body.project?.name || 'EmberWriter project'}` +
+          `${reusedCount ? ' from the existing library' : ''}` +
+          `${body.history_restored_count ? ` · reconstructed ${body.history_restored_count} manuscript file${body.history_restored_count === 1 ? '' : 's'} from history` : ''}.`,
+        )
+      }
       window.setTimeout(() => window.location.reload(), 900)
     } catch (error) {
       setActionMessage(`Project load failed: ${(error as Error).message}`)
@@ -191,10 +208,10 @@ export default function ProjectRecoveryStatus() {
           type="button"
           onClick={() => setExpanded(true)}
           aria-expanded={expanded}
-          title="Load an EmberWriter project or import a manuscript · Ctrl/Cmd+O"
+          title="Load an EmberWriter project/library or import a manuscript · Ctrl/Cmd+O"
         >
           <span className="load-import-icon">↥</span>
-          <span><strong>LOAD / IMPORT</strong><small>Project folder or manuscript</small></span>
+          <span><strong>LOAD / IMPORT</strong><small>Project, library, or manuscript</small></span>
         </button>
         {current.attempted && (
           <button
@@ -246,7 +263,10 @@ export default function ProjectRecoveryStatus() {
           <div className="load-import-primary-actions">
             <button type="button" className="load-import-action primary-action" onClick={() => folderRef.current?.click()} disabled={busy}>
               <span>▣</span>
-              <span><strong>Load EmberWriter Project Folder</strong><small>Loads the whole project, including Binder, manuscript, revisions, snapshots, and .ember history.</small></span>
+              <span>
+                <strong>Load EmberWriter Project or Library Folder</strong>
+                <small>Select one project folder such as nh-ghost-story, or select the parent data/projects folder to load every EmberWriter project inside it.</small>
+              </span>
             </button>
             <button type="button" className="load-import-action" onClick={() => manuscriptRef.current?.click()} disabled={busy}>
               <span>＋</span>
