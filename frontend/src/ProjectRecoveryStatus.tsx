@@ -39,6 +39,7 @@ type ProjectLoadResult = {
   projects?: ProjectDetail[]
   loaded_count?: number
   reused_count?: number
+  copied_count?: number
   history_restored_count?: number
 }
 
@@ -55,11 +56,33 @@ const EMPTY_REPORT: RecoveryReport = {
   drive_wide_scan: false,
 }
 
+function projectLoadMessage(body: ProjectLoadResult, source: 'folder' | 'path') {
+  const loadedCount = body.loaded_count ?? body.projects?.length ?? (body.project ? 1 : 0)
+  const reusedCount = body.reused_count ?? 0
+  const copiedCount = body.copied_count ?? 0
+  const historyCount = body.history_restored_count ?? 0
+
+  if (loadedCount > 1) {
+    return `Loaded ${loadedCount} EmberWriter projects` +
+      `${source === 'path' ? ' directly from disk' : ' from the selected library folder'}` +
+      `${copiedCount ? ` · copied ${copiedCount} into this library` : ''}` +
+      `${reusedCount ? ` · ${reusedCount} already in this library` : ''}` +
+      `${historyCount ? ` · reconstructed ${historyCount} manuscript files from history` : ''}.`
+  }
+
+  return `Loaded ${body.project?.name || 'EmberWriter project'}` +
+    `${source === 'path' ? ' directly from disk' : ''}` +
+    `${copiedCount ? ' into this library' : ''}` +
+    `${reusedCount ? ' from the existing library' : ''}` +
+    `${historyCount ? ` · reconstructed ${historyCount} manuscript file${historyCount === 1 ? '' : 's'} from history` : ''}.`
+}
+
 export default function ProjectRecoveryStatus() {
   const [report, setReport] = useState<RecoveryReport | null>(null)
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [actionMessage, setActionMessage] = useState('')
+  const [localPath, setLocalPath] = useState('')
   const folderRef = useRef<HTMLInputElement>(null)
   const manuscriptRef = useRef<HTMLInputElement>(null)
 
@@ -117,24 +140,38 @@ export default function ProjectRecoveryStatus() {
       const body = await response.json().catch(() => ({})) as ProjectLoadResult
       if (!response.ok) throw new Error(body.detail || `${response.status} ${response.statusText}`)
 
-      const loadedCount = body.loaded_count ?? body.projects?.length ?? (body.project ? 1 : 0)
-      const reusedCount = body.reused_count ?? 0
-      if (loadedCount > 1) {
-        setActionMessage(
-          `Loaded ${loadedCount} EmberWriter projects from the selected library folder` +
-          `${reusedCount ? ` · ${reusedCount} already in this library` : ''}` +
-          `${body.history_restored_count ? ` · reconstructed ${body.history_restored_count} manuscript files from history` : ''}.`,
-        )
-      } else {
-        setActionMessage(
-          `Loaded ${body.project?.name || 'EmberWriter project'}` +
-          `${reusedCount ? ' from the existing library' : ''}` +
-          `${body.history_restored_count ? ` · reconstructed ${body.history_restored_count} manuscript file${body.history_restored_count === 1 ? '' : 's'} from history` : ''}.`,
-        )
-      }
+      setActionMessage(projectLoadMessage(body, 'folder'))
       window.setTimeout(() => window.location.reload(), 900)
     } catch (error) {
-      setActionMessage(`Project load failed: ${(error as Error).message}`)
+      const message = (error as Error).message
+      setActionMessage(
+        message === 'Failed to fetch'
+          ? 'The folder was selected, but the browser could not reach EmberWriter while uploading it. Paste the Windows folder path below and use Load path directly.'
+          : `Project load failed: ${message}`,
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loadLocalPath() {
+    const sourcePath = localPath.trim()
+    if (!sourcePath || busy) return
+    setBusy(true)
+    setExpanded(true)
+    setActionMessage('Loading EmberWriter project data directly from the local folder…')
+    try {
+      const response = await fetch(`${API}/projects/load-path`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_path: sourcePath }),
+      })
+      const body = await response.json().catch(() => ({})) as ProjectLoadResult
+      if (!response.ok) throw new Error(body.detail || `${response.status} ${response.statusText}`)
+      setActionMessage(projectLoadMessage(body, 'path'))
+      window.setTimeout(() => window.location.reload(), 900)
+    } catch (error) {
+      setActionMessage(`Direct path load failed: ${(error as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -272,6 +309,28 @@ export default function ProjectRecoveryStatus() {
               <span>＋</span>
               <span><strong>Import Manuscript</strong><small>DOCX, PDF, EPUB, RTF, Markdown, text, or HTML. Creates a new project automatically.</small></span>
             </button>
+          </div>
+
+          <div className="local-path-load">
+            <div>
+              <strong>Direct local folder path</strong>
+              <small>Best for EmberWriter work already on this PC. The backend reads the folder directly instead of uploading it through the browser.</small>
+            </div>
+            <div className="local-path-load-row">
+              <input
+                type="text"
+                value={localPath}
+                onChange={(event) => setLocalPath(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void loadLocalPath()
+                }}
+                placeholder={'C:\\Users\\...\\data\\projects'}
+                aria-label="Local EmberWriter project or projects library path"
+              />
+              <button type="button" onClick={() => void loadLocalPath()} disabled={busy || !localPath.trim()}>
+                Load path directly
+              </button>
+            </div>
           </div>
 
           <div className="recovery-separator"><span>Lost work?</span></div>
