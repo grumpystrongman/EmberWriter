@@ -18,6 +18,7 @@ from .models import (
     ProviderConfig,
 )
 from .prose_quality import quality_guidance
+from .provenance_store import record_assistance_event
 from .storage import compile_context
 from .story_intelligence import build_character_context, relevant_character_names
 
@@ -230,6 +231,18 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
                 craft_context=craft_text,
             )
             refined = True
+        record_assistance_event(
+            slug,
+            mode=payload.mode,
+            active_file=payload.active_file,
+            prompt=payload.prompt,
+            selected_text=payload.selected_text,
+            output_text=text,
+            context_files=context_files,
+            refined=refined,
+            provider=payload.provider.provider,
+            model=payload.provider.model,
+        )
         return GenerateResponse(text=text, context_files=context_files, refined=refined)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc

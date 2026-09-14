@@ -1,0 +1,127 @@
+.provenance-voice-panel {
+  margin-top: 1.1rem;
+  border: 1px solid rgba(176, 143, 112, 0.24);
+  border-radius: 14px;
+  background: rgba(22, 19, 18, 0.74);
+  padding: 1rem;
+}
+
+.provenance-voice-header,
+.provenance-voice-actions,
+.provenance-stat-grid,
+.voice-audit-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.provenance-voice-header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.provenance-voice-header h2,
+.voice-audit-section h3 {
+  margin: 0.15rem 0 0.35rem;
+}
+
+.provenance-voice-header p,
+.voice-audit-section p,
+.provenance-note {
+  color: #ad9f95;
+  margin: 0;
+}
+
+.provenance-stat-grid {
+  margin: 1rem 0;
+  align-items: stretch;
+}
+
+.provenance-stat {
+  flex: 1 1 150px;
+  min-width: 140px;
+  padding: 0.8rem;
+  border: 1px solid rgba(176, 143, 112, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.provenance-stat small,
+.voice-finding small {
+  display: block;
+  color: #8f8178;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.64rem;
+}
+
+.provenance-stat strong {
+  display: block;
+  margin-top: 0.28rem;
+  font-size: 1.2rem;
+}
+
+.voice-audit-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(176, 143, 112, 0.16);
+}
+
+.voice-audit-toolbar {
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.voice-findings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+}
+
+.voice-finding {
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid rgba(176, 143, 112, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.voice-finding h4 {
+  margin: 0.25rem 0 0.4rem;
+}
+
+.voice-finding blockquote {
+  margin: 0.55rem 0 0;
+  padding-left: 0.65rem;
+  border-left: 2px solid rgba(176, 143, 112, 0.3);
+  color: #c5b8ae;
+  font-size: 0.82rem;
+}
+
+.provenance-button {
+  border: 1px solid rgba(176, 143, 112, 0.35);
+  border-radius: 8px;
+  background: rgba(176, 143, 112, 0.09);
+  color: inherit;
+  padding: 0.48rem 0.72rem;
+  cursor: pointer;
+}
+
+.provenance-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.provenance-error {
+  margin-top: 0.7rem;
+  color: #d6a58f;
+}
+
+.provenance-export-result {
+  margin-top: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  color: #bdae9f;
+  overflow-wrap: anywhere;
+}

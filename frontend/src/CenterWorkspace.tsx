@@ -2,6 +2,7 @@ import CharacterVoiceStudio from './CharacterVoiceStudio'
 import CharactersWorkspace from './CharactersWorkspace'
 import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
 import PlanningHub from './PlanningHub'
+import ProvenanceVoicePanel from './ProvenanceVoicePanel'
 import PublishPanel from './PublishPanel'
 import SubmissionPanel from './SubmissionPanel'
 import WorldWorkspace from './WorldWorkspace'
@@ -49,7 +50,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
       {workspace === 'analyze' && (
         <section className="center-tool analyze-workspace">
           <header className="center-tool-header">
-            <div><small>ANALYZE · {project.name}</small><h1>Editorial & Reader Studio</h1><p>Manuscript-wide diagnostics, smart triage, AI side-by-side revision review, genre readers, grammar knowledge, and continuity work in one full-width surface.</p></div>
+            <div><small>ANALYZE · {project.name}</small><h1>Editorial & Reader Studio</h1><p>Manuscript-wide diagnostics, smart triage, AI side-by-side revision review, genre readers, grammar knowledge, continuity work, provenance, and voice fidelity in one full-width surface.</p></div>
           </header>
           <EditorialPanel
             apiBase={API}
@@ -59,6 +60,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
             refreshToken={0}
             onOpenFinding={openFinding}
           />
+          <ProvenanceVoicePanel apiBase={API} slug={project.slug} activePath={project.activePath} />
         </section>
       )}
       {workspace === 'publish' && (
