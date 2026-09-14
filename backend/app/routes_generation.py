@@ -231,7 +231,7 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
                 craft_context=craft_text,
             )
             refined = True
-        record_assistance_event(
+        event = record_assistance_event(
             slug,
             mode=payload.mode,
             active_file=payload.active_file,
@@ -243,7 +243,12 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             provider=payload.provider.provider,
             model=payload.provider.model,
         )
-        return GenerateResponse(text=text, context_files=context_files, refined=refined)
+        return GenerateResponse(
+            text=text,
+            context_files=context_files,
+            refined=refined,
+            assistance_event_id=event["id"],
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except (TypeError, ValueError) as exc:
