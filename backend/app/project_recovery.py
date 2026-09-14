@@ -52,7 +52,9 @@ def _project_meta(path: Path) -> dict | None:
     if not isinstance(payload.get("name"), str):
         return None
     project_dir = path.parent
-    if not (project_dir / "manuscript").exists() and not (project_dir / ".ember" / "story.db").exists():
+    if not (project_dir / "manuscript").exists() and not (
+        project_dir / ".ember" / "story.db"
+    ).exists():
         return None
     return payload
 
@@ -79,7 +81,9 @@ def _search_roots() -> list[Path]:
 
     env_roots = os.getenv("EMBER_RECOVERY_ROOTS", "")
     if env_roots:
-        candidates.extend(Path(item).expanduser() for item in env_roots.split(os.pathsep) if item)
+        candidates.extend(
+            Path(item).expanduser() for item in env_roots.split(os.pathsep) if item
+        )
 
     candidates.extend(
         [
@@ -103,10 +107,9 @@ def _search_roots() -> list[Path]:
     if one_drive:
         candidates.append(Path(one_drive))
 
-    # The previous recovery pass only searched the user's normal profile folders.
-    # Old clones are often on C:\, D:\, or another development drive, so include
-    # every mounted Windows drive as a final fallback. System/package folders are
-    # aggressively pruned during the walk below.
+    # Old clones are often on C:\, D:\, or another development drive. Include
+    # every mounted Windows drive as a final fallback and prune system/package
+    # folders aggressively while walking them.
     candidates.extend(_windows_drive_roots())
 
     roots: list[Path] = []
@@ -161,9 +164,10 @@ def _candidate_project(project_dir: Path) -> dict | None:
         updated = datetime.fromtimestamp(project_dir.stat().st_mtime, tz=UTC).isoformat()
     except OSError:
         updated = ""
+    recovered_name = project_dir.name.replace("-", " ").replace("_", " ").strip()
     return {
         "path": str(project_dir),
-        "name": project_dir.name.replace("-", " ").replace("_", " ").strip() or "Recovered project",
+        "name": recovered_name or "Recovered project",
         "slug": storage.slugify(project_dir.name),
         "id": "",
         "updated_at": updated,
@@ -175,15 +179,25 @@ def discover_legacy_projects(max_results: int = 250, max_depth: int = 12) -> lis
     active_root = storage.PROJECTS_ROOT.resolve()
     discovered: list[dict] = []
     seen_dirs: set[Path] = set()
+    completed_roots: list[Path] = []
 
     for search_root in _search_roots():
-        root_depth = len(search_root.parts)
+        try:
+            resolved_search_root = search_root.resolve()
+        except OSError:
+            continue
+        if any(
+            resolved_search_root == prior or prior in resolved_search_root.parents
+            for prior in completed_roots
+        ):
+            continue
+        root_depth = len(resolved_search_root.parts)
 
         def ignore_walk_error(_: OSError) -> None:
             return None
 
         for dirpath, dirnames, filenames in os.walk(
-            search_root,
+            resolved_search_root,
             topdown=True,
             followlinks=False,
             onerror=ignore_walk_error,
@@ -192,6 +206,12 @@ def discover_legacy_projects(max_results: int = 250, max_depth: int = 12) -> lis
             try:
                 resolved = current.resolve()
             except OSError:
+                dirnames[:] = []
+                continue
+
+            if any(
+                resolved == prior or prior in resolved.parents for prior in completed_roots
+            ):
                 dirnames[:] = []
                 continue
 
@@ -224,6 +244,8 @@ def discover_legacy_projects(max_results: int = 250, max_depth: int = 12) -> lis
             discovered.append(item)
             if len(discovered) >= max_results:
                 return discovered
+
+        completed_roots.append(resolved_search_root)
     return discovered
 
 
@@ -241,7 +263,9 @@ def _existing_project_keys() -> tuple[set[str], set[str]]:
             ids.add(str(meta["id"]))
         if meta.get("recovered_from"):
             try:
-                sources.add(str(Path(str(meta["recovered_from"])).resolve()).casefold())
+                sources.add(
+                    str(Path(str(meta["recovered_from"])).resolve()).casefold()
+                )
             except OSError:
                 sources.add(str(meta["recovered_from"]).casefold())
     return ids, sources
@@ -295,7 +319,9 @@ def recover_legacy_projects() -> dict:
             skipped.append({**item, "reason": "already_recovered_from_source"})
             continue
 
-        base_slug = storage.slugify(str(item.get("slug") or item.get("name") or source.name))
+        base_slug = storage.slugify(
+            str(item.get("slug") or item.get("name") or source.name)
+        )
         target_slug = base_slug
         suffix = 2
         while (storage.PROJECTS_ROOT / target_slug).exists():
