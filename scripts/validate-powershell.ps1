@@ -3,6 +3,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Files = @(
     (Join-Path $RepoRoot "install.ps1"),
     (Join-Path $RepoRoot "start.ps1"),
+    (Join-Path $RepoRoot "start-hosted.ps1"),
     (Join-Path $RepoRoot "scripts\install-image-engine.ps1"),
     (Join-Path $RepoRoot "scripts\start-image-engine.ps1")
 )

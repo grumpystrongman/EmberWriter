@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 VENV="$BACKEND/.venv"
+export EMBER_DATA_DIR="${EMBER_DATA_DIR:-$ROOT/data}"
 
 if [ ! -d "$VENV" ]; then
   python3 -m venv "$VENV"
@@ -16,7 +17,7 @@ if [ ! -d "$FRONTEND/node_modules" ]; then
   (cd "$FRONTEND" && npm ci)
 fi
 
-"$VENV/bin/python" -m uvicorn app.main:app --app-dir "$BACKEND" --host 127.0.0.1 --port 8000 &
+(cd "$ROOT" && "$VENV/bin/python" -m uvicorn app.main:app --app-dir "$BACKEND" --host 127.0.0.1 --port 8000) &
 BACKEND_PID=$!
 
 cleanup() {

@@ -12,6 +12,10 @@ $Venv = Join-Path $Backend ".venv"
 $Installer = Join-Path $Root "install.ps1"
 $HostedUrl = "https://$FirebaseProjectId.web.app"
 
+if (-not $env:EMBER_DATA_DIR) {
+    $env:EMBER_DATA_DIR = Join-Path $Root "data"
+}
+
 if (-not (Test-Path $Venv)) {
     Write-Host "First-run setup is required..." -ForegroundColor Yellow
     & $Installer
@@ -24,8 +28,13 @@ $env:EMBER_CORS_ORIGINS = "https://$FirebaseProjectId.web.app,https://$FirebaseP
 
 Write-Host "EmberWriter hosted UI: $HostedUrl" -ForegroundColor Green
 Write-Host "EmberWriter local API: http://127.0.0.1:8000" -ForegroundColor Green
-Write-Host "Your manuscripts and SQLite data remain under the local data directory." -ForegroundColor Cyan
+Write-Host "Project data: $env:EMBER_DATA_DIR" -ForegroundColor Cyan
 Write-Host "Keep this window open while using the hosted UI. Press Ctrl+C to stop the API." -ForegroundColor Yellow
 
 Start-Process $HostedUrl
-& $Python -m uvicorn app.main:app --app-dir $Backend --host 127.0.0.1 --port 8000
+Push-Location $Root
+try {
+    & $Python -m uvicorn app.main:app --app-dir $Backend --host 127.0.0.1 --port 8000
+} finally {
+    Pop-Location
+}
