@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path, PurePosixPath
 
@@ -21,9 +22,17 @@ _SKIP_PARTS = {
 
 
 def _normalize_relative_path(value: str) -> PurePosixPath:
-    clean = value.replace("\\", "/").strip().lstrip("/")
-    path = PurePosixPath(clean)
-    if not clean or path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    raw = value.strip()
+    normalized = raw.replace("\\", "/")
+    if (
+        not normalized
+        or normalized.startswith("/")
+        or re.match(r"^[A-Za-z]:/", normalized)
+        or normalized.startswith("//")
+    ):
+        raise ValueError(f"Unsafe project path: {value}")
+    path = PurePosixPath(normalized)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"Unsafe project path: {value}")
     if any(part.casefold() in _SKIP_PARTS for part in path.parts):
         raise ValueError(f"Project folder contains an unsupported technical path: {value}")
