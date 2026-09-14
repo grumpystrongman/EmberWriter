@@ -313,6 +313,11 @@ def compare_routes(
 def atlas_state(atlas: StoryAtlas, chapter: int, character: str = "") -> dict[str, Any]:
     controls: dict[str, str] = {}
     notes: list[dict[str, Any]] = []
+    location_lookup = {item.id: item for item in atlas.locations}
+    location_known = {
+        item.id: _location_is_known(atlas, item, character, chapter)
+        for item in atlas.locations
+    }
     for event in sorted(atlas.events, key=lambda item: (item.chapter, item.id)):
         if event.chapter > chapter:
             continue
@@ -328,6 +333,17 @@ def atlas_state(atlas: StoryAtlas, chapter: int, character: str = "") -> dict[st
                     "value": event.value,
                 }
             )
+    connection_known: dict[str, bool] = {}
+    for item in atlas.connections:
+        endpoints_known = location_known.get(item.from_id, False) and location_known.get(
+            item.to_id, False
+        )
+        connection_known[item.id] = (
+            _known_to(character, item.known_by)
+            and endpoints_known
+            and item.from_id in location_lookup
+            and item.to_id in location_lookup
+        )
     return {
         "chapter": chapter,
         "character": character,
@@ -335,13 +351,8 @@ def atlas_state(atlas: StoryAtlas, chapter: int, character: str = "") -> dict[st
             item.id: _connection_is_open(atlas, item, chapter)
             for item in atlas.connections
         },
-        "location_known": {
-            item.id: _location_is_known(atlas, item, character, chapter)
-            for item in atlas.locations
-        },
-        "connection_known": {
-            item.id: _known_to(character, item.known_by) for item in atlas.connections
-        },
+        "location_known": location_known,
+        "connection_known": connection_known,
         "location_control": controls,
         "notes": notes,
     }
@@ -475,6 +486,21 @@ def _bounded_world_notes(slug: str) -> list[dict[str, str]]:
     return notes
 
 
+def _source_supports(source_evidence: dict[str, str], source_path: str, *needles: str) -> bool:
+    evidence = source_evidence.get(source_path, "").casefold()
+    required = [needle.strip().casefold() for needle in needles if needle.strip()]
+    return bool(evidence) and bool(required) and all(needle in evidence for needle in required)
+
+
+def _connection_signature(
+    from_id: str, to_id: str, name: str, bidirectional: bool
+) -> tuple[str, str, str, bool]:
+    left, right = from_id, to_id
+    if bidirectional and right < left:
+        left, right = right, left
+    return left, right, slugify(name)[:100], bidirectional
+
+
 async def bootstrap_atlas(
     slug: str, request: AtlasBootstrapRequest
 ) -> AtlasBootstrapResponse:
@@ -521,16 +547,24 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
     known_ids = {item.id for item in current.locations}
     added_locations = 0
     source_index: dict[str, list[str]] = {}
-    trusted_sources = {
-        str(item.get("source_path", "")) for item in facts if item.get("source_path")
-    }
-    trusted_sources.update(
-        str(item.get("path", "")) for item in world_notes if item.get("path")
-    )
+    source_evidence: dict[str, str] = {}
     for fact in facts:
+        source_path = str(fact.get("source_path", "")).strip()
+        evidence = " ".join(
+            str(fact.get(key, "")) for key in ("subject", "predicate", "object")
+        ).strip()
+        if source_path and evidence:
+            source_evidence[source_path] = (
+                source_evidence.get(source_path, "") + "\n" + evidence
+            ).strip()
         for token in {fact["subject"].strip(), fact["object"].strip()}:
-            if token:
-                source_index.setdefault(token.casefold(), []).append(fact["source_path"])
+            if token and source_path:
+                source_index.setdefault(token.casefold(), []).append(source_path)
+    for note in world_notes:
+        source_path = str(note.get("path", "")).strip()
+        if source_path:
+            source_evidence[source_path] = str(note.get("content", ""))
+    trusted_sources = set(source_evidence)
 
     raw_locations = (
         payload.get("locations", [])
@@ -567,7 +601,10 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
             else []
         )
         matched_sources.extend(
-            str(item) for item in raw_sources if str(item).strip() in trusted_sources
+            str(item)
+            for item in raw_sources
+            if str(item).strip() in trusted_sources
+            and _source_supports(source_evidence, str(item).strip(), name)
         )
         matched_sources = list(dict.fromkeys(matched_sources))[:50]
         canon_status = "canon" if matched_sources else "inferred"
@@ -591,6 +628,10 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
 
     added_connections = 0
     known_connection_ids = {item.id for item in current.connections}
+    known_connection_signatures = {
+        _connection_signature(item.from_id, item.to_id, item.name, item.bidirectional)
+        for item in current.connections
+    }
     raw_connections = (
         payload.get("connections", [])
         if isinstance(payload.get("connections", []), list)
@@ -605,9 +646,12 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
             continue
         from_id = known_names[from_name].id
         to_id = known_names[to_name].id
-        base_id = slugify(
-            str(raw.get("name", "route")) + "-" + from_id + "-" + to_id
-        )[:100]
+        route_name = str(raw.get("name", "Route"))[:200] or "Route"
+        bidirectional = bool(raw.get("bidirectional", True))
+        signature = _connection_signature(from_id, to_id, route_name, bidirectional)
+        if signature in known_connection_signatures:
+            continue
+        base_id = slugify(route_name + "-" + from_id + "-" + to_id)[:100]
         connection_id = base_id
         suffix = 2
         while connection_id in known_connection_ids:
@@ -625,7 +669,15 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
             else []
         )
         trusted_connection_sources = [
-            str(item) for item in sources if str(item).strip() in trusted_sources
+            str(item)
+            for item in sources
+            if str(item).strip() in trusted_sources
+            and _source_supports(
+                source_evidence,
+                str(item).strip(),
+                known_names[from_name].name,
+                known_names[to_name].name,
+            )
         ][:50]
 
         def rating(key: str, default: int) -> int:
@@ -639,9 +691,9 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
                 id=connection_id,
                 from_id=from_id,
                 to_id=to_id,
-                name=str(raw.get("name", "Route"))[:200] or "Route",
+                name=route_name,
                 distance=distance,
-                bidirectional=bool(raw.get("bidirectional", True)),
+                bidirectional=bidirectional,
                 risk=rating("risk", 2),
                 drama=rating("drama", 2),
                 lore=rating("lore", 2),
@@ -652,6 +704,7 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
             )
         )
         known_connection_ids.add(connection_id)
+        known_connection_signatures.add(signature)
         added_connections += 1
 
     current = StoryAtlas.model_validate(current.model_dump(mode="json"))
