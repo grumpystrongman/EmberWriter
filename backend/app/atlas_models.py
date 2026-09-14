@@ -31,7 +31,9 @@ class AtlasLocation(BaseModel):
     confidence: float = Field(default=1.0, ge=0, le=1)
     source_paths: list[str] = Field(default_factory=list, max_length=50)
     known_by: list[str] = Field(default_factory=list, max_length=100)
-    image_asset_id: str | None = Field(default=None, max_length=120)
+    image_asset_id: str | None = Field(
+        default=None, max_length=120, pattern=r"^[a-z0-9][a-z0-9-]*$"
+    )
 
 
 class AtlasConnection(BaseModel):
@@ -80,7 +82,9 @@ class AtlasEvent(BaseModel):
 class AtlasMapConfig(BaseModel):
     title: str = Field(default="Story Atlas", max_length=200)
     units: str = Field(default="miles", max_length=40)
-    background_asset_id: str | None = Field(default=None, max_length=120)
+    background_asset_id: str | None = Field(
+        default=None, max_length=120, pattern=r"^[a-z0-9][a-z0-9-]*$"
+    )
 
 
 _DEFAULT_PROFILES = {
