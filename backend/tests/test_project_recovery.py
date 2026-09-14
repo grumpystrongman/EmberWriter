@@ -27,6 +27,17 @@ def _write_project(root: Path, *, slug: str, project_id: str, chapter: str) -> P
     return project
 
 
+def _write_metadata_less_project(root: Path, *, slug: str, chapter: str) -> Path:
+    project = root / "archive" / slug
+    (project / "manuscript").mkdir(parents=True)
+    (project / "characters").mkdir()
+    (project / "world").mkdir()
+    (project / ".ember").mkdir()
+    (project / "manuscript" / "chapter-009.md").write_text(chapter, encoding="utf-8")
+    (project / ".ember" / "story.db").write_bytes(b"older-history")
+    return project
+
+
 def test_recovery_discovers_and_copies_legacy_project(tmp_path: Path, monkeypatch) -> None:
     active = tmp_path / "new-install" / "data"
     legacy_root = tmp_path / "old-install"
@@ -78,3 +89,43 @@ def test_recovery_is_idempotent_and_never_overwrites_existing_project(
     assert second["recovered_count"] == 0
     assert any(item["reason"] == "already_present" for item in second["skipped"])
     assert recovered_file.read_text(encoding="utf-8").endswith("Edited after recovery.")
+
+
+def test_recovery_restores_project_when_project_json_is_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    active = tmp_path / "new-install" / "data"
+    legacy_root = tmp_path / "detached-drive"
+    source = _write_metadata_less_project(
+        legacy_root,
+        slug="lost-book",
+        chapter="# Chapter 9\n\nThe manuscript survived without its metadata file.",
+    )
+
+    storage.DATA_ROOT = active
+    storage.PROJECTS_ROOT = active / "projects"
+    monkeypatch.setattr(project_recovery, "_search_roots", lambda: [legacy_root])
+
+    result = project_recovery.recover_legacy_projects()
+
+    assert result["recovered_count"] == 1
+    recovered = storage.PROJECTS_ROOT / "lost-book"
+    metadata = json.loads((recovered / "project.json").read_text(encoding="utf-8"))
+    assert metadata["slug"] == "lost-book"
+    assert metadata["recovered_from"] == str(source)
+    assert metadata["id"]
+    assert (recovered / "manuscript" / "chapter-009.md").read_text(encoding="utf-8").endswith(
+        "metadata file."
+    )
+    assert (recovered / ".ember" / "story.db").read_bytes() == b"older-history"
+    assert not (source / "project.json").exists(), "Recovery must not modify the source folder."
+
+
+def test_windows_drive_roots_are_included_in_search_roots(tmp_path: Path, monkeypatch) -> None:
+    drive = tmp_path / "simulated-drive"
+    drive.mkdir()
+    monkeypatch.setattr(project_recovery, "_windows_drive_roots", lambda: [drive])
+
+    roots = project_recovery._search_roots()
+
+    assert drive.resolve() in roots
