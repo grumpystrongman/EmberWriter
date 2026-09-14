@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
-from os import getenv
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +56,8 @@ DEFAULT_CORS_ORIGINS = (
 
 
 def cors_origins() -> list[str]:
+    from os import getenv
+
     configured = [
         origin.strip().rstrip("/")
         for origin in getenv("EMBER_CORS_ORIGINS", "").split(",")
