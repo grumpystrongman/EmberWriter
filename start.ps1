@@ -16,7 +16,7 @@ $Python = Join-Path $Venv "Scripts\python.exe"
 
 if (-not (Test-Path (Join-Path $Frontend "node_modules"))) {
     Push-Location $Frontend
-    try { npm install } finally { Pop-Location }
+    try { npm ci } finally { Pop-Location }
 }
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {

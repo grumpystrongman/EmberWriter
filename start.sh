@@ -13,7 +13,7 @@ fi
 "$VENV/bin/python" -m pip install -e "$BACKEND"
 
 if [ ! -d "$FRONTEND/node_modules" ]; then
-  (cd "$FRONTEND" && npm install)
+  (cd "$FRONTEND" && npm ci)
 fi
 
 "$VENV/bin/python" -m uvicorn app.main:app --app-dir "$BACKEND" --host 127.0.0.1 --port 8000 &
