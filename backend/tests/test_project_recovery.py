@@ -90,7 +90,7 @@ def test_recovery_discovers_and_copies_legacy_project(tmp_path: Path, monkeypatc
     storage.DATA_ROOT = active
     storage.PROJECTS_ROOT = active / "projects"
     monkeypatch.setattr(project_recovery, "_search_roots", lambda: [legacy_root])
-    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", lambda: [])
+    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", list)
 
     result = project_recovery.recover_legacy_projects()
 
@@ -119,7 +119,7 @@ def test_recovery_is_idempotent_and_never_overwrites_existing_project(
     storage.DATA_ROOT = active
     storage.PROJECTS_ROOT = active / "projects"
     monkeypatch.setattr(project_recovery, "_search_roots", lambda: [legacy_root])
-    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", lambda: [])
+    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", list)
 
     first = project_recovery.recover_legacy_projects()
     recovered_file = storage.PROJECTS_ROOT / "old-novel" / "manuscript" / "chapter-001.md"
@@ -146,7 +146,7 @@ def test_recovery_restores_project_when_project_json_is_missing(
     storage.DATA_ROOT = active
     storage.PROJECTS_ROOT = active / "projects"
     monkeypatch.setattr(project_recovery, "_search_roots", lambda: [legacy_root])
-    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", lambda: [])
+    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", list)
 
     result = project_recovery.recover_legacy_projects()
 
@@ -167,7 +167,7 @@ def test_windows_drive_roots_are_included_in_search_roots(tmp_path: Path, monkey
     drive = tmp_path / "simulated-drive"
     drive.mkdir()
     monkeypatch.setattr(project_recovery, "_windows_drive_roots", lambda: [drive])
-    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", lambda: [])
+    monkeypatch.setattr(project_recovery, "_historical_windows_launch_roots", list)
 
     roots = project_recovery._search_roots()
 
