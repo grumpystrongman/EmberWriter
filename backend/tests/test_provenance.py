@@ -1,8 +1,14 @@
 from pathlib import Path
 
 from app import storage
+from app.provenance import provenance_summary
 from app.provenance_score import evidence_strength, later_revision_count
-from app.provenance_store import assistance_events, record_assistance_event
+from app.provenance_store import (
+    assistance_decisions,
+    assistance_events,
+    record_assistance_decision,
+    record_assistance_event,
+)
 from app.voice_audit_metrics import cadence_streaks, phrase_hits, symmetry_hits, voice_alignment
 
 
@@ -40,6 +46,62 @@ def test_assistance_event_stores_hashes_and_metadata(tmp_path: Path) -> None:
     assert len(rows[0]["output_hash"]) == 64
     assert "prompt" not in rows[0]
     assert "output_text" not in rows[0]
+
+
+def test_author_decision_is_linked_to_assistance_event(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Decision Test")
+    slug = project["slug"]
+    event = record_assistance_event(
+        slug,
+        mode="continue",
+        active_file="manuscript/chapter-02.md",
+        prompt="Continue the scene.",
+        selected_text=None,
+        output_text="A generated suggestion the author can review.",
+        context_files=[],
+        refined=False,
+        provider="ollama",
+        model="test-model",
+    )
+
+    first = record_assistance_decision(
+        slug,
+        assistance_event_id=event["id"],
+        decision="rejected",
+        active_file="manuscript/chapter-02.md",
+        note="Did not fit the character voice.",
+    )
+    assert first["decision"] == "rejected"
+    assert assistance_decisions(slug)[0]["note"] == "Did not fit the character voice."
+
+    record_assistance_decision(
+        slug,
+        assistance_event_id=event["id"],
+        decision="partial",
+        active_file="manuscript/chapter-02.md",
+        note="Kept the structural idea and rewrote the prose.",
+    )
+    rows = assistance_decisions(slug)
+    assert len(rows) == 1
+    assert rows[0]["decision"] == "partial"
+
+    summary = provenance_summary(slug)
+    assert summary["provenance"]["assistance_decisions"] == 1
+    assert summary["provenance"]["assistance_decision_counts"] == {"partial": 1}
+    assert summary["provenance"]["unreviewed_assistance_events"] == 0
+
+
+def test_unknown_assistance_event_cannot_receive_decision(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Unknown Decision Test")
+    slug = project["slug"]
+    try:
+        record_assistance_decision(slug, assistance_event_id="missing", decision="rejected")
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("Expected a missing assistance event to be rejected")
 
 
 def test_evidence_strength_rewards_lineage_without_claiming_proof() -> None:
