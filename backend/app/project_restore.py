@@ -95,9 +95,6 @@ def _candidate_project_prefixes(paths: list[PurePosixPath]) -> list[tuple[str, .
     if not scores:
         return []
 
-    # If a selected folder is itself a project, do not also treat nested copies
-    # or archives as separate projects. For a library folder, sibling project
-    # prefixes remain independent and are all returned.
     prefixes = sorted(scores, key=lambda item: (len(item), tuple(part.casefold() for part in item)))
     selected: list[tuple[str, ...]] = []
     for prefix in prefixes:
@@ -179,8 +176,6 @@ def _restore_root_relative_project(
     slug = created["slug"]
     root = project_root(slug)
 
-    # create_project seeds helpful starter files. A restore must be exact instead
-    # of mixing those defaults into the recovered author's work.
     for child in list(root.iterdir()):
         if child.name == "project.json":
             continue
@@ -282,11 +277,6 @@ def restore_uploaded_project(
     *,
     name: str | None = None,
 ) -> dict:
-    """Compatibility wrapper for callers that expect exactly one project."""
+    """Load a selected project folder or a projects-library folder."""
 
-    bundle = restore_uploaded_projects(entries, name=name)
-    if bundle["loaded_count"] != 1:
-        raise ValueError(
-            "That folder contains multiple EmberWriter projects. Load the projects library through the Load / Import control instead."
-        )
-    return bundle["results"][0]
+    return restore_uploaded_projects(entries, name=name)
