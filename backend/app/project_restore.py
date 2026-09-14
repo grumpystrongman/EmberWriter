@@ -231,7 +231,7 @@ def restore_uploaded_projects(
     prefixes = _candidate_project_prefixes([path for path, _ in normalized])
     if not prefixes:
         raise ValueError(
-            "No EmberWriter project was found in that folder. Select a project folder or the data/projects folder that contains your projects."
+            "That folder does not look like an EmberWriter project or projects library. Select a project folder or the data/projects folder that contains your projects."
         )
 
     results: list[dict] = []
@@ -251,7 +251,7 @@ def restore_uploaded_projects(
 
     if not results:
         raise ValueError(
-            "No loadable EmberWriter project was found in that folder. Expected project.json, manuscript/, or .ember history."
+            "That folder does not look like an EmberWriter project or projects library. Expected project.json, manuscript/, or .ember history."
         )
 
     history_restored = [
