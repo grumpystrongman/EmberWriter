@@ -16,6 +16,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
 VENV="$BACKEND/.venv"
 HOSTED_URL="https://$FIREBASE_PROJECT_ID.web.app"
+export EMBER_DATA_DIR="${EMBER_DATA_DIR:-$ROOT/data}"
 
 if [ ! -d "$VENV" ]; then
   python3 -m venv "$VENV"
@@ -26,7 +27,8 @@ export EMBER_CORS_ORIGINS="https://$FIREBASE_PROJECT_ID.web.app,https://$FIREBAS
 
 echo "EmberWriter hosted UI: $HOSTED_URL"
 echo "EmberWriter local API: http://127.0.0.1:8000"
-echo "Your manuscripts and SQLite data remain under the local data directory."
+echo "Project data: $EMBER_DATA_DIR"
 echo "Keep this terminal open while using the hosted UI. Press Ctrl+C to stop the API."
 
+cd "$ROOT"
 "$VENV/bin/python" -m uvicorn app.main:app --app-dir "$BACKEND" --host 127.0.0.1 --port 8000
