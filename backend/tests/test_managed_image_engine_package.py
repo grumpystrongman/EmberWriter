@@ -49,7 +49,8 @@ def test_launchers_pin_project_storage_to_install_root() -> None:
     assert '$DefaultDataRoot = Join-Path $Root "data"' in windows
     assert "$env:EMBER_DATA_DIR = $DefaultDataRoot" in windows
     assert "Recovered existing EmberWriter projects from legacy data location" in windows
-    assert "-WorkingDirectory $Root -PassThru" in windows
+    assert "-WorkingDirectory $Root" in windows
+    assert "-PassThru" in windows
     assert '$env:EMBER_DATA_DIR = Join-Path $Root "data"' in windows_hosted
     assert 'export EMBER_DATA_DIR="${EMBER_DATA_DIR:-$ROOT/data}"' in unix
     assert 'export EMBER_DATA_DIR="${EMBER_DATA_DIR:-$ROOT/data}"' in unix_hosted

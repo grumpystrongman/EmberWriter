@@ -168,8 +168,10 @@ def health() -> dict:
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
 def projects() -> list[dict]:
-    if not _recovery_attempted:
-        _run_project_recovery()
+    # Normal library loading must stay fast and deterministic. The forensic
+    # recovery scan walks historical locations and mounted drives; running that
+    # automatically here can make a healthy local API look unavailable. Recovery
+    # remains available explicitly through POST /api/projects/recover.
     return list_projects()
 
 
