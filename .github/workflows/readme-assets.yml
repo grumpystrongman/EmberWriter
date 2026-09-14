@@ -38,7 +38,7 @@ jobs:
       - name: Install temporary screenshot tooling
         working-directory: frontend
         run: |
-          npm install --no-save --package-lock=false playwright@1.55.0
+          npm install --no-save --package-lock=false playwright@latest
           npx playwright install --with-deps chromium
       - name: Start API and seed documentation project
         env:
