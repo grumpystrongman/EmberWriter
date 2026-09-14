@@ -5,10 +5,12 @@ import shutil
 from pathlib import Path
 
 from .binder import sync_binder
+from .project_restore import restore_uploaded_project
 from .revisions import record_revision
 from .storage import ALLOWED_SUFFIXES, create_project, get_project, project_root, save_text
 
 SKIP_DIRS = {".git", ".ember", "node_modules", "__pycache__"}
+RESTORE_SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__"}
 RECOGNIZED_FOLDERS = {
     "manuscript",
     "characters",
@@ -55,10 +57,40 @@ def _eligible_directory_files(source: Path) -> list[Path]:
     return files
 
 
+def _is_emberwriter_project(source: Path) -> bool:
+    return (
+        (source / "project.json").exists()
+        or (source / "manuscript").is_dir()
+        or (source / ".ember" / "story.db").exists()
+        or (source / ".ember" / "snapshots").is_dir()
+    )
+
+
+def _restore_entries(source: Path) -> list[tuple[str, bytes]]:
+    entries: list[tuple[str, bytes]] = []
+    for candidate in source.rglob("*"):
+        if not candidate.is_file():
+            continue
+        relative = candidate.relative_to(source)
+        if any(part.casefold() in RESTORE_SKIP_DIRS for part in relative.parts):
+            continue
+        entries.append((relative.as_posix(), candidate.read_bytes()))
+    return entries
+
+
 def import_project(source_path: str, name: str | None = None) -> dict:
     source = Path(source_path).expanduser().resolve()
     if not source.exists():
         raise FileNotFoundError(source_path)
+
+    # The original local-folder importer intentionally skipped .ember. That is
+    # correct for importing generic notes, but wrong for restoring an existing
+    # EmberWriter project because .ember contains revisions/checkpoints/snapshots.
+    # Route recognizable EmberWriter project folders through the preservation
+    # restore path instead.
+    if source.is_dir() and _is_emberwriter_project(source):
+        result = restore_uploaded_project(_restore_entries(source), name=name)
+        return result["project"]
 
     if source.is_file():
         if source.suffix.lower() not in ALLOWED_SUFFIXES:
