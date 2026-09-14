@@ -1,14 +1,18 @@
-import CharacterVoiceStudio from './CharacterVoiceStudio'
-import CharactersWorkspace from './CharactersWorkspace'
-import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
-import PlanningHub from './PlanningHub'
-import ProvenanceVoicePanel from './ProvenanceVoicePanel'
-import PublishPanel from './PublishPanel'
-import SubmissionPanel from './SubmissionPanel'
-import WorldWorkspace from './WorldWorkspace'
+import { lazy, Suspense } from 'react'
+
+import type { EditorialFinding } from './EditorialPanel'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './center-workspaces.css'
 import './scene-center.css'
+
+const CharacterVoiceStudio = lazy(() => import('./CharacterVoiceStudio'))
+const CharactersWorkspace = lazy(() => import('./CharactersWorkspace'))
+const EditorialPanel = lazy(() => import('./EditorialPanel'))
+const PlanningHub = lazy(() => import('./PlanningHub'))
+const ProvenanceVoicePanel = lazy(() => import('./ProvenanceVoicePanel'))
+const PublishPanel = lazy(() => import('./PublishPanel'))
+const SubmissionPanel = lazy(() => import('./SubmissionPanel'))
+const WorldWorkspace = lazy(() => import('./WorldWorkspace'))
 
 type Props = {
   workspace: Workspace
@@ -17,6 +21,16 @@ type Props = {
 }
 
 const API = 'http://127.0.0.1:8000/api'
+
+function LoadingWorkspace() {
+  return (
+    <div className="center-workspace-empty" role="status" aria-live="polite">
+      <span>◆</span>
+      <h1>Opening workspace…</h1>
+      <p>Loading the tools for this studio.</p>
+    </div>
+  )
+}
 
 export default function CenterWorkspace({ workspace, project, onOpenSource }: Props) {
   if (workspace === 'write') return null
@@ -39,50 +53,52 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
 
   return (
     <div className={`center-workspace-overlay center-workspace-${workspace}`}>
-      {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
-      {workspace === 'characters' && (
-        <>
-          <CharactersWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />
-          <CharacterVoiceStudio apiBase={API} slug={project.slug} />
-        </>
-      )}
-      {workspace === 'world' && <WorldWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
-      {workspace === 'analyze' && (
-        <section className="center-tool analyze-workspace">
-          <header className="center-tool-header">
-            <div><small>ANALYZE · {project.name}</small><h1>Editorial & Reader Studio</h1><p>Manuscript-wide diagnostics, smart triage, AI side-by-side revision review, genre readers, grammar knowledge, continuity work, provenance, and voice fidelity in one full-width surface.</p></div>
-          </header>
-          <EditorialPanel
-            apiBase={API}
-            slug={project.slug}
-            activePath={project.activePath}
-            disabled={false}
-            refreshToken={0}
-            onOpenFinding={openFinding}
-          />
-          <ProvenanceVoicePanel apiBase={API} slug={project.slug} activePath={project.activePath} />
-        </section>
-      )}
-      {workspace === 'publish' && (
-        <section className="center-tool publish-workspace">
-          <header className="center-tool-header">
-            <div><small>PUBLISH · {project.name}</small><h1>Publishing Studio</h1><p>Compile interiors, design the cover, validate release metadata, and build retailer-ready handoff packages without leaving the center workspace.</p></div>
-          </header>
-          <div className="center-existing-tools publish-existing-tools">
-            <PublishPanel apiBase={API} slug={project.slug} projectName={project.name} disabled={false} />
-          </div>
-        </section>
-      )}
-      {workspace === 'submit' && (
-        <section className="center-tool submit-workspace">
-          <header className="center-tool-header">
-            <div><small>SUBMIT · {project.name}</small><h1>Traditional Submission Studio</h1><p>Build and edit your query package, destination-specific requirements, samples, synopsis, pitch, bio, and submission tracker.</p></div>
-          </header>
-          <div className="center-existing-tools">
-            <SubmissionPanel apiBase={API} slug={project.slug} disabled={false} />
-          </div>
-        </section>
-      )}
+      <Suspense fallback={<LoadingWorkspace />}>
+        {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
+        {workspace === 'characters' && (
+          <>
+            <CharactersWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />
+            <CharacterVoiceStudio apiBase={API} slug={project.slug} />
+          </>
+        )}
+        {workspace === 'world' && <WorldWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
+        {workspace === 'analyze' && (
+          <section className="center-tool analyze-workspace">
+            <header className="center-tool-header">
+              <div><small>ANALYZE · {project.name}</small><h1>Editorial & Reader Studio</h1><p>Manuscript-wide diagnostics, smart triage, AI side-by-side revision review, genre readers, grammar knowledge, continuity work, provenance, and voice fidelity in one full-width surface.</p></div>
+            </header>
+            <EditorialPanel
+              apiBase={API}
+              slug={project.slug}
+              activePath={project.activePath}
+              disabled={false}
+              refreshToken={0}
+              onOpenFinding={openFinding}
+            />
+            <ProvenanceVoicePanel apiBase={API} slug={project.slug} activePath={project.activePath} />
+          </section>
+        )}
+        {workspace === 'publish' && (
+          <section className="center-tool publish-workspace">
+            <header className="center-tool-header">
+              <div><small>PUBLISH · {project.name}</small><h1>Publishing Studio</h1><p>Compile interiors, design the cover, validate release metadata, and build retailer-ready handoff packages without leaving the center workspace.</p></div>
+            </header>
+            <div className="center-existing-tools publish-existing-tools">
+              <PublishPanel apiBase={API} slug={project.slug} projectName={project.name} disabled={false} />
+            </div>
+          </section>
+        )}
+        {workspace === 'submit' && (
+          <section className="center-tool submit-workspace">
+            <header className="center-tool-header">
+              <div><small>SUBMIT · {project.name}</small><h1>Traditional Submission Studio</h1><p>Build and edit your query package, destination-specific requirements, samples, synopsis, pitch, bio, and submission tracker.</p></div>
+            </header>
+            <div className="center-existing-tools">
+              <SubmissionPanel apiBase={API} slug={project.slug} disabled={false} />
+            </div>
+          </section>
+        )}
+      </Suspense>
     </div>
   )
 }
