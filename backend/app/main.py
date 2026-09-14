@@ -19,6 +19,7 @@ from .models import (
     SearchHit,
     SearchRequest,
 )
+from .project_recovery import recover_legacy_projects
 from .revisions import record_revision
 from .routes_atlas import router as atlas_router
 from .routes_authoring import router as authoring_router
@@ -52,6 +53,8 @@ from .storage import (
     save_text,
     search_story,
 )
+
+_recovery_attempted = False
 
 
 @asynccontextmanager
@@ -126,7 +129,26 @@ def health() -> dict:
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
 def projects() -> list[dict]:
+    global _recovery_attempted
+    if not _recovery_attempted:
+        _recovery_attempted = True
+        try:
+            recover_legacy_projects()
+        except OSError:
+            pass
     return list_projects()
+
+
+@app.post("/api/projects/recover")
+def recover_projects() -> dict:
+    global _recovery_attempted
+    try:
+        result = recover_legacy_projects()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Project recovery failed: {exc}") from exc
+    _recovery_attempted = True
+    result["projects"] = list_projects()
+    return result
 
 
 @app.post("/api/projects", response_model=ProjectDetail)
