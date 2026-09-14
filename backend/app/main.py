@@ -74,7 +74,7 @@ def _run_project_recovery() -> dict:
     try:
         report = recover_legacy_projects()
         report["error"] = None
-    except Exception as exc:  # Recovery must never make the library unavailable.
+    except (OSError, UnicodeError, ValueError) as exc:
         report = {
             "attempted": True,
             "found": 0,
