@@ -2,6 +2,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from app import project_restore, storage
 
 
@@ -103,9 +105,23 @@ def test_restore_uploaded_project_rejects_non_emberwriter_folder(tmp_path: Path)
     storage.DATA_ROOT = tmp_path / "data"
     storage.PROJECTS_ROOT = storage.DATA_ROOT / "projects"
 
-    try:
+    with pytest.raises(ValueError, match="does not look like an EmberWriter project"):
         project_restore.restore_uploaded_project([("random-folder/photo.jpg", b"image")])
-    except ValueError as exc:
-        assert "does not look like an EmberWriter project" in str(exc)
-    else:
-        raise AssertionError("Expected non-EmberWriter folder to be rejected")
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [
+        "../outside/project.json",
+        "/absolute/project.json",
+        r"C:\absolute\project.json",
+    ],
+)
+def test_restore_uploaded_project_rejects_unsafe_paths(
+    tmp_path: Path, unsafe_path: str
+) -> None:
+    storage.DATA_ROOT = tmp_path / "data"
+    storage.PROJECTS_ROOT = storage.DATA_ROOT / "projects"
+
+    with pytest.raises(ValueError, match="Unsafe project path"):
+        project_restore.restore_uploaded_project([(unsafe_path, _project_json())])
