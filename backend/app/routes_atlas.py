@@ -23,8 +23,29 @@ from .atlas_models import (
     AtlasRouteResult,
     StoryAtlas,
 )
+from .storage import project_root
 
 router = APIRouter(prefix="/api")
+
+
+def _validate_visual_references(slug: str, atlas: StoryAtlas) -> None:
+    root = project_root(slug)
+    if not (root / "project.json").exists():
+        raise FileNotFoundError(slug)
+    requested: dict[str, str] = {}
+    if atlas.map.background_asset_id:
+        requested[atlas.map.background_asset_id] = "map background"
+    for location in atlas.locations:
+        if location.image_asset_id:
+            requested[location.image_asset_id] = f"location {location.id}"
+    for asset_id, owner in requested.items():
+        folder = root / "assets" / "visuals"
+        image_path = folder / f"{asset_id}.png"
+        metadata_path = folder / f"{asset_id}.json"
+        if not image_path.exists() or not metadata_path.exists():
+            raise ValueError(
+                f"Atlas {owner} references missing visual asset: {asset_id}"
+            )
 
 
 @router.get("/projects/{slug}/atlas", response_model=StoryAtlas)
@@ -40,6 +61,7 @@ def get_atlas(slug: str) -> StoryAtlas:
 @router.put("/projects/{slug}/atlas", response_model=StoryAtlas)
 def put_atlas(slug: str, payload: StoryAtlas) -> StoryAtlas:
     try:
+        _validate_visual_references(slug, payload)
         return save_atlas(slug, payload)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
