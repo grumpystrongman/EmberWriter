@@ -9,8 +9,9 @@ node_modules/
 dist/
 .vite/
 
-# Local EmberWriter data (user manuscripts/settings)
+# Local EmberWriter data (user manuscripts/settings/runtime)
 data/
+.ember/
 .env
 .env.local
 .env.*.local
