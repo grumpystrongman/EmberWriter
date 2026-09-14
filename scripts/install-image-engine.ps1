@@ -185,8 +185,14 @@ if (Test-Path (Join-Path $EngineDir ".git")) {
 }
 
 $modelPath = $null
+$modelSource = $null
+$modelLicense = $null
+$modelSha256 = $null
 if (-not $SkipModelDownload) {
     $modelPath = Ensure-DefaultModel $EngineDir
+    $modelSource = $DefaultModel.source
+    $modelLicense = $DefaultModel.license
+    $modelSha256 = $DefaultModel.sha256
 } else {
     Write-Host "Skipping baseline image-model download. Add a checkpoint under models\Stable-diffusion before generating images." -ForegroundColor Yellow
 }
@@ -204,10 +210,10 @@ $config = @{
     port = $Port
     launcher = (Join-Path $EngineDir "webui.bat")
     launch_args = @("--api", "--port", "$Port", "--no-download-sd-model")
-    model = if ($modelPath) { $modelPath } else { $null }
-    model_source = if ($modelPath) { $DefaultModel.source } else { $null }
-    model_license = if ($modelPath) { $DefaultModel.license } else { $null }
-    model_sha256 = if ($modelPath) { $DefaultModel.sha256 } else { $null }
+    model = $modelPath
+    model_source = $modelSource
+    model_license = $modelLicense
+    model_sha256 = $modelSha256
     installed_at = (Get-Date).ToUniversalTime().ToString("o")
 }
 $config | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 $ConfigPath
