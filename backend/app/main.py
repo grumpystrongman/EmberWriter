@@ -37,6 +37,7 @@ from .routes_reader import router as reader_router
 from .routes_review import router as review_router
 from .routes_story import router as story_router
 from .routes_submissions import router as submissions_router
+from .runtime_config import cors_origins
 from .storage import (
     create_project,
     get_project,
@@ -65,7 +66,7 @@ app = FastAPI(title="EmberWriter API", version="0.13.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
