@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { BinderState } from './BinderPanel'
 
@@ -8,14 +8,24 @@ type Props = {
   disabled: boolean
   onFiles: (files: File[], mode: ImportMode) => Promise<BinderState | null>
   onText: (title: string, content: string, mode: ImportMode) => Promise<BinderState | null>
+  onProjectFolder?: (files: File[]) => Promise<boolean>
 }
 
-export default function ImportPanel({ disabled, onFiles, onText }: Props) {
+export default function ImportPanel({ disabled, onFiles, onText, onProjectFolder }: Props) {
   const [mode, setMode] = useState<ImportMode>('novel')
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const folderRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // React's input typings do not expose the Chromium directory picker flag,
+    // so apply it directly to the DOM input. File.webkitRelativePath preserves
+    // the EmberWriter project tree for the restore endpoint.
+    folderRef.current?.setAttribute('webkitdirectory', '')
+    folderRef.current?.setAttribute('directory', '')
+  }, [])
 
   async function submitText() {
     if (!text.trim()) return
@@ -34,15 +44,37 @@ export default function ImportPanel({ disabled, onFiles, onText }: Props) {
         disabled={disabled}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        title="Import a complete novel, novel portion, idea, or research file"
+        title="Import a manuscript or restore an EmberWriter project folder"
       >
-        <span>{open ? '▾' : '▸'} Import Manuscript</span>
-        <small>DOCX · PDF · EPUB · RTF · MD · TXT · HTML</small>
+        <span>{open ? '▾' : '▸'} Import / Restore</span>
+        <small>Manuscript files · EmberWriter project folders</small>
       </button>
 
       {open && (
         <div className="authoring-panel-body">
-          <label>Import as</label>
+          {onProjectFolder && <>
+            <label>Restore an EmberWriter project</label>
+            <input
+              ref={folderRef}
+              className="hidden-file-input"
+              type="file"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files || [])
+                if (files.length) void onProjectFolder(files)
+                event.target.value = ''
+              }}
+            />
+            <button type="button" disabled={disabled} onClick={() => folderRef.current?.click()}>
+              Restore EmberWriter folder…
+            </button>
+            <small className="panel-help">
+              Choose the old project folder itself. EmberWriter preserves manuscript files, Binder data, .ember history, revisions, checkpoints, and snapshots when present.
+            </small>
+            <div className="panel-divider" />
+          </>}
+
+          <label>Import manuscript as</label>
           <select value={mode} onChange={(event) => setMode(event.target.value as ImportMode)} disabled={disabled}>
             <option value="novel">Whole novel — detect and split chapters</option>
             <option value="portion">Novel portion — one document</option>
