@@ -1,5 +1,6 @@
 param(
-    [switch]$SkipManagedImageEngine
+    [switch]$SkipManagedImageEngine,
+    [string]$DataDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,14 @@ $ImageEngineConfig = Join-Path $Root ".ember\image-engine.json"
 $ImageEngineInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
 $ImageEngineLauncher = Join-Path $Root "scripts\start-image-engine.ps1"
 $DefaultDataRoot = Join-Path $Root "data"
+$RuntimeDir = Join-Path $Root ".ember"
+$LogDir = Join-Path $RuntimeDir "logs"
+$BackendOutLog = Join-Path $LogDir "backend.out.log"
+$BackendErrLog = Join-Path $LogDir "backend.err.log"
+$FrontendOutLog = Join-Path $LogDir "frontend.out.log"
+$FrontendErrLog = Join-Path $LogDir "frontend.err.log"
+$ApiUrl = "http://127.0.0.1:8000/api/health"
+$UiUrl = "http://127.0.0.1:5173"
 
 function Test-ProjectDataRoot([string]$DataRoot) {
     if (-not $DataRoot) { return $false }
@@ -23,13 +32,100 @@ function Test-ProjectDataRoot([string]$DataRoot) {
     return $null -ne $projectFile
 }
 
-if (-not $env:EMBER_DATA_DIR) {
+function Test-EmberApi {
+    try {
+        $payload = Invoke-RestMethod -Uri $ApiUrl -Method Get -TimeoutSec 2
+        return ($payload.ok -eq $true -and $payload.service -eq "EmberWriter")
+    } catch {
+        return $false
+    }
+}
+
+function Test-EmberUi {
+    try {
+        $response = Invoke-WebRequest -Uri $UiUrl -Method Get -TimeoutSec 2 -UseBasicParsing
+        return ($response.StatusCode -eq 200 -and $response.Content -match "EmberWriter")
+    } catch {
+        return $false
+    }
+}
+
+function Get-ListenerProcessId([int]$Port) {
+    try {
+        $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | Select-Object -First 1
+        if ($listener) { return [int]$listener.OwningProcess }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
+function Stop-ExistingEmberService([int]$Port, [scriptblock]$HealthCheck, [string]$Label) {
+    $healthy = & $HealthCheck
+    $listenerPid = Get-ListenerProcessId $Port
+
+    if ($healthy) {
+        if ($listenerPid -and $listenerPid -ne $PID) {
+            Write-Host "Stopping stale $Label process on port $Port (PID $listenerPid)..." -ForegroundColor Yellow
+            Stop-Process -Id $listenerPid -Force -ErrorAction SilentlyContinue
+            for ($attempt = 0; $attempt -lt 20; $attempt++) {
+                Start-Sleep -Milliseconds 250
+                if (-not (Get-ListenerProcessId $Port)) { return }
+            }
+            throw "$Label on port $Port did not stop cleanly. Close the older EmberWriter launch and run start.ps1 again."
+        }
+        throw "$Label is already running on port $Port, but EmberWriter could not determine its process ID. Close the older EmberWriter launch and run start.ps1 again."
+    }
+
+    if ($listenerPid) {
+        throw "Port $Port is already in use by another process (PID $listenerPid). EmberWriter will not open against the wrong service."
+    }
+}
+
+function Wait-ForService([System.Diagnostics.Process]$Process, [scriptblock]$HealthCheck, [int]$TimeoutSeconds) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) { return $false }
+        if (& $HealthCheck) { return $true }
+        Start-Sleep -Milliseconds 300
+    }
+    return $false
+}
+
+function Show-LogTail([string]$Path, [string]$Label) {
+    if (-not (Test-Path $Path)) { return }
+    Write-Host ""
+    Write-Host "$Label ($Path):" -ForegroundColor Yellow
+    Get-Content -Path $Path -Tail 80 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+}
+
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+Remove-Item $BackendOutLog, $BackendErrLog, $FrontendOutLog, $FrontendErrLog -Force -ErrorAction SilentlyContinue
+
+if ($DataDir) {
+    $env:EMBER_DATA_DIR = [System.IO.Path]::GetFullPath((Join-Path $LaunchDirectory $DataDir))
+} else {
     $legacyDataRoot = Join-Path $LaunchDirectory "data"
     $defaultResolved = [System.IO.Path]::GetFullPath($DefaultDataRoot)
     $legacyResolved = [System.IO.Path]::GetFullPath($legacyDataRoot)
+    $configuredDataRoot = $env:EMBER_DATA_DIR
 
+    # A prior shell can retain an old EMBER_DATA_DIR. If this checkout already
+    # contains real projects, prefer the checkout's data root automatically.
     if (Test-ProjectDataRoot $DefaultDataRoot) {
+        if ($configuredDataRoot) {
+            try {
+                $configuredResolved = [System.IO.Path]::GetFullPath($configuredDataRoot)
+            } catch {
+                $configuredResolved = $configuredDataRoot
+            }
+            if ($configuredResolved -ne $defaultResolved) {
+                Write-Host "Using projects found in this EmberWriter checkout instead of stale EMBER_DATA_DIR: $configuredDataRoot" -ForegroundColor Yellow
+            }
+        }
         $env:EMBER_DATA_DIR = $DefaultDataRoot
+    } elseif ($configuredDataRoot -and (Test-ProjectDataRoot $configuredDataRoot)) {
+        $env:EMBER_DATA_DIR = [System.IO.Path]::GetFullPath($configuredDataRoot)
     } elseif ($legacyResolved -ne $defaultResolved -and (Test-ProjectDataRoot $legacyDataRoot)) {
         $env:EMBER_DATA_DIR = $legacyDataRoot
         Write-Host "Recovered existing EmberWriter projects from legacy data location: $legacyDataRoot" -ForegroundColor Green
@@ -85,27 +181,50 @@ if (-not $SkipManagedImageEngine) {
     }
 }
 
-$BackendProcess = Start-Process -FilePath $Python -ArgumentList @(
-    "-m", "uvicorn", "app.main:app",
-    "--app-dir", $Backend,
-    "--host", "127.0.0.1",
-    "--port", "8000"
-) -WorkingDirectory $Root -PassThru
-
-$Npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
-if (-not $Npm) { $Npm = (Get-Command npm).Source }
-$FrontendProcess = Start-Process -FilePath $Npm -ArgumentList @("run", "dev", "--prefix", $Frontend) -WorkingDirectory $Root -PassThru
-
-Write-Host "EmberWriter API: http://127.0.0.1:8000"
-Write-Host "EmberWriter UI:  http://127.0.0.1:5173"
-Start-Process "http://127.0.0.1:5173"
+$BackendProcess = $null
+$FrontendProcess = $null
 
 try {
+    # Never silently reuse stale dev processes. They are a common reason the UI
+    # appears current while its API is gone or running older code.
+    Stop-ExistingEmberService -Port 8000 -HealthCheck ${function:Test-EmberApi} -Label "EmberWriter API"
+
+    $BackendProcess = Start-Process -FilePath $Python -ArgumentList @(
+        "-m", "uvicorn", "app.main:app",
+        "--app-dir", $Backend,
+        "--host", "127.0.0.1",
+        "--port", "8000"
+    ) -WorkingDirectory $Root -RedirectStandardOutput $BackendOutLog -RedirectStandardError $BackendErrLog -PassThru
+
+    if (-not (Wait-ForService -Process $BackendProcess -HealthCheck ${function:Test-EmberApi} -TimeoutSeconds 30)) {
+        Show-LogTail $BackendOutLog "Backend output"
+        Show-LogTail $BackendErrLog "Backend error"
+        throw "EmberWriter API failed to become healthy on port 8000. The browser was not opened. See the backend logs above."
+    }
+
+    Write-Host "EmberWriter API: healthy at http://127.0.0.1:8000" -ForegroundColor Green
+
+    Stop-ExistingEmberService -Port 5173 -HealthCheck ${function:Test-EmberUi} -Label "EmberWriter UI"
+
+    $Npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
+    if (-not $Npm) { $Npm = (Get-Command npm).Source }
+    if (-not $Npm) { throw "npm was not found after setup." }
+
+    $FrontendProcess = Start-Process -FilePath $Npm -ArgumentList @("run", "dev", "--prefix", $Frontend) -WorkingDirectory $Root -RedirectStandardOutput $FrontendOutLog -RedirectStandardError $FrontendErrLog -PassThru
+
+    if (-not (Wait-ForService -Process $FrontendProcess -HealthCheck ${function:Test-EmberUi} -TimeoutSeconds 30)) {
+        Show-LogTail $FrontendOutLog "Frontend output"
+        Show-LogTail $FrontendErrLog "Frontend error"
+        throw "EmberWriter UI failed to become healthy on port 5173. The browser was not opened."
+    }
+
+    Write-Host "EmberWriter UI:  healthy at $UiUrl" -ForegroundColor Green
+    Start-Process $UiUrl
     Wait-Process -Id $FrontendProcess.Id
 }
 finally {
-    if (-not $BackendProcess.HasExited) { Stop-Process -Id $BackendProcess.Id }
-    if (-not $FrontendProcess.HasExited) { Stop-Process -Id $FrontendProcess.Id }
+    if ($BackendProcess -and -not $BackendProcess.HasExited) { Stop-Process -Id $BackendProcess.Id -Force -ErrorAction SilentlyContinue }
+    if ($FrontendProcess -and -not $FrontendProcess.HasExited) { Stop-Process -Id $FrontendProcess.Id -Force -ErrorAction SilentlyContinue }
     if ($ImageEnginePid) {
         try {
             & taskkill.exe /PID $ImageEnginePid /T /F 2>$null | Out-Null
