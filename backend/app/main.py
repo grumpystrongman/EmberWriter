@@ -37,6 +37,7 @@ from .routes_reader import router as reader_router
 from .routes_review import router as review_router
 from .routes_story import router as story_router
 from .routes_submissions import router as submissions_router
+from .runtime_config import cors_origins
 from .storage import (
     create_project,
     get_project,
@@ -47,23 +48,6 @@ from .storage import (
     save_text,
     search_story,
 )
-
-
-DEFAULT_CORS_ORIGINS = (
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-)
-
-
-def cors_origins() -> list[str]:
-    from os import getenv
-
-    configured = [
-        origin.strip().rstrip("/")
-        for origin in getenv("EMBER_CORS_ORIGINS", "").split(",")
-        if origin.strip()
-    ]
-    return list(dict.fromkeys((*DEFAULT_CORS_ORIGINS, *configured)))
 
 
 @asynccontextmanager
