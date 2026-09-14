@@ -36,22 +36,27 @@ def demo_reference(path: Path) -> None:
     image.save(path, format="PNG")
 
 
+def checked(response: httpx.Response) -> httpx.Response:
+    if response.is_error:
+        raise RuntimeError(f"{response.request.method} {response.request.url}: {response.status_code} {response.text}")
+    return response
+
+
 def main() -> None:
     with httpx.Client(timeout=30) as client:
-        existing = client.get(f"{BASE}/projects").json()
+        existing = checked(client.get(f"{BASE}/projects")).json()
         for item in existing:
             if item.get("name") == PROJECT_NAME:
                 slug = item["slug"]
                 break
         else:
-            response = client.post(
+            response = checked(client.post(
                 f"{BASE}/projects",
                 json={
                     "name": PROJECT_NAME,
                     "description": "A seeded documentation project showing EmberWriter's story-aware workflow.",
                 },
-            )
-            response.raise_for_status()
+            ))
             slug = response.json()["slug"]
 
         put_text(
@@ -85,6 +90,16 @@ def main() -> None:
             """# Ashenwood\n\n**Type:** Region\n\n## Canon\nDense old forest between Redwater and Stormkeep. The king's road skirts its southern edge; an abandoned watch road passes through it.\n\n## Rules & constraints\nWagons are slow after rain. Riders can be hidden from the main road. The ruined observatory is visible only from the eastern ridge.\n""",
         )
 
+        reference_path = Path("/tmp/redwater-bridge-reference.png")
+        demo_reference(reference_path)
+        with reference_path.open("rb") as handle:
+            response = client.post(
+                f"{BASE}/projects/{slug}/visual-assets/redwater-bridge-reference/upload",
+                params={"title": "Redwater Bridge", "kind": "location"},
+                files={"image": (reference_path.name, handle, "image/png")},
+            )
+        checked(response)
+
         atlas = {
             "schema_version": 1,
             "map": {"title": "The Ashfall Crown — Story Atlas", "units": "miles", "background_asset_id": None},
@@ -114,19 +129,7 @@ def main() -> None:
                 {"id": "bridge-hunt-ch1", "chapter": 1, "action": "note", "target_id": "redwater-bridge", "summary": "Valerius's riders begin pursuit from Veyra.", "value": "pursuit", "source_path": "manuscript/chapter-001.md"}
             ],
         }
-        response = client.put(f"{BASE}/projects/{slug}/atlas", json=atlas)
-        response.raise_for_status()
-
-        reference_path = Path("/tmp/redwater-bridge-reference.png")
-        demo_reference(reference_path)
-        with reference_path.open("rb") as handle:
-            response = client.post(
-                f"{BASE}/projects/{slug}/visual-assets/redwater-bridge-reference/upload",
-                params={"title": "Redwater Bridge", "kind": "location"},
-                files={"image": (reference_path.name, handle, "image/png")},
-            )
-        response.raise_for_status()
-
+        checked(client.put(f"{BASE}/projects/{slug}/atlas", json=atlas))
         print(slug)
 
 
