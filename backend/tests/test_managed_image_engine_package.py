@@ -38,3 +38,18 @@ def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
     assert "taskkill.exe /PID $ImageEnginePid /T /F" in start
     assert "/sdapi/v1/options" in image_start
     assert 'Start-Process -FilePath "cmd.exe"' in image_start
+
+
+def test_launchers_pin_project_storage_to_install_root() -> None:
+    windows = (REPO_ROOT / "start.ps1").read_text(encoding="utf-8")
+    windows_hosted = (REPO_ROOT / "start-hosted.ps1").read_text(encoding="utf-8")
+    unix = (REPO_ROOT / "start.sh").read_text(encoding="utf-8")
+    unix_hosted = (REPO_ROOT / "start-hosted.sh").read_text(encoding="utf-8")
+
+    assert '$DefaultDataRoot = Join-Path $Root "data"' in windows
+    assert "$env:EMBER_DATA_DIR = $DefaultDataRoot" in windows
+    assert "Recovered existing EmberWriter projects from legacy data location" in windows
+    assert "-WorkingDirectory $Root -PassThru" in windows
+    assert '$env:EMBER_DATA_DIR = Join-Path $Root "data"' in windows_hosted
+    assert 'export EMBER_DATA_DIR="${EMBER_DATA_DIR:-$ROOT/data}"' in unix
+    assert 'export EMBER_DATA_DIR="${EMBER_DATA_DIR:-$ROOT/data}"' in unix_hosted
