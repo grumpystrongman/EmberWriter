@@ -10,43 +10,76 @@ from .prose_quality import quality_guidance
 from .provenance_store import record_assistance_event
 from .storage import compile_context
 from .story_intelligence import build_character_context, relevant_character_names
-from .voice_audit import analyze_voice_text
+from .style_fidelity import get_style_fidelity, measure_style
+from .voice_audit_metrics import cadence_streaks, phrase_hits, symmetry_hits, voice_alignment
 
 VOICE_STRENGTHEN_SYSTEM_PROMPT = """You are EmberWriter's author-voice line editor.
 Return ONLY revised manuscript prose. Do not add headings, notes, explanations, or commentary.
 
 Your job is to make the passage sound more recognizably like this project's established author voice while preserving what the author actually wrote and meant.
 
-Preserve:
-- scene events, facts, chronology, POV, tense, and character identities;
-- relationship meaning, consent/choice state, emotional direction, and requested intensity;
-- intentional roughness, fragments, repetition, slang, profanity, humor, directness, and other useful irregularities when they belong to the author's voice;
-- character-specific dialogue, interiority, imagery, and recurring lore.
+Preserve scene events, facts, chronology, POV, tense, character identities, relationship meaning, emotional direction, requested intensity, and intentional stylistic roughness. Preserve character-specific dialogue, interiority, imagery, and recurring lore.
 
-Improve only where the passage benefits:
-- replace generic explanatory scaffolding with concrete perception, behavior, subtext, or character-native thought;
-- reduce redundant emotional restatement after the emotion is already shown;
-- break accidental symmetrical constructions and repeated rhetorical templates;
-- restore natural sentence-length and paragraph variation when prose has become mechanically even;
-- prefer precise verbs, specific sensory detail, and scene-specific images over generic abstraction;
-- keep dialogue and reactions particular to these characters rather than interchangeable;
-- remove filler, repetitive transitions, generic intensifiers, and polished-but-empty phrasing;
-- preserve the author's measured style tendencies as tendencies, never quotas.
+Improve only where the passage benefits. Replace generic explanatory scaffolding with concrete perception, behavior, subtext, or character-native thought. Reduce redundant emotional restatement. Break accidental repeated rhetorical templates. Restore natural sentence-length and paragraph variation when prose has become mechanically even. Prefer precise verbs, specific sensory detail, and scene-specific images over generic abstraction. Remove filler, repetitive transitions, generic intensifiers, and polished-but-empty phrasing.
 
-Do not optimize for, mention, predict, or attempt to fool any AI detector or classifier. The target is stronger fiction and closer fidelity to the author's learned voice.
+The target is stronger fiction and closer fidelity to the author's learned voice. Do not discuss external scoring systems in the output.
 """
+
+
+def _audit_passage(slug: str, text: str, scope: str) -> dict[str, Any]:
+    metrics = {key: float(value) for key, value in measure_style(text).__dict__.items()}
+    fidelity = get_style_fidelity(slug) or {}
+    baseline = fidelity.get("metrics") if isinstance(fidelity.get("metrics"), dict) else {}
+    alignment = voice_alignment(metrics, baseline)
+    findings: list[dict[str, Any]] = []
+
+    phrases = phrase_hits(text)
+    if len(phrases) >= 2:
+        findings.append({
+            "id": "generic_scaffolding",
+            "label": "Generic explanatory scaffolding",
+            "count": len(phrases),
+            "suggestion": "Prefer concrete perception, behavior, subtext, or a viewpoint-specific thought.",
+        })
+    symmetry = symmetry_hits(text)
+    if len(symmetry) >= 2:
+        findings.append({
+            "id": "symmetry",
+            "label": "Repeated symmetrical contrast",
+            "count": len(symmetry),
+            "suggestion": "Break repeated paired contrasts and let some turns remain implicit.",
+        })
+    streaks = cadence_streaks(text)
+    if streaks:
+        findings.append({
+            "id": "cadence_uniformity",
+            "label": "Uniform sentence cadence",
+            "count": len(streaks),
+            "suggestion": "Restore the author's natural sentence-length variation.",
+        })
+    if alignment and alignment["deltas"]:
+        findings.append({
+            "id": "voice_drift",
+            "label": "Drift from learned author voice",
+            "count": len(alignment["deltas"]),
+            "suggestion": "Revise only measurable mismatches that also feel unlike the project's established voice.",
+        })
+    return {
+        "scope": scope,
+        "metrics": metrics,
+        "voice_alignment": alignment,
+        "findings": findings,
+    }
 
 
 def _focus_lines(audit: dict[str, Any]) -> str:
     findings = audit.get("findings") or []
     if not findings:
-        return "No deterministic craft flags were material. Make only changes that clearly improve voice fidelity."
-    lines: list[str] = []
-    for finding in findings:
-        label = str(finding.get("label", "Voice finding"))
-        suggestion = str(finding.get("suggestion", "")).strip()
-        lines.append(f"- {label}: {suggestion}" if suggestion else f"- {label}")
-    return "\n".join(lines)
+        return "No material deterministic craft flags were found. Make only changes that clearly improve voice fidelity."
+    return "\n".join(
+        f"- {finding.get('label', 'Voice finding')}: {finding.get('suggestion', '')}".rstrip(": ")
+        for finding in findings
+    )
 
 
 def _context_for_passage(slug: str, source_text: str, active_file: str | None, instruction: str) -> tuple[str, list[str]]:
@@ -74,7 +107,7 @@ async def strengthen_voice(
     if not source_text.strip():
         raise ValueError("Choose a passage before strengthening its voice")
 
-    before = analyze_voice_text(slug, source_text, active_file or "Selected passage")
+    before = _audit_passage(slug, source_text, active_file or "Selected passage")
     story_context, context_files = _context_for_passage(slug, source_text, active_file, instruction)
     craft_context, craft_files = build_craft_context(
         slug,
@@ -88,7 +121,7 @@ async def strengthen_voice(
     )
     deterministic_targets = quality_guidance(source_text)
     author_instruction = instruction.strip() or (
-        "Strengthen the author's voice without changing the scene's events, meaning, explicitness, or character intent."
+        "Strengthen the author's voice without changing the scene's events, meaning, intensity, or character intent."
     )
     user_message = f"""AUTHOR REQUEST
 {author_instruction}
@@ -120,7 +153,7 @@ PASSAGE TO LINE-EDIT
     if not revised.strip():
         raise RuntimeError("The model returned an empty voice-strengthening revision")
 
-    after = analyze_voice_text(slug, revised, active_file or "Candidate revision")
+    after = _audit_passage(slug, revised, active_file or "Candidate revision")
     all_files = list(dict.fromkeys([*craft_files, *context_files]))
     event = record_assistance_event(
         slug,
@@ -141,8 +174,5 @@ PASSAGE TO LINE-EDIT
         "after": after,
         "context_files": all_files,
         "assistance_event_id": event["id"],
-        "disclaimer": (
-            "This revision targets craft quality and fidelity to the project's learned voice. "
-            "It does not estimate or promise outcomes from AI-detection systems."
-        ),
+        "disclaimer": "This revision targets craft quality and fidelity to the project's learned voice.",
     }
