@@ -11,6 +11,7 @@ from uuid import uuid4
 from .storage import project_root, utc_now
 
 WORD_RE = re.compile(r"\b[A-Za-z][A-Za-z'’-]*\b")
+ASSISTANCE_DECISIONS = {"accepted_append", "accepted_replace", "rejected", "partial", "copied"}
 
 
 def text_hash(text: str) -> str:
@@ -45,12 +46,28 @@ def connect(slug: str) -> sqlite3.Connection:
         """
     )
     con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS writing_assistance_decisions (
+            assistance_event_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            active_file TEXT,
+            note TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(assistance_event_id) REFERENCES writing_assistance_events(id)
+        )
+        """
+    )
+    con.execute(
         "CREATE INDEX IF NOT EXISTS idx_writing_assistance_created "
         "ON writing_assistance_events(created_at DESC)"
     )
     con.execute(
         "CREATE INDEX IF NOT EXISTS idx_writing_assistance_file "
         "ON writing_assistance_events(active_file, created_at DESC)"
+    )
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_assistance_decision_created "
+        "ON writing_assistance_decisions(created_at DESC)"
     )
     con.commit()
     return con
@@ -101,6 +118,49 @@ def record_assistance_event(
     return event
 
 
+def record_assistance_decision(
+    slug: str,
+    *,
+    assistance_event_id: str,
+    decision: str,
+    active_file: str | None = None,
+    note: str = "",
+) -> dict[str, Any]:
+    if decision not in ASSISTANCE_DECISIONS:
+        raise ValueError(f"Unsupported assistance decision: {decision}")
+    with connect(slug) as con:
+        event = con.execute(
+            "SELECT id FROM writing_assistance_events WHERE id = ?",
+            (assistance_event_id,),
+        ).fetchone()
+        if event is None:
+            raise FileNotFoundError(assistance_event_id)
+        item = {
+            "assistance_event_id": assistance_event_id,
+            "created_at": utc_now(),
+            "decision": decision,
+            "active_file": active_file or None,
+            "note": note.strip()[:1000],
+        }
+        con.execute(
+            """
+            INSERT INTO writing_assistance_decisions
+            (assistance_event_id, created_at, decision, active_file, note)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(assistance_event_id) DO UPDATE SET
+                created_at = excluded.created_at,
+                decision = excluded.decision,
+                active_file = excluded.active_file,
+                note = excluded.note
+            """,
+            (
+                item["assistance_event_id"], item["created_at"], item["decision"],
+                item["active_file"], item["note"],
+            ),
+        )
+    return item
+
+
 def assistance_events(slug: str) -> list[dict[str, Any]]:
     with connect(slug) as con:
         rows = con.execute(
@@ -115,6 +175,15 @@ def assistance_events(slug: str) -> list[dict[str, Any]]:
         item["refined"] = bool(item["refined"])
         result.append(item)
     return result
+
+
+def assistance_decisions(slug: str) -> list[dict[str, Any]]:
+    with connect(slug) as con:
+        rows = con.execute(
+            "SELECT assistance_event_id, created_at, decision, active_file, note "
+            "FROM writing_assistance_decisions ORDER BY created_at ASC"
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def revision_rows(slug: str) -> list[dict[str, Any]]:
