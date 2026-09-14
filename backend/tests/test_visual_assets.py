@@ -3,6 +3,7 @@ import io
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from PIL import Image
 from starlette.datastructures import Headers, UploadFile
 
@@ -26,18 +27,21 @@ def image_bytes(size: tuple[int, int] = (640, 480)) -> bytes:
     return buffer.getvalue()
 
 
+def upload_file(name: str = "reference.png", size: tuple[int, int] = (640, 480)) -> UploadFile:
+    return UploadFile(
+        filename=name,
+        file=io.BytesIO(image_bytes(size)),
+        headers=Headers({"content-type": "image/png"}),
+    )
+
+
 @pytest.mark.asyncio
 async def test_visual_asset_upload_metadata_and_canon_round_trip(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     slug = storage.create_project("Visual Novel")["slug"]
-    upload = UploadFile(
-        filename="blackwood.png",
-        file=io.BytesIO(image_bytes()),
-        headers=Headers({"content-type": "image/png"}),
-    )
 
     asset = await routes_media.upload_visual_asset(
-        slug, "blackwood", upload, title="Blackwood", kind="location"
+        slug, "blackwood", upload_file("blackwood.png"), title="Blackwood", kind="location"
     )
     assert asset["canon_status"] == "reference"
     assert asset["relative_path"] == "assets/visuals/blackwood.png"
@@ -63,20 +67,75 @@ async def test_visual_asset_upload_metadata_and_canon_round_trip(tmp_path: Path)
 
 
 @pytest.mark.asyncio
+async def test_visual_asset_ids_are_append_only_by_default(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    slug = storage.create_project("Safe Visual Novel")["slug"]
+    await routes_media.upload_visual_asset(
+        slug, "capital", upload_file("capital.png"), title="Capital", kind="location"
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await routes_media.upload_visual_asset(
+            slug,
+            "capital",
+            upload_file("capital-new.png"),
+            title="Capital replacement",
+            kind="location",
+        )
+    assert exc_info.value.status_code == 400
+    assert "already exists" in str(exc_info.value.detail)
+    assert len(routes_media.list_visual_assets(slug)) == 1
+
+
+@pytest.mark.asyncio
+async def test_referenced_visual_cannot_be_deleted_until_reference_is_cleared(
+    tmp_path: Path,
+) -> None:
+    use_temp_data(tmp_path)
+    slug = storage.create_project("Reference Integrity Novel")["slug"]
+    await routes_media.upload_visual_asset(
+        slug, "temple", upload_file("temple.png"), title="Temple", kind="location"
+    )
+    await routes_media.upload_visual_asset(
+        slug,
+        "temple-rain",
+        upload_file("temple-rain.png"),
+        title="Temple in Rain",
+        kind="location",
+    )
+    routes_media.update_visual_asset_metadata(
+        slug,
+        "temple-rain",
+        VisualAssetUpdate(reference_asset_id="temple"),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        routes_media.delete_visual_asset(slug, "temple")
+    assert exc_info.value.status_code == 409
+    assert "visual:temple-rain" in str(exc_info.value.detail)
+
+    cleared = routes_media.update_visual_asset_metadata(
+        slug,
+        "temple-rain",
+        VisualAssetUpdate(reference_asset_id=None),
+    )
+    assert cleared["reference_asset_id"] is None
+    routes_media.delete_visual_asset(slug, "temple")
+    assert {item["asset_id"] for item in routes_media.list_visual_assets(slug)} == {
+        "temple-rain"
+    }
+
+
+@pytest.mark.asyncio
 async def test_visual_generation_supports_canonical_img2img_reference(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     use_temp_data(tmp_path)
     slug = storage.create_project("Reference Novel")["slug"]
-    reference_upload = UploadFile(
-        filename="temple.png",
-        file=io.BytesIO(image_bytes((512, 512))),
-        headers=Headers({"content-type": "image/png"}),
-    )
     await routes_media.upload_visual_asset(
         slug,
         "temple-reference",
-        reference_upload,
+        upload_file("temple.png", (512, 512)),
         title="Temple",
         kind="location",
     )
