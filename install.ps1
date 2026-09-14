@@ -88,7 +88,12 @@ if (-not $SkipImageEngineInstall) {
     Write-Host ""
     Write-Host "Installing EmberWriter's managed image engine ($ImageEngine)..." -ForegroundColor Cyan
     $ImageInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
-    & $ImageInstaller -Engine $ImageEngine -SkipModelDownload:$SkipImageModelDownload
+    try {
+        & $ImageInstaller -Engine $ImageEngine -SkipModelDownload:$SkipImageModelDownload
+    } catch {
+        Write-Host "Managed image-engine setup could not complete: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "EmberWriter itself is installed and will still run. Rerun install.ps1 later to repair image generation." -ForegroundColor Yellow
+    }
 } else {
     Write-Host ""
     Write-Host "Skipping managed Stable Diffusion image-engine installation." -ForegroundColor Yellow
