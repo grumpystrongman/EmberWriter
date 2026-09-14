@@ -98,7 +98,9 @@ if ($WaitForReady) {
         if (-not $tail -and (Test-Path $stdout)) {
             $tail = (Get-Content $stdout -Tail 20 -ErrorAction SilentlyContinue) -join "`n"
         }
-        throw "The managed image engine did not become ready at $baseUrl. Check $stdout and $stderr.$(if ($tail) { "`n`nLast log lines:`n$tail" } else { "" })"
+        $detail = ""
+        if ($tail) { $detail = "`n`nLast log lines:`n$tail" }
+        throw "The managed image engine did not become ready at $baseUrl. Check $stdout and $stderr.$detail"
     }
     Write-Host "Image engine ready: $baseUrl" -ForegroundColor Green
 }
