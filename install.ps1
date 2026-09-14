@@ -35,9 +35,9 @@ Write-Host "Installing EmberWriter backend..."
 & $Python -m pip install --upgrade pip
 & $Python -m pip install -e $Backend
 
-Write-Host "Installing frontend dependencies..."
+Write-Host "Installing locked frontend dependencies..."
 Push-Location $Frontend
-try { npm install } finally { Pop-Location }
+try { npm ci } finally { Pop-Location }
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "Ollama is not installed. Attempting Windows installation..." -ForegroundColor Yellow
