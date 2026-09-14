@@ -44,6 +44,7 @@ from .routes_story import router as story_router
 from .routes_submissions import router as submissions_router
 from .runtime_config import cors_origins
 from .storage import (
+    PROJECTS_ROOT,
     create_project,
     get_project,
     list_projects,
@@ -55,6 +56,38 @@ from .storage import (
 )
 
 _recovery_attempted = False
+_last_recovery_report: dict = {
+    "attempted": False,
+    "found": 0,
+    "recovered_count": 0,
+    "recovered": [],
+    "skipped": [],
+    "active_projects_root": str(PROJECTS_ROOT),
+    "searched_roots": [],
+    "drive_wide_scan": False,
+}
+
+
+def _run_project_recovery() -> dict:
+    global _last_recovery_report, _recovery_attempted
+    _recovery_attempted = True
+    try:
+        report = recover_legacy_projects()
+        report["error"] = None
+    except (OSError, UnicodeError, ValueError) as exc:
+        report = {
+            "attempted": True,
+            "found": 0,
+            "recovered_count": 0,
+            "recovered": [],
+            "skipped": [],
+            "active_projects_root": str(PROJECTS_ROOT),
+            "searched_roots": [],
+            "drive_wide_scan": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    _last_recovery_report = report
+    return report
 
 
 @asynccontextmanager
@@ -71,7 +104,7 @@ async def lifespan(_: FastAPI):
             await refresh_task
 
 
-app = FastAPI(title="EmberWriter API", version="0.14.0", lifespan=lifespan)
+app = FastAPI(title="EmberWriter API", version="0.14.1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -124,29 +157,24 @@ async def ember_http_exception_handler(_: Request, exc: HTTPException) -> JSONRe
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.14.0"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.14.1"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
 def projects() -> list[dict]:
-    global _recovery_attempted
     if not _recovery_attempted:
-        _recovery_attempted = True
-        try:
-            recover_legacy_projects()
-        except OSError:
-            pass
+        _run_project_recovery()
     return list_projects()
+
+
+@app.get("/api/projects/recovery-status")
+def project_recovery_status() -> dict:
+    return {**_last_recovery_report, "projects_count": len(list_projects())}
 
 
 @app.post("/api/projects/recover")
 def recover_projects() -> dict:
-    global _recovery_attempted
-    try:
-        result = recover_legacy_projects()
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Project recovery failed: {exc}") from exc
-    _recovery_attempted = True
+    result = _run_project_recovery()
     result["projects"] = list_projects()
     return result
 
