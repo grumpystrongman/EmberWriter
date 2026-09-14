@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sqlite3
 from pathlib import Path
 
 from . import storage
@@ -121,7 +122,7 @@ def _copy_project(source: Path, item: dict) -> dict:
         (target / "project.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         binder = sync_binder(target_slug)
         project = storage.get_project(target_slug)
-    except Exception:
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError, sqlite3.Error):
         shutil.rmtree(target, ignore_errors=True)
         raise
 
