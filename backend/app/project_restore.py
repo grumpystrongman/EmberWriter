@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 
 from .binder import sync_binder
 from .project_recovery import _restore_missing_manuscript_from_history
@@ -24,12 +24,7 @@ _SKIP_PARTS = {
 def _normalize_relative_path(value: str) -> PurePosixPath:
     raw = value.strip()
     normalized = raw.replace("\\", "/")
-    if (
-        not normalized
-        or normalized.startswith("/")
-        or re.match(r"^[A-Za-z]:/", normalized)
-        or normalized.startswith("//")
-    ):
+    if not normalized or normalized.startswith("/") or re.match(r"^[A-Za-z]:/", normalized):
         raise ValueError(f"Unsafe project path: {value}")
     path = PurePosixPath(normalized)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
