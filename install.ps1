@@ -1,7 +1,11 @@
 param(
     [ValidateSet("auto", "8b", "14b")]
     [string]$AdultModelTier = "auto",
-    [switch]$SkipModelDownload
+    [switch]$SkipModelDownload,
+    [ValidateSet("forge", "automatic1111")]
+    [string]$ImageEngine = "forge",
+    [switch]$SkipImageEngineInstall,
+    [switch]$SkipImageModelDownload
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,6 +82,16 @@ if (-not $SkipModelDownload) {
     Write-Host ""
     Write-Host "Local writing model installed: $chosen" -ForegroundColor Green
     Write-Host "EmberWriter will prefer this model when Ollama is selected."
+}
+
+if (-not $SkipImageEngineInstall) {
+    Write-Host ""
+    Write-Host "Installing EmberWriter's managed image engine ($ImageEngine)..." -ForegroundColor Cyan
+    $ImageInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
+    & $ImageInstaller -Engine $ImageEngine -SkipModelDownload:$SkipImageModelDownload
+} else {
+    Write-Host ""
+    Write-Host "Skipping managed Stable Diffusion image-engine installation." -ForegroundColor Yellow
 }
 
 Write-Host ""
