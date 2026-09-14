@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 
-import StoryAtlasPanel from './StoryAtlasPanel'
-import VisualStudioPanel from './VisualStudioPanel'
 import type { MemoryFact } from './MemoryPanel'
 import type { ProviderConfig, WorkspaceProject } from './workspace-types'
 import './world-atlas.css'
+
+const StoryAtlasPanel = lazy(() => import('./StoryAtlasPanel'))
+const VisualStudioPanel = lazy(() => import('./VisualStudioPanel'))
 
 type Props = {
   apiBase: string
@@ -50,6 +51,10 @@ function depthInstruction(depth: Depth) {
   if (depth === 'focused') return 'Keep it concise and reference-friendly, roughly 500–800 words.'
   if (depth === 'exhaustive') return 'Be exhaustive where evidence supports it: 2,000–3,500 words with history, current state, sensory detail, rules, exceptions, stakeholders, conflicts, scene-useful details, continuity constraints, known unknowns, and clearly labeled author decisions still open.'
   return 'Create a detailed reference article of roughly 1,000–1,800 words, emphasizing scene-useful facts, rules, history, sensory details, conflicts, and continuity constraints.'
+}
+
+function LoadingWorldTool() {
+  return <div className="atlas-empty" role="status" aria-live="polite"><strong>Loading world tool…</strong></div>
 }
 
 export default function WorldWorkspace({ apiBase, project, onOpenSource }: Props) {
@@ -206,8 +211,10 @@ export default function WorldWorkspace({ apiBase, project, onOpenSource }: Props
         <button type="button" className={section === 'bible' ? 'active' : ''} onClick={() => setSection('bible')}><b>World Bible</b><span>Canon · lore · rules · reference</span></button>
       </nav>
 
-      {section === 'atlas' && <StoryAtlasPanel apiBase={apiBase} project={project} facts={facts} onOpenSource={onOpenSource} />}
-      {section === 'visuals' && <VisualStudioPanel apiBase={apiBase} project={project} />}
+      <Suspense fallback={<LoadingWorldTool />}>
+        {section === 'atlas' && <StoryAtlasPanel apiBase={apiBase} project={project} facts={facts} onOpenSource={onOpenSource} />}
+        {section === 'visuals' && <VisualStudioPanel apiBase={apiBase} project={project} />}
+      </Suspense>
 
       {section === 'bible' && <>
         <div className="world-bible-toolbar"><div><b>World Bible</b><span>Manuscript-grounded reference articles remain editable Markdown in the project.</span></div><select value={depth} onChange={(event) => setDepth(event.target.value as Depth)}><option value="focused">AI depth: Focused</option><option value="detailed">AI depth: Detailed</option><option value="exhaustive">AI depth: Exhaustive</option></select></div>
