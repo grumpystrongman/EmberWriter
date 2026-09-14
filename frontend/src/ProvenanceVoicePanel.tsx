@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './provenance-voice.css'
 
 type Props = {
@@ -7,15 +7,39 @@ type Props = {
   activePath?: string | null
 }
 
+type AssistanceEvent = {
+  id: string
+  created_at: string
+  mode: string
+  active_file: string | null
+  output_words: number
+  refined: boolean
+  provider: string
+  model: string
+}
+
+type AssistanceDecision = {
+  assistance_event_id: string
+  created_at: string
+  decision: 'accepted_append' | 'accepted_replace' | 'rejected' | 'partial' | 'copied'
+  active_file: string | null
+  note: string
+}
+
 type ProvenanceSummary = {
   draft: { documents: number; words: number; project_hash: string }
   provenance: {
     total_revisions: number
     assistance_events: number
+    assistance_decisions: number
+    assistance_decision_counts: Record<string, number>
+    unreviewed_assistance_events: number
     assistance_events_with_later_revisions: number
     artifacts: Record<string, number | boolean>
   }
   evidence_strength: { score: number; label: string; reasons: string[] }
+  recent_assistance_events: AssistanceEvent[]
+  recent_assistance_decisions: AssistanceDecision[]
   cautions: string[]
 }
 
@@ -53,6 +77,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+function decisionLabel(decision: AssistanceDecision['decision']) {
+  if (decision === 'accepted_append') return 'Accepted · appended'
+  if (decision === 'accepted_replace') return 'Accepted · replaced selection'
+  if (decision === 'partial') return 'Partially used'
+  if (decision === 'copied') return 'Copied elsewhere'
+  return 'Rejected'
+}
+
 export default function ProvenanceVoicePanel({ apiBase, slug, activePath }: Props) {
   const [summary, setSummary] = useState<ProvenanceSummary | null>(null)
   const [audit, setAudit] = useState<VoiceAudit | null>(null)
@@ -60,6 +92,18 @@ export default function ProvenanceVoicePanel({ apiBase, slug, activePath }: Prop
   const [error, setError] = useState('')
   const [exportResult, setExportResult] = useState<ExportResult | null>(null)
   const [busy, setBusy] = useState(false)
+  const [reviewBusy, setReviewBusy] = useState('')
+
+  const decisionsByEvent = useMemo(() => {
+    const map = new Map<string, AssistanceDecision>()
+    for (const decision of summary?.recent_assistance_decisions || []) map.set(decision.assistance_event_id, decision)
+    return map
+  }, [summary])
+
+  const acceptedCount = useMemo(() => {
+    const counts = summary?.provenance.assistance_decision_counts || {}
+    return (counts.accepted_append || 0) + (counts.accepted_replace || 0)
+  }, [summary])
 
   async function load(nextScope = scope) {
     setBusy(true)
@@ -108,6 +152,26 @@ export default function ProvenanceVoicePanel({ apiBase, slug, activePath }: Prop
     }
   }
 
+  async function reviewSuggestion(event: AssistanceEvent, decision: AssistanceDecision['decision']) {
+    setReviewBusy(event.id)
+    setError('')
+    try {
+      await request(`${apiBase}/projects/${slug}/provenance/assistance/${event.id}/decision`, {
+        method: 'POST',
+        body: JSON.stringify({
+          decision,
+          active_file: event.active_file || activePath || null,
+          note: '',
+        }),
+      })
+      setSummary(await request<ProvenanceSummary>(`${apiBase}/projects/${slug}/provenance`))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not record the review decision')
+    } finally {
+      setReviewBusy('')
+    }
+  }
+
   return (
     <section className="provenance-voice-panel">
       <div className="provenance-voice-header">
@@ -128,10 +192,48 @@ export default function ProvenanceVoicePanel({ apiBase, slug, activePath }: Prop
             <div className="provenance-stat"><small>Internal evidence</small><strong>{summary.evidence_strength.label} · {summary.evidence_strength.score}/100</strong></div>
             <div className="provenance-stat"><small>Recoverable revisions</small><strong>{summary.provenance.total_revisions}</strong></div>
             <div className="provenance-stat"><small>Assistance events</small><strong>{summary.provenance.assistance_events}</strong></div>
+            <div className="provenance-stat"><small>Suggestions reviewed</small><strong>{summary.provenance.assistance_decisions}</strong></div>
             <div className="provenance-stat"><small>Later author revisions</small><strong>{summary.provenance.assistance_events_with_later_revisions}</strong></div>
           </div>
-          <p className="provenance-note">Draft fingerprint: {summary.draft.project_hash.slice(0, 20)}… · {summary.draft.documents} documents · {summary.draft.words.toLocaleString()} words</p>
+          <p className="provenance-note">
+            Draft fingerprint: {summary.draft.project_hash.slice(0, 20)}… · {summary.draft.documents} documents · {summary.draft.words.toLocaleString()} words
+            {' · '}{acceptedCount} accepted · {summary.provenance.assistance_decision_counts.rejected || 0} rejected · {summary.provenance.assistance_decision_counts.partial || 0} partial · {summary.provenance.unreviewed_assistance_events} unreviewed
+          </p>
         </>
+      )}
+
+      {summary && summary.recent_assistance_events.length > 0 && (
+        <div className="assistance-review-section">
+          <div className="voice-audit-toolbar">
+            <div>
+              <h3>Suggestion Review Ledger</h3>
+              <p>Record what you actually did with recent Ember suggestions. Generation alone is never treated as acceptance.</p>
+            </div>
+          </div>
+          <div className="assistance-review-list">
+            {summary.recent_assistance_events.slice(0, 10).map((event) => {
+              const decision = decisionsByEvent.get(event.id)
+              return (
+                <article className="assistance-review-row" key={event.id}>
+                  <div className="assistance-review-copy">
+                    <small>{event.mode} · {event.output_words.toLocaleString()} words · {event.model || event.provider}</small>
+                    <strong>{event.active_file || 'No manuscript file attached'}</strong>
+                    <span>{new Date(event.created_at).toLocaleString()}</span>
+                    {decision && <em>Recorded: {decisionLabel(decision.decision)}</em>}
+                  </div>
+                  <div className="assistance-review-actions">
+                    <button className="provenance-button" disabled={reviewBusy === event.id} onClick={() => void reviewSuggestion(event, 'accepted_append')}>Accepted · append</button>
+                    <button className="provenance-button" disabled={reviewBusy === event.id} onClick={() => void reviewSuggestion(event, 'accepted_replace')}>Accepted · replace</button>
+                    <button className="provenance-button" disabled={reviewBusy === event.id} onClick={() => void reviewSuggestion(event, 'partial')}>Partial</button>
+                    <button className="provenance-button" disabled={reviewBusy === event.id} onClick={() => void reviewSuggestion(event, 'copied')}>Copied</button>
+                    <button className="provenance-button" disabled={reviewBusy === event.id} onClick={() => void reviewSuggestion(event, 'rejected')}>Rejected</button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <p className="provenance-note">A later choice replaces the earlier classification for the same suggestion, so the ledger reflects your final review outcome.</p>
+        </div>
       )}
 
       <div className="voice-audit-section">
