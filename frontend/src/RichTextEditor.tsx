@@ -143,7 +143,7 @@ export default forwardRef<RichEditorHandle, Props>(function RichTextEditor(
     if (!editor) return
     const current = turndown.turndown(editor.getHTML()).trimEnd()
     const incoming = markdown.trimEnd()
-    if (current !== incoming) editor.commands.setContent(htmlFromMarkdown(markdown), false)
+    if (current !== incoming) editor.commands.setContent(htmlFromMarkdown(markdown), { emitUpdate: false })
     setDocumentWords(editor.storage.characterCount.words())
     setLiveIssueCount(diagnoseText(editor.state.doc.textContent).length)
   }, [documentKey, markdown, editor, turndown])
