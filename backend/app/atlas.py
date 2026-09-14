@@ -680,9 +680,13 @@ Use simple relative coordinates; x increases east, y increases south. Distances 
             )
         ][:50]
 
-        def rating(key: str, default: int) -> int:
+        def rating(
+            key: str,
+            default: int,
+            source: dict[str, Any] = raw,
+        ) -> int:
             try:
-                return max(1, min(5, int(raw.get(key, default))))
+                return max(1, min(5, int(source.get(key, default))))
             except (TypeError, ValueError):
                 return default
 
