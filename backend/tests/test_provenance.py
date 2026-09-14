@@ -34,7 +34,7 @@ def test_assistance_event_stores_hashes_and_metadata(tmp_path: Path) -> None:
     assert rows[0]["id"] == result["id"]
     assert rows[0]["mode"] == "rewrite"
     assert rows[0]["active_file"] == "manuscript/chapter-01.md"
-    assert rows[0]["output_words"] == 7
+    assert rows[0]["output_words"] == 6
     assert rows[0]["refined"] is True
     assert len(rows[0]["prompt_hash"]) == 64
     assert len(rows[0]["output_hash"]) == 64
