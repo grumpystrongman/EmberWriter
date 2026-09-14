@@ -58,12 +58,14 @@ def _eligible_directory_files(source: Path) -> list[Path]:
 
 
 def _is_emberwriter_project(source: Path) -> bool:
-    return (
-        (source / "project.json").exists()
-        or (source / "manuscript").is_dir()
-        or (source / ".ember" / "story.db").exists()
-        or (source / ".ember" / "snapshots").is_dir()
-    )
+    has_metadata = (source / "project.json").is_file()
+    has_history = (source / ".ember" / "story.db").is_file() or (
+        source / ".ember" / "snapshots"
+    ).is_dir()
+    has_binder_identity = (source / "binder.json").is_file() and (
+        source / "manuscript"
+    ).is_dir()
+    return has_metadata or has_history or has_binder_identity
 
 
 def _restore_entries(source: Path) -> list[tuple[str, bytes]]:
@@ -87,7 +89,8 @@ def import_project(source_path: str, name: str | None = None) -> dict:
     # correct for importing generic notes, but wrong for restoring an existing
     # EmberWriter project because .ember contains revisions/checkpoints/snapshots.
     # Route recognizable EmberWriter project folders through the preservation
-    # restore path instead.
+    # restore path instead. A manuscript/ directory alone is intentionally not
+    # enough evidence because generic structured imports use that layout too.
     if source.is_dir() and _is_emberwriter_project(source):
         result = restore_uploaded_project(_restore_entries(source), name=name)
         return result["project"]
