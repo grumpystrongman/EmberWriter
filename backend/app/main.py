@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .importer import import_project
 from .knowledge import ensure_seeded
@@ -37,6 +38,7 @@ from .routes_preview import router as preview_router
 from .routes_provenance import router as provenance_router
 from .routes_reader import router as reader_router
 from .routes_review import router as review_router
+from .routes_sd import router as sd_router
 from .routes_story import router as story_router
 from .routes_submissions import router as submissions_router
 from .runtime_config import cors_origins
@@ -92,9 +94,29 @@ app.include_router(distribution_router)
 app.include_router(review_router)
 app.include_router(submissions_router)
 app.include_router(media_router)
+app.include_router(sd_router)
 app.include_router(development_router)
 app.include_router(preview_router)
 app.include_router(provenance_router)
+
+
+@app.exception_handler(HTTPException)
+async def ember_http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
+    detail = exc.detail
+    if (
+        exc.status_code == 502
+        and isinstance(detail, str)
+        and detail.startswith("Stable Diffusion server error:")
+    ):
+        detail = (
+            "Stable Diffusion could not be reached from EmberWriter. Use the image-server status control to test and auto-detect a local AUTOMATIC1111/Forge API. "
+            "If you run AUTOMATIC1111/Forge, start it with the API enabled (normally --api). If EmberWriter runs in Docker/WSL and the image server runs on Windows, expose the WebUI with --listen and use the host address instead of 127.0.0.1."
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail},
+        headers=exc.headers,
+    )
 
 
 @app.get("/api/health")
