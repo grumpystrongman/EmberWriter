@@ -1,17 +1,16 @@
 import { lazy, Suspense } from 'react'
 
-import type { EditorialFinding } from './EditorialPanel'
+import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
+import PublishPanel from './PublishPanel'
+import SubmissionPanel from './SubmissionPanel'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './center-workspaces.css'
 import './scene-center.css'
 
 const CharacterVoiceStudio = lazy(() => import('./CharacterVoiceStudio'))
 const CharactersWorkspace = lazy(() => import('./CharactersWorkspace'))
-const EditorialPanel = lazy(() => import('./EditorialPanel'))
 const PlanningHub = lazy(() => import('./PlanningHub'))
 const ProvenanceVoicePanel = lazy(() => import('./ProvenanceVoicePanel'))
-const PublishPanel = lazy(() => import('./PublishPanel'))
-const SubmissionPanel = lazy(() => import('./SubmissionPanel'))
 const WorldWorkspace = lazy(() => import('./WorldWorkspace'))
 
 type Props = {
