@@ -2,9 +2,33 @@ import type { AtlasLocation, AtlasRoute, StoryAtlas } from './story-atlas-types'
 import type { ProviderConfig } from './workspace-types'
 import type { AtlasViewBox, AtlasViewMode, AtlasVisualStyle, AtlasWorldType } from './LivingAtlasCanvas'
 
-export const SCALE_OPTIONS = ['cosmos', 'dimension', 'system', 'world', 'continent', 'region', 'city', 'district', 'site', 'building', 'room'] as const
+export const SCALE_OPTIONS = [
+  'cosmos',
+  'galaxy',
+  'dimension',
+  'system',
+  'world',
+  'continent',
+  'nation',
+  'country',
+  'state',
+  'province',
+  'county',
+  'region',
+  'city',
+  'district',
+  'street',
+  'site',
+  'facility',
+  'building',
+  'floor',
+  'room',
+  'area',
+  'object',
+] as const
 export type AtlasScale = typeof SCALE_OPTIONS[number]
 export type AtlasMapScale = 'auto' | AtlasScale
+export type AtlasRenderScale = 'system' | 'world' | 'city' | 'site' | 'building'
 
 export type AtlasPrefs = {
   worldType: AtlasWorldType
@@ -91,41 +115,72 @@ export function inferScale(location: Pick<AtlasLocation, 'kind' | 'tags'>): Atla
   const explicit = location.tags.find((tag) => tag.startsWith('scale:'))?.slice(6) || ''
   if (SCALE_OPTIONS.includes(explicit as AtlasScale)) return explicit as AtlasScale
   const kind = location.kind.toLowerCase()
-  if (/room|chamber|office|dorm/.test(kind)) return 'room'
-  if (/building|house|tower|spire|keep|palace|academy/.test(kind)) return 'building'
-  if (/district|quarter|ward/.test(kind)) return 'district'
-  if (/city|town|village/.test(kind)) return 'city'
+  if (/\b(object|artifact|altar|statue|desk|bed|door|portal-stone)\b/.test(kind)) return 'object'
+  if (/\b(area|alcove|corner|zone|section|garden|yard|courtyard)\b/.test(kind)) return 'area'
+  if (/room|chamber|office|dorm|bedroom|kitchen|classroom|ward|lab/.test(kind)) return 'room'
+  if (/floor|deck|level|storey|story/.test(kind)) return 'floor'
+  if (/facility|hospital|school|academy|campus|station|airport|prison|ship|starship/.test(kind)) return 'facility'
+  if (/building|house|tower|spire|keep|palace|castle|inn|tavern|temple/.test(kind)) return 'building'
+  if (/street|road|avenue|lane|boulevard/.test(kind)) return 'street'
+  if (/district|quarter|ward|neighborhood/.test(kind)) return 'district'
+  if (/city|town|village|settlement/.test(kind)) return 'city'
+  if (/county/.test(kind)) return 'county'
+  if (/province/.test(kind)) return 'province'
+  if (/state/.test(kind)) return 'state'
+  if (/country/.test(kind)) return 'country'
+  if (/nation|kingdom|empire|republic/.test(kind)) return 'nation'
+  if (/region|territory/.test(kind)) return 'region'
   if (/continent|landmass/.test(kind)) return 'continent'
-  if (/region|county|province|kingdom|territory/.test(kind)) return 'region'
   if (/planet|world|moon/.test(kind)) return 'world'
   if (/system|star/.test(kind)) return 'system'
   if (/dimension|realm|plane/.test(kind)) return 'dimension'
-  if (/cosmos|universe|galaxy/.test(kind)) return 'cosmos'
+  if (/galaxy/.test(kind)) return 'galaxy'
+  if (/cosmos|universe/.test(kind)) return 'cosmos'
   return 'site'
 }
 
-export function inferCanvasScale(scopeLocation: AtlasLocation | null, locations: AtlasLocation[]): AtlasScale {
-  if (scopeLocation) {
-    const scope = inferScale(scopeLocation)
-    if (scope === 'room') return 'room'
-    if (scope === 'building') return 'building'
-    if (scope === 'district') return 'district'
-    if (scope === 'city') return 'city'
-    if (scope === 'site') return 'site'
-    if (scope === 'continent') return 'continent'
-    if (scope === 'region') return 'region'
-    if (scope === 'world') return 'world'
-    if (scope === 'system') return 'system'
-    if (scope === 'dimension') return 'dimension'
-    return 'cosmos'
+export function childScaleFor(parent: AtlasScale): AtlasScale {
+  const next: Record<AtlasScale, AtlasScale> = {
+    cosmos: 'galaxy',
+    galaxy: 'system',
+    dimension: 'world',
+    system: 'world',
+    world: 'continent',
+    continent: 'nation',
+    nation: 'region',
+    country: 'state',
+    state: 'county',
+    province: 'county',
+    county: 'city',
+    region: 'city',
+    city: 'district',
+    district: 'street',
+    street: 'site',
+    site: 'facility',
+    facility: 'building',
+    building: 'floor',
+    floor: 'room',
+    room: 'area',
+    area: 'object',
+    object: 'object',
   }
+  return next[parent]
+}
+
+export function inferCanvasScale(scopeLocation: AtlasLocation | null, locations: AtlasLocation[]): AtlasScale {
+  if (scopeLocation) return inferScale(scopeLocation)
   if (!locations.length) return 'world'
   const scales = locations.map(inferScale)
-  if (scales.some((scale) => scale === 'cosmos' || scale === 'dimension' || scale === 'system')) return scales.includes('system') ? 'system' : scales.includes('dimension') ? 'dimension' : 'cosmos'
-  if (scales.some((scale) => scale === 'world' || scale === 'continent' || scale === 'region')) return scales.includes('world') ? 'world' : scales.includes('continent') ? 'continent' : 'region'
-  if (scales.some((scale) => scale === 'city' || scale === 'district')) return 'city'
-  if (scales.every((scale) => scale === 'room')) return 'building'
-  return 'site'
+  const order: AtlasScale[] = ['cosmos', 'galaxy', 'dimension', 'system', 'world', 'continent', 'nation', 'country', 'state', 'province', 'county', 'region', 'city', 'district', 'street', 'site', 'facility', 'building', 'floor', 'room', 'area', 'object']
+  return order.find((scale) => scales.includes(scale)) || 'site'
+}
+
+export function cartographyScale(scale: AtlasScale): AtlasRenderScale {
+  if (['cosmos', 'galaxy', 'dimension', 'system'].includes(scale)) return 'system'
+  if (['building', 'floor', 'room', 'area', 'object'].includes(scale)) return 'building'
+  if (['site', 'facility'].includes(scale)) return 'site'
+  if (['city', 'district', 'street'].includes(scale)) return 'city'
+  return 'world'
 }
 
 export function baseView(locations: AtlasLocation[]): AtlasViewBox {

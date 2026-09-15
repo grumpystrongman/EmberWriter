@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import type { AtlasLocation, StoryAtlas, VisualAsset } from './story-atlas-types'
-import type { AtlasMapScale, AtlasPrefs } from './living-atlas-helpers'
+import type { AtlasMapScale, AtlasPrefs, AtlasScale } from './living-atlas-helpers'
 import type { AtlasVisualStyle, AtlasWorldType } from './LivingAtlasCanvas'
-import { inferScale, titleCase } from './living-atlas-helpers'
+import { childScaleFor, inferScale, SCALE_OPTIONS, titleCase } from './living-atlas-helpers'
 
 type Props = {
   atlas: StoryAtlas
@@ -22,7 +23,7 @@ type Props = {
   onShowInferred: (value: boolean) => void
   onRespectKnowledge: (value: boolean) => void
   onNewPlaceName: (value: string) => void
-  onAddPlace: () => void
+  onAddPlace: (scale: AtlasScale) => void
   onSelectLocation: (id: string) => void
   onExplore: (id: string) => void
   onUp: () => void
@@ -52,6 +53,11 @@ export default function LivingAtlasLeftDrawer({
   onExplore,
   onUp,
 }: Props) {
+  const [newPlaceScale, setNewPlaceScale] = useState<'auto' | AtlasScale>('auto')
+  const suggestedScale = scopeLocation ? childScaleFor(inferScale(scopeLocation)) : 'world'
+  const resolvedNewPlaceScale = newPlaceScale === 'auto' ? suggestedScale : newPlaceScale
+  const addPlace = () => onAddPlace(resolvedNewPlaceScale)
+
   return <aside className="living-atlas-drawer living-left-drawer">
     <div className="living-drawer-heading">
       <div><span>Atlas library</span><b>{scopedLocations.length} visible · {atlas.locations.length} total</b></div>
@@ -72,17 +78,7 @@ export default function LivingAtlasLeftDrawer({
         <label>Map level
           <select value={prefs.mapScale} onChange={(event) => onPrefs({ mapScale: event.target.value as AtlasMapScale })}>
             <option value="auto">Auto from hierarchy</option>
-            <option value="world">World</option>
-            <option value="continent">Continent</option>
-            <option value="region">Region / kingdom</option>
-            <option value="city">City / settlement</option>
-            <option value="district">District / neighborhood</option>
-            <option value="site">Site / campus</option>
-            <option value="building">Building / complex</option>
-            <option value="room">Room / interior</option>
-            <option value="system">Star system</option>
-            <option value="dimension">Dimension / plane</option>
-            <option value="cosmos">Cosmos / galaxy</option>
+            {SCALE_OPTIONS.map((scale) => <option key={scale} value={scale}>{titleCase(scale)}</option>)}
           </select>
         </label>
         <label>Cartography
@@ -104,24 +100,32 @@ export default function LivingAtlasLeftDrawer({
           <label><input type="checkbox" checked={prefs.showTerrain} onChange={(event) => onPrefs({ showTerrain: event.target.checked })} /> Terrain</label>
           <label><input type="checkbox" checked={prefs.showRegions} onChange={(event) => onPrefs({ showRegions: event.target.checked })} /> Regions</label>
           <label><input type="checkbox" checked={prefs.showLabels} onChange={(event) => onPrefs({ showLabels: event.target.checked })} /> Labels</label>
-          <label><input type="checkbox" checked={showInferred} onChange={(event) => onShowInferred(event.target.checked)} /> Inferred</label>
+          <label><input type="checkbox" checked={showInferred} onChange={(event) => onShowInferred(event.target.checked)} /> Inferred / suggested</label>
           <label><input type="checkbox" checked={respectKnowledge} onChange={(event) => onRespectKnowledge(event.target.checked)} /> POV knowledge</label>
         </div>
       </section>
 
       <section className="living-control-card">
-        <div className="living-card-title"><b>{scopeLocation ? `Inside ${scopeLocation.name}` : 'Places'}</b><span>Double-click map landmarks to drill down</span></div>
+        <div className="living-card-title"><b>{scopeLocation ? `Inside ${scopeLocation.name}` : 'Places'}</b><span>Build at any granularity, then drill into containers</span></div>
         {scopeId && <button type="button" className="living-up-button" onClick={onUp}>← Up one level</button>}
         <div className="living-add-row">
-          <input value={newPlaceName} onChange={(event) => onNewPlaceName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onAddPlace() }} placeholder="Add place at this level…" />
-          <button type="button" onClick={onAddPlace}>＋</button>
+          <input value={newPlaceName} onChange={(event) => onNewPlaceName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addPlace() }} placeholder="Add place or area…" />
+          <button type="button" onClick={addPlace}>＋</button>
         </div>
+        <label>New item level
+          <select value={newPlaceScale} onChange={(event) => setNewPlaceScale(event.target.value as 'auto' | AtlasScale)}>
+            <option value="auto">Auto · {titleCase(suggestedScale)}</option>
+            {SCALE_OPTIONS.map((scale) => <option key={scale} value={scale}>{titleCase(scale)}</option>)}
+          </select>
+        </label>
+        <small>Author-created items become canon immediately. You can change their parent, level, artwork, coordinates, and canon state in Details.</small>
         <div className="living-place-list">
           {scopedLocations.map((location) => {
             const children = allVisibleLocations.filter((item) => parentIdFor(item) === location.id).length
+            const origin = location.tags.find((tag) => tag.startsWith('origin:'))?.slice(7) || (location.source_paths.length ? 'manuscript' : location.canon_status)
             return <button type="button" key={location.id} className={selectedLocationId === location.id ? 'active' : ''} onClick={() => onSelectLocation(location.id)}>
               <i className={location.canon_status} />
-              <span><b>{location.name}</b><small>{titleCase(inferScale(location))} · {location.kind}{children ? ` · ${children} inside` : ''}</small></span>
+              <span><b>{location.name}</b><small>{titleCase(inferScale(location))} · {location.kind}{children ? ` · ${children} inside` : ''} · {titleCase(origin)}</small></span>
               {children > 0 && <em onClick={(event) => { event.stopPropagation(); onExplore(location.id) }}>›</em>}
             </button>
           })}

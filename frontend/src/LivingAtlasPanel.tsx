@@ -4,7 +4,7 @@ import LivingAtlasCartographyDock from './LivingAtlasCartographyDock'
 import LivingAtlasFeatureOverlay from './LivingAtlasFeatureOverlay'
 import LivingAtlasLeftDrawer from './LivingAtlasLeftDrawer'
 import LivingAtlasRightDrawer from './LivingAtlasRightDrawer'
-import { atlasRequest, baseView, inferCanvasScale, titleCase } from './living-atlas-helpers'
+import { atlasRequest, baseView, cartographyScale, inferCanvasScale, titleCase } from './living-atlas-helpers'
 import { useLivingAtlasCore } from './useLivingAtlasCore'
 import { useLivingAtlasTools } from './useLivingAtlasTools'
 import type { MemoryFact } from './MemoryPanel'
@@ -58,6 +58,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
 
   const automaticScale = inferCanvasScale(core.scopeLocation, core.scopedLocations)
   const currentScale = core.prefs.mapScale === 'auto' ? automaticScale : core.prefs.mapScale
+  const renderScale = cartographyScale(currentScale)
 
   async function assembleHistorical(query: string) {
     core.setBusy(true); core.setError('')
@@ -102,7 +103,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
           <button type="button" onClick={() => core.zoom(1.28)} aria-label="Zoom out">−</button>
           <button type="button" onClick={() => core.setView(baseView(core.scopedLocations))}>Fit</button>
           <button type="button" className={core.prefs.viewMode === 'topology' ? 'active' : ''} onClick={() => core.setPrefs((current) => ({ ...current, viewMode: current.viewMode === 'atlas' ? 'topology' : 'atlas' }))}>{core.prefs.viewMode === 'atlas' ? 'Topology' : 'Atlas'}</button>
-          <button type="button" onClick={() => void core.buildFromStory()} disabled={core.busy}>✦ Refresh canon</button>
+          <button type="button" onClick={() => void core.buildFromStory()} disabled={core.busy}>✦ Refresh spatial canon</button>
           <button type="button" className={core.dirty ? 'primary' : ''} onClick={() => void core.saveAtlas()} disabled={core.busy || !core.dirty}>{core.dirty ? 'Save Atlas' : 'Saved'}</button>
         </div>
       </div>
@@ -122,7 +123,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
           worldType={core.prefs.worldType}
           visualStyle={core.prefs.visualStyle}
           viewMode={core.prefs.viewMode}
-          mapScale={currentScale}
+          mapScale={renderScale}
           backgroundHref={core.backgroundHref}
           view={core.view}
           onViewChange={core.setView}

@@ -4,7 +4,7 @@ import type { WorkspaceProject } from './workspace-types'
 import type { AtlasCartographicFeature, AtlasConnection, AtlasGeographyResult, AtlasLocation, AtlasState, StoryAtlas, VisualAsset } from './story-atlas-types'
 import type { AtlasViewBox } from './LivingAtlasCanvas'
 import type { LivingAtlasRightTab } from './LivingAtlasRightDrawer'
-import { atlasRequest, baseView, clamp, currentProvider, DEFAULT_PREFS, EMPTY_ATLAS, inferScale, slugify, tagValue, type AtlasPrefs } from './living-atlas-helpers'
+import { atlasRequest, baseView, clamp, currentProvider, DEFAULT_PREFS, EMPTY_ATLAS, slugify, tagValue, type AtlasPrefs, type AtlasScale } from './living-atlas-helpers'
 
 export function useLivingAtlasCore(apiBase: string, project: WorkspaceProject, facts: MemoryFact[]) {
   const [atlas, setAtlas] = useState<StoryAtlas>(EMPTY_ATLAS)
@@ -103,7 +103,7 @@ export function useLivingAtlasCore(apiBase: string, project: WorkspaceProject, f
     setBusy(true); setError('')
     try {
       const saved = await atlasRequest<StoryAtlas>(`${apiBase}/projects/${project.slug}/atlas`, { method: 'PUT', body: JSON.stringify(atlas) })
-      setAtlas(saved); setDirty(false); setNotice('Living Atlas saved. Topology and cartographic geometry are now persisted with the project.'); return true
+      setAtlas(saved); setDirty(false); setNotice('Living Atlas saved. Spatial hierarchy, topology, and cartographic geometry are now persisted with the project.'); return true
     } catch (cause) { setError((cause as Error).message); return false } finally { setBusy(false) }
   }
 
@@ -140,13 +140,11 @@ export function useLivingAtlasCore(apiBase: string, project: WorkspaceProject, f
     return value
   }
 
-  function addLocation() {
+  function addLocation(scale: AtlasScale) {
     const name = newPlaceName.trim(); if (!name) return
     const id = uniqueId(name, new Set(atlas.locations.map((item) => item.id)))
-    const parentScale = scopeLocation ? inferScale(scopeLocation) : 'world'
-    const scale = parentScale === 'building' ? 'room' : parentScale === 'city' ? 'district' : parentScale === 'region' ? 'city' : 'site'
-    const tags = [`scale:${scale}`]; if (scopeId) tags.push(`parent:${scopeId}`)
-    const location: AtlasLocation = { id, name, kind: scale, x: view.x + view.w / 2, y: view.y + view.h / 2, region: scopeLocation?.name || '', summary: '', terrain: [], tags, canon_status: 'suggested', position_status: 'suggested', confidence: 1, source_paths: [], known_by: [], image_asset_id: null }
+    const tags = [`scale:${scale}`, 'origin:author']; if (scopeId) tags.push(`parent:${scopeId}`)
+    const location: AtlasLocation = { id, name, kind: scale, x: view.x + view.w / 2, y: view.y + view.h / 2, region: scopeLocation?.name || '', summary: '', terrain: [], tags, canon_status: 'canon', position_status: 'canon', confidence: 1, source_paths: [], known_by: [], image_asset_id: null }
     setAtlas((current) => ({ ...current, locations: [...current.locations, location] })); setSelectedLocationId(id); setSelectedFeatureId(''); setNewPlaceName(''); setDirty(true); setRightOpen(true); setRightTab('details')
   }
 
@@ -168,7 +166,7 @@ export function useLivingAtlasCore(apiBase: string, project: WorkspaceProject, f
     setBusy(true); setError('')
     try {
       const response = await atlasRequest<{ atlas: StoryAtlas; added_locations: number; added_connections: number }>(`${apiBase}/projects/${project.slug}/atlas/bootstrap`, { method: 'POST', body: JSON.stringify({ provider, reset: false }) })
-      setAtlas(response.atlas); setScopeId(''); setView(baseView(response.atlas.locations)); setDirty(false); setNotice(`Story geography refreshed: ${response.added_locations} places and ${response.added_connections} routes added.`)
+      setAtlas(response.atlas); setScopeId(''); setView(baseView(response.atlas.locations.filter((item) => !tagValue(item, 'parent:')))); setDirty(false); setNotice(`Spatial world refreshed: ${response.added_locations} places/areas and ${response.added_connections} routes added across the hierarchy.`)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
 
