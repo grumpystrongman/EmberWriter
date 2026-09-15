@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './stable-diffusion-status.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -50,6 +51,7 @@ export default function StableDiffusionStatus() {
   const [status, setStatus] = useState<Status | null>(null)
   const [checking, setChecking] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [mountTarget, setMountTarget] = useState<HTMLElement | null>(null)
 
   async function check(autoDetect = true) {
     setChecking(true)
@@ -60,7 +62,6 @@ export default function StableDiffusionStatus() {
       )
       const result = await response.json() as Status
       setStatus(result)
-      if (!result.ok) setExpanded(true)
     } catch {
       setStatus(null)
     } finally {
@@ -68,21 +69,30 @@ export default function StableDiffusionStatus() {
     }
   }
 
-  useEffect(() => { void check(true) }, [])
+  useEffect(() => {
+    setMountTarget(document.querySelector<HTMLElement>('.workspace-actions'))
+    void check(true)
+  }, [])
 
   function applyDetected() {
     if (!status?.resolved_url) return
     saveUrl(status.resolved_url)
-    window.location.reload()
+    setExpanded(false)
+    void check(false)
   }
 
-  if (!status && !checking) return null
+  if (!mountTarget || (!status && !checking)) return null
 
-  return (
+  return createPortal(
     <aside className={`sd-status ${status?.ok ? 'ready' : 'offline'} ${expanded ? 'expanded' : ''}`}>
-      <button type="button" className="sd-status-chip" onClick={() => setExpanded((value) => !value)}>
+      <button
+        type="button"
+        className="sd-status-chip"
+        onClick={() => setExpanded((value) => !value)}
+        title={status?.message || 'Check the local image server'}
+      >
         <span className="sd-dot" />
-        {checking ? 'Checking image server…' : status?.ok ? 'Image server ready' : 'Image server offline'}
+        {checking ? 'Checking images…' : status?.ok ? 'Images ready' : 'Images offline'}
       </button>
       {expanded && status && (
         <div className="sd-status-card">
@@ -111,6 +121,7 @@ export default function StableDiffusionStatus() {
           </div>
         </div>
       )}
-    </aside>
+    </aside>,
+    mountTarget,
   )
 }
