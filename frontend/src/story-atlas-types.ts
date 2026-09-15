@@ -1,10 +1,31 @@
 export type AtlasStatus = 'canon' | 'inferred' | 'suggested'
 export type AtlasPreference = 'fastest' | 'safest' | 'balanced' | 'dramatic' | 'lore' | 'relationship'
 export type AtlasEventAction = 'connection_open' | 'connection_close' | 'location_reveal' | 'location_control' | 'note'
+export type AtlasGeometryType = 'point' | 'line' | 'polygon'
 
 export type AtlasTravelProfile = {
   speed_mph: number
   hours_per_day: number
+}
+
+export type AtlasPoint = { x: number; y: number }
+
+export type AtlasCartographicFeature = {
+  id: string
+  name: string
+  kind: string
+  geometry_type: AtlasGeometryType
+  points: AtlasPoint[]
+  scope_id: string
+  layer: number
+  canon_status: AtlasStatus
+  confidence: number
+  source: string
+  source_ref: string
+  source_crs: string
+  source_paths: string[]
+  notes: string
+  properties: Record<string, string | number | boolean>
 }
 
 export type AtlasLocation = {
@@ -63,6 +84,7 @@ export type StoryAtlas = {
   travel_profiles: Record<string, AtlasTravelProfile>
   locations: AtlasLocation[]
   connections: AtlasConnection[]
+  features: AtlasCartographicFeature[]
   events: AtlasEvent[]
 }
 
@@ -123,6 +145,14 @@ export type AtlasAdvice = {
     proposed_changes: string[]
   }>
   continuity_warnings: string[]
+}
+
+export type AtlasGeographyResult = {
+  atlas: StoryAtlas
+  added_features: number
+  skipped_features?: number
+  seed?: number
+  warnings?: string[]
 }
 
 export type VisualAsset = {
