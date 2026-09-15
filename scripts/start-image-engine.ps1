@@ -4,7 +4,9 @@ param(
     [ValidateRange(10, 1800)]
     [int]$ReadyTimeoutSeconds = 1200,
     [ValidateRange(1, 60)]
-    [int]$ProbeTimeoutSeconds = 10
+    [int]$ProbeTimeoutSeconds = 10,
+    [ValidateRange(5, 120)]
+    [int]$ProgressIntervalSeconds = 10
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +31,69 @@ function Test-ImageApi([string]$BaseUrl) {
     } finally {
         if ($response) { $response.Close() }
     }
+}
+
+function Get-ListenerProcessId([int]$Port) {
+    try {
+        $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | Select-Object -First 1
+        if ($listener) { return [int]$listener.OwningProcess }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
+function Test-IsManagedImageProcess([int]$ProcessId, [string]$InstallPath) {
+    try {
+        $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
+        if (-not $processInfo) { return $false }
+        $installFull = [System.IO.Path]::GetFullPath($InstallPath)
+        foreach ($candidate in @([string]$processInfo.ExecutablePath, [string]$processInfo.CommandLine)) {
+            if ($candidate -and $candidate.IndexOf($installFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                return $true
+            }
+        }
+    } catch { }
+    return $false
+}
+
+function Clear-StaleManagedListener([int]$Port, [string]$InstallPath) {
+    $listenerProcessId = Get-ListenerProcessId $Port
+    if (-not $listenerProcessId) { return }
+
+    if (-not (Test-IsManagedImageProcess $listenerProcessId $InstallPath)) {
+        throw "Port $Port is already owned by another process (PID $listenerProcessId). Stop that service or change the managed image-engine port before starting EmberWriter."
+    }
+
+    Write-Host "Stopping stale managed image-engine process on port $Port (PID $listenerProcessId)..." -ForegroundColor Yellow
+    try {
+        & taskkill.exe /PID $listenerProcessId /T /F 2>$null | Out-Null
+    } catch {
+        Stop-Process -Id $listenerProcessId -Force -ErrorAction SilentlyContinue
+    }
+
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        Start-Sleep -Milliseconds 250
+        if (-not (Get-ListenerProcessId $Port)) { return }
+    }
+    throw "The stale managed image engine on port $Port did not stop cleanly. End its Python process and rerun start.ps1."
+}
+
+function Get-LogProgressLine([string]$StdoutPath, [string]$StderrPath) {
+    $candidates = @()
+    foreach ($path in @($StderrPath, $StdoutPath)) {
+        if (-not (Test-Path $path)) { continue }
+        $lines = @(Get-Content -Path $path -Tail 25 -ErrorAction SilentlyContinue | Where-Object { $_ -and $_.Trim() })
+        if ($lines.Count -gt 0) {
+            $candidates += [pscustomobject]@{
+                Path = $path
+                Line = [string]$lines[-1]
+                Modified = (Get-Item $path -ErrorAction SilentlyContinue).LastWriteTimeUtc
+            }
+        }
+    }
+    if ($candidates.Count -eq 0) { return $null }
+    return $candidates | Sort-Object Modified -Descending | Select-Object -First 1
 }
 
 if (-not (Test-Path $ConfigPath)) {
@@ -85,6 +150,10 @@ if (Test-ImageApi $baseUrl) {
     return
 }
 
+# If a previous managed Forge launch is wedged while still holding the API port,
+# replace it before starting another copy. Never kill an unrelated listener.
+Clear-StaleManagedListener -Port $port -InstallPath $installPath
+
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $stdout = Join-Path $LogDir "image-engine.out.log"
 $stderr = Join-Path $LogDir "image-engine.err.log"
@@ -98,6 +167,7 @@ try {
     if ($launchArgs.Count -gt 0) { $command += " " + ($launchArgs -join " ") }
 
     Write-Host "Starting $($config.display_name) at $baseUrl..." -ForegroundColor Cyan
+    Write-Host "Forge first-run setup can take several minutes. Startup progress will appear below." -ForegroundColor DarkGray
     $process = Start-Process -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) `
         -WorkingDirectory $installPath -WindowStyle Minimized -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -109,27 +179,51 @@ $ready = $false
 # start.ps1 uses -PassThru because it needs the process id for cleanup. Treat that
 # as a managed startup request and do not open EmberWriter until the API is usable.
 if ($WaitForReady -or $PassThru) {
-    $deadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
+    $startedAt = Get-Date
+    $deadline = $startedAt.AddSeconds($ReadyTimeoutSeconds)
+    $nextProgressAt = $startedAt
+    $lastProgressLine = ""
+
     while ((Get-Date) -lt $deadline) {
         if (Test-ImageApi $baseUrl) {
             $ready = $true
             break
         }
         if ($process.HasExited) { break }
+
+        $now = Get-Date
+        if ($now -ge $nextProgressAt) {
+            $progress = Get-LogProgressLine -StdoutPath $stdout -StderrPath $stderr
+            $elapsed = [int](($now - $startedAt).TotalSeconds)
+            if ($progress -and $progress.Line -ne $lastProgressLine) {
+                Write-Host "Forge [$($elapsed)s]: $($progress.Line)" -ForegroundColor DarkGray
+                $lastProgressLine = $progress.Line
+            } elseif ($elapsed -gt 0) {
+                Write-Host "Forge [$($elapsed)s]: still starting; waiting for /sdapi/v1/options..." -ForegroundColor DarkGray
+            }
+            $nextProgressAt = $now.AddSeconds($ProgressIntervalSeconds)
+        }
         Start-Sleep -Seconds 2
     }
 
     if (-not $ready) {
         $tail = ""
         if (Test-Path $stderr) {
-            $tail = (Get-Content $stderr -Tail 40 -ErrorAction SilentlyContinue) -join "`n"
+            $tail = (Get-Content $stderr -Tail 60 -ErrorAction SilentlyContinue) -join "`n"
         }
-        if (-not $tail -and (Test-Path $stdout)) {
-            $tail = (Get-Content $stdout -Tail 40 -ErrorAction SilentlyContinue) -join "`n"
+        if (Test-Path $stdout) {
+            $stdoutTail = (Get-Content $stdout -Tail 60 -ErrorAction SilentlyContinue) -join "`n"
+            if ($stdoutTail) {
+                if ($tail) { $tail += "`n`n" }
+                $tail += $stdoutTail
+            }
         }
         $detail = ""
-        if ($tail) { $detail = "`n`nLast log lines:`n$tail" }
-        throw "The managed image engine did not become ready at $baseUrl. Check $stdout and $stderr.$detail"
+        if ($tail) { $detail = "`n`nLast Forge log lines:`n$tail" }
+        if ($process.HasExited) {
+            throw "The managed image engine exited before its API became ready (exit code $($process.ExitCode)). Check $stdout and $stderr.$detail"
+        }
+        throw "The managed image engine did not become ready at $baseUrl within $ReadyTimeoutSeconds seconds. Check $stdout and $stderr.$detail"
     }
     Write-Host "Image engine ready: $baseUrl" -ForegroundColor Green
 }
