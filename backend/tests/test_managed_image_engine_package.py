@@ -25,6 +25,22 @@ def test_windows_installer_manages_forge_by_default() -> None:
     assert "http://127.0.0.1:$Port" in image_install
 
 
+def test_forge_virtualenv_repairs_missing_pip() -> None:
+    image_install = (REPO_ROOT / "scripts" / "install-image-engine.ps1").read_text(
+        encoding="utf-8"
+    )
+    image_start = (REPO_ROOT / "scripts" / "start-image-engine.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    for script in (image_install, image_start):
+        assert "function Test-PythonPip" in script
+        assert "function Repair-PythonPip" in script
+        assert "-m ensurepip --upgrade" in script
+        assert "pip is missing or broken" in script
+        assert "Test-PythonPip $runtimePython" in script
+
+
 def test_baseline_checkpoint_is_pinned_and_verified() -> None:
     image_install = (REPO_ROOT / "scripts" / "install-image-engine.ps1").read_text(
         encoding="utf-8"
