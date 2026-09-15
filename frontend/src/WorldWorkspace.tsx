@@ -96,7 +96,7 @@ export default function WorldWorkspace({ apiBase, project, onOpenSource }: Props
     setError('')
     try {
       const [memory, detail] = await Promise.all([
-        request<MemoryFact[]>(`${apiBase}/projects/${project.slug}/memory?limit=500`),
+        request<MemoryFact[]>(`${apiBase}/projects/${project.slug}/memory?limit=200`),
         request<ProjectDetail>(`${apiBase}/projects/${project.slug}`),
       ])
       setFacts(memory)
