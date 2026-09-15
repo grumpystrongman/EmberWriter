@@ -2,12 +2,13 @@ import { useEffect } from 'react'
 import LivingAtlasCanvas from './LivingAtlasCanvas'
 import LivingAtlasLeftDrawer from './LivingAtlasLeftDrawer'
 import LivingAtlasRightDrawer from './LivingAtlasRightDrawer'
-import { baseView, inferScale, titleCase } from './living-atlas-helpers'
+import { baseView, inferCanvasScale, titleCase } from './living-atlas-helpers'
 import { useLivingAtlasCore } from './useLivingAtlasCore'
 import { useLivingAtlasTools } from './useLivingAtlasTools'
 import type { MemoryFact } from './MemoryPanel'
 import type { WorkspaceProject } from './workspace-types'
 import './living-atlas.css'
+import './literary-cartography.css'
 import './living-atlas-tools.css'
 
 type Props = {
@@ -41,11 +42,8 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
 
   useEffect(() => { tools.initializeRoutes() }, [core.atlas.locations.length])
 
-  const currentScale = core.scopeLocation
-    ? inferScale(core.scopeLocation)
-    : core.scopedLocations[0]
-      ? inferScale(core.scopedLocations[0])
-      : 'world'
+  const automaticScale = inferCanvasScale(core.scopeLocation, core.scopedLocations)
+  const currentScale = core.prefs.mapScale === 'auto' ? automaticScale : core.prefs.mapScale
 
   return <div className={`living-atlas-shell ${core.leftOpen ? 'left-open' : ''} ${core.rightOpen ? 'right-open' : ''}`}>
     <main className="living-atlas-stage">
@@ -83,6 +81,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
           worldType={core.prefs.worldType}
           visualStyle={core.prefs.visualStyle}
           viewMode={core.prefs.viewMode}
+          mapScale={currentScale}
           backgroundHref={core.backgroundHref}
           view={core.view}
           onViewChange={core.setView}
@@ -98,7 +97,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
           <button type="button" onClick={() => core.setLeftOpen(true)}>Open atlas library</button>
         </div>}
 
-        <div className="living-map-hud living-world-pill"><b>{titleCase(core.prefs.worldType)}</b><span>{titleCase(core.prefs.visualStyle)} · {titleCase(currentScale)}</span></div>
+        <div className="living-map-hud living-world-pill"><b>{titleCase(core.prefs.worldType)}</b><span>{titleCase(core.prefs.visualStyle)} · {titleCase(currentScale)} map</span></div>
         <div className="living-map-hud living-legend"><span><i className="canon" />Canon</span><span><i className="inferred" />Inferred</span><span><i className="suggested" />Suggested</span><span><em />Planned route</span></div>
         <button type="button" className="living-map-hud living-inspector-toggle" onClick={() => core.setRightOpen((value) => !value)}>{core.rightOpen ? 'Close tools' : 'Story tools ›'}</button>
 

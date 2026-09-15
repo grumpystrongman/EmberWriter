@@ -1,0 +1,106 @@
+.carto-landmass { fill: #35483d; stroke: #b9ad84; stroke-width: 2.4; vector-effect: non-scaling-stroke; filter: drop-shadow(0 7px 12px rgba(0,0,0,.28)); }
+.carto-land-shadow { fill: rgba(4,9,10,.34); stroke: none; }
+.carto-coastline { fill: none; stroke: rgba(230,216,178,.62); stroke-width: 1.3; vector-effect: non-scaling-stroke; stroke-dasharray: 2 2; }
+.carto-contour { fill: none; stroke: rgba(201,187,145,.18); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.carto-river { fill: none; stroke: #739eaa; stroke-width: 7; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .9; }
+.carto-river + * { pointer-events: none; }
+.carto-tree path:first-child { fill: rgba(67,95,70,.84); stroke: #b7b183; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.carto-tree path:last-child { fill: none; stroke: #968d6b; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.carto-mountain path:first-child { fill: rgba(120,121,96,.42); stroke: #d2c49a; stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+.carto-mountain path:last-child { fill: none; stroke: rgba(236,226,195,.65); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.carto-water-ripples path, .carto-map-edge-lines path { fill: none; stroke: rgba(118,154,163,.45); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+
+.carto-settlement-ground { fill: rgba(75,86,68,.32); stroke: rgba(206,190,146,.22); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.carto-wall { fill: none; stroke: #c3b58a; stroke-width: 5; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 1px rgba(0,0,0,.45)); }
+.carto-inner-wall { fill: none; stroke: rgba(205,190,146,.4); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-dasharray: 8 5; }
+.carto-street-grid path { fill: none; stroke: rgba(217,205,166,.27); stroke-width: 7; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.carto-blocks rect { fill: rgba(217,204,164,.12); stroke: rgba(218,204,163,.37); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.carto-primary-road { fill: none; stroke: rgba(233,216,169,.62); stroke-width: 10; vector-effect: non-scaling-stroke; stroke-linecap: round; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+.carto-primary-road + .carto-primary-road { opacity: .9; }
+
+.carto-landmark { pointer-events: none; }
+.carto-landmark path, .carto-landmark rect, .carto-landmark circle { fill: rgba(198,183,139,.28); stroke: rgba(232,218,176,.82); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.carto-landmark.grand path, .carto-landmark.grand rect { fill: rgba(196,169,113,.38); stroke: #e0c98f; }
+.carto-landmark.tower circle { fill: rgba(181,165,129,.36); }
+.carto-landmark.gate path { fill: rgba(37,48,42,.78); stroke-width: 2; }
+.carto-landmark.open rect:first-child { fill: rgba(63,81,66,.42); }
+.carto-landmark.open rect:last-child { fill: rgba(28,46,39,.5); stroke-dasharray: 4 3; }
+
+.carto-floorplate { fill: rgba(188,172,136,.16); stroke: #c8b98d; stroke-width: 4; vector-effect: non-scaling-stroke; }
+.carto-corridor { fill: none; stroke: rgba(216,200,161,.4); stroke-width: 18; vector-effect: non-scaling-stroke; }
+.carto-room rect { fill: rgba(206,192,157,.14); stroke: rgba(229,214,177,.7); stroke-width: 1.8; vector-effect: non-scaling-stroke; }
+.carto-room path { fill: none; stroke: #d9c99c; stroke-width: 1.8; vector-effect: non-scaling-stroke; }
+
+.carto-nebula { fill: rgba(70,90,133,.1); stroke: rgba(114,142,186,.18); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.carto-orbit { fill: none; stroke: rgba(132,165,192,.28); stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-dasharray: 7 5; }
+.carto-star-core { fill: #dce8e7; stroke: #98b2c5; stroke-width: 3; vector-effect: non-scaling-stroke; filter: url(#living-glow); }
+
+/* Detailed maps treat the place marker as an interactive anchor over a drawn landmark. */
+.scale-city .living-place-aura,
+.scale-district .living-place-aura,
+.scale-site .living-place-aura,
+.scale-building .living-place-aura,
+.scale-room .living-place-aura { opacity: .28; }
+.scale-city .living-place-icon,
+.scale-district .living-place-icon,
+.scale-site .living-place-icon,
+.scale-building .living-place-icon,
+.scale-room .living-place-icon { transform: scale(.72); transform-box: fill-box; transform-origin: center; opacity: .78; }
+.scale-site .living-place-name,
+.scale-building .living-place-name,
+.scale-room .living-place-name { font-family: Georgia, 'Times New Roman', serif; font-size: 13px; letter-spacing: .01em; }
+.scale-site .living-place-kind,
+.scale-building .living-place-kind,
+.scale-room .living-place-kind { opacity: .62; }
+.scale-city .living-region-label, .scale-district .living-region-label { font-size: 18px; opacity: .42; }
+.scale-site .living-region-label { font-size: 15px; opacity: .28; letter-spacing: .05em; }
+.scale-building .living-region-label, .scale-room .living-region-label { display: none; }
+
+/* Routes read as roads/paths in atlas mode; topology keeps the stronger graph treatment. */
+.mode-atlas.scale-city .living-route-shadow,
+.mode-atlas.scale-district .living-route-shadow,
+.mode-atlas.scale-site .living-route-shadow { stroke-width: 2; opacity: .5; }
+.mode-atlas.scale-city .living-route-line,
+.mode-atlas.scale-district .living-route-line,
+.mode-atlas.scale-site .living-route-line { stroke: rgba(91,78,55,.86); stroke-width: 2; stroke-dasharray: 5 3; }
+.mode-atlas.scale-building .living-route-line,
+.mode-atlas.scale-room .living-route-line { stroke: rgba(205,190,151,.62); stroke-width: 2; }
+
+.style-parchment .carto-landmass { fill: #9b865c; stroke: #2d281d; }
+.style-parchment .carto-land-shadow { fill: rgba(45,38,25,.3); }
+.style-parchment .carto-coastline,
+.style-parchment .carto-contour,
+.style-parchment .carto-wall,
+.style-parchment .carto-inner-wall,
+.style-parchment .carto-street-grid path,
+.style-parchment .carto-blocks rect,
+.style-parchment .carto-landmark path,
+.style-parchment .carto-landmark rect,
+.style-parchment .carto-landmark circle,
+.style-parchment .carto-room rect,
+.style-parchment .carto-floorplate { stroke: #3b3323; }
+.style-parchment .carto-river { stroke: #5f7470; }
+.style-parchment .carto-tree path:first-child { fill: rgba(73,78,48,.45); stroke: #443b27; }
+.style-parchment .carto-mountain path:first-child { fill: rgba(80,70,49,.16); stroke: #3d3524; }
+.style-parchment .carto-primary-road { stroke: rgba(63,50,31,.46); }
+.style-parchment .carto-street-grid path { stroke: rgba(63,50,31,.2); }
+.style-parchment .carto-blocks rect { fill: rgba(71,56,34,.1); }
+
+.style-manuscript .carto-landmass { fill: rgba(73,65,48,.52); stroke: #d7c89d; }
+.style-manuscript .carto-blocks rect,
+.style-manuscript .carto-landmark path,
+.style-manuscript .carto-landmark rect,
+.style-manuscript .carto-landmark circle { fill: rgba(221,204,159,.06); stroke: rgba(226,209,165,.58); }
+
+.world-modern .carto-landmass { fill: #334440; stroke: #a8b1a7; }
+.world-modern .carto-street-grid path { stroke: rgba(190,199,193,.24); }
+.world-modern .carto-blocks rect { fill: rgba(178,185,179,.11); stroke: rgba(192,199,194,.28); }
+.world-historical .carto-landmass { fill: #514b38; }
+.world-historical .carto-primary-road { stroke: rgba(205,186,142,.47); }
+
+.mode-topology .carto-world,
+.mode-topology .carto-city,
+.mode-topology .carto-site,
+.mode-topology .carto-interior,
+.mode-topology .carto-space-detail,
+.mode-topology .carto-map-edge-lines { display: none; }

@@ -1,5 +1,5 @@
 import type { AtlasLocation, StoryAtlas, VisualAsset } from './story-atlas-types'
-import type { AtlasPrefs } from './living-atlas-helpers'
+import type { AtlasMapScale, AtlasPrefs } from './living-atlas-helpers'
 import type { AtlasVisualStyle, AtlasWorldType } from './LivingAtlasCanvas'
 import { inferScale, titleCase } from './living-atlas-helpers'
 
@@ -69,6 +69,22 @@ export default function LivingAtlasLeftDrawer({
             <option value="hybrid">Hybrid</option>
           </select>
         </label>
+        <label>Map level
+          <select value={prefs.mapScale} onChange={(event) => onPrefs({ mapScale: event.target.value as AtlasMapScale })}>
+            <option value="auto">Auto from hierarchy</option>
+            <option value="world">World</option>
+            <option value="continent">Continent</option>
+            <option value="region">Region / kingdom</option>
+            <option value="city">City / settlement</option>
+            <option value="district">District / neighborhood</option>
+            <option value="site">Site / campus</option>
+            <option value="building">Building / complex</option>
+            <option value="room">Room / interior</option>
+            <option value="system">Star system</option>
+            <option value="dimension">Dimension / plane</option>
+            <option value="cosmos">Cosmos / galaxy</option>
+          </select>
+        </label>
         <label>Cartography
           <select value={prefs.visualStyle} onChange={(event) => onPrefs({ visualStyle: event.target.value as AtlasVisualStyle })}>
             <option value="illustrated">Illustrated atlas</option>
@@ -80,7 +96,7 @@ export default function LivingAtlasLeftDrawer({
         </label>
         <label>Map artwork
           <select value={atlas.map.background_asset_id || ''} onChange={(event) => onMapArtwork(event.target.value)}>
-            <option value="">Procedural canvas</option>
+            <option value="">Procedural literary map</option>
             {visuals.map((asset) => <option key={asset.asset_id} value={asset.asset_id}>{asset.title} · {asset.canon_status}</option>)}
           </select>
         </label>
@@ -94,7 +110,7 @@ export default function LivingAtlasLeftDrawer({
       </section>
 
       <section className="living-control-card">
-        <div className="living-card-title"><b>{scopeLocation ? `Inside ${scopeLocation.name}` : 'Places'}</b><span>Double-click map markers to drill down</span></div>
+        <div className="living-card-title"><b>{scopeLocation ? `Inside ${scopeLocation.name}` : 'Places'}</b><span>Double-click map landmarks to drill down</span></div>
         {scopeId && <button type="button" className="living-up-button" onClick={onUp}>← Up one level</button>}
         <div className="living-add-row">
           <input value={newPlaceName} onChange={(event) => onNewPlaceName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onAddPlace() }} placeholder="Add place at this level…" />
