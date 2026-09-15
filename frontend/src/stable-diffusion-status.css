@@ -103,17 +103,27 @@
   margin-top: 0.75rem;
 }
 
-.sd-status-actions button,
-.sd-apply {
+.workspace-actions .sd-status-card button,
+.workspace-actions .sd-apply {
+  min-width: 0;
+  height: auto;
   border: 1px solid rgba(176, 143, 112, 0.35);
   border-radius: 8px;
   background: rgba(176, 143, 112, 0.09);
   color: inherit;
   padding: 0.45rem 0.65rem;
+  box-shadow: none;
   cursor: pointer;
+  font-size: 0.76rem;
 }
 
-.sd-apply {
+.workspace-actions .sd-status-card button:hover,
+.workspace-actions .sd-apply:hover {
+  background: rgba(176, 143, 112, 0.16);
+  color: #fff;
+}
+
+.workspace-actions .sd-apply {
   width: 100%;
   margin-top: 0.55rem;
   text-align: left;
