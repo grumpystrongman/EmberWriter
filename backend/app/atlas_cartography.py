@@ -4,7 +4,8 @@ import json
 import math
 import random
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .atlas import load_atlas, save_atlas
 from .atlas_models import (
