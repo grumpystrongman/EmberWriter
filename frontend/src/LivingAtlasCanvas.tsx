@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react'
 
+import LiteraryCartographyLayer from './LiteraryCartographyLayer'
 import type { AtlasConnection, AtlasLocation, AtlasState, StoryAtlas } from './story-atlas-types'
 
 export type AtlasViewBox = { x: number; y: number; w: number; h: number }
@@ -22,6 +23,7 @@ type Props = {
   worldType: AtlasWorldType
   visualStyle: AtlasVisualStyle
   viewMode: AtlasViewMode
+  mapScale: string
   backgroundHref: string
   view: AtlasViewBox
   onViewChange: (view: AtlasViewBox) => void
@@ -105,6 +107,7 @@ export default function LivingAtlasCanvas({
   worldType,
   visualStyle,
   viewMode,
+  mapScale,
   backgroundHref,
   view,
   onViewChange,
@@ -190,7 +193,7 @@ export default function LivingAtlasCanvas({
   return (
     <svg
       ref={svgRef}
-      className={`living-atlas-map world-${worldType} style-${visualStyle} mode-${viewMode}`}
+      className={`living-atlas-map world-${worldType} style-${visualStyle} mode-${viewMode} scale-${mapScale}`}
       viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
       onPointerDown={startPan}
       onPointerMove={movePointer}
@@ -198,7 +201,7 @@ export default function LivingAtlasCanvas({
       onPointerCancel={endPointer}
       onWheel={wheel}
       role="img"
-      aria-label="Interactive Living Atlas. Drag the map to pan, drag places to position them, use the mouse wheel to zoom, and double click a place to explore inside it."
+      aria-label="Interactive literary atlas. Drag the map to pan, drag landmarks to position them, use the mouse wheel to zoom, and double click a place to explore inside it."
     >
       <defs>
         <filter id="living-paper-noise" x="-20%" y="-20%" width="140%" height="140%">
@@ -218,8 +221,9 @@ export default function LivingAtlasCanvas({
       {viewMode === 'atlas' && worldType === 'space' && <rect x={view.x - view.w} y={view.y - view.h} width={view.w * 3} height={view.h * 3} fill="url(#living-starmap)" className="living-stars" />}
       {viewMode === 'atlas' && worldType === 'dimensional' && <g className="living-dimensional-rings"><circle cx={view.x + view.w * .72} cy={view.y + view.h * .32} r={view.w * .13} /><circle cx={view.x + view.w * .72} cy={view.y + view.h * .32} r={view.w * .09} /><circle cx={view.x + view.w * .72} cy={view.y + view.h * .32} r={view.w * .05} /></g>}
 
-      {showRegions && viewMode === 'atlas' && regionLabels.map((region) => <text key={region.name} x={region.x} y={region.y - 55} className="living-region-label">{region.name}</text>)}
+      {viewMode === 'atlas' && <LiteraryCartographyLayer locations={locations} connections={connections} locationById={locationById} view={view} scale={mapScale} worldType={worldType} showTerrain={showTerrain} />}
 
+      {showRegions && viewMode === 'atlas' && regionLabels.map((region) => <text key={region.name} x={region.x} y={region.y - 55} className="living-region-label">{region.name}</text>)}
       {showTerrain && viewMode === 'atlas' && locations.flatMap((location) => location.terrain.slice(0, 4).map((_, index) => <TerrainGlyph key={`${location.id}-${index}`} location={location} index={index} />))}
 
       {connections.map((connection) => {
