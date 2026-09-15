@@ -21,6 +21,8 @@ $BackendOutLog = Join-Path $LogDir "backend.out.log"
 $BackendErrLog = Join-Path $LogDir "backend.err.log"
 $FrontendOutLog = Join-Path $LogDir "frontend.out.log"
 $FrontendErrLog = Join-Path $LogDir "frontend.err.log"
+$FrontendNodeModules = Join-Path $Frontend "node_modules"
+$FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 $ApiUrl = "http://127.0.0.1:8000/api/health"
 $UiUrl = "http://127.0.0.1:5173"
 
@@ -99,6 +101,42 @@ function Show-LogTail([string]$Path, [string]$Label) {
     Get-Content -Path $Path -Tail 80 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
 }
 
+function Test-FrontendDependencies([string]$NpmPath) {
+    if (-not (Test-Path $FrontendNodeModules)) { return $false }
+    if (-not (Test-Path $FrontendViteCmd)) { return $false }
+
+    Push-Location $Frontend
+    try {
+        & $NpmPath ls --depth=0 --include=dev --silent *> $null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
+function Repair-FrontendDependencies([string]$NpmPath) {
+    Write-Host "Frontend dependencies are missing or incomplete. Repairing with npm ci..." -ForegroundColor Yellow
+    Push-Location $Frontend
+    try {
+        & $NpmPath ci --include=dev
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm ci failed while repairing EmberWriter frontend dependencies."
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path $FrontendViteCmd)) {
+        throw "Frontend dependency repair completed but Vite is still missing at $FrontendViteCmd."
+    }
+    if (-not (Test-FrontendDependencies $NpmPath)) {
+        throw "Frontend dependency repair completed but npm still reports an incomplete dependency tree."
+    }
+    Write-Host "Frontend dependencies repaired; Vite is available." -ForegroundColor Green
+}
+
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 Remove-Item $BackendOutLog, $BackendErrLog, $FrontendOutLog, $FrontendErrLog -Force -ErrorAction SilentlyContinue
 
@@ -136,17 +174,25 @@ if ($DataDir) {
 
 Write-Host "Project data:    $env:EMBER_DATA_DIR"
 
-if (-not (Test-Path $Venv) -or -not (Test-Path (Join-Path $Frontend "node_modules"))) {
-    Write-Host "First-run setup is required..." -ForegroundColor Yellow
+if (-not (Test-Path $Venv)) {
+    Write-Host "First-run backend setup is required..." -ForegroundColor Yellow
     & $Installer -SkipImageEngineInstall:$SkipManagedImageEngine
 }
 
 $Python = Join-Path $Venv "Scripts\python.exe"
+if (-not (Test-Path $Python)) {
+    throw "EmberWriter's Python environment is incomplete at $Venv. Rerun install.ps1."
+}
 & $Python -m pip install -e $Backend
 
-if (-not (Test-Path (Join-Path $Frontend "node_modules"))) {
-    Push-Location $Frontend
-    try { npm ci } finally { Pop-Location }
+$Npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
+if (-not $Npm) { $Npm = (Get-Command npm -ErrorAction SilentlyContinue).Source }
+if (-not $Npm) {
+    throw "npm was not found. Install current Node.js LTS, then run start.ps1 again."
+}
+
+if (-not (Test-FrontendDependencies $Npm)) {
+    Repair-FrontendDependencies $Npm
 }
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
@@ -205,10 +251,6 @@ try {
     Write-Host "EmberWriter API: healthy at http://127.0.0.1:8000" -ForegroundColor Green
 
     Stop-ExistingEmberService -Port 5173 -HealthCheck ${function:Test-EmberUi} -Label "EmberWriter UI"
-
-    $Npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
-    if (-not $Npm) { $Npm = (Get-Command npm).Source }
-    if (-not $Npm) { throw "npm was not found after setup." }
 
     $FrontendProcess = Start-Process -FilePath $Npm -ArgumentList @("run", "dev", "--prefix", $Frontend) -WorkingDirectory $Root -RedirectStandardOutput $FrontendOutLog -RedirectStandardError $FrontendErrLog -PassThru
 
