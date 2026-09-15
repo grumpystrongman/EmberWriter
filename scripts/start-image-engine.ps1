@@ -134,12 +134,41 @@ function Get-ForgeLogTail([string]$StdoutPath, [string]$StderrPath) {
     return ($parts -join "`n`n")
 }
 
+function Test-PythonPip([string]$PythonPath) {
+    if (-not $PythonPath -or -not (Test-Path $PythonPath)) { return $false }
+    try {
+        & $PythonPath -m pip --version *> $null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
+}
+
+function Repair-PythonPip([string]$PythonPath) {
+    Write-Host "Repairing pip inside the Stable Diffusion Python environment..." -ForegroundColor Yellow
+    try {
+        & $PythonPath -m ensurepip --upgrade
+        if ($LASTEXITCODE -eq 0 -and (Test-PythonPip $PythonPath)) {
+            Write-Host "pip repaired successfully." -ForegroundColor Green
+            return $true
+        }
+    } catch { }
+    return $false
+}
+
 function Ensure-ForgeVenv([string]$BasePython, [string]$InstallPath) {
     $venvDir = Join-Path $InstallPath "venv"
     $runtimePython = Join-Path $venvDir "Scripts\python.exe"
-    if (Test-Path $runtimePython) { return $runtimePython }
 
-    if (Test-Path $venvDir) {
+    if (Test-Path $runtimePython) {
+        if (Test-PythonPip $runtimePython) { return $runtimePython }
+
+        Write-Host "Forge Python environment exists but pip is missing or broken." -ForegroundColor Yellow
+        if (Repair-PythonPip $runtimePython) { return $runtimePython }
+
+        Write-Host "pip could not be repaired in place; rebuilding the Forge Python environment..." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $venvDir
+    } elseif (Test-Path $venvDir) {
         Write-Host "Removing incomplete Forge Python environment..." -ForegroundColor Yellow
         Remove-Item -Recurse -Force $venvDir
     }
@@ -149,6 +178,13 @@ function Ensure-ForgeVenv([string]$BasePython, [string]$InstallPath) {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $runtimePython)) {
         throw "Could not create Forge's Python environment with $BasePython."
     }
+
+    if (-not (Test-PythonPip $runtimePython)) {
+        if (-not (Repair-PythonPip $runtimePython)) {
+            throw "Forge's Python environment was created, but pip is unavailable and ensurepip could not repair it. Repair/reinstall Python 3.10 and rerun EmberWriter."
+        }
+    }
+
     return $runtimePython
 }
 
@@ -184,7 +220,7 @@ function Initialize-ForgeRuntime(
     Push-Location $InstallPath
     try {
         # Forge's --exit mode performs dependency/bootstrap work but does not start
-        # Gradio or wait for an interactive webui.bat pause.
+        # Gradio or wait for an interactive batch-file pause.
         & $RuntimePython "launch.py" "--exit" "--no-download-sd-model"
         if ($LASTEXITCODE -ne 0) {
             throw "Forge runtime preparation failed with exit code $LASTEXITCODE."
@@ -262,7 +298,7 @@ if (Test-ImageApi $baseUrl) {
     return
 }
 
-# Clean up both the old hidden webui.bat/cmd wrapper and any stale direct Python
+# Clean up both the old hidden batch/cmd wrapper and any stale direct Python
 # Forge launch before repairing or starting the engine.
 Stop-StaleManagedImageProcesses -InstallPath $installPath
 Clear-StaleManagedListener -Port $port -InstallPath $installPath
