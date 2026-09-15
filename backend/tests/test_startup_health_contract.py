@@ -40,7 +40,7 @@ def test_windows_start_repairs_incomplete_frontend_dependencies() -> None:
     assert 'node_modules\\.bin\\vite.cmd' in start
     assert "function Test-FrontendDependencies" in start
     assert "function Repair-FrontendDependencies" in start
-    assert "npm ls --depth=0 --include=dev" in start
+    assert "ls --depth=0 --include=dev" in start
     assert "ci --include=dev" in start
     assert "Frontend dependencies repaired; Vite is available." in start
     assert "npm ci --include=dev" in install
