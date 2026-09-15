@@ -13,6 +13,7 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
+$FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 
 $Adult8B = "R4C3R/qwen3-8b-heretic:q4_k_m"
 $Adult14B = "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m"
@@ -39,9 +40,19 @@ Write-Host "Installing EmberWriter backend..."
 & $Python -m pip install --upgrade pip
 & $Python -m pip install -e $Backend
 
-Write-Host "Installing locked frontend dependencies..."
+Write-Host "Installing locked frontend dependencies (including Vite)..."
 Push-Location $Frontend
-try { npm ci } finally { Pop-Location }
+try {
+    npm ci --include=dev
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm ci failed while installing EmberWriter frontend dependencies."
+    }
+} finally {
+    Pop-Location
+}
+if (-not (Test-Path $FrontendViteCmd)) {
+    throw "Frontend setup completed without node_modules\.bin\vite.cmd. Delete frontend\node_modules and rerun install.ps1."
+}
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "Ollama is not installed. Attempting Windows installation..." -ForegroundColor Yellow
