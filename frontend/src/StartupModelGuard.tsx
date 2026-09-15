@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import './startup-model-guard.css'
 
-const API = 'http://127.0.0.1:8000/api'
+const API = '/api'
 const PROVIDER_KEY = 'emberwriter.provider'
 
 type Provider = {
@@ -33,7 +33,9 @@ function readProvider(): Provider {
   }
 }
 
-function chooseModel(models: string[]) {
+function chooseModel(models: string[], current: string) {
+  const currentMatch = models.find((model) => model.toLowerCase() === current.trim().toLowerCase())
+  if (currentMatch) return currentMatch
   for (const preferred of preferredLocalModels) {
     const match = models.find((model) => model.toLowerCase() === preferred.toLowerCase())
     if (match) return match
@@ -43,17 +45,14 @@ function chooseModel(models: string[]) {
 
 export default function StartupModelGuard({ children }: { children: ReactNode }) {
   const initialProvider = readProvider()
+  // A known model should never block the writing UI. We still verify it in the
+  // background so stale browser state repairs itself before the next AI action.
   const [ready, setReady] = useState(Boolean(initialProvider.model.trim()))
 
   useEffect(() => {
-    if (initialProvider.model.trim()) {
-      localStorage.setItem(PROVIDER_KEY, JSON.stringify(initialProvider))
-      return
-    }
-
     let disposed = false
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 3000)
+    const timeout = window.setTimeout(() => controller.abort(), 25000)
 
     async function restoreModel() {
       try {
@@ -65,13 +64,14 @@ export default function StartupModelGuard({ children }: { children: ReactNode })
         })
         if (!response.ok) return
         const payload = await response.json() as { models?: string[] }
-        const model = chooseModel(payload.models || [])
+        const model = chooseModel(payload.models || [], initialProvider.model)
         if (!model) return
         const restored = { ...initialProvider, model }
         localStorage.setItem(PROVIDER_KEY, JSON.stringify(restored))
         window.dispatchEvent(new CustomEvent('emberwriter:provider-ready', { detail: restored }))
       } catch {
-        // Keep EmberWriter usable when the local model server is unavailable.
+        // The backend generation path also self-heals local Ollama, so a failed
+        // startup probe must never make the writing app unusable.
       } finally {
         window.clearTimeout(timeout)
         if (!disposed) setReady(true)

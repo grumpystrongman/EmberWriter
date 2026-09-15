@@ -5,6 +5,7 @@ import asyncio
 import httpx
 
 from .models import ProviderConfig
+from .ollama_runtime import choose_installed_model, installed_ollama_models
 
 MODE_GUIDANCE = {
     "write": "Write the requested scene or passage as polished manuscript prose. Do not explain the writing unless asked.",
@@ -61,15 +62,24 @@ def _openai_chat_url(base_url: str) -> str:
     return f"{base}/v1/chat/completions"
 
 
+def _ollama_error(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+    detail = str(payload.get("error", "")).strip() if isinstance(payload, dict) else ""
+    if detail:
+        return detail
+    text = response.text.strip()
+    return text[:500] if text else f"HTTP {response.status_code}"
+
+
 async def list_models(config: ProviderConfig) -> list[str]:
+    if config.provider == "ollama":
+        return await installed_ollama_models(config.base_url)
+
     timeout = httpx.Timeout(15.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        if config.provider == "ollama":
-            response = await client.get(f"{config.base_url.rstrip('/')}/api/tags")
-            response.raise_for_status()
-            payload = response.json()
-            return [item.get("name", "") for item in payload.get("models", []) if item.get("name")]
-
         headers = {"Authorization": f"Bearer {config.api_key}"} if config.api_key else {}
         base = config.base_url.rstrip("/")
         url = f"{base}/models" if base.endswith("/v1") else f"{base}/v1/models"
@@ -90,25 +100,63 @@ async def generate(
         raise ValueError("Choose a model before generating")
 
     async with MODEL_GATE:
+        if config.provider == "ollama":
+            installed = await installed_ollama_models(config.base_url)
+            effective_model = choose_installed_model(config.model, installed)
+            if not effective_model:
+                raise RuntimeError(
+                    "Ollama is running, but no local writing models are installed. "
+                    "EmberWriter did not delete or replace a model; the Ollama library is empty."
+                )
+            if effective_model != config.model:
+                # Repair stale browser state for this request. The next /models refresh will
+                # write the same installed model back to localStorage in the frontend.
+                config.model = effective_model
+
+            body: dict = {
+                "model": effective_model,
+                "messages": messages,
+                "stream": False,
+                "keep_alive": "30m",
+                "options": {"temperature": temperature, "top_p": top_p},
+            }
+            if json_mode:
+                body["format"] = "json"
+
+            # Deep dossier/analysis jobs can legitimately run for many minutes on a
+            # 14B local model. The old five-minute read timeout surfaced as the blank
+            # `Model server error:` toast seen in Character Studio. Give local work a
+            # real long-form window while retaining bounded connect/write timeouts.
+            timeout = httpx.Timeout(connect=15.0, read=1800.0, write=120.0, pool=15.0)
+            try:
+                async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                    response = await client.post(
+                        f"{config.base_url.rstrip('/')}/api/chat",
+                        json=body,
+                    )
+            except httpx.ReadTimeout as exc:
+                raise RuntimeError(
+                    "The local writing model exceeded EmberWriter's 30-minute generation window. "
+                    "The request was not rejected for content; the model simply did not finish in time."
+                ) from exc
+            except httpx.ConnectError as exc:
+                raise RuntimeError(
+                    "The local writing model server disconnected during generation. "
+                    "EmberWriter will restart Ollama automatically on the next request."
+                ) from exc
+
+            if response.status_code >= 400:
+                raise RuntimeError(
+                    f"Ollama could not generate with {effective_model}: {_ollama_error(response)}"
+                )
+            payload = response.json()
+            content = str(payload.get("message", {}).get("content", "")).strip()
+            if not content:
+                raise RuntimeError(f"Ollama returned an empty response from {effective_model}")
+            return content
+
         timeout = httpx.Timeout(connect=15.0, read=300.0, write=60.0, pool=15.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
-            if config.provider == "ollama":
-                body: dict = {
-                    "model": config.model,
-                    "messages": messages,
-                    "stream": False,
-                    "options": {"temperature": temperature, "top_p": top_p},
-                }
-                if json_mode:
-                    body["format"] = "json"
-                response = await client.post(
-                    f"{config.base_url.rstrip('/')}/api/chat",
-                    json=body,
-                )
-                response.raise_for_status()
-                payload = response.json()
-                return payload.get("message", {}).get("content", "").strip()
-
             headers = {"Content-Type": "application/json"}
             if config.api_key:
                 headers["Authorization"] = f"Bearer {config.api_key}"
