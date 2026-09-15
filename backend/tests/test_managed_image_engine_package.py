@@ -41,6 +41,10 @@ def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
     assert '$request.Proxy = $null' in image_start
     assert 'if ($WaitForReady -or $PassThru)' in image_start
     assert 'if (-not ($launchArgs -contains "--api"))' in image_start
+    assert "Clear-StaleManagedListener" in image_start
+    assert "Get-NetTCPConnection -LocalPort $Port -State Listen" in image_start
+    assert "Forge first-run setup can take several minutes" in image_start
+    assert 'Write-Host "Forge [$($elapsed)s]:' in image_start
 
 
 def test_backend_bypasses_proxies_for_local_image_services() -> None:
