@@ -38,6 +38,21 @@ def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
     assert "taskkill.exe /PID $ImageEnginePid /T /F" in start
     assert "/sdapi/v1/options" in image_start
     assert 'Start-Process -FilePath "cmd.exe"' in image_start
+    assert '$request.Proxy = $null' in image_start
+    assert 'if ($WaitForReady -or $PassThru)' in image_start
+    assert 'if (-not ($launchArgs -contains "--api"))' in image_start
+
+
+def test_backend_bypasses_proxies_for_local_image_services() -> None:
+    runtime_config = (REPO_ROOT / "backend" / "app" / "runtime_config.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'os.environ["NO_PROXY"] = value' in runtime_config
+    assert 'os.environ["no_proxy"] = value' in runtime_config
+    assert '"127.0.0.1"' in runtime_config
+    assert '"localhost"' in runtime_config
+    assert '"host.docker.internal"' in runtime_config
 
 
 def test_launchers_pin_project_storage_to_install_root() -> None:
