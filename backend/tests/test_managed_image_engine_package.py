@@ -12,7 +12,15 @@ def test_windows_installer_manages_forge_by_default() -> None:
     assert '[string]$ImageEngine = "forge"' in install
     assert "lllyasviel/stable-diffusion-webui-forge.git" in image_install
     assert "AUTOMATIC1111/stable-diffusion-webui.git" in image_install
-    assert 'launch_args = @("--api", "--port", "$Port", "--no-download-sd-model")' in image_install
+    assert (
+        'launch_args = @("--nowebui", "--api", "--port", "$Port", '
+        '"--no-download-sd-model")'
+        in image_install
+    )
+    assert '"launch.py" "--exit" "--no-download-sd-model"' in image_install
+    assert "bootstrap_complete = $true" in image_install
+    assert "runtime_python = $runtimePython" in image_install
+    assert 'launcher = (Join-Path $EngineDir "launch.py")' in image_install
     assert "http://127.0.0.1:$Port" in image_install
 
 
@@ -37,14 +45,20 @@ def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
     assert "install-image-engine.ps1" in start
     assert "taskkill.exe /PID $ImageEnginePid /T /F" in start
     assert "/sdapi/v1/options" in image_start
-    assert 'Start-Process -FilePath "cmd.exe"' in image_start
     assert '$request.Proxy = $null' in image_start
     assert 'if ($WaitForReady -or $PassThru)' in image_start
     assert 'if (-not ($launchArgs -contains "--api"))' in image_start
+    assert 'if (-not ($launchArgs -contains "--nowebui"))' in image_start
+    assert "Stop-StaleManagedImageProcesses" in image_start
     assert "Clear-StaleManagedListener" in image_start
     assert "Get-NetTCPConnection -LocalPort $Port -State Listen" in image_start
-    assert "Forge first-run setup can take several minutes" in image_start
+    assert "Initialize-ForgeRuntime" in image_start
+    assert '"launch.py" "--exit" "--no-download-sd-model"' in image_start
+    assert 'Start-Process -FilePath $runtimePython' in image_start
+    assert '$ReadyTimeoutSeconds = 180' in image_start
     assert 'Write-Host "Forge [$($elapsed)s]:' in image_start
+    assert 'Start-Process -FilePath "cmd.exe"' not in image_start
+    assert "webui.bat" not in image_start
 
 
 def test_backend_bypasses_proxies_for_local_image_services() -> None:
