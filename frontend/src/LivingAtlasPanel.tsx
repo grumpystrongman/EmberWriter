@@ -4,10 +4,11 @@ import LivingAtlasCartographyDock from './LivingAtlasCartographyDock'
 import LivingAtlasFeatureOverlay from './LivingAtlasFeatureOverlay'
 import LivingAtlasLeftDrawer from './LivingAtlasLeftDrawer'
 import LivingAtlasRightDrawer from './LivingAtlasRightDrawer'
-import { baseView, inferCanvasScale, titleCase } from './living-atlas-helpers'
+import { atlasRequest, baseView, inferCanvasScale, titleCase } from './living-atlas-helpers'
 import { useLivingAtlasCore } from './useLivingAtlasCore'
 import { useLivingAtlasTools } from './useLivingAtlasTools'
 import type { MemoryFact } from './MemoryPanel'
+import type { StoryAtlas } from './story-atlas-types'
 import type { WorkspaceProject } from './workspace-types'
 import './living-atlas.css'
 import './literary-cartography.css'
@@ -19,6 +20,16 @@ type Props = {
   project: WorkspaceProject
   facts: MemoryFact[]
   onOpenSource: (path: string, anchor?: string) => void
+}
+
+type HistoricalAssembleResult = {
+  atlas: StoryAtlas
+  query: string
+  resolved_place: string
+  year: number
+  added_features: number
+  added_sources: number
+  warnings: string[]
 }
 
 export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource }: Props) {
@@ -47,6 +58,33 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
 
   const automaticScale = inferCanvasScale(core.scopeLocation, core.scopedLocations)
   const currentScale = core.prefs.mapScale === 'auto' ? automaticScale : core.prefs.mapScale
+
+  async function assembleHistorical(query: string) {
+    core.setBusy(true); core.setError('')
+    try {
+      const response = await atlasRequest<HistoricalAssembleResult>(`${apiBase}/projects/${project.slug}/atlas/historical/assemble`, {
+        method: 'POST',
+        body: JSON.stringify({
+          query,
+          scope_id: core.scopeId,
+          radius_km: 4,
+          year_window: 30,
+          max_modern_features: 600,
+          max_sources: 24,
+          include_modern_context: true,
+        }),
+      })
+      core.setAtlas(response.atlas)
+      core.setDirty(false)
+      core.setPrefs((current) => ({ ...current, showCartography: true, worldType: 'historical' }))
+      const warning = response.warnings.length ? ` ${response.warnings[0]}` : ''
+      core.setNotice(`Assembled ${response.resolved_place} for ${response.year}: ${response.added_features} GIS features and ${response.added_sources} source records.${warning}`)
+    } catch (cause) {
+      core.setError((cause as Error).message)
+    } finally {
+      core.setBusy(false)
+    }
+  }
 
   return <div className={`living-atlas-shell ${core.leftOpen ? 'left-open' : ''} ${core.rightOpen ? 'right-open' : ''}`}>
     <main className="living-atlas-stage">
@@ -127,6 +165,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
           onSuggest={(prompt) => void core.suggestCartography(prompt)}
           onImport={(geojson, sourceName) => void core.importGeoJson(geojson, sourceName)}
           onGenerate={(seed, continents, detail) => void core.generateFantasy(seed, continents, detail)}
+          onAssembleHistorical={(query) => void assembleHistorical(query)}
         />
 
         <div className="living-timeline">
