@@ -156,6 +156,54 @@ function Ensure-DefaultModel([string]$InstallPath) {
     return $modelPath
 }
 
+function New-ForgeVenv([string]$BasePython, [string]$InstallPath) {
+    $venvDir = Join-Path $InstallPath "venv"
+    $runtimePython = Join-Path $venvDir "Scripts\python.exe"
+
+    if (Test-Path $runtimePython) { return $runtimePython }
+    if (Test-Path $venvDir) { Remove-Item -Recurse -Force $venvDir }
+
+    Write-Host "Creating Stable Diffusion Python environment..." -ForegroundColor Cyan
+    & $BasePython -m venv $venvDir
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $runtimePython)) {
+        throw "Could not create the Stable Diffusion Python environment with $BasePython."
+    }
+    return $runtimePython
+}
+
+function Prepare-ForgeRuntime([string]$BasePython, [string]$InstallPath) {
+    $venvDir = Join-Path $InstallPath "venv"
+
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        $runtimePython = New-ForgeVenv -BasePython $BasePython -InstallPath $InstallPath
+        Write-Host "Preparing Stable Diffusion runtime dependencies..." -ForegroundColor Cyan
+        Write-Host "This is installation/repair work; normal EmberWriter startup will not reinstall these packages." -ForegroundColor DarkGray
+
+        Push-Location $InstallPath
+        try {
+            & $runtimePython "launch.py" "--exit" "--no-download-sd-model"
+            $exitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+
+        if ($exitCode -eq 0) {
+            Write-Host "Stable Diffusion runtime dependencies are ready." -ForegroundColor Green
+            return $runtimePython
+        }
+
+        if ($attempt -eq 1) {
+            Write-Host "Forge dependency setup failed. Rebuilding its Python environment once..." -ForegroundColor Yellow
+            if (Test-Path $venvDir) { Remove-Item -Recurse -Force $venvDir }
+            continue
+        }
+
+        throw "Forge runtime preparation failed with exit code $exitCode."
+    }
+
+    throw "Forge runtime preparation did not complete."
+}
+
 New-Item -ItemType Directory -Force -Path $ConfigDir, $RuntimeRoot | Out-Null
 $selected = $EngineRepos[$Engine]
 $python310 = Ensure-Python310
@@ -179,7 +227,7 @@ if (Test-Path (Join-Path $EngineDir ".git")) {
     if (Test-Path $EngineDir) { Remove-Item -Recurse -Force $EngineDir }
     Write-Host "Installing managed $($selected.display)..." -ForegroundColor Cyan
     & $git clone --depth 1 --branch $selected.branch $selected.repo $EngineDir
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $EngineDir "webui.bat"))) {
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $EngineDir "launch.py"))) {
         throw "The image-engine repository did not install correctly."
     }
 }
@@ -197,8 +245,11 @@ if (-not $SkipModelDownload) {
     Write-Host "Skipping baseline image-model download. Add a checkpoint under models\Stable-diffusion before generating images." -ForegroundColor Yellow
 }
 
+$runtimePython = Prepare-ForgeRuntime -BasePython $python310 -InstallPath $EngineDir
+$launchArgs = @("--nowebui", "--api", "--port", "$Port", "--no-download-sd-model")
+
 $config = @{
-    schema_version = 1
+    schema_version = 2
     managed = $true
     engine = $Engine
     display_name = $selected.display
@@ -206,21 +257,23 @@ $config = @{
     branch = $selected.branch
     install_path = $EngineDir
     python = $python310
+    runtime_python = $runtimePython
     base_url = $BaseUrl
     port = $Port
-    launcher = (Join-Path $EngineDir "webui.bat")
-    launch_args = @("--api", "--port", "$Port", "--no-download-sd-model")
+    launcher = (Join-Path $EngineDir "launch.py")
+    launch_args = $launchArgs
+    bootstrap_complete = $true
     model = $modelPath
     model_source = $modelSource
     model_license = $modelLicense
     model_sha256 = $modelSha256
     installed_at = (Get-Date).ToUniversalTime().ToString("o")
 }
-$config | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 $ConfigPath
+$config | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $ConfigPath
 
 Write-Host ""
 Write-Host "Managed image engine installed: $($selected.display)" -ForegroundColor Green
 Write-Host "Location: $EngineDir"
 Write-Host "API:      $BaseUrl"
 if ($modelPath) { Write-Host "Model:    $modelPath" }
-Write-Host "EmberWriter will start this service automatically from start.ps1."
+Write-Host "EmberWriter will start the API-only image service automatically from start.ps1."
