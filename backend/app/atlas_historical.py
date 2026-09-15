@@ -115,7 +115,7 @@ def parse_historical_place_query(query: str) -> tuple[str, int]:
 
 
 def _source_id(provider: str, title: str, url: str) -> str:
-    digest = hashlib.sha1(f"{provider}|{url}|{title}".encode("utf-8")).hexdigest()[:10]
+    digest = hashlib.sha1(f"{provider}|{url}|{title}".encode()).hexdigest()[:10]
     return f"{slugify(provider)[:32]}-{slugify(title)[:66]}-{digest}"[:120]
 
 
@@ -389,6 +389,16 @@ async def assemble_historical_place(
                     request.max_modern_features,
                 )
                 if geojson.get("features"):
+                    atlas.features = [
+                        feature
+                        for feature in atlas.features
+                        if not (
+                            feature.scope_id == request.scope_id
+                            and feature.source == "openstreetmap-current"
+                            and feature.properties.get("requested_year") == year
+                        )
+                    ]
+                    atlas = save_atlas(slug, atlas)
                     before_ids = {item.id for item in atlas.features}
                     source_name = f"OpenStreetMap current reference — {resolved_place}"
                     imported = import_geojson(
