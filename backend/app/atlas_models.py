@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -9,11 +9,42 @@ from .models import ProviderConfig
 AtlasStatus = Literal["canon", "inferred", "suggested"]
 AtlasPreference = Literal["fastest", "safest", "balanced", "dramatic", "lore", "relationship"]
 AtlasEventAction = Literal["connection_open", "connection_close", "location_reveal", "location_control", "note"]
+AtlasGeometryType = Literal["point", "line", "polygon"]
 
 
 class AtlasTravelProfile(BaseModel):
     speed_mph: float = Field(gt=0, le=10000)
     hours_per_day: float = Field(default=8.0, gt=0, le=24)
+
+
+class AtlasPoint(BaseModel):
+    x: float = Field(ge=-100000, le=100000)
+    y: float = Field(ge=-100000, le=100000)
+
+
+class AtlasCartographicFeature(BaseModel):
+    id: str = Field(min_length=1, max_length=120, pattern=r"^[a-z0-9][a-z0-9-]*$")
+    name: str = Field(default="", max_length=200)
+    kind: str = Field(default="landform", min_length=1, max_length=80)
+    geometry_type: AtlasGeometryType
+    points: list[AtlasPoint] = Field(default_factory=list, min_length=1, max_length=5000)
+    scope_id: str = Field(default="", max_length=120)
+    layer: int = Field(default=0, ge=-1000, le=1000)
+    canon_status: AtlasStatus = "suggested"
+    confidence: float = Field(default=1.0, ge=0, le=1)
+    source: str = Field(default="author", max_length=80)
+    source_ref: str = Field(default="", max_length=1000)
+    source_crs: str = Field(default="", max_length=120)
+    source_paths: list[str] = Field(default_factory=list, max_length=50)
+    notes: str = Field(default="", max_length=4000)
+    properties: dict[str, str | float | int | bool] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_geometry(self) -> AtlasCartographicFeature:
+        minimum = {"point": 1, "line": 2, "polygon": 3}[self.geometry_type]
+        if len(self.points) < minimum:
+            raise ValueError(f"{self.geometry_type} feature {self.id} requires at least {minimum} point(s)")
+        return self
 
 
 class AtlasLocation(BaseModel):
@@ -98,11 +129,12 @@ _DEFAULT_PROFILES = {
 
 
 class StoryAtlas(BaseModel):
-    schema_version: int = Field(default=1, ge=1, le=10)
+    schema_version: int = Field(default=2, ge=1, le=10)
     map: AtlasMapConfig = Field(default_factory=AtlasMapConfig)
     travel_profiles: dict[str, AtlasTravelProfile] = Field(default_factory=lambda: dict(_DEFAULT_PROFILES))
     locations: list[AtlasLocation] = Field(default_factory=list, max_length=5000)
     connections: list[AtlasConnection] = Field(default_factory=list, max_length=10000)
+    features: list[AtlasCartographicFeature] = Field(default_factory=list, max_length=20000)
     events: list[AtlasEvent] = Field(default_factory=list, max_length=10000)
 
     @model_validator(mode="after")
@@ -113,6 +145,9 @@ class StoryAtlas(BaseModel):
         connection_ids = [item.id for item in self.connections]
         if len(connection_ids) != len(set(connection_ids)):
             raise ValueError("Atlas connection IDs must be unique")
+        feature_ids = [item.id for item in self.features]
+        if len(feature_ids) != len(set(feature_ids)):
+            raise ValueError("Atlas cartographic feature IDs must be unique")
         event_ids = [item.id for item in self.events]
         if len(event_ids) != len(set(event_ids)):
             raise ValueError("Atlas event IDs must be unique")
@@ -123,6 +158,9 @@ class StoryAtlas(BaseModel):
                 raise ValueError(f"Connection {connection.id} cannot connect a location to itself")
             if connection.from_id not in known_locations or connection.to_id not in known_locations:
                 raise ValueError(f"Connection {connection.id} references an unknown location")
+        for feature in self.features:
+            if feature.scope_id and feature.scope_id not in known_locations:
+                raise ValueError(f"Cartographic feature {feature.id} references an unknown scope location")
         for event in self.events:
             if event.action.startswith("connection_") and event.target_id not in known_connections:
                 raise ValueError(f"Event {event.id} references an unknown connection")
@@ -227,3 +265,44 @@ class AtlasBootstrapResponse(BaseModel):
     added_locations: int = 0
     added_connections: int = 0
     warnings: list[str] = Field(default_factory=list)
+
+
+class AtlasGeographySuggestRequest(BaseModel):
+    provider: ProviderConfig
+    scope_id: str = Field(default="", max_length=120)
+    prompt: str = Field(default="", max_length=8000)
+    max_features: int = Field(default=80, ge=1, le=300)
+
+
+class AtlasGeographySuggestResponse(BaseModel):
+    atlas: StoryAtlas
+    added_features: int = 0
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AtlasGeoJsonImportRequest(BaseModel):
+    geojson: dict[str, Any]
+    scope_id: str = Field(default="", max_length=120)
+    source_name: str = Field(default="GeoJSON import", max_length=200)
+    replace_imported: bool = False
+
+
+class AtlasGeoJsonImportResponse(BaseModel):
+    atlas: StoryAtlas
+    added_features: int = 0
+    skipped_features: int = 0
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AtlasFantasyGenerateRequest(BaseModel):
+    scope_id: str = Field(default="", max_length=120)
+    seed: int = Field(default=1, ge=0, le=2_147_483_647)
+    continents: int = Field(default=1, ge=1, le=5)
+    detail: int = Field(default=3, ge=1, le=5)
+    replace_generated: bool = True
+
+
+class AtlasFantasyGenerateResponse(BaseModel):
+    atlas: StoryAtlas
+    added_features: int = 0
+    seed: int

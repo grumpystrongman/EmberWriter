@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 import LivingAtlasCanvas from './LivingAtlasCanvas'
+import LivingAtlasCartographyDock from './LivingAtlasCartographyDock'
+import LivingAtlasFeatureOverlay from './LivingAtlasFeatureOverlay'
 import LivingAtlasLeftDrawer from './LivingAtlasLeftDrawer'
 import LivingAtlasRightDrawer from './LivingAtlasRightDrawer'
 import { baseView, inferCanvasScale, titleCase } from './living-atlas-helpers'
@@ -9,6 +11,7 @@ import type { MemoryFact } from './MemoryPanel'
 import type { WorkspaceProject } from './workspace-types'
 import './living-atlas.css'
 import './literary-cartography.css'
+import './living-atlas-iii.css'
 import './living-atlas-tools.css'
 
 type Props = {
@@ -49,7 +52,7 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
     <main className="living-atlas-stage">
       <div className="living-atlas-topbar">
         <div className="living-atlas-titleblock">
-          <span className="living-kicker">WORLD · LIVING ATLAS</span>
+          <span className="living-kicker">WORLD · LIVING ATLAS III</span>
           <div className="living-breadcrumb">
             <button type="button" onClick={core.goRoot}>World</button>
             {core.breadcrumbs.map((item) => <span key={item.id}><i>›</i><button type="button" onClick={() => core.explore(item.id)}>{item.name}</button></span>)}
@@ -91,15 +94,40 @@ export default function LivingAtlasPanel({ apiBase, project, facts, onOpenSource
           onExplore={core.explore}
         />
 
-        {!core.scopedLocations.length && <div className="living-empty-map">
-          <strong>{core.scopeLocation ? `${core.scopeLocation.name} has no mapped interior yet.` : 'Your atlas has no mapped places yet.'}</strong>
-          <p>Add a place, build from the story, or assign existing places inside a parent location.</p>
+        {core.prefs.viewMode === 'atlas' && core.prefs.showCartography && <LivingAtlasFeatureOverlay
+          features={core.scopedFeatures}
+          view={core.view}
+          selectedFeatureId={core.selectedFeatureId}
+          edit={core.prefs.editCartography}
+          onSelect={core.selectFeature}
+          onMovePoint={core.moveFeaturePoint}
+        />}
+
+        {!core.scopedLocations.length && !core.scopedFeatures.length && <div className="living-empty-map">
+          <strong>{core.scopeLocation ? `${core.scopeLocation.name} has no mapped interior yet.` : 'Your atlas has no mapped places or cartography yet.'}</strong>
+          <p>Add a place, build from the story, generate a continent, import real geography, or ask Ember to infer geography from the manuscript.</p>
           <button type="button" onClick={() => core.setLeftOpen(true)}>Open atlas library</button>
         </div>}
 
-        <div className="living-map-hud living-world-pill"><b>{titleCase(core.prefs.worldType)}</b><span>{titleCase(core.prefs.visualStyle)} · {titleCase(currentScale)} map</span></div>
+        <div className="living-map-hud living-world-pill"><b>{titleCase(core.prefs.worldType)}</b><span>{titleCase(core.prefs.visualStyle)} · {titleCase(currentScale)} map · {core.scopedFeatures.length} persisted features</span></div>
         <div className="living-map-hud living-legend"><span><i className="canon" />Canon</span><span><i className="inferred" />Inferred</span><span><i className="suggested" />Suggested</span><span><em />Planned route</span></div>
         <button type="button" className="living-map-hud living-inspector-toggle" onClick={() => core.setRightOpen((value) => !value)}>{core.rightOpen ? 'Close tools' : 'Story tools ›'}</button>
+
+        <LivingAtlasCartographyDock
+          features={core.scopedFeatures}
+          selectedFeature={core.selectedFeature}
+          busy={core.busy}
+          showCartography={core.prefs.showCartography}
+          editCartography={core.prefs.editCartography}
+          onShowCartography={(value) => core.setPrefs((current) => ({ ...current, showCartography: value }))}
+          onEditCartography={(value) => core.setPrefs((current) => ({ ...current, editCartography: value, showCartography: true }))}
+          onSelectFeature={core.selectFeature}
+          onUpdateFeature={core.updateFeature}
+          onDeleteFeature={core.deleteFeature}
+          onSuggest={(prompt) => void core.suggestCartography(prompt)}
+          onImport={(geojson, sourceName) => void core.importGeoJson(geojson, sourceName)}
+          onGenerate={(seed, continents, detail) => void core.generateFantasy(seed, continents, detail)}
+        />
 
         <div className="living-timeline">
           <div><b>{core.chapter ? `Chapter ${core.chapter}` : 'Setup'}</b><span>{core.character || 'Author view'}</span></div>

@@ -12,11 +12,18 @@ from .atlas import (
     load_atlas,
     save_atlas,
 )
+from .atlas_cartography import generate_fantasy_geography, import_geojson, suggest_geography
 from .atlas_models import (
     AtlasAdviceRequest,
     AtlasAdviceResponse,
     AtlasBootstrapRequest,
     AtlasBootstrapResponse,
+    AtlasFantasyGenerateRequest,
+    AtlasFantasyGenerateResponse,
+    AtlasGeographySuggestRequest,
+    AtlasGeographySuggestResponse,
+    AtlasGeoJsonImportRequest,
+    AtlasGeoJsonImportResponse,
     AtlasRouteCompareRequest,
     AtlasRouteCompareResponse,
     AtlasRouteRequest,
@@ -132,3 +139,52 @@ async def atlas_bootstrap(slug: str, payload: AtlasBootstrapRequest) -> AtlasBoo
         raise HTTPException(status_code=502, detail=f"Model server error: {exc}") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post(
+    "/projects/{slug}/atlas/geography/suggest",
+    response_model=AtlasGeographySuggestResponse,
+)
+async def atlas_geography_suggest(
+    slug: str, payload: AtlasGeographySuggestRequest
+) -> AtlasGeographySuggestResponse:
+    try:
+        return await suggest_geography(slug, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Model server error: {exc}") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post(
+    "/projects/{slug}/atlas/geography/import-geojson",
+    response_model=AtlasGeoJsonImportResponse,
+)
+def atlas_geography_import_geojson(
+    slug: str, payload: AtlasGeoJsonImportRequest
+) -> AtlasGeoJsonImportResponse:
+    try:
+        return import_geojson(slug, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/projects/{slug}/atlas/geography/generate-fantasy",
+    response_model=AtlasFantasyGenerateResponse,
+)
+def atlas_geography_generate_fantasy(
+    slug: str, payload: AtlasFantasyGenerateRequest
+) -> AtlasFantasyGenerateResponse:
+    try:
+        return generate_fantasy_geography(slug, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
