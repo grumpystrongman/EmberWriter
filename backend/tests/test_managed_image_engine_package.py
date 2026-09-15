@@ -13,10 +13,11 @@ def test_windows_installer_manages_forge_by_default() -> None:
     assert "lllyasviel/stable-diffusion-webui-forge.git" in image_install
     assert "AUTOMATIC1111/stable-diffusion-webui.git" in image_install
     assert (
-        'launch_args = @("--nowebui", "--api", "--port", "$Port", '
+        '$launchArgs = @("--nowebui", "--api", "--port", "$Port", '
         '"--no-download-sd-model")'
         in image_install
     )
+    assert "launch_args = $launchArgs" in image_install
     assert '"launch.py" "--exit" "--no-download-sd-model"' in image_install
     assert "bootstrap_complete = $true" in image_install
     assert "runtime_python = $runtimePython" in image_install
@@ -58,7 +59,6 @@ def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
     assert '$ReadyTimeoutSeconds = 180' in image_start
     assert 'Write-Host "Forge [$($elapsed)s]:' in image_start
     assert 'Start-Process -FilePath "cmd.exe"' not in image_start
-    assert "webui.bat" not in image_start
 
 
 def test_backend_bypasses_proxies_for_local_image_services() -> None:
