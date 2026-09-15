@@ -33,6 +33,20 @@ def test_windows_start_prefers_projects_in_current_checkout_over_stale_environme
     assert '[string]$DataDir = ""' in start
 
 
+def test_windows_start_repairs_incomplete_frontend_dependencies() -> None:
+    start = (REPO_ROOT / "start.ps1").read_text(encoding="utf-8")
+    install = (REPO_ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert 'node_modules\\.bin\\vite.cmd' in start
+    assert "function Test-FrontendDependencies" in start
+    assert "function Repair-FrontendDependencies" in start
+    assert "ls --depth=0 --include=dev" in start
+    assert "ci --include=dev" in start
+    assert "Frontend dependencies repaired; Vite is available." in start
+    assert "npm ci --include=dev" in install
+    assert 'node_modules\\.bin\\vite.cmd' in install
+
+
 def test_vite_uses_strict_local_port_and_same_origin_api_proxy() -> None:
     vite = (REPO_ROOT / "frontend" / "vite.config.ts").read_text(encoding="utf-8")
 
