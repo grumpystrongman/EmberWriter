@@ -21,6 +21,8 @@ $BackendOutLog = Join-Path $LogDir "backend.out.log"
 $BackendErrLog = Join-Path $LogDir "backend.err.log"
 $FrontendOutLog = Join-Path $LogDir "frontend.out.log"
 $FrontendErrLog = Join-Path $LogDir "frontend.err.log"
+$ImageSupervisorOutLog = Join-Path $LogDir "image-engine-supervisor.out.log"
+$ImageSupervisorErrLog = Join-Path $LogDir "image-engine-supervisor.err.log"
 $FrontendNodeModules = Join-Path $Frontend "node_modules"
 $FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 $ApiUrl = "http://127.0.0.1:8000/api/health"
@@ -232,7 +234,6 @@ if (-not $Npm) {
 Stop-ExistingEmberService -Port 5173 -HealthCheck ${function:Test-EmberUi} -Label "EmberWriter UI"
 Stop-FrontendNodeProcesses
 
-$ImageEnginePid = $null
 if (-not $SkipManagedImageEngine) {
     if (-not (Test-Path $ImageEngineConfig)) {
         Write-Host "Managed image engine is not installed yet. Installing Forge..." -ForegroundColor Yellow
@@ -240,26 +241,35 @@ if (-not $SkipManagedImageEngine) {
             & $ImageEngineInstaller -Engine forge
         } catch {
             Write-Host "Image-engine installation could not complete: $($_.Exception.Message)" -ForegroundColor Yellow
-            Write-Host "EmberWriter will still open; Visual Canon will show repair guidance." -ForegroundColor Yellow
+            Write-Host "EmberWriter will still open and keep retrying the managed image engine when available." -ForegroundColor Yellow
         }
     }
 
     if (Test-Path $ImageEngineConfig) {
         try {
-            $imageState = & $ImageEngineLauncher -PassThru
-            if ($imageState -and $imageState.Started -and $imageState.Pid) {
-                $ImageEnginePid = [int]$imageState.Pid
-            }
-            if ($imageState -and $imageState.BaseUrl) {
-                if ($imageState.Ready) {
-                    Write-Host "Image engine:    ready at $($imageState.BaseUrl)" -ForegroundColor Green
-                } else {
-                    Write-Host "Image engine:    starting at $($imageState.BaseUrl)" -ForegroundColor Cyan
-                }
-            }
+            # Image generation is a persistent local service. Start/repair it in a
+            # separate supervisor so a cold model load never blocks EmberWriter's UI.
+            # The service intentionally survives normal EmberWriter restarts, which
+            # avoids paying the model-load cost every time the writing app closes.
+            $imagePowerShell = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+            if (-not $imagePowerShell) { $imagePowerShell = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
+            if (-not $imagePowerShell) { throw "PowerShell could not be located for the managed image-engine supervisor." }
+
+            $quotedLauncher = '"' + $ImageEngineLauncher + '"'
+            $imageArgs = @(
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", $quotedLauncher,
+                "-PassThru", "-WaitForReady",
+                "-ReadyTimeoutSeconds", "1200"
+            )
+            Start-Process -FilePath $imagePowerShell -ArgumentList $imageArgs `
+                -WorkingDirectory $Root -WindowStyle Hidden `
+                -RedirectStandardOutput $ImageSupervisorOutLog `
+                -RedirectStandardError $ImageSupervisorErrLog | Out-Null
+            Write-Host "Image engine:    starting/repairing in the background" -ForegroundColor Cyan
         } catch {
-            Write-Host "Managed image engine could not start: $($_.Exception.Message)" -ForegroundColor Yellow
-            Write-Host "EmberWriter will still open; use the image-server status control for diagnostics." -ForegroundColor Yellow
+            Write-Host "Managed image-engine supervisor could not launch: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "The EmberWriter API will retry the managed image engine automatically." -ForegroundColor Yellow
         }
     }
 }
@@ -315,9 +325,7 @@ try {
 finally {
     if ($BackendProcess -and -not $BackendProcess.HasExited) { Stop-Process -Id $BackendProcess.Id -Force -ErrorAction SilentlyContinue }
     if ($FrontendProcess -and -not $FrontendProcess.HasExited) { Stop-Process -Id $FrontendProcess.Id -Force -ErrorAction SilentlyContinue }
-    if ($ImageEnginePid) {
-        try {
-            & taskkill.exe /PID $ImageEnginePid /T /F 2>$null | Out-Null
-        } catch { }
-    }
+    # Do not stop the managed image engine here. Keeping Forge warm across
+    # EmberWriter restarts makes image generation reliable and eliminates repeated
+    # multi-minute model cold starts.
 }

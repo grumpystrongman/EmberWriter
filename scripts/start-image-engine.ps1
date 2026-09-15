@@ -1,8 +1,8 @@
 param(
     [switch]$PassThru,
     [switch]$WaitForReady,
-    [ValidateRange(10, 600)]
-    [int]$ReadyTimeoutSeconds = 180,
+    [ValidateRange(10, 1800)]
+    [int]$ReadyTimeoutSeconds = 1200,
     [ValidateRange(1, 30)]
     [int]$ProbeTimeoutSeconds = 5,
     [ValidateRange(5, 60)]
@@ -13,6 +13,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ConfigPath = Join-Path $RepoRoot ".ember\image-engine.json"
 $LogDir = Join-Path $RepoRoot ".ember\logs"
+$RuntimeStatePath = Join-Path $RepoRoot ".ember\image-engine-runtime.json"
 
 function Test-ImageApi([string]$BaseUrl) {
     $response = $null
@@ -30,6 +31,26 @@ function Test-ImageApi([string]$BaseUrl) {
     } finally {
         if ($response) { $response.Close() }
     }
+}
+
+function Save-RuntimeState(
+    [string]$State,
+    [Nullable[int]]$ProcessId,
+    [string]$BaseUrl,
+    [string]$Message,
+    [string]$StdoutPath = "",
+    [string]$StderrPath = ""
+) {
+    $payload = [ordered]@{
+        state = $State
+        pid = $ProcessId
+        base_url = $BaseUrl
+        message = $Message
+        stdout = $StdoutPath
+        stderr = $StderrPath
+        updated_at = (Get-Date).ToUniversalTime().ToString("o")
+    }
+    $payload | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 $RuntimeStatePath
 }
 
 function Get-ListenerProcessId([int]$Port) {
@@ -56,20 +77,38 @@ function Test-IsManagedImageProcess([int]$ProcessId, [string]$InstallPath) {
     return $false
 }
 
-function Stop-StaleManagedImageProcesses([string]$InstallPath) {
+function Get-ManagedImageProcess([string]$InstallPath) {
+    $installFull = [System.IO.Path]::GetFullPath($InstallPath)
+    try {
+        $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ProcessId -ne $PID -and
+            @("python.exe", "pythonw.exe") -contains $_.Name.ToLowerInvariant() -and
+            (
+                ($_.ExecutablePath -and $_.ExecutablePath.IndexOf($installFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                ($_.CommandLine -and $_.CommandLine.IndexOf($installFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            )
+        }
+        if ($processes) { return $processes | Select-Object -First 1 }
+    } catch { }
+    return $null
+}
+
+function Stop-ManagedImageProcesses([string]$InstallPath) {
     $installFull = [System.IO.Path]::GetFullPath($InstallPath)
     $candidateNames = @("python.exe", "pythonw.exe", "cmd.exe")
     try {
         $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
             $_.ProcessId -ne $PID -and
             $candidateNames -contains $_.Name.ToLowerInvariant() -and
-            $_.CommandLine -and
-            $_.CommandLine.IndexOf($installFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+            (
+                ($_.ExecutablePath -and $_.ExecutablePath.IndexOf($installFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                ($_.CommandLine -and $_.CommandLine.IndexOf($installFull, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            )
         }
 
         foreach ($item in $processes) {
             $processId = [int]$item.ProcessId
-            Write-Host "Stopping stale managed image-engine process (PID $processId)..." -ForegroundColor Yellow
+            Write-Host "Stopping failed managed image-engine process (PID $processId)..." -ForegroundColor Yellow
             try {
                 & taskkill.exe /PID $processId /T /F 2>$null | Out-Null
             } catch {
@@ -78,19 +117,19 @@ function Stop-StaleManagedImageProcesses([string]$InstallPath) {
         }
         if ($processes) { Start-Sleep -Milliseconds 750 }
     } catch {
-        Write-Host "Could not inspect stale image-engine processes: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Could not inspect managed image-engine processes: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
-function Clear-StaleManagedListener([int]$Port, [string]$InstallPath) {
+function Clear-ConflictingListener([int]$Port, [string]$InstallPath) {
     $listenerProcessId = Get-ListenerProcessId $Port
     if (-not $listenerProcessId) { return }
 
     if (-not (Test-IsManagedImageProcess $listenerProcessId $InstallPath)) {
-        throw "Port $Port is already owned by another process (PID $listenerProcessId). Stop that service or change the managed image-engine port before starting EmberWriter."
+        throw "Port $Port is already owned by another process (PID $listenerProcessId). EmberWriter will not kill an unrelated service."
     }
 
-    Write-Host "Stopping stale managed image-engine listener on port $Port (PID $listenerProcessId)..." -ForegroundColor Yellow
+    Write-Host "Stopping failed managed image-engine listener on port $Port (PID $listenerProcessId)..." -ForegroundColor Yellow
     try {
         & taskkill.exe /PID $listenerProcessId /T /F 2>$null | Out-Null
     } catch {
@@ -101,7 +140,7 @@ function Clear-StaleManagedListener([int]$Port, [string]$InstallPath) {
         Start-Sleep -Milliseconds 250
         if (-not (Get-ListenerProcessId $Port)) { return }
     }
-    throw "The stale managed image engine on port $Port did not stop cleanly. End its Python process and rerun start.ps1."
+    throw "The failed managed image engine on port $Port did not stop cleanly."
 }
 
 function Get-LogProgressLine([string]$StdoutPath, [string]$StderrPath) {
@@ -204,23 +243,25 @@ function Initialize-ForgeRuntime(
     [string]$RuntimePython,
     [string]$InstallPath,
     [object]$Config,
-    [string[]]$LaunchArgs
+    [string[]]$LaunchArgs,
+    [switch]$Force
 ) {
-    $needsBootstrap = $true
-    if ($Config.PSObject.Properties["bootstrap_complete"]) {
-        $needsBootstrap = -not [bool]$Config.bootstrap_complete
+    $needsBootstrap = $Force
+    if (-not $needsBootstrap) {
+        $needsBootstrap = $true
+        if ($Config.PSObject.Properties["bootstrap_complete"]) {
+            $needsBootstrap = -not [bool]$Config.bootstrap_complete
+        }
     }
 
     if (-not $needsBootstrap) { return }
 
     Write-Host ""
-    Write-Host "Preparing Stable Diffusion runtime (one-time repair)..." -ForegroundColor Cyan
-    Write-Host "Forge will validate/install Torch and its Python dependencies now. Any failure will be shown here immediately." -ForegroundColor DarkGray
+    Write-Host "Preparing Stable Diffusion runtime..." -ForegroundColor Cyan
+    Write-Host "Forge is validating Torch and its Python dependencies automatically." -ForegroundColor DarkGray
 
     Push-Location $InstallPath
     try {
-        # Forge's --exit mode performs dependency/bootstrap work but does not start
-        # Gradio or wait for an interactive batch-file pause.
         & $RuntimePython "launch.py" "--exit" "--no-download-sd-model"
         if ($LASTEXITCODE -ne 0) {
             throw "Forge runtime preparation failed with exit code $LASTEXITCODE."
@@ -236,6 +277,75 @@ function Initialize-ForgeRuntime(
     Set-ConfigProperty $Config "bootstrap_complete" $true
     Save-ImageEngineConfig $Config
     Write-Host "Stable Diffusion runtime prepared successfully." -ForegroundColor Green
+}
+
+function Repair-ForgeRuntime(
+    [string]$BasePython,
+    [string]$InstallPath,
+    [object]$Config,
+    [string[]]$LaunchArgs
+) {
+    Write-Host "Forge exited during startup. Repairing its runtime automatically..." -ForegroundColor Yellow
+    $runtimePython = Ensure-ForgeVenv -BasePython $BasePython -InstallPath $InstallPath
+    try {
+        Initialize-ForgeRuntime -RuntimePython $runtimePython -InstallPath $InstallPath -Config $Config -LaunchArgs $LaunchArgs -Force
+        return $runtimePython
+    } catch {
+        Write-Host "In-place Forge repair failed. Rebuilding its isolated Python environment once..." -ForegroundColor Yellow
+        $venvDir = Join-Path $InstallPath "venv"
+        if (Test-Path $venvDir) { Remove-Item -Recurse -Force $venvDir }
+        $runtimePython = Ensure-ForgeVenv -BasePython $BasePython -InstallPath $InstallPath
+        Initialize-ForgeRuntime -RuntimePython $runtimePython -InstallPath $InstallPath -Config $Config -LaunchArgs $LaunchArgs -Force
+        return $runtimePython
+    }
+}
+
+function Start-ForgeApi(
+    [string]$RuntimePython,
+    [string]$InstallPath,
+    [string[]]$LaunchArgs,
+    [string]$StdoutPath,
+    [string]$StderrPath
+) {
+    $argumentList = @("launch.py") + $LaunchArgs
+    return Start-Process -FilePath $RuntimePython -ArgumentList $argumentList `
+        -WorkingDirectory $InstallPath -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
+}
+
+function Wait-ForForgeApi(
+    [System.Diagnostics.Process]$Process,
+    [string]$BaseUrl,
+    [string]$StdoutPath,
+    [string]$StderrPath,
+    [int]$TimeoutSeconds
+) {
+    $startedAt = Get-Date
+    $deadline = $startedAt.AddSeconds($TimeoutSeconds)
+    $nextProgressAt = $startedAt
+    $lastProgressLine = ""
+
+    while ((Get-Date) -lt $deadline) {
+        if (Test-ImageApi $BaseUrl) { return $true }
+        try { $Process.Refresh() } catch { }
+        if ($Process.HasExited) { return $false }
+
+        $now = Get-Date
+        if ($now -ge $nextProgressAt) {
+            $progress = Get-LogProgressLine -StdoutPath $StdoutPath -StderrPath $StderrPath
+            $elapsed = [int](($now - $startedAt).TotalSeconds)
+            if ($progress -and $progress.Line -ne $lastProgressLine) {
+                Write-Host "Forge [$($elapsed)s]: $($progress.Line)" -ForegroundColor DarkGray
+                $lastProgressLine = $progress.Line
+            } elseif ($elapsed -gt 0) {
+                Write-Host "Forge [$($elapsed)s]: loading model/API..." -ForegroundColor DarkGray
+            }
+            $nextProgressAt = $now.AddSeconds($ProgressIntervalSeconds)
+        }
+        Start-Sleep -Seconds 2
+    }
+
+    return (Test-ImageApi $BaseUrl)
 }
 
 if (-not (Test-Path $ConfigPath)) {
@@ -269,8 +379,7 @@ if (-not $basePython -or -not (Test-Path $basePython)) {
     throw "Python 3.10 used by the image engine is missing: $basePython. Rerun .\install.ps1."
 }
 
-# Normalize old schema-1 configurations in memory. The repaired config is saved
-# after a successful bootstrap.
+# Normalize old configurations without forcing the author through setup again.
 if (-not ($launchArgs -contains "--api")) {
     $launchArgs = @("--api") + $launchArgs
 }
@@ -284,82 +393,119 @@ if (-not ($launchArgs -contains "--no-download-sd-model")) {
     $launchArgs += "--no-download-sd-model"
 }
 
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+$stdout = Join-Path $LogDir "image-engine.out.log"
+$stderr = Join-Path $LogDir "image-engine.err.log"
+
 if (Test-ImageApi $baseUrl) {
+    $listenerPid = Get-ListenerProcessId $port
+    Save-RuntimeState -State "ready" -ProcessId $listenerPid -BaseUrl $baseUrl -Message "Stable Diffusion WebUI API is ready." -StdoutPath $stdout -StderrPath $stderr
     Write-Host "Image engine already ready: $baseUrl" -ForegroundColor Green
     if ($PassThru) {
         [pscustomobject]@{
             Started = $false
-            Pid = $null
+            Pid = $listenerPid
             BaseUrl = $baseUrl
             Engine = [string]$config.engine
             Ready = $true
+            State = "ready"
+            Stdout = $stdout
+            Stderr = $stderr
         }
     }
     return
 }
 
-# Clean up both the old hidden batch/cmd wrapper and any stale direct Python
-# Forge launch before repairing or starting the engine.
-Stop-StaleManagedImageProcesses -InstallPath $installPath
-Clear-StaleManagedListener -Port $port -InstallPath $installPath
+# A slow model load is not a stale process. Reuse an existing managed Forge
+# process instead of killing and restarting it every time EmberWriter checks.
+$existingManaged = Get-ManagedImageProcess -InstallPath $installPath
+if ($existingManaged) {
+    $existingPid = [int]$existingManaged.ProcessId
+    Save-RuntimeState -State "starting" -ProcessId $existingPid -BaseUrl $baseUrl -Message "Stable Diffusion is still loading; EmberWriter is waiting in the background." -StdoutPath $stdout -StderrPath $stderr
+    Write-Host "Image engine is already starting (PID $existingPid)." -ForegroundColor Cyan
+
+    $ready = $false
+    if ($WaitForReady) {
+        try { $existingProcess = Get-Process -Id $existingPid -ErrorAction Stop } catch { $existingProcess = $null }
+        if ($existingProcess) {
+            $ready = Wait-ForForgeApi -Process $existingProcess -BaseUrl $baseUrl -StdoutPath $stdout -StderrPath $stderr -TimeoutSeconds $ReadyTimeoutSeconds
+        }
+        if ($ready) {
+            Save-RuntimeState -State "ready" -ProcessId $existingPid -BaseUrl $baseUrl -Message "Stable Diffusion WebUI API is ready." -StdoutPath $stdout -StderrPath $stderr
+            Write-Host "Image engine ready: $baseUrl" -ForegroundColor Green
+        } else {
+            Save-RuntimeState -State "starting" -ProcessId $existingPid -BaseUrl $baseUrl -Message "Stable Diffusion is taking longer to load, so it was left running instead of being killed." -StdoutPath $stdout -StderrPath $stderr
+            Write-Host "Image engine is still loading after $ReadyTimeoutSeconds seconds; leaving it running." -ForegroundColor Yellow
+        }
+    }
+
+    if ($PassThru) {
+        [pscustomobject]@{
+            Started = $false
+            Pid = $existingPid
+            BaseUrl = $baseUrl
+            Engine = [string]$config.engine
+            Ready = $ready
+            State = $(if ($ready) { "ready" } else { "starting" })
+            Stdout = $stdout
+            Stderr = $stderr
+        }
+    }
+    return
+}
+
+# There is no managed process currently loading. Only clear an actual managed
+# listener here; unrelated services on the configured port are never killed.
+Clear-ConflictingListener -Port $port -InstallPath $installPath
 
 $runtimePython = Ensure-ForgeVenv -BasePython $basePython -InstallPath $installPath
 Initialize-ForgeRuntime -RuntimePython $runtimePython -InstallPath $installPath -Config $config -LaunchArgs $launchArgs
 
-New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-$stdout = Join-Path $LogDir "image-engine.out.log"
-$stderr = Join-Path $LogDir "image-engine.err.log"
 Remove-Item -Force $stdout, $stderr -ErrorAction SilentlyContinue
-
 Write-Host "Starting $($config.display_name) API at $baseUrl..." -ForegroundColor Cyan
-$argumentList = @("launch.py") + $launchArgs
-$process = Start-Process -FilePath $runtimePython -ArgumentList $argumentList `
-    -WorkingDirectory $installPath -WindowStyle Hidden -PassThru `
-    -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+$process = Start-ForgeApi -RuntimePython $runtimePython -InstallPath $installPath -LaunchArgs $launchArgs -StdoutPath $stdout -StderrPath $stderr
+Save-RuntimeState -State "starting" -ProcessId $process.Id -BaseUrl $baseUrl -Message "Stable Diffusion is loading in the background." -StdoutPath $stdout -StderrPath $stderr
 
 $ready = $false
-if ($WaitForReady -or $PassThru) {
-    $startedAt = Get-Date
-    $deadline = $startedAt.AddSeconds($ReadyTimeoutSeconds)
-    $nextProgressAt = $startedAt
-    $lastProgressLine = ""
-
-    while ((Get-Date) -lt $deadline) {
-        if (Test-ImageApi $baseUrl) {
-            $ready = $true
-            break
-        }
-        if ($process.HasExited) { break }
-
-        $now = Get-Date
-        if ($now -ge $nextProgressAt) {
-            $progress = Get-LogProgressLine -StdoutPath $stdout -StderrPath $stderr
-            $elapsed = [int](($now - $startedAt).TotalSeconds)
-            if ($progress -and $progress.Line -ne $lastProgressLine) {
-                Write-Host "Forge [$($elapsed)s]: $($progress.Line)" -ForegroundColor DarkGray
-                $lastProgressLine = $progress.Line
-            } elseif ($elapsed -gt 0) {
-                Write-Host "Forge [$($elapsed)s]: starting API..." -ForegroundColor DarkGray
-            }
-            $nextProgressAt = $now.AddSeconds($ProgressIntervalSeconds)
-        }
-        Start-Sleep -Seconds 2
-    }
+if ($WaitForReady) {
+    $ready = Wait-ForForgeApi -Process $process -BaseUrl $baseUrl -StdoutPath $stdout -StderrPath $stderr -TimeoutSeconds $ReadyTimeoutSeconds
 
     if (-not $ready) {
-        $tail = Get-ForgeLogTail -StdoutPath $stdout -StderrPath $stderr
-        $detail = ""
-        if ($tail) { $detail = "`n`nLast Forge log lines:`n$tail" }
-
+        try { $process.Refresh() } catch { }
         if ($process.HasExited) {
-            throw "Stable Diffusion Forge exited before its API became ready (exit code $($process.ExitCode)).$detail"
-        }
+            $tail = Get-ForgeLogTail -StdoutPath $stdout -StderrPath $stderr
+            Write-Host "Forge exited before becoming ready. Attempting one automatic runtime repair." -ForegroundColor Yellow
+            if ($tail) { Write-Host $tail -ForegroundColor DarkGray }
 
-        try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch { }
-        throw "Stable Diffusion Forge did not become ready at $baseUrl within $ReadyTimeoutSeconds seconds. The process was stopped.$detail"
+            Stop-ManagedImageProcesses -InstallPath $installPath
+            Clear-ConflictingListener -Port $port -InstallPath $installPath
+            $runtimePython = Repair-ForgeRuntime -BasePython $basePython -InstallPath $installPath -Config $config -LaunchArgs $launchArgs
+            Remove-Item -Force $stdout, $stderr -ErrorAction SilentlyContinue
+            $process = Start-ForgeApi -RuntimePython $runtimePython -InstallPath $installPath -LaunchArgs $launchArgs -StdoutPath $stdout -StderrPath $stderr
+            Save-RuntimeState -State "repairing" -ProcessId $process.Id -BaseUrl $baseUrl -Message "EmberWriter repaired the Stable Diffusion runtime and restarted it." -StdoutPath $stdout -StderrPath $stderr
+            $ready = Wait-ForForgeApi -Process $process -BaseUrl $baseUrl -StdoutPath $stdout -StderrPath $stderr -TimeoutSeconds $ReadyTimeoutSeconds
+        }
     }
 
-    Write-Host "Image engine ready: $baseUrl" -ForegroundColor Green
+    if ($ready) {
+        Save-RuntimeState -State "ready" -ProcessId $process.Id -BaseUrl $baseUrl -Message "Stable Diffusion WebUI API is ready." -StdoutPath $stdout -StderrPath $stderr
+        Write-Host "Image engine ready: $baseUrl" -ForegroundColor Green
+    } else {
+        try { $process.Refresh() } catch { }
+        if ($process.HasExited) {
+            $tail = Get-ForgeLogTail -StdoutPath $stdout -StderrPath $stderr
+            Save-RuntimeState -State "failed" -ProcessId $null -BaseUrl $baseUrl -Message "Stable Diffusion exited after automatic repair. See the image-engine logs." -StdoutPath $stdout -StderrPath $stderr
+            $detail = ""
+            if ($tail) { $detail = "`n`nLast Forge log lines:`n$tail" }
+            throw "Stable Diffusion Forge exited after EmberWriter's automatic repair attempt.$detail"
+        }
+
+        # Slow hardware and first model initialization can legitimately exceed a
+        # fixed timeout. Never kill a healthy-loading server just because the UI
+        # wants to start quickly.
+        Save-RuntimeState -State "starting" -ProcessId $process.Id -BaseUrl $baseUrl -Message "Stable Diffusion is taking longer to load and was left running in the background." -StdoutPath $stdout -StderrPath $stderr
+        Write-Host "Image engine is still loading after $ReadyTimeoutSeconds seconds; leaving it running." -ForegroundColor Yellow
+    }
 }
 
 if ($PassThru) {
@@ -369,6 +515,7 @@ if ($PassThru) {
         BaseUrl = $baseUrl
         Engine = [string]$config.engine
         Ready = $ready
+        State = $(if ($ready) { "ready" } else { "starting" })
         Stdout = $stdout
         Stderr = $stderr
     }

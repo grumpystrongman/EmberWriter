@@ -52,7 +52,7 @@ def test_baseline_checkpoint_is_pinned_and_verified() -> None:
     assert "CreativeML Open RAIL-M" in image_install
 
 
-def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
+def test_windows_launcher_keeps_managed_engine_warm_and_self_repairs() -> None:
     start = (REPO_ROOT / "start.ps1").read_text(encoding="utf-8")
     image_start = (REPO_ROOT / "scripts" / "start-image-engine.ps1").read_text(
         encoding="utf-8"
@@ -60,25 +60,34 @@ def test_windows_launcher_auto_starts_and_cleans_up_managed_engine() -> None:
 
     assert "start-image-engine.ps1" in start
     assert "install-image-engine.ps1" in start
-    assert "taskkill.exe /PID $ImageEnginePid /T /F" in start
+    assert "starting/repairing in the background" in start
+    assert '"-ReadyTimeoutSeconds", "1200"' in start
+    assert "taskkill.exe /PID $ImageEnginePid /T /F" not in start
+    assert "Do not stop the managed image engine here" in start
+
     assert "/sdapi/v1/options" in image_start
     assert '$request.Proxy = $null' in image_start
-    assert 'if ($WaitForReady -or $PassThru)' in image_start
+    assert 'if ($WaitForReady -or $PassThru)' not in image_start
     assert 'if (-not ($launchArgs -contains "--api"))' in image_start
     assert 'if (-not ($launchArgs -contains "--nowebui"))' in image_start
-    assert "Stop-StaleManagedImageProcesses" in image_start
-    assert "Clear-StaleManagedListener" in image_start
+    assert "Get-ManagedImageProcess" in image_start
+    assert "Save-RuntimeState" in image_start
+    assert "Repair-ForgeRuntime" in image_start
+    assert "Clear-ConflictingListener" in image_start
     assert "Get-NetTCPConnection -LocalPort $Port -State Listen" in image_start
     assert "Initialize-ForgeRuntime" in image_start
     assert '"launch.py" "--exit" "--no-download-sd-model"' in image_start
-    assert 'Start-Process -FilePath $runtimePython' in image_start
-    assert '$ReadyTimeoutSeconds = 180' in image_start
-    assert 'Write-Host "Forge [$($elapsed)s]:' in image_start
+    assert "Start-ForgeApi" in image_start
+    assert '$ReadyTimeoutSeconds = 1200' in image_start
+    assert "leaving it running" in image_start
     assert 'Start-Process -FilePath "cmd.exe"' not in image_start
 
 
-def test_backend_bypasses_proxies_for_local_image_services() -> None:
+def test_backend_bypasses_proxies_and_can_retry_managed_image_engine() -> None:
     runtime_config = (REPO_ROOT / "backend" / "app" / "runtime_config.py").read_text(
+        encoding="utf-8"
+    )
+    routes_sd = (REPO_ROOT / "backend" / "app" / "routes_sd.py").read_text(
         encoding="utf-8"
     )
 
@@ -87,6 +96,24 @@ def test_backend_bypasses_proxies_for_local_image_services() -> None:
     assert '"127.0.0.1"' in runtime_config
     assert '"localhost"' in runtime_config
     assert '"host.docker.internal"' in runtime_config
+    assert "trust_env=False" in routes_sd
+    assert "def ensure_managed_image_engine()" in routes_sd
+    assert '@router.post("/managed/ensure")' in routes_sd
+    assert '"-WaitForReady"' in routes_sd
+    assert '"1200"' in routes_sd
+
+
+def test_frontend_auto_reconnects_images_without_user_intervention() -> None:
+    status = (REPO_ROOT / "frontend" / "src" / "StableDiffusionStatus.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const API = '/api'" in status
+    assert "/stable-diffusion/managed/ensure" in status
+    assert "window.setInterval" in status
+    assert "5000" in status
+    assert "Images starting…" in status
+    assert "Images repairing…" in status
 
 
 def test_launchers_pin_project_storage_to_install_root() -> None:
