@@ -28,6 +28,7 @@ export const SCALE_OPTIONS = [
 ] as const
 export type AtlasScale = typeof SCALE_OPTIONS[number]
 export type AtlasMapScale = 'auto' | AtlasScale
+export type AtlasRenderScale = 'system' | 'world' | 'city' | 'site' | 'building'
 
 export type AtlasPrefs = {
   worldType: AtlasWorldType
@@ -172,6 +173,14 @@ export function inferCanvasScale(scopeLocation: AtlasLocation | null, locations:
   const scales = locations.map(inferScale)
   const order: AtlasScale[] = ['cosmos', 'galaxy', 'dimension', 'system', 'world', 'continent', 'nation', 'country', 'state', 'province', 'county', 'region', 'city', 'district', 'street', 'site', 'facility', 'building', 'floor', 'room', 'area', 'object']
   return order.find((scale) => scales.includes(scale)) || 'site'
+}
+
+export function cartographyScale(scale: AtlasScale): AtlasRenderScale {
+  if (['cosmos', 'galaxy', 'dimension', 'system'].includes(scale)) return 'system'
+  if (['building', 'floor', 'room', 'area', 'object'].includes(scale)) return 'building'
+  if (['site', 'facility'].includes(scale)) return 'site'
+  if (['city', 'district', 'street'].includes(scale)) return 'city'
+  return 'world'
 }
 
 export function baseView(locations: AtlasLocation[]): AtlasViewBox {
