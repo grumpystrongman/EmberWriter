@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import subprocess
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -10,6 +15,12 @@ router = APIRouter(prefix="/api/stable-diffusion", tags=["stable-diffusion"])
 DEFAULT_SD_URL = "http://127.0.0.1:7860"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "host.docker.internal"}
 _COMMON_PORTS = (7860, 7861)
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_MANAGED_CONFIG = _REPO_ROOT / ".ember" / "image-engine.json"
+_MANAGED_RUNTIME = _REPO_ROOT / ".ember" / "image-engine-runtime.json"
+_MANAGED_LAUNCHER = _REPO_ROOT / "scripts" / "start-image-engine.ps1"
+_MANAGED_LOG_DIR = _REPO_ROOT / ".ember" / "logs"
+_managed_supervisor: subprocess.Popen[bytes] | None = None
 
 
 def normalize_sd_url(value: str) -> str:
@@ -51,6 +62,127 @@ def candidate_sd_urls(configured_url: str) -> list[str]:
             if candidate not in candidates:
                 candidates.append(candidate)
     return candidates
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def managed_image_engine_config() -> dict:
+    payload = _read_json(_MANAGED_CONFIG)
+    if not payload.get("managed"):
+        return {}
+    return payload
+
+
+def managed_image_engine_state() -> dict:
+    return _read_json(_MANAGED_RUNTIME)
+
+
+def _is_managed_local_url(configured_url: str) -> bool:
+    config = managed_image_engine_config()
+    if not config:
+        return False
+    managed_url = normalize_sd_url(str(config.get("base_url") or DEFAULT_SD_URL))
+    configured = normalize_sd_url(configured_url)
+    if configured == managed_url:
+        return True
+    host = (urlsplit(configured).hostname or "").casefold()
+    return host in _LOCAL_HOSTS and configured in candidate_sd_urls(managed_url)
+
+
+def ensure_managed_image_engine() -> dict:
+    """Start the managed image service without blocking the EmberWriter API.
+
+    The PowerShell launcher is idempotent: it reuses a healthy or currently-loading
+    Forge process and performs one automatic runtime repair when Forge exits during
+    startup. Keeping this entry point in the API means the browser can recover the
+    image service even if EmberWriter itself was launched outside start.ps1.
+    """
+
+    global _managed_supervisor
+
+    config = managed_image_engine_config()
+    if not config:
+        return {
+            "ok": False,
+            "state": "not_installed",
+            "message": "The managed image engine has not been installed yet.",
+        }
+    if os.name != "nt":
+        return {
+            "ok": False,
+            "state": "unsupported_host",
+            "message": "The managed image engine supervisor is currently Windows-only.",
+        }
+    if not _MANAGED_LAUNCHER.exists():
+        return {
+            "ok": False,
+            "state": "launcher_missing",
+            "message": "The managed image-engine launcher is missing from this EmberWriter checkout.",
+        }
+
+    if _managed_supervisor is not None and _managed_supervisor.poll() is None:
+        return {
+            "ok": True,
+            "state": "starting",
+            "message": "The managed image-engine supervisor is already running.",
+            "base_url": str(config.get("base_url") or DEFAULT_SD_URL),
+        }
+
+    shell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
+    if not shell:
+        return {
+            "ok": False,
+            "state": "powershell_missing",
+            "message": "PowerShell is unavailable, so EmberWriter could not start the managed image engine.",
+        }
+
+    _MANAGED_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    stdout_path = _MANAGED_LOG_DIR / "image-engine-api-supervisor.out.log"
+    stderr_path = _MANAGED_LOG_DIR / "image-engine-api-supervisor.err.log"
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
+        subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+    )
+    args = [
+        shell,
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(_MANAGED_LAUNCHER),
+        "-PassThru",
+        "-WaitForReady",
+        "-ReadyTimeoutSeconds",
+        "1200",
+    ]
+
+    try:
+        with stdout_path.open("ab") as stdout, stderr_path.open("ab") as stderr:
+            _managed_supervisor = subprocess.Popen(
+                args,
+                cwd=str(_REPO_ROOT),
+                stdout=stdout,
+                stderr=stderr,
+                creationflags=creationflags,
+            )
+    except OSError as exc:
+        return {
+            "ok": False,
+            "state": "launch_failed",
+            "message": f"The managed image-engine supervisor could not start: {exc}",
+        }
+
+    return {
+        "ok": True,
+        "state": "starting",
+        "message": "EmberWriter started the managed image engine in the background.",
+        "base_url": str(config.get("base_url") or DEFAULT_SD_URL),
+    }
 
 
 async def probe_sd_url(client: httpx.AsyncClient, base_url: str) -> dict:
@@ -152,12 +284,14 @@ async def diagnose_stable_diffusion(base_url: str, auto_detect: bool = True) -> 
     urls = candidate_sd_urls(configured) if auto_detect else [configured]
     attempts: list[dict] = []
     timeout = httpx.Timeout(connect=1.25, read=2.5, write=2.5, pool=1.25)
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    # Localhost image traffic must not inherit corporate/system proxy settings.
+    async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
         for url in urls:
             result = await probe_sd_url(client, url)
             attempts.append(result)
             if result["ok"]:
                 resolved = str(result["url"])
+                managed = _is_managed_local_url(resolved)
                 return {
                     "ok": True,
                     "configured_url": configured,
@@ -165,6 +299,8 @@ async def diagnose_stable_diffusion(base_url: str, auto_detect: bool = True) -> 
                     "auto_detected": resolved != configured,
                     "server_type": result["kind"],
                     "model": result.get("model", ""),
+                    "managed": managed,
+                    "managed_state": "ready" if managed else None,
                     "message": (
                         f"Stable Diffusion is ready at {resolved}."
                         if resolved == configured
@@ -174,17 +310,34 @@ async def diagnose_stable_diffusion(base_url: str, auto_detect: bool = True) -> 
                     "suggestions": [],
                 }
 
+    managed = _is_managed_local_url(configured)
+    runtime = managed_image_engine_state() if managed else {}
+    runtime_state = str(runtime.get("state") or "starting") if managed else None
+
     kinds = {str(item.get("kind")) for item in attempts}
-    if "comfyui" in kinds:
+    if managed:
+        if runtime_state == "repairing":
+            message = "EmberWriter is repairing the managed image engine automatically."
+        elif runtime_state == "failed":
+            message = "The managed image engine failed after an automatic repair attempt; EmberWriter will retry it."
+        else:
+            message = "The managed image engine is starting in the background. EmberWriter will reconnect automatically when the model is ready."
+        suggestions = []
+    elif "comfyui" in kinds:
         message = "ComfyUI is running, but this EmberWriter image integration expects an AUTOMATIC1111/Forge-compatible WebUI API."
+        suggestions = ["Use an AUTOMATIC1111/Forge-compatible WebUI API for this image provider."]
     elif "api_missing" in kinds:
         message = "A local web service is running, but its /sdapi/v1 API is unavailable."
+        suggestions = ["Enable the AUTOMATIC1111/Forge WebUI API (normally with --api)."]
     elif "authentication" in kinds:
         message = "The configured image server is reachable but requires authentication."
+        suggestions = ["Use an image-server endpoint that EmberWriter can access without interactive authentication."]
     elif "timeout" in kinds:
         message = "EmberWriter found a slow or stalled image-service address, but no usable WebUI API."
+        suggestions = ["Check the configured external image server and try again."]
     else:
-        message = "No compatible Stable Diffusion WebUI API was reachable on the configured or common local addresses."
+        message = "No compatible Stable Diffusion WebUI API was reachable at the configured address."
+        suggestions = ["Check the configured external image-server address."]
 
     return {
         "ok": False,
@@ -193,14 +346,11 @@ async def diagnose_stable_diffusion(base_url: str, auto_detect: bool = True) -> 
         "auto_detected": False,
         "server_type": None,
         "model": "",
+        "managed": managed,
+        "managed_state": runtime_state,
         "message": message,
         "attempts": attempts,
-        "suggestions": [
-            "Start AUTOMATIC1111 or Forge and enable its API (normally --api).",
-            "The usual local address is http://127.0.0.1:7860; Forge/A1111 may use another port if 7860 is busy.",
-            "If EmberWriter runs in Docker or WSL while Stable Diffusion runs on Windows, expose the WebUI with --listen and use the host address (often host.docker.internal from Docker).",
-            "Open the WebUI's /docs page to confirm that /sdapi/v1/txt2img exists.",
-        ],
+        "suggestions": suggestions,
     }
 
 
@@ -219,7 +369,27 @@ async def stable_diffusion_status(
             "auto_detected": False,
             "server_type": None,
             "model": "",
+            "managed": False,
+            "managed_state": None,
             "message": str(exc),
             "attempts": [],
             "suggestions": ["Enter a server such as http://127.0.0.1:7860."],
         }
+
+
+@router.post("/managed/ensure")
+async def ensure_managed_stable_diffusion() -> dict:
+    config = managed_image_engine_config()
+    if not config:
+        return ensure_managed_image_engine()
+
+    base_url = str(config.get("base_url") or DEFAULT_SD_URL)
+    status = await diagnose_stable_diffusion(base_url, auto_detect=False)
+    if status.get("ok"):
+        return {
+            "ok": True,
+            "state": "ready",
+            "message": "The managed image engine is already ready.",
+            "base_url": status.get("resolved_url") or base_url,
+        }
+    return ensure_managed_image_engine()
