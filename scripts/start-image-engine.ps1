@@ -2,7 +2,9 @@ param(
     [switch]$PassThru,
     [switch]$WaitForReady,
     [ValidateRange(10, 1800)]
-    [int]$ReadyTimeoutSeconds = 600
+    [int]$ReadyTimeoutSeconds = 1200,
+    [ValidateRange(1, 60)]
+    [int]$ProbeTimeoutSeconds = 10
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,11 +13,21 @@ $ConfigPath = Join-Path $RepoRoot ".ember\image-engine.json"
 $LogDir = Join-Path $RepoRoot ".ember\logs"
 
 function Test-ImageApi([string]$BaseUrl) {
+    $response = $null
     try {
-        $null = Invoke-RestMethod -Method Get -Uri "$($BaseUrl.TrimEnd('/'))/sdapi/v1/options" -TimeoutSec 2
-        return $true
+        # Bypass Windows/system proxies explicitly. A corporate proxy intercepting
+        # localhost makes a healthy Forge/A1111 API look like a repeated timeout.
+        $request = [System.Net.HttpWebRequest]::Create("$($BaseUrl.TrimEnd('/'))/sdapi/v1/options")
+        $request.Method = "GET"
+        $request.Proxy = $null
+        $request.Timeout = $ProbeTimeoutSeconds * 1000
+        $request.ReadWriteTimeout = $ProbeTimeoutSeconds * 1000
+        $response = $request.GetResponse()
+        return ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 300)
     } catch {
         return $false
+    } finally {
+        if ($response) { $response.Close() }
     }
 }
 
@@ -33,6 +45,21 @@ $launcher = [string]$config.launcher
 $baseUrl = [string]$config.base_url
 $python = [string]$config.python
 $launchArgs = @($config.launch_args | ForEach-Object { [string]$_ })
+$port = 7860
+if ($config.port) {
+    $port = [int]$config.port
+} else {
+    try { $port = ([uri]$baseUrl).Port } catch { }
+}
+
+# Older/stale image-engine.json files may predate the API arguments. Enforce the
+# contract here as well as in the installer so an existing install repairs itself.
+if (-not ($launchArgs -contains "--api")) {
+    $launchArgs = @("--api") + $launchArgs
+}
+if (-not ($launchArgs -contains "--port")) {
+    $launchArgs += @("--port", "$port")
+}
 
 if (-not (Test-Path $installPath)) {
     throw "Managed image-engine folder is missing: $installPath. Rerun .\install.ps1."
@@ -79,7 +106,9 @@ try {
 }
 
 $ready = $false
-if ($WaitForReady) {
+# start.ps1 uses -PassThru because it needs the process id for cleanup. Treat that
+# as a managed startup request and do not open EmberWriter until the API is usable.
+if ($WaitForReady -or $PassThru) {
     $deadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         if (Test-ImageApi $baseUrl) {
@@ -93,10 +122,10 @@ if ($WaitForReady) {
     if (-not $ready) {
         $tail = ""
         if (Test-Path $stderr) {
-            $tail = (Get-Content $stderr -Tail 20 -ErrorAction SilentlyContinue) -join "`n"
+            $tail = (Get-Content $stderr -Tail 40 -ErrorAction SilentlyContinue) -join "`n"
         }
         if (-not $tail -and (Test-Path $stdout)) {
-            $tail = (Get-Content $stdout -Tail 20 -ErrorAction SilentlyContinue) -join "`n"
+            $tail = (Get-Content $stdout -Tail 40 -ErrorAction SilentlyContinue) -join "`n"
         }
         $detail = ""
         if ($tail) { $detail = "`n`nLast log lines:`n$tail" }
