@@ -84,6 +84,31 @@ function Stop-ExistingEmberService([int]$Port, [scriptblock]$HealthCheck, [strin
     }
 }
 
+function Stop-FrontendNodeProcesses {
+    try {
+        $frontendPath = [System.IO.Path]::GetFullPath($Frontend)
+        $processes = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue | Where-Object {
+            $_.CommandLine -and $_.CommandLine.IndexOf($frontendPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
+
+        $stoppedAny = $false
+        foreach ($process in $processes) {
+            $processId = [int]$process.ProcessId
+            if ($processId -and $processId -ne $PID) {
+                Write-Host "Stopping stale EmberWriter frontend Node process (PID $processId)..." -ForegroundColor Yellow
+                Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+                $stoppedAny = $true
+            }
+        }
+
+        if ($stoppedAny) {
+            Start-Sleep -Milliseconds 750
+        }
+    } catch {
+        Write-Host "Could not inspect stale frontend Node processes: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 function Wait-ForService([System.Diagnostics.Process]$Process, [scriptblock]$HealthCheck, [int]$TimeoutSeconds) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
@@ -120,7 +145,17 @@ function Repair-FrontendDependencies([string]$NpmPath) {
     Write-Host "Frontend dependencies are missing or incomplete. Repairing with npm ci..." -ForegroundColor Yellow
     Push-Location $Frontend
     try {
-        & $NpmPath ci --include=dev
+        $maxAttempts = 3
+        for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            & $NpmPath ci --include=dev
+            if ($LASTEXITCODE -eq 0) { break }
+
+            if ($attempt -lt $maxAttempts) {
+                Write-Host "npm ci failed (attempt $attempt of $maxAttempts). Retrying after Windows releases file handles..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            }
+        }
+
         if ($LASTEXITCODE -ne 0) {
             throw "npm ci failed while repairing EmberWriter frontend dependencies."
         }
@@ -191,13 +226,11 @@ if (-not $Npm) {
     throw "npm was not found. Install current Node.js LTS, then run start.ps1 again."
 }
 
-if (-not (Test-FrontendDependencies $Npm)) {
-    Repair-FrontendDependencies $Npm
-}
-
-if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-    Write-Host "Local AI is not installed. Run .\install.ps1 to install Ollama and EmberWriter's recommended writing model." -ForegroundColor Yellow
-}
+# Stop the old EmberWriter frontend before npm inspects or replaces node_modules.
+# Vite/Node commonly keeps package files open on Windows and can make npm ci fail
+# with EPERM if dependency repair runs first.
+Stop-ExistingEmberService -Port 5173 -HealthCheck ${function:Test-EmberUi} -Label "EmberWriter UI"
+Stop-FrontendNodeProcesses
 
 $ImageEnginePid = $null
 if (-not $SkipManagedImageEngine) {
@@ -218,13 +251,26 @@ if (-not $SkipManagedImageEngine) {
                 $ImageEnginePid = [int]$imageState.Pid
             }
             if ($imageState -and $imageState.BaseUrl) {
-                Write-Host "Image engine:    $($imageState.BaseUrl)"
+                if ($imageState.Ready) {
+                    Write-Host "Image engine:    ready at $($imageState.BaseUrl)" -ForegroundColor Green
+                } else {
+                    Write-Host "Image engine:    starting at $($imageState.BaseUrl)" -ForegroundColor Cyan
+                }
             }
         } catch {
             Write-Host "Managed image engine could not start: $($_.Exception.Message)" -ForegroundColor Yellow
             Write-Host "EmberWriter will still open; use the image-server status control for diagnostics." -ForegroundColor Yellow
         }
     }
+}
+
+if (-not (Test-FrontendDependencies $Npm)) {
+    Stop-FrontendNodeProcesses
+    Repair-FrontendDependencies $Npm
+}
+
+if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+    Write-Host "Local AI is not installed. Run .\install.ps1 to install Ollama and EmberWriter's recommended writing model." -ForegroundColor Yellow
 }
 
 $BackendProcess = $null
@@ -250,6 +296,8 @@ try {
 
     Write-Host "EmberWriter API: healthy at http://127.0.0.1:8000" -ForegroundColor Green
 
+    # Check again in case another process claimed the UI port while dependencies
+    # were being repaired or the managed image engine was starting.
     Stop-ExistingEmberService -Port 5173 -HealthCheck ${function:Test-EmberUi} -Label "EmberWriter UI"
 
     $FrontendProcess = Start-Process -FilePath $Npm -ArgumentList @("run", "dev", "--prefix", $Frontend) -WorkingDirectory $Root -RedirectStandardOutput $FrontendOutLog -RedirectStandardError $FrontendErrLog -PassThru
