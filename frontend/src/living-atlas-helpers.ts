@@ -14,10 +14,12 @@ export type AtlasPrefs = {
   showTerrain: boolean
   showRegions: boolean
   showLabels: boolean
+  showCartography: boolean
+  editCartography: boolean
 }
 
 export const EMPTY_ATLAS: StoryAtlas = {
-  schema_version: 1,
+  schema_version: 2,
   map: { title: 'Story Atlas', units: 'miles', background_asset_id: null },
   travel_profiles: {
     walk: { speed_mph: 3, hours_per_day: 8 },
@@ -29,6 +31,7 @@ export const EMPTY_ATLAS: StoryAtlas = {
   },
   locations: [],
   connections: [],
+  features: [],
   events: [],
 }
 
@@ -40,6 +43,8 @@ export const DEFAULT_PREFS: AtlasPrefs = {
   showTerrain: true,
   showRegions: true,
   showLabels: true,
+  showCartography: true,
+  editCartography: false,
 }
 
 export async function atlasRequest<T>(url: string, init?: RequestInit): Promise<T> {
