@@ -52,6 +52,9 @@
 .scale-site .living-place-kind,
 .scale-building .living-place-kind,
 .scale-room .living-place-kind { opacity: .62; }
+.scale-city .living-region-label, .scale-district .living-region-label { font-size: 18px; opacity: .42; }
+.scale-site .living-region-label { font-size: 15px; opacity: .28; letter-spacing: .05em; }
+.scale-building .living-region-label, .scale-room .living-region-label { display: none; }
 
 /* Routes read as roads/paths in atlas mode; topology keeps the stronger graph treatment. */
 .mode-atlas.scale-city .living-route-shadow,
