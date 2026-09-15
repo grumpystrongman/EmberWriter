@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react'
+import './startup-model-guard.css'
 
 const API = 'http://127.0.0.1:8000/api'
 const PROVIDER_KEY = 'emberwriter.provider'
