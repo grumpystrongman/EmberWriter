@@ -13,6 +13,13 @@ from .atlas import (
     save_atlas,
 )
 from .atlas_cartography import generate_fantasy_geography, import_geojson, suggest_geography
+from .atlas_historical import (
+    HistoricalPlaceRequest,
+    HistoricalPlaceResponse,
+    HistoricalSource,
+    assemble_historical_place,
+    load_historical_sources,
+)
 from .atlas_models import (
     AtlasAdviceRequest,
     AtlasAdviceResponse,
@@ -188,3 +195,31 @@ def atlas_geography_generate_fantasy(
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
+    "/projects/{slug}/atlas/historical-sources",
+    response_model=list[HistoricalSource],
+)
+def atlas_historical_sources(slug: str) -> list[HistoricalSource]:
+    try:
+        return load_historical_sources(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+
+
+@router.post(
+    "/projects/{slug}/atlas/historical/assemble",
+    response_model=HistoricalPlaceResponse,
+)
+async def atlas_historical_assemble(
+    slug: str, payload: HistoricalPlaceRequest
+) -> HistoricalPlaceResponse:
+    try:
+        return await assemble_historical_place(slug, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Historical source service error: {exc}") from exc

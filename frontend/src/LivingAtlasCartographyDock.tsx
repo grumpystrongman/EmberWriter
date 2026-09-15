@@ -16,10 +16,12 @@ type Props = {
   onSuggest: (prompt: string) => void
   onImport: (geojson: string, sourceName: string) => void
   onGenerate: (seed: number, continents: number, detail: number) => void
+  onAssembleHistorical: (query: string) => void
 }
 
 export default function LivingAtlasCartographyDock(props: Props) {
   const [open, setOpen] = useState(false)
+  const [historicalQuery, setHistoricalQuery] = useState('New Harmony, Indiana, 1820')
   const [prompt, setPrompt] = useState('Read the manuscript and suggest coastlines, rivers, roads, forests, walls, districts and structures that are spatially supported by the text.')
   const [geojson, setGeojson] = useState('')
   const [sourceName, setSourceName] = useState('Real-world GeoJSON')
@@ -36,6 +38,21 @@ export default function LivingAtlasCartographyDock(props: Props) {
         <label><input type="checkbox" checked={props.showCartography} onChange={(event) => props.onShowCartography(event.target.checked)} /> Show features</label>
         <label><input type="checkbox" checked={props.editCartography} onChange={(event) => props.onEditCartography(event.target.checked)} /> Edit vertices</label>
       </div>
+
+      <article className="atlas-iii-card atlas-historical-assembler">
+        <b>Build a real place in a historical year</b>
+        <p>Type a place and year. Ember resolves the location, imports present-day GIS as a clearly marked reference layer, and searches historical map catalogs around that era. Historical sources are saved with the project for provenance.</p>
+        <input
+          value={historicalQuery}
+          onChange={(event) => setHistoricalQuery(event.target.value)}
+          placeholder="New Harmony, Indiana, 1820"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && historicalQuery.trim() && !props.busy) props.onAssembleHistorical(historicalQuery)
+          }}
+        />
+        <button type="button" disabled={props.busy || !historicalQuery.trim()} onClick={() => props.onAssembleHistorical(historicalQuery)}>Assemble historical atlas</button>
+        <small>Sources currently include OpenStreetMap/Nominatim, Library of Congress map records, and USGS historical topographic products where the requested year is covered.</small>
+      </article>
 
       <article className="atlas-iii-card">
         <b>Read manuscript → suggest geography</b>
