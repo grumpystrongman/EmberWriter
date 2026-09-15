@@ -6,13 +6,13 @@ from fastapi import APIRouter, HTTPException, Query
 from .atlas import (
     advise_atlas,
     atlas_state,
-    bootstrap_atlas,
     calculate_route,
     compare_routes,
     load_atlas,
     save_atlas,
 )
 from .atlas_cartography import generate_fantasy_geography, import_geojson, suggest_geography
+from .atlas_hierarchy import build_spatial_hierarchy
 from .atlas_historical import (
     HistoricalPlaceRequest,
     HistoricalPlaceResponse,
@@ -137,7 +137,7 @@ async def atlas_advice(slug: str, payload: AtlasAdviceRequest) -> AtlasAdviceRes
 @router.post("/projects/{slug}/atlas/bootstrap", response_model=AtlasBootstrapResponse)
 async def atlas_bootstrap(slug: str, payload: AtlasBootstrapRequest) -> AtlasBootstrapResponse:
     try:
-        return await bootstrap_atlas(slug, payload)
+        return await build_spatial_hierarchy(slug, payload)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except (TypeError, ValueError) as exc:
