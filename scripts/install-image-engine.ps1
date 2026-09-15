@@ -156,18 +156,56 @@ function Ensure-DefaultModel([string]$InstallPath) {
     return $modelPath
 }
 
+function Test-PythonPip([string]$PythonPath) {
+    if (-not $PythonPath -or -not (Test-Path $PythonPath)) { return $false }
+    try {
+        & $PythonPath -m pip --version *> $null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
+}
+
+function Repair-PythonPip([string]$PythonPath) {
+    Write-Host "Repairing pip inside the Stable Diffusion Python environment..." -ForegroundColor Yellow
+    try {
+        & $PythonPath -m ensurepip --upgrade
+        if ($LASTEXITCODE -eq 0 -and (Test-PythonPip $PythonPath)) {
+            Write-Host "pip repaired successfully." -ForegroundColor Green
+            return $true
+        }
+    } catch { }
+    return $false
+}
+
 function New-ForgeVenv([string]$BasePython, [string]$InstallPath) {
     $venvDir = Join-Path $InstallPath "venv"
     $runtimePython = Join-Path $venvDir "Scripts\python.exe"
 
-    if (Test-Path $runtimePython) { return $runtimePython }
-    if (Test-Path $venvDir) { Remove-Item -Recurse -Force $venvDir }
+    if (Test-Path $runtimePython) {
+        if (Test-PythonPip $runtimePython) { return $runtimePython }
+
+        Write-Host "Stable Diffusion Python environment exists but pip is missing or broken." -ForegroundColor Yellow
+        if (Repair-PythonPip $runtimePython) { return $runtimePython }
+
+        Write-Host "pip could not be repaired in place; rebuilding the Stable Diffusion Python environment..." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $venvDir
+    } elseif (Test-Path $venvDir) {
+        Remove-Item -Recurse -Force $venvDir
+    }
 
     Write-Host "Creating Stable Diffusion Python environment..." -ForegroundColor Cyan
     & $BasePython -m venv $venvDir
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $runtimePython)) {
         throw "Could not create the Stable Diffusion Python environment with $BasePython."
     }
+
+    if (-not (Test-PythonPip $runtimePython)) {
+        if (-not (Repair-PythonPip $runtimePython)) {
+            throw "The Stable Diffusion Python environment was created, but pip is unavailable and ensurepip could not repair it. Repair/reinstall Python 3.10 and rerun install.ps1."
+        }
+    }
+
     return $runtimePython
 }
 
