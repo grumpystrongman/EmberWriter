@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import WorkspaceShell from './WorkspaceShell'
 import AuthorCaptureOverlay from './AuthorCaptureOverlay'
+import GenerationModePolicy from './GenerationModePolicy'
 import GenerationWatchdog from './GenerationWatchdog'
 import ProjectRecoveryStatus from './ProjectRecoveryStatus'
 import StableDiffusionStatus from './StableDiffusionStatus'
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StartupModelGuard>
       <GenerationWatchdog />
+      <GenerationModePolicy />
       <WorkspaceShell />
       <WriteWorkspacePro />
       <AuthorCaptureOverlay />

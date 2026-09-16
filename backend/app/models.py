@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 HeatLevel = Literal["simmer", "hot", "scorching", "inferno"]
 TensionCurve = Literal["slow_burn", "steady_rise", "pressure_cooker", "flashpoint"]
+FRESH_WRITE_CONTEXT_SENTINEL = "__EMBER_STUDIO_CONTEXT_V1__"
 
 
 class ProjectCreate(BaseModel):
@@ -69,6 +70,20 @@ class GenerateRequest(BaseModel):
     selected_text: str | None = None
     provider: ProviderConfig
     craft: CraftControls = Field(default_factory=CraftControls)
+
+    @model_validator(mode="after")
+    def enforce_generation_scope(self) -> GenerateRequest:
+        """Make fresh writing the default and continuation an explicit author action.
+
+        Write mode must never inherit the currently open manuscript or editor selection as prose to
+        continue. It is routed through the same Binder/canon context profile as Studio. Continue mode
+        is the only prose mode allowed to use the active manuscript as a continuation anchor; Rewrite
+        remains selection-driven through its own explicit mode.
+        """
+        if self.mode == "write":
+            self.active_file = None
+            self.selected_text = FRESH_WRITE_CONTEXT_SENTINEL
+        return self
 
 
 class GenerateResponse(BaseModel):
