@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import httpx
 
@@ -9,11 +10,45 @@ from .ollama_runtime import choose_installed_model, installed_ollama_models
 
 MODE_GUIDANCE = {
     "write": "Write the requested scene or passage as polished manuscript prose. Do not explain the writing unless asked.",
-    "continue": "Continue directly from the active manuscript, preserving POV, tense, voice, continuity, and scene momentum.",
+    "continue": "Continue from the active manuscript, preserving POV, tense, voice, continuity, and the author's requested destination for the scene.",
     "rewrite": "Rewrite the selected text according to the instruction while preserving established canon and character identity.",
     "brainstorm": "Act as a fiction room partner. Offer concrete story possibilities, consequences, and tradeoffs rather than manuscript prose unless requested.",
     "critic": "Critique the passage constructively. Focus on character voice, pacing, clarity, emotional impact, repetition, and continuity.",
     "continuity": "Audit for contradictions in chronology, knowledge, character state, relationships, world rules, injuries, objects, and unresolved setup. Cite the relevant story context in plain language.",
+}
+
+INTIMACY_PATTERNS = (
+    r"\bintimat(?:e|ely|acy)\b",
+    r"\bsex(?:ual| scene)?\b",
+    r"\berotic\b",
+    r"\bspicy(?: scene)?\b",
+    r"\bmake love\b",
+    r"\bsleep together\b",
+    r"\bconsummat(?:e|ion)\b",
+    r"\bseduction\b",
+    r"\bseduce\b",
+    r"\bbedroom scene\b",
+)
+
+AFTERMATH_PATTERNS = (
+    r"\baftercare\b",
+    r"\bmorning after\b",
+    r"\bintimacy aftermath\b",
+    r"\bafter the intimate scene\b",
+)
+
+SCENE_INTENT_GUIDANCE = {
+    "general": "Follow the author's requested scene objective. Do not let retrieved context invent a different task.",
+    "intimacy": (
+        "The author explicitly requested an adult intimacy scene. That requested scene is the task, not merely a tone hint. "
+        "Do not abandon it for unrelated combat, exposition, travel, banter, or earlier-scene momentum. If mode is continue, "
+        "transition coherently from the active manuscript into the requested intimacy rather than mechanically perpetuating "
+        "the previous activity. Keep the participants, relationship state, consent/choice, voice, pacing, and consequences central."
+    ),
+    "aftermath": (
+        "The author requested the aftermath of intimacy. Stay with the changed emotional, relationship, and physical state; "
+        "do not reset the characters to baseline or jump to unrelated plot merely because older context contains stronger action."
+    ),
 }
 
 BASE_SYSTEM_PROMPT = """You are EmberWriter, a private local-first fiction writing partner.
@@ -43,9 +78,42 @@ Never claim a story fact is established unless it appears in the provided contex
 MODEL_GATE = asyncio.Lock()
 
 
-def build_messages(mode: str, prompt: str, context: str) -> list[dict[str, str]]:
+def detect_scene_intent(prompt: str) -> str:
+    normalized = prompt.strip().lower()
+    if any(re.search(pattern, normalized) for pattern in AFTERMATH_PATTERNS):
+        return "aftermath"
+    if any(re.search(pattern, normalized) for pattern in INTIMACY_PATTERNS):
+        return "intimacy"
+    return "general"
+
+
+def build_messages(
+    mode: str,
+    prompt: str,
+    context: str,
+    *,
+    scene_intent: str | None = None,
+    heat_level: str | None = None,
+) -> list[dict[str, str]]:
     guidance = MODE_GUIDANCE.get(mode, MODE_GUIDANCE["write"])
-    system = f"{BASE_SYSTEM_PROMPT}\nCurrent task mode: {mode}\n{guidance}"
+    resolved_intent = scene_intent or detect_scene_intent(prompt)
+    intent_guidance = SCENE_INTENT_GUIDANCE.get(resolved_intent, SCENE_INTENT_GUIDANCE["general"])
+    heat_note = f"Requested heat: {heat_level}." if heat_level else ""
+    system = f"""{BASE_SYSTEM_PROMPT}
+Instruction priority for this request:
+1. The author's current instruction and explicit scene objective.
+2. The active continuation anchor, when supplied.
+3. Current character/relationship state and later manuscript evidence.
+4. Mode guidance.
+5. Broad retrieved context and older archive material.
+
+If lower-priority context points toward a different kind of scene, it must not replace the author's requested scene.
+
+Current task mode: {mode}
+{guidance}
+Scene intent: {resolved_intent}
+{intent_guidance}
+{heat_note}"""
     user = f"""AUTHOR INSTRUCTION
 {prompt}
 
