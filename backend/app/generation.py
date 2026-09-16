@@ -375,7 +375,7 @@ async def generate(
         async with httpx.AsyncClient(timeout=timeout) as client:
             headers = {"Content-Type": "application/json"}
             if config.api_key:
-                headers["Authorization"] = f"Bearer {config.api_key}"}
+                headers["Authorization"] = f"Bearer {config.api_key}"
             request_body: dict = {
                 "model": config.model,
                 "messages": messages,
