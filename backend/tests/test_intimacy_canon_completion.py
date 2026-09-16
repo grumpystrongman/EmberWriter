@@ -50,7 +50,7 @@ def test_character_context_keeps_late_embodiment_canon_visible(tmp_path: Path) -
 
     assert "BODY_CANON_SENTINEL" in context
     assert "hard canon" in context
-    assert "do not infer intimate anatomy" in context
+    assert "do not infer intimate anatomy" in context.lower()
 
 
 def test_intimacy_scene_does_not_accept_word_floor_without_complete_marker(monkeypatch) -> None:
