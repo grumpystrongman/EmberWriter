@@ -195,7 +195,10 @@ def build_character_context(slug: str, names: list[str]) -> str:
     if not selected:
         return ""
 
-    lines = ["## Character intelligence"]
+    lines = [
+        "## Character intelligence",
+        "Character identity, embodiment, and body facts from author dossiers are hard canon. Do not infer intimate anatomy from gender, pronouns, presentation, or trans/cis status; if anatomy is not established, leave it unspecified rather than inventing it.",
+    ]
     for profile in selected:
         lines.append(f"### {profile['name']}")
         if profile["dossier_path"]:
@@ -205,8 +208,8 @@ def build_character_context(slug: str, names: list[str]) -> str:
             except (FileNotFoundError, OSError, ValueError):
                 dossier = ""
             if dossier:
-                lines.append("Dossier excerpt:")
-                lines.append(dossier[:4500])
+                lines.append("Author dossier (high-priority character canon):")
+                lines.append(dossier[:9000])
         for label, key in (
             ("Current state", "state"),
             ("Knowledge", "knowledge"),
