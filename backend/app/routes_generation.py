@@ -26,7 +26,7 @@ from .models import (
 )
 from .prose_quality import quality_guidance
 from .provenance_store import record_assistance_event
-from .storage import compile_context
+from .storage import compile_context, read_text
 from .story_intelligence import build_character_context, relevant_character_names
 
 router = APIRouter(prefix="/api")
@@ -35,6 +35,37 @@ router = APIRouter(prefix="/api")
 def _relevant_names(slug: str, context_text: str, prompt: str, selected_text: str | None) -> list[str]:
     probe = f"{prompt}\n{selected_text or ''}\n{context_text[-18000:]}"
     return relevant_character_names(slug, probe)
+
+
+def _with_active_tail(
+    slug: str,
+    context_text: str,
+    context_files: list[str],
+    active_file: str | None,
+) -> tuple[str, list[str]]:
+    """Prepend the newest manuscript text as the authoritative continuation anchor.
+
+    compile_context historically excerpts files from the beginning. For a long chapter that
+    means `continue` can see the opening fight more strongly than the current scene at EOF.
+    Keep broad context for continuity, but put the latest 18k characters ahead of it.
+    """
+    if not active_file:
+        return context_text, context_files
+    try:
+        active = read_text(slug, active_file)
+    except (FileNotFoundError, ValueError, OSError):
+        return context_text, context_files
+    tail = active[-18000:].strip()
+    if not tail:
+        return context_text, context_files
+    anchor = (
+        "## HIGH-PRIORITY ACTIVE CONTINUATION ANCHOR\n"
+        f"Source: {active_file}\n"
+        "This is the latest text in the active manuscript. Continue from its END, not from older retrieved passages.\n\n"
+        f"{tail}"
+    )
+    enriched = f"{anchor}\n\n---\n\n{context_text}" if context_text else anchor
+    return enriched, list(dict.fromkeys([active_file, *context_files]))
 
 
 def _with_narrative_memory(
@@ -144,6 +175,7 @@ def context(slug: str, payload: ContextRequest) -> ContextResponse:
             active_file=payload.active_file,
             selected_text=payload.selected_text,
         )
+        compiled, files = _with_active_tail(slug, compiled, files, payload.active_file)
         compiled, files = _with_narrative_memory(
             slug,
             compiled,
@@ -188,6 +220,7 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             active_file=payload.active_file,
             selected_text=payload.selected_text,
         )
+        context_text, context_files = _with_active_tail(slug, context_text, context_files, payload.active_file)
         context_text, context_files = _with_narrative_memory(
             slug,
             context_text,
