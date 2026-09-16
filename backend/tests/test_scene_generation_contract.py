@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from app import craft, generation, routes_generation, storage
+from app import craft, generation, routes_generation, storage, streaming_generation
 from app.models import ProviderConfig
 
 
@@ -69,6 +69,41 @@ def test_complete_scene_continues_across_generation_boundaries(monkeypatch) -> N
     assert len(result.split()) == 1500
 
 
+def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> None:
+    visible: list[str] = []
+    prose = _words("live", 80)
+    raw = prose + "\n" + generation.SCENE_COMPLETE_MARKER
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        chunks = [raw[index:index + 24] for index in range(0, len(raw), 24)]
+        saw_visible_before_return = False
+        for index, chunk in enumerate(chunks):
+            await on_delta(chunk)
+            if index >= 4 and visible:
+                saw_visible_before_return = True
+        assert saw_visible_before_return is True
+        return raw
+
+    async def emit(text: str) -> None:
+        visible.append(text)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            [{"role": "system", "content": "system"}, {"role": "user", "content": "user"}],
+            min_words=60,
+            on_delta=emit,
+        )
+    )
+
+    streamed = "".join(visible)
+    assert "live0" in streamed
+    assert generation.SCENE_COMPLETE_MARKER not in streamed
+    assert generation.SCENE_COMPLETE_MARKER not in result
+    assert len(result.split()) == 80
+
+
 def test_complete_marker_does_not_allow_a_tiny_scene(monkeypatch) -> None:
     chunks = [
         _words("tiny", 250) + "\n" + generation.SCENE_COMPLETE_MARKER,
@@ -110,6 +145,24 @@ def test_active_tail_is_high_priority_continuation_anchor(tmp_path: Path) -> Non
     assert "FINAL_LINE" in anchor
     assert "OPENING_BATTLE" not in anchor
     assert files[0] == "manuscript/chapter-001.md"
+
+
+def test_generation_context_budget_preserves_active_tail() -> None:
+    separator = "\n\n---\n\n"
+    context = (
+        ("HIGH_PRIORITY_HEAD " * 6000)
+        + separator
+        + "## HIGH-PRIORITY ACTIVE CONTINUATION ANCHOR\nSource: manuscript/chapter.md\n\nCURRENT_ENDING_LINE"
+        + separator
+        + ("BROAD_STORY_TAIL " * 6000)
+    )
+
+    capped = routes_generation._cap_generation_context(context, max_chars=12000)
+
+    assert len(capped) <= 12000
+    assert "CURRENT_ENDING_LINE" in capped
+    assert "HIGH_PRIORITY_HEAD" in capped
+    assert "BROAD_STORY_TAIL" in capped
 
 
 def test_craft_pass_refuses_truncated_second_pass(monkeypatch) -> None:
