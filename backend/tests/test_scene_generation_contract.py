@@ -11,7 +11,7 @@ def use_temp_data(tmp_path: Path) -> None:
 
 
 def _words(prefix: str, count: int) -> str:
-    return " ".join(f"{prefix}{index}" for index in range(count))
+    return " ".join(f"{prefix}{index}" for index in range(count)) + "."
 
 
 def test_inferno_is_controlling_intimacy_intent_even_with_generic_continue_prompt() -> None:
