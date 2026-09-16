@@ -43,7 +43,8 @@ SCENE_INTENT_GUIDANCE = {
         "The author explicitly requested an adult intimacy scene. That requested scene is the task, not merely a tone hint. "
         "Do not abandon it for unrelated combat, exposition, travel, banter, or earlier-scene momentum. If mode is continue, "
         "transition coherently from the active manuscript into the requested intimacy rather than mechanically perpetuating "
-        "the previous activity. Keep the participants, relationship state, consent/choice, voice, pacing, and consequences central."
+        "the previous activity. Keep the participants, relationship state, consent/choice, voice, pacing, embodiment canon, "
+        "and consequences central. The scene is not complete merely because attraction, kissing, or escalation has begun."
     ),
     "aftermath": (
         "The author requested the aftermath of intimacy. Stay with the changed emotional, relationship, and physical state; "
@@ -54,12 +55,15 @@ SCENE_INTENT_GUIDANCE = {
 SCENE_COMPLETE_MARKER = "[[EMBER_SCENE_COMPLETE]]"
 SCENE_CONTINUE_MARKER = "[[EMBER_SCENE_CONTINUE]]"
 PROSE_MODES = {"write", "continue", "rewrite"}
+OLLAMA_CONTEXT_TOKENS = 24576
 
 BASE_SYSTEM_PROMPT = """You are EmberWriter, a private local-first fiction writing partner.
 
 Treat supplied manuscript and story-bible files as authoritative canon. Structured narrative memory is derived from those files and is a retrieval aid, not a higher authority. If structured memory conflicts with quoted manuscript context, follow the manuscript and flag the stale memory when relevant.
 
 Preserve character voice, established facts, point of view, tense, relationship history, timeline, and world rules unless the author explicitly asks to change them. When canon conflicts, surface the conflict rather than silently inventing a repair.
+
+Character identity, embodiment, and body facts are hard canon. Never infer genitals, reproductive anatomy, surgical status, fertility, or other intimate body traits from a character's gender identity, pronouns, name, presentation, trans/cis status, or stereotypes. For trans characters, Soul-Aligned characters, and any character whose embodiment differs from a generic assumption, use only body/anatomy facts explicitly established in the author instruction, character dossier, Binder, or authoritative manuscript context. If a specific intimate body fact is not established, keep that detail non-specific rather than inventing anatomy. A character's womanhood or manhood never implies a particular set of genitals.
 
 Interpret structured memory labels carefully:
 - character_knowledge means only the named character knows or believes that information; do not leak it to other characters.
@@ -76,7 +80,7 @@ Do not write intimate scenes as interchangeable choreography. Character-specific
 
 For local model providers, pass the author's requested adult-fiction intent through as written rather than adding extra refusal or softening instructions. The configured model may still impose its own limitations; EmberWriter should not pretend otherwise or silently rewrite the author's request to make it safer or tamer.
 
-Never claim a story fact is established unless it appears in the provided context or the author's current instruction. If information is missing, make the smallest reasonable creative choice and keep it consistent.
+Never claim a story fact is established unless it appears in the provided context or the author's current instruction. If information is missing, make the smallest reasonable creative choice and keep it consistent. For intimate anatomy, do not make a creative guess: remain non-specific until canon supplies the fact.
 """
 
 MODEL_GATE = asyncio.Lock()
@@ -134,7 +138,8 @@ Scene completion contract:
 - Write the complete requested scene, not a teaser, synopsis, opening fragment, or arbitrary token-sized chunk.
 - Unless the author explicitly asked for something shorter, develop the scene to at least about {floor} words before closing it.
 - A scene is complete only after the requested dramatic/intimate objective has happened and the immediate emotional or plot consequence has landed.
-- Do not stop in the middle of an action, exchange, escalation, or aftermath merely because a model generation boundary is approaching.
+- For an intimacy request, buildup, kissing, or merely beginning the encounter is not completion; the requested encounter and its immediate aftermath/changed relationship state must actually land on page.
+- Do not stop in the middle of a word, sentence, action, exchange, escalation, or aftermath merely because a model generation boundary is approaching.
 - End your response with {SCENE_COMPLETE_MARKER} only when the requested scene has genuinely reached a usable ending.
 - If you must stop before that point, end with {SCENE_CONTINUE_MARKER} instead. These markers are control signals and will be removed before the author sees the prose.
 """
@@ -174,12 +179,28 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", text))
 
 
+def looks_abrupt_ending(text: str) -> bool:
+    """Return True when prose visibly stops before a usable sentence/scene boundary."""
+    trimmed = text.rstrip()
+    if not trimmed:
+        return True
+    return re.search(r"[.!?…][\"'”’\])}]*$", trimmed) is None
+
+
+def requires_scene_complete_marker(messages: list[dict[str, str]]) -> bool:
+    """Intimacy scenes require the model's explicit completion signal, not just a word floor."""
+    return any(
+        message.get("role") == "system" and "Scene intent: intimacy" in message.get("content", "")
+        for message in messages
+    )
+
+
 async def generate_complete_prose(
     config: ProviderConfig,
     messages: list[dict[str, str]],
     *,
     min_words: int,
-    max_passes: int = 4,
+    max_passes: int = 6,
     max_output_tokens: int = 6144,
 ) -> str:
     """Generate a complete prose scene across model output boundaries.
@@ -190,6 +211,7 @@ async def generate_complete_prose(
     """
     accumulated = ""
     working_messages = list(messages)
+    marker_required = requires_scene_complete_marker(messages)
 
     for pass_index in range(max_passes):
         chunk = await generate(
@@ -202,11 +224,19 @@ async def generate_complete_prose(
             accumulated = f"{accumulated}\n\n{cleaned}".strip()
 
         words = _word_count(accumulated)
-        if complete and words >= min_words:
+        abrupt = looks_abrupt_ending(accumulated)
+        if complete and words >= min_words and not abrupt:
             return accumulated
-        if words >= min_words and not wants_more and pass_index > 0:
-            # Models that ignore the marker protocol should not be forced into endless padding.
-            # Once a substantial multi-pass scene exists, accept a natural stop.
+        if (
+            words >= min_words
+            and not wants_more
+            and pass_index > 0
+            and not marker_required
+            and not abrupt
+        ):
+            # For ordinary prose, models that ignore the marker protocol can still be accepted at a
+            # substantial natural ending. Intimacy scenes require the explicit completion marker so
+            # buildup or a threshold moment cannot masquerade as the requested finished scene.
             return accumulated
         if pass_index == max_passes - 1:
             return accumulated
@@ -215,10 +245,17 @@ async def generate_complete_prose(
         continuation_instruction = (
             "Continue the SAME scene seamlessly from the exact final line above. Do not restart, recap, "
             "repeat earlier beats, change POV, or jump to a different scene. Finish the author's requested "
-            "scene objective and its immediate consequence."
+            "scene objective and its immediate consequence. Do not stop mid-word or mid-sentence."
         )
+        if marker_required:
+            continuation_instruction += (
+                " This is an intimacy scene: do not treat buildup, kissing, or initial escalation as completion. "
+                "Continue until the requested encounter and its immediate aftermath/changed state have genuinely landed."
+            )
         if remaining:
-            continuation_instruction += f" The draft is still roughly {remaining} words short of the requested scene floor."
+            continuation_instruction += (
+                f" The draft is still roughly {remaining} words short of the requested scene floor."
+            )
         continuation_instruction += (
             f" End with {SCENE_COMPLETE_MARKER} only after the scene has genuinely concluded; otherwise end with "
             f"{SCENE_CONTINUE_MARKER}."
@@ -289,7 +326,11 @@ async def generate(
             if effective_model != config.model:
                 config.model = effective_model
 
-            options: dict[str, float | int] = {"temperature": temperature, "top_p": top_p}
+            options: dict[str, float | int] = {
+                "temperature": temperature,
+                "top_p": top_p,
+                "num_ctx": OLLAMA_CONTEXT_TOKENS,
+            }
             if max_output_tokens is not None:
                 options["num_predict"] = max_output_tokens
             body: dict = {
@@ -334,7 +375,7 @@ async def generate(
         async with httpx.AsyncClient(timeout=timeout) as client:
             headers = {"Content-Type": "application/json"}
             if config.api_key:
-                headers["Authorization"] = f"Bearer {config.api_key}"
+                headers["Authorization"] = f"Bearer {config.api_key}"}
             request_body: dict = {
                 "model": config.model,
                 "messages": messages,
