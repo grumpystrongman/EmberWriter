@@ -8,8 +8,11 @@ import httpx
 
 from .generation import (
     MODEL_GATE,
+    OLLAMA_CONTEXT_TOKENS,
     SCENE_COMPLETE_MARKER,
     SCENE_CONTINUE_MARKER,
+    looks_abrupt_ending,
+    requires_scene_complete_marker,
 )
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
@@ -68,7 +71,11 @@ async def generate_streamed(
             if effective_model != config.model:
                 config.model = effective_model
 
-            options: dict[str, float | int] = {"temperature": temperature, "top_p": top_p}
+            options: dict[str, float | int] = {
+                "temperature": temperature,
+                "top_p": top_p,
+                "num_ctx": OLLAMA_CONTEXT_TOKENS,
+            }
             if max_output_tokens is not None:
                 options["num_predict"] = max_output_tokens
             body: dict = {
@@ -212,12 +219,13 @@ async def generate_complete_prose_streamed(
     min_words: int,
     on_delta: DeltaCallback,
     on_status: StatusCallback | None = None,
-    max_passes: int = 4,
+    max_passes: int = 6,
     max_output_tokens: int = 6144,
 ) -> str:
     """Generate a complete scene while making every pass visible as it is written."""
     accumulated = ""
     working_messages = list(messages)
+    marker_required = requires_scene_complete_marker(messages)
 
     for pass_index in range(max_passes):
         if on_status is not None:
@@ -244,9 +252,16 @@ async def generate_complete_prose_streamed(
             accumulated = f"{accumulated}\n\n{cleaned}".strip()
 
         words = _word_count(accumulated)
-        if complete and words >= min_words:
+        abrupt = looks_abrupt_ending(accumulated)
+        if complete and words >= min_words and not abrupt:
             return accumulated
-        if words >= min_words and not wants_more and pass_index > 0:
+        if (
+            words >= min_words
+            and not wants_more
+            and pass_index > 0
+            and not marker_required
+            and not abrupt
+        ):
             return accumulated
         if pass_index == max_passes - 1:
             return accumulated
@@ -255,8 +270,13 @@ async def generate_complete_prose_streamed(
         continuation_instruction = (
             "Continue the SAME scene seamlessly from the exact final line above. Do not restart, recap, "
             "repeat earlier beats, change POV, or jump to a different scene. Finish the author's requested "
-            "scene objective and its immediate consequence."
+            "scene objective and its immediate consequence. Do not stop mid-word or mid-sentence."
         )
+        if marker_required:
+            continuation_instruction += (
+                " This is an intimacy scene: do not treat buildup, kissing, or initial escalation as completion. "
+                "Continue until the requested encounter and its immediate aftermath/changed state have genuinely landed."
+            )
         if remaining:
             continuation_instruction += (
                 f" The draft is still roughly {remaining} words short of the requested scene floor."
