@@ -39,6 +39,7 @@ from .provenance_store import record_assistance_event
 from .storage import compile_context, read_text
 from .story_intelligence import build_character_context, relevant_character_names
 from .streaming_generation import generate_complete_prose_streamed, generate_streamed
+from .studio_context import STUDIO_CONTEXT_SENTINEL, build_studio_context
 
 router = APIRouter(prefix="/api")
 
@@ -207,7 +208,19 @@ def _cap_generation_context(context_text: str, max_chars: int = _GENERATION_CONT
     return capped[:max_chars]
 
 
+def _is_studio_request(payload: GenerateRequest) -> bool:
+    return payload.selected_text == STUDIO_CONTEXT_SENTINEL
+
+
 def _prepare_generation_context(slug: str, payload: GenerateRequest) -> tuple[str, list[str], str]:
+    if _is_studio_request(payload):
+        context_text, context_files, craft_text, _ = build_studio_context(
+            slug,
+            payload.prompt,
+            payload.craft,
+        )
+        return _cap_generation_context(context_text, max_chars=36000), context_files, craft_text
+
     reconcile_story_memory(slug)
     context_text, context_files = compile_context(
         slug,
@@ -252,6 +265,10 @@ def _prepare_generation_context(slug: str, payload: GenerateRequest) -> tuple[st
         payload,
     )
     return _cap_generation_context(context_text), context_files, craft_text
+
+
+def _selected_text_for_record(payload: GenerateRequest) -> str | None:
+    return None if _is_studio_request(payload) else payload.selected_text
 
 
 @router.post("/models")
@@ -378,7 +395,7 @@ async def _generate_payload(
         mode=payload.mode,
         active_file=payload.active_file,
         prompt=payload.prompt,
-        selected_text=payload.selected_text,
+        selected_text=_selected_text_for_record(payload),
         output_text=text,
         context_files=context_files,
         refined=refined,
@@ -442,7 +459,9 @@ async def _produce_generation_stream(
             await queue.put({"type": "error", "detail": detail})
 
     try:
-        await emit_status("Preparing story context…")
+        await emit_status(
+            "Preparing Studio context…" if _is_studio_request(payload) else "Preparing story context…"
+        )
         async with asyncio.timeout(generation_timeout_seconds()):
             # Prepare context separately so partial-result errors can still report which source
             # files were involved after model generation has started.
@@ -496,7 +515,7 @@ async def _produce_generation_stream(
                 mode=payload.mode,
                 active_file=payload.active_file,
                 prompt=payload.prompt,
-                selected_text=payload.selected_text,
+                selected_text=_selected_text_for_record(payload),
                 output_text=text,
                 context_files=context_files,
                 refined=refined,

@@ -10,6 +10,8 @@ const DEFAULT_PROVIDER: ProviderConfig = {
   api_key: '',
 }
 
+const STUDIO_CONTEXT_SENTINEL = '__EMBER_STUDIO_CONTEXT_V1__'
+
 type StudioMode = 'scene' | 'brainstorm' | 'creative'
 type SaveDestination = 'studio' | 'draft' | 'research'
 type HeatLevel = 'simmer' | 'hot' | 'scorching' | 'inferno'
@@ -29,6 +31,8 @@ type GenerateResponse = {
   text: string
   context_files: string[]
   refined: boolean
+  partial?: boolean
+  warning?: string
 }
 
 type BinderNode = {
@@ -47,7 +51,6 @@ type BinderState = {
 type Props = {
   apiBase: string
   project: WorkspaceProject
-  onOpenSource: (path: string, anchor?: string) => void
 }
 
 const DEFAULT_CRAFT: CraftControls = {
@@ -63,7 +66,7 @@ const DEFAULT_CRAFT: CraftControls = {
 const MODE_COPY: Record<StudioMode, { title: string; description: string; mode: 'write' | 'brainstorm'; placeholder: string }> = {
   scene: {
     title: 'Scene Writer',
-    description: 'Draft a complete scene from your direction without anchoring to the file open in Write.',
+    description: 'Draft a complete scene from your direction without letting old chapter prose become the continuation target.',
     mode: 'write',
     placeholder: 'Describe the scene you want: participants, location, emotional objective, required beats, ending state, and anything the prose must or must not do…',
   },
@@ -127,7 +130,7 @@ function rootByTitle(state: BinderState, title: string): BinderNode | undefined 
   return state.nodes.find((node) => roots.has(node.id) && node.title === title)
 }
 
-export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Props) {
+export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [studioMode, setStudioMode] = useState<StudioMode>('scene')
   const [prompt, setPrompt] = useState('')
   const [output, setOutput] = useState('')
@@ -140,7 +143,7 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
   const [contextFiles, setContextFiles] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState('Studio ready · project context only · no active document anchor')
+  const [status, setStatus] = useState('Studio ready · isolated scene context · no manuscript continuation anchor')
   const modeCopy = MODE_COPY[studioMode]
 
   const wordCount = useMemo(() => output.trim() ? output.trim().split(/\s+/).length : 0, [output])
@@ -183,7 +186,7 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
     setOutput('')
     setContextFiles([])
     setTitle(defaultTitle(next))
-    setStatus(`${MODE_COPY[next].title} ready · independent from the Write tab`)
+    setStatus(`${MODE_COPY[next].title} ready · isolated from old manuscript prose`)
   }
 
   async function generate() {
@@ -204,16 +207,21 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
           prompt: prompt.trim(),
           mode: modeCopy.mode,
           active_file: null,
-          selected_text: null,
+          selected_text: STUDIO_CONTEXT_SENTINEL,
           provider,
           craft,
         }),
       })
       setOutput(result.text)
       setContextFiles(result.context_files || [])
-      setStatus(result.refined
-        ? `${modeCopy.title} complete · Craft Pass applied · ${result.text.trim().split(/\s+/).length.toLocaleString()} words`
-        : `${modeCopy.title} complete · ${result.text.trim().split(/\s+/).length.toLocaleString()} words`)
+      const words = result.text.trim() ? result.text.trim().split(/\s+/).length : 0
+      if (result.partial) {
+        setStatus(`Partial draft preserved · ${words.toLocaleString()} words · ${result.warning || 'generation ended before the full scene completed'}`)
+      } else if (result.refined) {
+        setStatus(`${modeCopy.title} complete · Craft Pass applied · ${words.toLocaleString()} words`)
+      } else {
+        setStatus(`${modeCopy.title} complete · ${words.toLocaleString()} words`)
+      }
     } catch (error) {
       setStatus(`Generation failed: ${(error as Error).message}`)
     } finally {
@@ -293,7 +301,6 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
 
       window.dispatchEvent(new CustomEvent('emberwriter:binder-changed', { detail: { slug: project.slug } }))
       setStatus(`Saved “${documentTitle}” to Binder · ${created.path}`)
-      onOpenSource(created.path)
     } catch (error) {
       setStatus(`Binder save failed: ${(error as Error).message}`)
     } finally {
@@ -307,7 +314,7 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
         <div>
           <small>STUDIO · {project.name}</small>
           <h1>Ember Studio</h1>
-          <p>AI writing, story exploration, and creative scratch work in a dedicated workspace. Studio uses project canon and story memory, but it never anchors generation to whichever document happens to be open in Write.</p>
+          <p>AI writing, story exploration, and creative scratch work in a dedicated workspace. Studio uses named-character canon, relationship state, voice, craft rules, and relevant world references while excluding unrelated chapter prose from retrieval.</p>
         </div>
         <div className="ai-studio-model">
           <label>Model</label>
@@ -336,7 +343,7 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
           <div className="ai-studio-card">
             <div className="ai-studio-card-head">
               <div><small>DIRECT THE AI</small><h2>{modeCopy.title}</h2></div>
-              <span className="ai-studio-independent">No active-file anchor</span>
+              <span className="ai-studio-independent">No manuscript retrieval</span>
             </div>
             <textarea
               value={prompt}
@@ -387,7 +394,7 @@ export default function AIStudioWorkspace({ apiBase, project, onOpenSource }: Pr
               <span>{wordCount.toLocaleString()} words</span>
             </div>
             {output ? <div className="ai-studio-prose">{output}</div> : <div className="ai-studio-empty">Your generated scene, brainstorm, or creative exploration will appear here. Live generation is shown by the global writing overlay while the model is working.</div>}
-            {contextFiles.length > 0 && <details><summary>Project context used ({contextFiles.length})</summary>{contextFiles.map((file) => <div key={file}>{file}</div>)}</details>}
+            {contextFiles.length > 0 && <details><summary>Studio context used ({contextFiles.length})</summary>{contextFiles.map((file) => <div key={file}>{file}</div>)}</details>}
           </div>
         </div>
 
