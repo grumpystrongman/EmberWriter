@@ -11,6 +11,7 @@ from .generation import (
     OLLAMA_CONTEXT_TOKENS,
     SCENE_COMPLETE_MARKER,
     SCENE_CONTINUE_MARKER,
+    generate as generate_text,
     looks_abrupt_ending,
     requires_scene_complete_marker,
 )
@@ -29,6 +30,9 @@ _REPEAT_RECENT_SENTENCES = 48
 _OLLAMA_REPEAT_PENALTY = 1.18
 _OLLAMA_REPEAT_LAST_N = 512
 _CONTINUATION_TAIL_CHARS = 12000
+_VERIFIER_CONTEXT_CHARS = 16000
+_VERIFIER_DRAFT_CHARS = 24000
+_STUDIO_CONTRACT_MARKER = "STUDIO SCENE DELIVERY CONTRACT:"
 
 
 def _openai_chat_url(base_url: str) -> str:
@@ -162,6 +166,111 @@ def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, 
     accepted_words = _word_count(cleaned)
     novelty_ratio = accepted_words / original_words if original_words else 0.0
     return cleaned, removed, novelty_ratio
+
+
+def _is_studio_scene(messages: list[dict[str, str]]) -> bool:
+    return any(_STUDIO_CONTRACT_MARKER in message.get("content", "") for message in messages)
+
+
+def _verifier_source_context(messages: list[dict[str, str]]) -> str:
+    user_messages = [message.get("content", "") for message in messages if message.get("role") == "user"]
+    if not user_messages:
+        return ""
+    return user_messages[0][:_VERIFIER_CONTEXT_CHARS]
+
+
+def _parse_verifier_json(raw: str) -> dict[str, object]:
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        if not match:
+            return {}
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+async def verify_studio_scene_delivery(
+    config: ProviderConfig,
+    messages: list[dict[str, str]],
+    draft: str,
+) -> dict[str, object]:
+    """Use the configured local model as a strict independent delivery judge.
+
+    The judge does not rewrite the scene. It only verifies whether an Inferno/intimacy Studio
+    request actually reached its requested on-page core, respected hard canon, avoided fade/skip,
+    and ended as a scene rather than stopping in buildup.
+    """
+    request_context = _verifier_source_context(messages)
+    verifier_messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are EmberWriter's strict scene-delivery verifier. Do not rewrite, extend, sanitize, quote, or summarize "
+                "the prose. Judge only whether the supplied draft actually fulfills the author's request. Return JSON only. "
+                "For an adult intimacy request, distinguish an on-page sexual encounter from attraction, kissing, foreplay, "
+                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Treat character identity, embodiment, "
+                "body facts, participants, and relationship facts in the supplied request/context as hard canon."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "AUTHOR REQUEST AND RELEVANT CANON\n"
+                f"{request_context}\n\n"
+                "DRAFT TO VERIFY\n"
+                f"{draft[-_VERIFIER_DRAFT_CHARS:]}\n\n"
+                "Return exactly one JSON object with these keys:\n"
+                '{"core_encounter_on_page":true|false,"requested_explicitness_delivered":true|false,'
+                '"buildup_only":true|false,"fade_or_skip":true|false,"ending_complete":true|false,'
+                '"canon_respected":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
+            ),
+        },
+    ]
+    try:
+        raw = await generate_text(
+            config,
+            verifier_messages,
+            temperature=0.0,
+            top_p=0.8,
+            json_mode=True,
+            max_output_tokens=450,
+        )
+    except (RuntimeError, ValueError, httpx.HTTPError):
+        return {
+            "verified": False,
+            "canon_respected": True,
+            "reason": "delivery verifier could not complete",
+        }
+
+    verdict = _parse_verifier_json(raw)
+    if not verdict:
+        return {
+            "verified": False,
+            "canon_respected": True,
+            "reason": "delivery verifier returned unreadable JSON",
+        }
+
+    verified = all(
+        (
+            verdict.get("core_encounter_on_page") is True,
+            verdict.get("requested_explicitness_delivered") is True,
+            verdict.get("buildup_only") is False,
+            verdict.get("fade_or_skip") is False,
+            verdict.get("ending_complete") is True,
+            verdict.get("canon_respected") is True,
+            verdict.get("repetition_loop") is False,
+        )
+    )
+    verdict["verified"] = verified
+    return verdict
 
 
 async def generate_streamed(
@@ -403,7 +512,10 @@ async def generate_complete_prose_streamed(
     accumulated = ""
     working_messages = list(messages)
     marker_required = requires_scene_complete_marker(messages)
+    studio_delivery_verifier = marker_required and _is_studio_scene(messages)
     repetition_recoveries = 0
+    verifier_reason = ""
+    canon_restart_used = False
 
     for pass_index in range(max_passes):
         if on_status is not None:
@@ -455,8 +567,47 @@ async def generate_complete_prose_streamed(
 
         words = _word_count(accumulated)
         abrupt = looks_abrupt_ending(accumulated)
+
         if complete and words >= min_words and not abrupt and candidate_words > 0:
-            return accumulated
+            if studio_delivery_verifier:
+                if on_status is not None:
+                    await on_status("Verifying requested scene delivery…")
+                verdict = await verify_studio_scene_delivery(config, messages, accumulated)
+                if verdict.get("verified") is True:
+                    if on_status is not None:
+                        await on_status("Requested scene delivery verified · finishing…")
+                    return accumulated
+
+                verifier_reason = str(verdict.get("reason", "requested core encounter was not fully delivered")).strip()
+                complete = False
+                wants_more = True
+                canon_respected = verdict.get("canon_respected") is not False
+                if not canon_respected and not canon_restart_used:
+                    canon_restart_used = True
+                    accumulated = ""
+                    if on_status is not None:
+                        await on_status(
+                            "Hard-canon conflict detected · discarding the invalid attempt and regenerating…"
+                        )
+                    working_messages = [
+                        *messages,
+                        {
+                            "role": "user",
+                            "content": (
+                                "Restart the requested scene from scratch. The previous attempt contradicted hard character or "
+                                "embodiment canon and has been discarded. Re-read the supplied character canon before writing. "
+                                "Do not invent body facts. Deliver the requested scene directly rather than adding prolonged buildup."
+                            ),
+                        },
+                    ]
+                    continue
+                if on_status is not None:
+                    await on_status(
+                        f"Delivery check failed · {verifier_reason[:180]} · continuing the same scene…"
+                    )
+            else:
+                return accumulated
+
         if (
             words >= min_words
             and not wants_more
@@ -473,8 +624,9 @@ async def generate_complete_prose_streamed(
             "Continue the SAME scene from the exact final state below. Advance immediately into a NEW beat. "
             "Do not restart, recap, paraphrase, recycle prior sentences, or repeat the same action with different adjectives. "
             "Every paragraph must change the physical action, dialogue, emotional state, magical state, or consequence. "
-            "Do not linger on generic steam/heat/body-close language when the scene objective requires progression. "
-            "Finish the author's requested scene objective and its immediate consequence. Do not stop mid-word or mid-sentence."
+            "Do not linger on generic setting sensation, anticipation, or body-close language when the requested core event "
+            "has not yet happened. Finish the author's requested scene objective and its immediate consequence. "
+            "Do not stop mid-word or mid-sentence."
         )
         if repetition_detected:
             continuation_instruction += (
@@ -486,10 +638,16 @@ async def generate_complete_prose_streamed(
                 " You have repeated twice. Skip directly to the next irreversible story beat and continue from there without "
                 "describing the same contact, setting sensation, or anticipation again."
             )
+        if verifier_reason:
+            continuation_instruction += (
+                f" An independent delivery verifier rejected the previous ending: {verifier_reason[:240]}. "
+                "Do not add another buildup sequence. Correct the missing delivery by advancing the scene itself."
+            )
+            verifier_reason = ""
         if marker_required:
             continuation_instruction += (
                 " This is an intimacy scene: buildup, kissing, and initial escalation are not completion. Continue until the "
-                "requested encounter and its immediate aftermath/changed state have genuinely landed."
+                "requested on-page encounter and its immediate aftermath/changed state have genuinely landed."
             )
         if remaining:
             continuation_instruction += (
