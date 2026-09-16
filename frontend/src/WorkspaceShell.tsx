@@ -113,6 +113,19 @@ export default function WorkspaceShell() {
   }, [focusMode])
 
   useEffect(() => {
+    function refreshVisibleBinder() {
+      window.setTimeout(() => {
+        const sync = Array.from(document.querySelectorAll<HTMLButtonElement>('.library button'))
+          .find((button) => cleanText(button.textContent) === 'Sync')
+        if (sync && !sync.disabled) sync.click()
+      }, 60)
+    }
+
+    window.addEventListener('emberwriter:binder-changed', refreshVisibleBinder)
+    return () => window.removeEventListener('emberwriter:binder-changed', refreshVisibleBinder)
+  }, [])
+
+  useEffect(() => {
     let timer = 0
     let disposed = false
 
