@@ -11,10 +11,10 @@ from .generation import (
     OLLAMA_CONTEXT_TOKENS,
     SCENE_COMPLETE_MARKER,
     SCENE_CONTINUE_MARKER,
-    generate as generate_text,
     looks_abrupt_ending,
     requires_scene_complete_marker,
 )
+from .generation import generate as generate_text
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 
