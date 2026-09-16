@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import httpx
 
@@ -9,12 +10,50 @@ from .ollama_runtime import choose_installed_model, installed_ollama_models
 
 MODE_GUIDANCE = {
     "write": "Write the requested scene or passage as polished manuscript prose. Do not explain the writing unless asked.",
-    "continue": "Continue directly from the active manuscript, preserving POV, tense, voice, continuity, and scene momentum.",
+    "continue": "Continue from the active manuscript, preserving POV, tense, voice, continuity, and the author's requested destination for the scene.",
     "rewrite": "Rewrite the selected text according to the instruction while preserving established canon and character identity.",
     "brainstorm": "Act as a fiction room partner. Offer concrete story possibilities, consequences, and tradeoffs rather than manuscript prose unless requested.",
     "critic": "Critique the passage constructively. Focus on character voice, pacing, clarity, emotional impact, repetition, and continuity.",
     "continuity": "Audit for contradictions in chronology, knowledge, character state, relationships, world rules, injuries, objects, and unresolved setup. Cite the relevant story context in plain language.",
 }
+
+INTIMACY_PATTERNS = (
+    r"\bintimat(?:e|ely|acy)\b",
+    r"\bsex(?:ual| scene)?\b",
+    r"\berotic\b",
+    r"\bspicy(?: scene)?\b",
+    r"\bmake love\b",
+    r"\bsleep together\b",
+    r"\bconsummat(?:e|ion)\b",
+    r"\bseduction\b",
+    r"\bseduce\b",
+    r"\bbedroom scene\b",
+)
+
+AFTERMATH_PATTERNS = (
+    r"\baftercare\b",
+    r"\bmorning after\b",
+    r"\bintimacy aftermath\b",
+    r"\bafter the intimate scene\b",
+)
+
+SCENE_INTENT_GUIDANCE = {
+    "general": "Follow the author's requested scene objective. Do not let retrieved context invent a different task.",
+    "intimacy": (
+        "The author explicitly requested an adult intimacy scene. That requested scene is the task, not merely a tone hint. "
+        "Do not abandon it for unrelated combat, exposition, travel, banter, or earlier-scene momentum. If mode is continue, "
+        "transition coherently from the active manuscript into the requested intimacy rather than mechanically perpetuating "
+        "the previous activity. Keep the participants, relationship state, consent/choice, voice, pacing, and consequences central."
+    ),
+    "aftermath": (
+        "The author requested the aftermath of intimacy. Stay with the changed emotional, relationship, and physical state; "
+        "do not reset the characters to baseline or jump to unrelated plot merely because older context contains stronger action."
+    ),
+}
+
+SCENE_COMPLETE_MARKER = "[[EMBER_SCENE_COMPLETE]]"
+SCENE_CONTINUE_MARKER = "[[EMBER_SCENE_CONTINUE]]"
+PROSE_MODES = {"write", "continue", "rewrite"}
 
 BASE_SYSTEM_PROMPT = """You are EmberWriter, a private local-first fiction writing partner.
 
@@ -43,9 +82,78 @@ Never claim a story fact is established unless it appears in the provided contex
 MODEL_GATE = asyncio.Lock()
 
 
-def build_messages(mode: str, prompt: str, context: str) -> list[dict[str, str]]:
+def detect_scene_intent(prompt: str, heat_level: str | None = None) -> str:
+    normalized = prompt.strip().lower()
+    if any(re.search(pattern, normalized) for pattern in AFTERMATH_PATTERNS):
+        return "aftermath"
+    if any(re.search(pattern, normalized) for pattern in INTIMACY_PATTERNS):
+        return "intimacy"
+    # Scorching and Inferno are explicitly adult heat settings in the UI. If the author
+    # selects either one while asking EmberWriter for manuscript prose, treat that as a
+    # controlling scene intent rather than a weak style hint that old action context can override.
+    if heat_level in {"scorching", "inferno"}:
+        return "intimacy"
+    return "general"
+
+
+def scene_word_floor(prompt: str, heat_level: str | None = None) -> int:
+    """Return a useful scene floor while respecting an explicit author word-count request."""
+    normalized = prompt.lower()
+    explicit = re.search(r"\b(\d{3,5})\s*(?:-|to\s*)?words?\b", normalized)
+    if explicit:
+        return max(300, min(int(explicit.group(1)), 12000))
+    if re.search(r"\b(?:brief|short|quick)\s+(?:scene|passage)\b", normalized):
+        return 700
+    return {
+        "simmer": 1200,
+        "hot": 1400,
+        "scorching": 1800,
+        "inferno": 2200,
+    }.get(heat_level or "", 1400)
+
+
+def build_messages(
+    mode: str,
+    prompt: str,
+    context: str,
+    *,
+    scene_intent: str | None = None,
+    heat_level: str | None = None,
+    finish_scene: bool = True,
+    min_scene_words: int | None = None,
+) -> list[dict[str, str]]:
     guidance = MODE_GUIDANCE.get(mode, MODE_GUIDANCE["write"])
-    system = f"{BASE_SYSTEM_PROMPT}\nCurrent task mode: {mode}\n{guidance}"
+    resolved_intent = scene_intent or detect_scene_intent(prompt, heat_level)
+    intent_guidance = SCENE_INTENT_GUIDANCE.get(resolved_intent, SCENE_INTENT_GUIDANCE["general"])
+    heat_note = f"Requested heat: {heat_level}." if heat_level else ""
+    completion_note = ""
+    if finish_scene and mode in PROSE_MODES:
+        floor = min_scene_words or scene_word_floor(prompt, heat_level)
+        completion_note = f"""
+Scene completion contract:
+- Write the complete requested scene, not a teaser, synopsis, opening fragment, or arbitrary token-sized chunk.
+- Unless the author explicitly asked for something shorter, develop the scene to at least about {floor} words before closing it.
+- A scene is complete only after the requested dramatic/intimate objective has happened and the immediate emotional or plot consequence has landed.
+- Do not stop in the middle of an action, exchange, escalation, or aftermath merely because a model generation boundary is approaching.
+- End your response with {SCENE_COMPLETE_MARKER} only when the requested scene has genuinely reached a usable ending.
+- If you must stop before that point, end with {SCENE_CONTINUE_MARKER} instead. These markers are control signals and will be removed before the author sees the prose.
+"""
+    system = f"""{BASE_SYSTEM_PROMPT}
+Instruction priority for this request:
+1. The author's current instruction and explicit scene objective.
+2. The active continuation anchor, when supplied.
+3. Current character/relationship state and later manuscript evidence.
+4. Mode guidance.
+5. Broad retrieved context and older archive material.
+
+If lower-priority context points toward a different kind of scene, it must not replace the author's requested scene.
+
+Current task mode: {mode}
+{guidance}
+Scene intent: {resolved_intent}
+{intent_guidance}
+{heat_note}
+{completion_note}"""
     user = f"""AUTHOR INSTRUCTION
 {prompt}
 
@@ -53,6 +161,75 @@ PROJECT CONTEXT
 {context or '(No project context was available.)'}
 """
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+
+def _strip_scene_markers(text: str) -> tuple[str, bool, bool]:
+    complete = SCENE_COMPLETE_MARKER in text
+    wants_more = SCENE_CONTINUE_MARKER in text
+    cleaned = text.replace(SCENE_COMPLETE_MARKER, "").replace(SCENE_CONTINUE_MARKER, "").strip()
+    return cleaned, complete, wants_more
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", text))
+
+
+async def generate_complete_prose(
+    config: ProviderConfig,
+    messages: list[dict[str, str]],
+    *,
+    min_words: int,
+    max_passes: int = 4,
+    max_output_tokens: int = 6144,
+) -> str:
+    """Generate a complete prose scene across model output boundaries.
+
+    The model can explicitly signal completion. If it stops short, EmberWriter feeds the
+    accumulated prose back and asks for a seamless continuation instead of returning a fragment.
+    The pass limit is a safety valve, not the desired scene length.
+    """
+    accumulated = ""
+    working_messages = list(messages)
+
+    for pass_index in range(max_passes):
+        chunk = await generate(
+            config,
+            working_messages,
+            max_output_tokens=max_output_tokens,
+        )
+        cleaned, complete, wants_more = _strip_scene_markers(chunk)
+        if cleaned:
+            accumulated = f"{accumulated}\n\n{cleaned}".strip()
+
+        words = _word_count(accumulated)
+        if complete and words >= min_words:
+            return accumulated
+        if words >= min_words and not wants_more and pass_index > 0:
+            # Models that ignore the marker protocol should not be forced into endless padding.
+            # Once a substantial multi-pass scene exists, accept a natural stop.
+            return accumulated
+        if pass_index == max_passes - 1:
+            return accumulated
+
+        remaining = max(min_words - words, 0)
+        continuation_instruction = (
+            "Continue the SAME scene seamlessly from the exact final line above. Do not restart, recap, "
+            "repeat earlier beats, change POV, or jump to a different scene. Finish the author's requested "
+            "scene objective and its immediate consequence."
+        )
+        if remaining:
+            continuation_instruction += f" The draft is still roughly {remaining} words short of the requested scene floor."
+        continuation_instruction += (
+            f" End with {SCENE_COMPLETE_MARKER} only after the scene has genuinely concluded; otherwise end with "
+            f"{SCENE_CONTINUE_MARKER}."
+        )
+        working_messages = [
+            *messages,
+            {"role": "assistant", "content": accumulated},
+            {"role": "user", "content": continuation_instruction},
+        ]
+
+    return accumulated
 
 
 def _openai_chat_url(base_url: str) -> str:
@@ -95,6 +272,7 @@ async def generate(
     temperature: float = 0.9,
     top_p: float = 0.95,
     json_mode: bool = False,
+    max_output_tokens: int | None = None,
 ) -> str:
     if not config.model.strip():
         raise ValueError("Choose a model before generating")
@@ -109,24 +287,21 @@ async def generate(
                     "EmberWriter did not delete or replace a model; the Ollama library is empty."
                 )
             if effective_model != config.model:
-                # Repair stale browser state for this request. The next /models refresh will
-                # write the same installed model back to localStorage in the frontend.
                 config.model = effective_model
 
+            options: dict[str, float | int] = {"temperature": temperature, "top_p": top_p}
+            if max_output_tokens is not None:
+                options["num_predict"] = max_output_tokens
             body: dict = {
                 "model": effective_model,
                 "messages": messages,
                 "stream": False,
                 "keep_alive": "30m",
-                "options": {"temperature": temperature, "top_p": top_p},
+                "options": options,
             }
             if json_mode:
                 body["format"] = "json"
 
-            # Deep dossier/analysis jobs can legitimately run for many minutes on a
-            # 14B local model. The old five-minute read timeout surfaced as the blank
-            # `Model server error:` toast seen in Character Studio. Give local work a
-            # real long-form window while retaining bounded connect/write timeouts.
             timeout = httpx.Timeout(connect=15.0, read=1800.0, write=120.0, pool=15.0)
             try:
                 async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
@@ -160,15 +335,18 @@ async def generate(
             headers = {"Content-Type": "application/json"}
             if config.api_key:
                 headers["Authorization"] = f"Bearer {config.api_key}"
+            request_body: dict = {
+                "model": config.model,
+                "messages": messages,
+                "temperature": temperature,
+                "top_p": top_p,
+            }
+            if max_output_tokens is not None:
+                request_body["max_tokens"] = max_output_tokens
             response = await client.post(
                 _openai_chat_url(config.base_url),
                 headers=headers,
-                json={
-                    "model": config.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "top_p": top_p,
-                },
+                json=request_body,
             )
             response.raise_for_status()
             payload = response.json()
