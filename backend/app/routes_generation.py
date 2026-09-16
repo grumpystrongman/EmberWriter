@@ -7,7 +7,14 @@ from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
 from .development import DEVELOPMENT_PATH, build_development_context
-from .generation import build_messages, generate, list_models
+from .generation import (
+    PROSE_MODES,
+    build_messages,
+    generate,
+    generate_complete_prose,
+    list_models,
+    scene_word_floor,
+)
 from .memory import build_memory_context
 from .memory_integrity import reconcile_story_memory
 from .models import (
@@ -216,17 +223,34 @@ async def generate_text(slug: str, payload: GenerateRequest) -> GenerateResponse
             context_files,
             payload,
         )
-        messages = build_messages(payload.mode, payload.prompt, context_text)
-        text = await generate(payload.provider, messages)
+        heat = payload.craft.heat_level
+        minimum_words = scene_word_floor(payload.prompt, heat)
+        messages = build_messages(
+            payload.mode,
+            payload.prompt,
+            context_text,
+            heat_level=heat,
+            finish_scene=payload.mode in PROSE_MODES,
+            min_scene_words=minimum_words,
+        )
+        if payload.mode in PROSE_MODES:
+            text = await generate_complete_prose(
+                payload.provider,
+                messages,
+                min_words=minimum_words,
+            )
+        else:
+            text = await generate(payload.provider, messages)
+
         refined = False
-        if payload.craft.quality_pass and payload.mode in {"write", "continue", "rewrite"}:
+        if payload.craft.quality_pass and payload.mode in PROSE_MODES:
             targets = quality_guidance(text)
             text = await quality_pass(
                 payload.provider,
                 draft=text,
                 author_prompt=(
                     f"{payload.prompt}\n\nDETERMINISTIC PROSE-QUALITY TARGETS\n{targets}\n\n"
-                    "Repair only issues that are genuinely present. Preserve intentional repetition, roughness, rhythm, and character-specific language."
+                    "Repair only issues that are genuinely present. Preserve intentional repetition, roughness, rhythm, character-specific language, and the complete scene."
                 ),
                 craft_context=craft_text,
             )
