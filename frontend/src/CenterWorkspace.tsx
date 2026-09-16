@@ -7,6 +7,7 @@ import type { Workspace, WorkspaceProject } from './workspace-types'
 import './center-workspaces.css'
 import './scene-center.css'
 
+const AIStudioWorkspace = lazy(() => import('./AIStudioWorkspace'))
 const CharacterVoiceStudio = lazy(() => import('./CharacterVoiceStudio'))
 const CharactersWorkspace = lazy(() => import('./CharactersWorkspace'))
 const PlanningHub = lazy(() => import('./PlanningHub'))
@@ -53,6 +54,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
   return (
     <div className={`center-workspace-overlay center-workspace-${workspace}`}>
       <Suspense fallback={<LoadingWorkspace />}>
+        {workspace === 'studio' && <AIStudioWorkspace apiBase={API} project={project} onOpenSource={() => undefined} />}
         {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
         {workspace === 'characters' && (
           <>

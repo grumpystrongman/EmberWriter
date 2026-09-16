@@ -9,6 +9,7 @@ const API = 'http://127.0.0.1:8000/api'
 
 const workspaces: { id: Workspace; label: string; icon: string }[] = [
   { id: 'write', label: 'Write', icon: '✎' },
+  { id: 'studio', label: 'Studio', icon: '✦' },
   { id: 'plan', label: 'Plan', icon: '▦' },
   { id: 'characters', label: 'Characters', icon: '♟' },
   { id: 'world', label: 'World', icon: '◎' },
@@ -104,11 +105,25 @@ export default function WorkspaceShell() {
 
   useEffect(() => {
     localStorage.setItem('emberwriter.workspace', workspace)
+    window.dispatchEvent(new CustomEvent('emberwriter:workspace-changed', { detail: workspace }))
   }, [workspace])
 
   useEffect(() => {
     localStorage.setItem('emberwriter.focusMode', String(focusMode))
   }, [focusMode])
+
+  useEffect(() => {
+    function refreshVisibleBinder() {
+      window.setTimeout(() => {
+        const sync = Array.from(document.querySelectorAll<HTMLButtonElement>('.library button'))
+          .find((button) => cleanText(button.textContent) === 'Sync')
+        if (sync && !sync.disabled) sync.click()
+      }, 60)
+    }
+
+    window.addEventListener('emberwriter:binder-changed', refreshVisibleBinder)
+    return () => window.removeEventListener('emberwriter:binder-changed', refreshVisibleBinder)
+  }, [])
 
   useEffect(() => {
     let timer = 0
@@ -168,7 +183,7 @@ export default function WorkspaceShell() {
         setWorkspace('write')
         setFocusMode((value) => !value)
       }
-      if ((event.ctrlKey || event.metaKey) && event.key >= '1' && event.key <= '7') {
+      if ((event.ctrlKey || event.metaKey) && event.key >= '1' && event.key <= '8') {
         event.preventDefault()
         const next = workspaces[Number(event.key) - 1]
         if (next) openWorkspace(next.id)
@@ -293,7 +308,7 @@ export default function WorkspaceShell() {
       <div className="workspace-contextbar">
         <span className="workspace-context-label">{active.icon} {active.label}</span>
         <span>{projectContext ? `${projectContext.name} · ${workspace === 'write' ? projectContext.activePath || 'Manuscript' : `${active.label} workspace`}` : workspace === 'write' ? 'Manuscript-first writing workspace' : `Working in ${active.label}`}</span>
-        <span className="workspace-shortcut">Ctrl/Cmd+1–7 changes workspace · Ctrl/Cmd+Shift+F toggles Focus</span>
+        <span className="workspace-shortcut">Ctrl/Cmd+1–8 changes workspace · Ctrl/Cmd+Shift+F toggles Focus</span>
       </div>
 
       <div className="workspace-app">
