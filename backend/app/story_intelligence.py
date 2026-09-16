@@ -208,7 +208,7 @@ def build_character_context(slug: str, names: list[str]) -> str:
             except (FileNotFoundError, OSError, ValueError):
                 dossier = ""
             if dossier:
-                lines.append("Author dossier (high-priority character canon):")
+                lines.append("Dossier excerpt (high-priority character canon):")
                 lines.append(dossier[:9000])
         for label, key in (
             ("Current state", "state"),
