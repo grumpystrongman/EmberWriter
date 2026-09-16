@@ -8,6 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .generation_guard import cancel_generation, guard_generation_request
 from .importer import import_project
 from .knowledge import ensure_seeded
 from .knowledge_scheduler import knowledge_refresh_loop
@@ -110,7 +111,7 @@ async def lifespan(_: FastAPI):
             await refresh_task
 
 
-app = FastAPI(title="EmberWriter API", version="0.14.2", lifespan=lifespan)
+app = FastAPI(title="EmberWriter API", version="0.14.3", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,6 +120,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def writer_generation_guard(request: Request, call_next):
+    return await guard_generation_request(request, call_next)
+
+
 app.include_router(generation_router)
 app.include_router(memory_router)
 app.include_router(story_router)
@@ -161,9 +169,14 @@ async def ember_http_exception_handler(_: Request, exc: HTTPException) -> JSONRe
     )
 
 
+@app.post("/api/projects/{slug}/generate/cancel")
+def cancel_writer_generation(slug: str) -> dict:
+    return {"cancelled": cancel_generation(slug)}
+
+
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.14.2"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.14.3"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
