@@ -111,3 +111,115 @@ def test_repeat_guard_does_not_remove_short_dialogue_refrain() -> None:
     assert cleaned == candidate
     assert removed == 0
     assert novelty == 1.0
+
+
+def test_studio_delivery_verifier_requires_every_delivery_dimension(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    async def fake_generate(config, messages, **kwargs):
+        captured["messages"] = messages
+        captured["kwargs"] = kwargs
+        return (
+            '{"core_encounter_on_page":true,"requested_explicitness_delivered":true,'
+            '"buildup_only":false,"fade_or_skip":false,"ending_complete":true,'
+            '"canon_respected":true,"repetition_loop":false,"reason":"delivered"}'
+        )
+
+    monkeypatch.setattr(streaming_generation, "generate_text", fake_generate)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult intimacy scene.",
+        "Character canon and relationship context.",
+        heat_level="inferno",
+        min_scene_words=1000,
+    )
+    verdict = asyncio.run(
+        streaming_generation.verify_studio_scene_delivery(
+            ProviderConfig(model="test-model"),
+            messages,
+            _words("draft", 1000),
+        )
+    )
+
+    assert verdict["verified"] is True
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["json_mode"] is True
+    assert kwargs["temperature"] == 0.0
+
+
+def test_studio_rejects_buildup_even_when_writer_claims_complete(monkeypatch) -> None:
+    visible: list[str] = []
+    statuses: list[str] = []
+    writer_calls = 0
+    verifier_calls = 0
+    chunks = [
+        _words("buildup", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("advance", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls == 1:
+            return {
+                "verified": False,
+                "core_encounter_on_page": False,
+                "requested_explicitness_delivered": False,
+                "buildup_only": True,
+                "fade_or_skip": False,
+                "ending_complete": False,
+                "canon_respected": True,
+                "repetition_loop": False,
+                "reason": "only buildup was delivered",
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(text: str) -> None:
+        visible.append(text)
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult intimacy scene.",
+        "Character canon and relationship context.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            on_status=status,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 2
+    assert "buildup179" in result
+    assert "advance179" in result
+    assert any("Delivery check failed" in message for message in statuses)
+    assert any("Requested scene delivery verified" in message for message in statuses)
