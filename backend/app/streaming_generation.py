@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Awaitable, Callable
-from difflib import SequenceMatcher
 
 import httpx
 
@@ -23,8 +22,8 @@ StatusCallback = Callable[[str], Awaitable[None]]
 _MARKER_HOLDBACK = max(len(SCENE_COMPLETE_MARKER), len(SCENE_CONTINUE_MARKER)) + 24
 _REPEAT_PARAGRAPH_MIN_CHARS = 90
 _REPEAT_SENTENCE_MIN_CHARS = 55
-_REPEAT_PARAGRAPH_SIMILARITY = 0.78
-_REPEAT_SENTENCE_SIMILARITY = 0.92
+_REPEAT_PARAGRAPH_SIMILARITY = 0.60
+_REPEAT_SENTENCE_SIMILARITY = 0.86
 _REPEAT_RECENT_PARAGRAPHS = 18
 _REPEAT_RECENT_SENTENCES = 48
 _OLLAMA_REPEAT_PENALTY = 1.18
@@ -54,10 +53,33 @@ def _normalize_prose(text: str) -> str:
     return re.sub(r"[^\w]+", " ", text.casefold(), flags=re.UNICODE).strip()
 
 
+def _word_shingles(text: str, size: int = 4) -> set[tuple[str, ...]]:
+    words = text.split()
+    if not words:
+        return set()
+    if len(words) < size:
+        return {tuple(words)}
+    return {tuple(words[index:index + size]) for index in range(len(words) - size + 1)}
+
+
 def _similar(left: str, right: str) -> float:
+    """Fast containment-style similarity for prose repetition detection."""
     if not left or not right:
         return 0.0
-    return SequenceMatcher(None, left, right, autojunk=False).ratio()
+    if left == right:
+        return 1.0
+    left_words = left.split()
+    right_words = right.split()
+    shorter = min(len(left_words), len(right_words))
+    longer = max(len(left_words), len(right_words))
+    if shorter == 0 or shorter / longer < 0.45:
+        return 0.0
+    left_grams = _word_shingles(left)
+    right_grams = _word_shingles(right)
+    denominator = min(len(left_grams), len(right_grams))
+    if denominator == 0:
+        return 0.0
+    return len(left_grams & right_grams) / denominator
 
 
 def _sentence_parts(text: str) -> list[str]:
