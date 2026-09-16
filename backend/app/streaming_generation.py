@@ -21,7 +21,8 @@ from .ollama_runtime import choose_installed_model, installed_ollama_models
 DeltaCallback = Callable[[str], Awaitable[None]]
 StatusCallback = Callable[[str], Awaitable[None]]
 _MARKER_HOLDBACK = max(len(SCENE_COMPLETE_MARKER), len(SCENE_CONTINUE_MARKER)) + 24
-_REPEAT_MIN_CHARS = 90
+_REPEAT_PARAGRAPH_MIN_CHARS = 90
+_REPEAT_SENTENCE_MIN_CHARS = 55
 _REPEAT_PARAGRAPH_SIMILARITY = 0.78
 _REPEAT_SENTENCE_SIMILARITY = 0.92
 _REPEAT_RECENT_PARAGRAPHS = 18
@@ -98,7 +99,7 @@ def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, 
     for paragraph in _paragraph_parts(candidate):
         normalized_paragraph = _normalize_prose(paragraph)
         is_duplicate_paragraph = (
-            len(paragraph) >= _REPEAT_MIN_CHARS
+            len(paragraph) >= _REPEAT_PARAGRAPH_MIN_CHARS
             and any(
                 _similar(normalized_paragraph, previous) >= _REPEAT_PARAGRAPH_SIMILARITY
                 for previous in paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
@@ -112,7 +113,7 @@ def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, 
         for sentence in _sentence_parts(paragraph):
             normalized_sentence = _normalize_prose(sentence)
             is_duplicate_sentence = (
-                len(sentence) >= _REPEAT_MIN_CHARS
+                len(sentence) >= _REPEAT_SENTENCE_MIN_CHARS
                 and any(
                     _similar(normalized_sentence, previous) >= _REPEAT_SENTENCE_SIMILARITY
                     for previous in sentence_memory[-_REPEAT_RECENT_SENTENCES:]
@@ -355,7 +356,8 @@ class _NoveltyStreamFilter:
         self.raw_words += _word_count(paragraph)
         prior = self._prior_text
         if self._accepted:
-            prior = f"{prior}\n\n{'\n\n'.join(self._accepted)}".strip()
+            accepted_text = "\n\n".join(self._accepted)
+            prior = f"{prior}\n\n{accepted_text}".strip()
         cleaned, removed, _ = dedupe_repetitive_prose(paragraph, prior)
         self.removed_units += removed
         if not cleaned:
@@ -389,6 +391,8 @@ async def generate_complete_prose_streamed(
                 else f"Continuing scene · pass {pass_index + 1}…"
             )
             await on_status(label)
+        if pass_index > 0:
+            await on_delta("\n\n")
 
         novelty_filter = _NoveltyStreamFilter(on_delta, accumulated)
         marker_filter = _MarkerFilter(novelty_filter.feed)
@@ -414,8 +418,6 @@ async def generate_complete_prose_streamed(
         )
 
         if cleaned:
-            if accumulated:
-                await on_delta("\n\n")
             accumulated = f"{accumulated}\n\n{cleaned}".strip()
 
         if repetition_detected:
@@ -479,14 +481,8 @@ async def generate_complete_prose_streamed(
         handoff = accumulated[-_CONTINUATION_TAIL_CHARS:]
         working_messages = [
             *messages,
-            {
-                "role": "assistant",
-                "content": handoff,
-            },
-            {
-                "role": "user",
-                "content": continuation_instruction,
-            },
+            {"role": "assistant", "content": handoff},
+            {"role": "user", "content": continuation_instruction},
         ]
 
     return accumulated
