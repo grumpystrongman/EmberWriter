@@ -54,7 +54,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
   return (
     <div className={`center-workspace-overlay center-workspace-${workspace}`}>
       <Suspense fallback={<LoadingWorkspace />}>
-        {workspace === 'studio' && <AIStudioWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
+        {workspace === 'studio' && <AIStudioWorkspace apiBase={API} project={project} onOpenSource={() => undefined} />}
         {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
         {workspace === 'characters' && (
           <>
