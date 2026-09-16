@@ -1,8 +1,8 @@
 import asyncio
 from pathlib import Path
 
-from app import craft, generation, routes_generation, storage, streaming_generation
-from app.models import ProviderConfig
+from app import craft, generation, routes_generation, storage, streaming_generation, studio_context
+from app.models import CraftControls, GenerateRequest, ProviderConfig
 
 
 def use_temp_data(tmp_path: Path) -> None:
@@ -104,6 +104,40 @@ def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> No
     assert len(result.split()) == 80
 
 
+def test_streamed_inferno_length_floor_keeps_going_after_682_word_complete_marker(monkeypatch) -> None:
+    visible: list[str] = []
+    calls = 0
+    chunks = [
+        _words("first", 682) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("second", 800) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("third", 800) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal calls
+        raw = chunks[calls]
+        calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def emit(text: str) -> None:
+        visible.append(text)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            [{"role": "system", "content": "system"}, {"role": "user", "content": "user"}],
+            min_words=2200,
+            on_delta=emit,
+        )
+    )
+
+    assert calls == 3
+    assert len(result.split()) == 2282
+    assert generation.SCENE_COMPLETE_MARKER not in result
+
+
 def test_complete_marker_does_not_allow_a_tiny_scene(monkeypatch) -> None:
     chunks = [
         _words("tiny", 250) + "\n" + generation.SCENE_COMPLETE_MARKER,
@@ -122,6 +156,72 @@ def test_complete_marker_does_not_allow_a_tiny_scene(monkeypatch) -> None:
         )
     )
     assert len(result.split()) == 1050
+
+
+def test_studio_context_excludes_unrelated_manuscript_prose(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Studio Isolation")
+    slug = project["slug"]
+
+    storage.save_text(
+        slug,
+        "manuscript/chapter-001.md",
+        "JAX_BATTLE_CONTAMINATION " + ("Kaelen academy gym fight Jax " * 500),
+    )
+    storage.save_text(
+        slug,
+        "characters/kaelen-thorne.md",
+        "# Kaelen Thorne\n\nAdult Nexus. Calm, attentive, protective.\n",
+    )
+    storage.save_text(
+        slug,
+        "characters/muna.md",
+        "# Muna\n\nAdult witch. Warm, playful, musical, joyful.\n",
+    )
+    storage.save_text(
+        slug,
+        "world/aethelgard-academy.md",
+        "# Aethelgard Academy\n\nThe academy gym includes a sauna used after training.\n",
+    )
+
+    prompt = "Write a scene between Kaelen Thorne and Muna in the sauna at Aethelgard Academy after training."
+    context, files, _, names = studio_context.build_studio_context(
+        slug,
+        prompt,
+        CraftControls(heat_level="inferno"),
+    )
+
+    assert "JAX_BATTLE_CONTAMINATION" not in context
+    assert not any(path.startswith("manuscript/") for path in files)
+    assert not any(path.startswith("import/") for path in files)
+    assert "Kaelen Thorne" in context
+    assert "Muna" in context
+    assert "Aethelgard Academy" in context
+    assert {name.casefold() for name in names} >= {"kaelen thorne", "muna"}
+
+
+def test_studio_sentinel_routes_generation_through_isolated_context(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Studio Route")
+    slug = project["slug"]
+    storage.save_text(slug, "manuscript/chapter-001.md", "WRONG_JAX_SCENE Kaelen Jax fight " * 300)
+    storage.save_text(slug, "characters/kaelen.md", "# Kaelen\n\nAdult Nexus.\n")
+    storage.save_text(slug, "characters/muna.md", "# Muna\n\nAdult witch.\n")
+
+    payload = GenerateRequest(
+        prompt="Write a complete scene between Kaelen and Muna in the academy sauna.",
+        mode="write",
+        active_file=None,
+        selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
+        provider=ProviderConfig(model="test-model"),
+        craft=CraftControls(heat_level="inferno"),
+    )
+    context, files, _ = routes_generation._prepare_generation_context(slug, payload)
+
+    assert "WRONG_JAX_SCENE" not in context
+    assert not any(path.startswith("manuscript/") for path in files)
+    assert "Kaelen" in context
+    assert "Muna" in context
 
 
 def test_active_tail_is_high_priority_continuation_anchor(tmp_path: Path) -> None:
