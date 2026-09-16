@@ -24,7 +24,7 @@ Do not quote long passages from the sample. Do not flatten distinctive style int
 QUALITY_PASS_SYSTEM_PROMPT = """You are EmberWriter's line editor for fiction.
 Return ONLY the revised manuscript prose with no commentary, headings, or explanation.
 
-Preserve the scene's events, POV, tense, character identities, relationship meaning, adult consent state, and requested heat/intensity. Do not make an explicit adult scene tamer merely because you are editing it. Do not intensify beyond the author's requested level either.
+Preserve the scene's events, POV, tense, character identities, relationship meaning, adult consent state, requested heat/intensity, and the complete beginning-to-ending scene span. Do not make an explicit adult scene tamer merely because you are editing it. Do not intensify beyond the author's requested level either. Never omit later beats or aftermath simply to make the edit shorter.
 
 Improve the prose rather than rewriting for rewriting's sake:
 - preserve distinctive voice and intentional roughness;
@@ -40,7 +40,7 @@ Improve the prose rather than rewriting for rewriting's sake:
 - keep metaphors coherent with the book's existing imagery and lore;
 - preserve measured author cadence and useful irregularity instead of polishing everything into generic smooth prose.
 
-Aim to keep roughly the same length unless tightening clearly improves the passage.
+Aim to keep roughly the same length unless tightening clearly improves the passage. The revised output must still contain the complete scene.
 """
 
 HEAT_GUIDANCE = {
@@ -256,7 +256,7 @@ CRAFT / VOICE CONSTRAINTS
 DRAFT TO LINE-EDIT
 {draft}
 """
-    return await generate(
+    revised = await generate(
         provider,
         [
             {"role": "system", "content": QUALITY_PASS_SYSTEM_PROMPT},
@@ -264,7 +264,15 @@ DRAFT TO LINE-EDIT
         ],
         temperature=0.35,
         top_p=0.9,
+        max_output_tokens=8192,
     )
+    # A line edit must never silently replace a complete scene with a truncated rewrite.
+    # If the second pass loses more than 25% of the draft, preserve the complete draft.
+    draft_words = len(draft.split())
+    revised_words = len(revised.split())
+    if draft_words >= 400 and revised_words < int(draft_words * 0.75):
+        return draft
+    return revised
 
 
 def craft_files(slug: str) -> list[str]:
