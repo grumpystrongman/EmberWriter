@@ -35,6 +35,10 @@ _VERIFIER_DRAFT_CHARS = 24000
 _STUDIO_CONTRACT_MARKER = "STUDIO SCENE DELIVERY CONTRACT:"
 
 
+class RepetitionLoopDetected(RuntimeError):
+    """Raised when a live model stream starts recycling the same paragraph-level beat."""
+
+
 def _openai_chat_url(base_url: str) -> str:
     base = base_url.rstrip("/")
     if base.endswith("/v1"):
@@ -107,12 +111,7 @@ def _recent_normalized_sentences(text: str) -> list[str]:
 
 
 def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, int, float]:
-    """Remove model-loop prose while preserving genuinely new scene movement.
-
-    Returns (cleaned_text, removed_units, novelty_ratio). The ratio compares accepted words with
-    model-produced words, so a paragraph loop cannot inflate completion progress simply by getting
-    longer. This is deliberately conservative for short dialogue and brief rhetorical repetition.
-    """
+    """Remove model-loop prose while preserving genuinely new scene movement."""
     original_words = _word_count(candidate)
     if not candidate.strip() or original_words == 0:
         return "", 0, 0.0
@@ -202,12 +201,7 @@ async def verify_studio_scene_delivery(
     messages: list[dict[str, str]],
     draft: str,
 ) -> dict[str, object]:
-    """Use the configured local model as a strict independent delivery judge.
-
-    The judge does not rewrite the scene. It only verifies whether an Inferno/intimacy Studio
-    request actually reached its requested on-page core, respected hard canon, avoided fade/skip,
-    and ended as a scene rather than stopping in buildup.
-    """
+    """Use the configured local model as a strict independent delivery judge."""
     request_context = _verifier_source_context(messages)
     verifier_messages = [
         {
@@ -283,12 +277,7 @@ async def generate_streamed(
     json_mode: bool = False,
     max_output_tokens: int | None = None,
 ) -> str:
-    """Generate while forwarding model text as it arrives.
-
-    The ordinary generation path intentionally remains available for background tools and
-    compatibility. This path is for interactive UI work where an author must be able to see
-    that the model is actually producing text instead of staring at an empty spinner.
-    """
+    """Generate while forwarding model text as it arrives."""
     if not config.model.strip():
         raise ValueError("Choose a model before generating")
 
@@ -448,54 +437,68 @@ class _MarkerFilter:
 
 
 class _NoveltyStreamFilter:
-    """Buffer paragraphs so degenerative repetition never reaches the author-facing preview."""
+    """Stream prose immediately while watching completed paragraphs for degeneration."""
 
     def __init__(self, emit: DeltaCallback, prior_text: str = "") -> None:
         self._emit = emit
         self._prior_text = prior_text
-        self._buffer = ""
-        self._accepted: list[str] = []
+        self._raw = ""
+        self._scan_buffer = ""
+        self._paragraph_memory = _recent_normalized_paragraphs(prior_text)
         self.removed_units = 0
         self.raw_words = 0
 
     @property
+    def raw_text(self) -> str:
+        return self._raw
+
+    @property
     def text(self) -> str:
-        return "\n\n".join(self._accepted).strip()
+        cleaned, _removed, _novelty = dedupe_repetitive_prose(self._raw, self._prior_text)
+        return cleaned
 
     @property
     def novelty_ratio(self) -> float:
-        return _word_count(self.text) / self.raw_words if self.raw_words else 0.0
+        if not self.raw_words:
+            return 0.0
+        return _word_count(self.text) / self.raw_words
 
     async def feed(self, piece: str) -> None:
-        self._buffer += piece
+        self._raw += piece
+        self._scan_buffer += piece
+        await self._emit(piece)
+
         while True:
-            match = re.search(r"\n\s*\n", self._buffer)
+            match = re.search(r"\n\s*\n", self._scan_buffer)
             if not match:
                 break
-            paragraph = self._buffer[: match.start()]
-            self._buffer = self._buffer[match.end() :]
-            await self._accept(paragraph)
+            paragraph = self._scan_buffer[: match.start()].strip()
+            self._scan_buffer = self._scan_buffer[match.end() :]
+            if not paragraph:
+                continue
+            self.raw_words += _word_count(paragraph)
+            normalized = _normalize_prose(paragraph)
+            duplicate = (
+                len(paragraph) >= _REPEAT_PARAGRAPH_MIN_CHARS
+                and any(
+                    _similar(normalized, previous) >= _REPEAT_PARAGRAPH_SIMILARITY
+                    for previous in self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
+                )
+            )
+            if duplicate:
+                self.removed_units += 1
+                if self.removed_units >= 2:
+                    raise RepetitionLoopDetected("model entered a paragraph repetition loop")
+                continue
+            if normalized:
+                self._paragraph_memory.append(normalized)
+                self._paragraph_memory = self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
 
     async def finish(self) -> None:
-        if self._buffer.strip():
-            await self._accept(self._buffer)
-        self._buffer = ""
-
-    async def _accept(self, paragraph: str) -> None:
-        if not paragraph.strip():
-            return
-        self.raw_words += _word_count(paragraph)
-        prior = self._prior_text
-        if self._accepted:
-            accepted_text = "\n\n".join(self._accepted)
-            prior = f"{prior}\n\n{accepted_text}".strip()
-        cleaned, removed, _ = dedupe_repetitive_prose(paragraph, prior)
-        self.removed_units += removed
-        if not cleaned:
-            return
-        separator = "\n\n" if self._accepted else ""
-        self._accepted.append(cleaned)
-        await self._emit(f"{separator}{cleaned}")
+        tail = self._scan_buffer.strip()
+        if tail:
+            self.raw_words += _word_count(tail)
+        self._scan_buffer = ""
 
 
 async def generate_complete_prose_streamed(
@@ -508,7 +511,7 @@ async def generate_complete_prose_streamed(
     max_passes: int = 6,
     max_output_tokens: int = 6144,
 ) -> str:
-    """Generate a complete scene while making every non-repetitive pass visible."""
+    """Generate a complete scene while rejecting repeated prose and false completion."""
     accumulated = ""
     working_messages = list(messages)
     marker_required = requires_scene_complete_marker(messages)
@@ -530,13 +533,18 @@ async def generate_complete_prose_streamed(
 
         novelty_filter = _NoveltyStreamFilter(on_delta, accumulated)
         marker_filter = _MarkerFilter(novelty_filter.feed)
-        raw = await generate_streamed(
-            config,
-            working_messages,
-            on_delta=marker_filter.feed,
-            max_output_tokens=max_output_tokens,
-        )
-        await marker_filter.finish()
+        loop_interrupted = False
+        try:
+            raw = await generate_streamed(
+                config,
+                working_messages,
+                on_delta=marker_filter.feed,
+                max_output_tokens=max_output_tokens,
+            )
+            await marker_filter.finish()
+        except RepetitionLoopDetected:
+            loop_interrupted = True
+            raw = novelty_filter.raw_text
         await novelty_filter.finish()
 
         _raw_cleaned, complete, wants_more = _strip_scene_markers(raw)
@@ -544,10 +552,13 @@ async def generate_complete_prose_streamed(
         candidate_words = _word_count(cleaned)
         raw_words = max(novelty_filter.raw_words, 1)
         repetition_detected = (
-            raw_words >= 100
-            and (
-                novelty_filter.removed_units >= 2
-                or novelty_filter.novelty_ratio < 0.55
+            loop_interrupted
+            or (
+                raw_words >= 60
+                and (
+                    novelty_filter.removed_units >= 1
+                    or novelty_filter.novelty_ratio < 0.62
+                )
             )
         )
 
