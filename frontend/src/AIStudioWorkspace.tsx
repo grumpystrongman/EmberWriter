@@ -11,6 +11,8 @@ const DEFAULT_PROVIDER: ProviderConfig = {
 }
 
 const STUDIO_CONTEXT_SENTINEL = '__EMBER_STUDIO_CONTEXT_V1__'
+const AUTO_CONTINUATION_PASSES = 4
+const CONTINUATION_INTENT = /^(?:please\s+)?(?:continue\b|keep\s+(?:going|writing)\b|resume\b|pick\s+up\b|finish\s+(?:this|the|current)\s+(?:scene|sex\s+scene|intimate\s+scene)\b)/i
 
 type StudioMode = 'scene' | 'brainstorm' | 'creative'
 type SaveDestination = 'studio' | 'draft' | 'research'
@@ -130,6 +132,90 @@ function rootByTitle(state: BinderState, title: string): BinderNode | undefined 
   return state.nodes.find((node) => roots.has(node.id) && node.title === title)
 }
 
+function wordsIn(text: string) {
+  return text.trim() ? text.trim().split(/\s+/).length : 0
+}
+
+function sceneWordFloor(prompt: string, heat: HeatLevel) {
+  const explicit = prompt.toLowerCase().match(/\b(\d{3,5})\s*(?:-|to\s*)?words?\b/)
+  if (explicit) return Math.max(300, Math.min(Number(explicit[1]), 12000))
+  if (/\b(?:brief|short|quick)\s+(?:scene|passage)\b/i.test(prompt)) return 700
+  return { simmer: 1200, hot: 1400, scorching: 1800, inferno: 2200 }[heat]
+}
+
+function looksAbrupt(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return true
+  return !/[.!?…]["'”’\])}]*$/.test(trimmed)
+}
+
+function normalizeForOverlap(text: string) {
+  return text.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
+}
+
+function mergeContinuation(existing: string, continuation: string) {
+  const left = existing.trim()
+  let right = continuation.trim()
+  if (!left) return right
+  if (!right) return left
+
+  const paragraphs = right.split(/\n\s*\n/)
+  while (paragraphs.length > 1) {
+    const first = paragraphs[0].trim()
+    if (first.length < 80 || !normalizeForOverlap(left).includes(normalizeForOverlap(first))) break
+    paragraphs.shift()
+  }
+  right = paragraphs.join('\n\n').trim()
+  if (!right) return left
+
+  const leftWords = left.split(/\s+/)
+  const rightWords = right.split(/\s+/)
+  const maxOverlap = Math.min(160, leftWords.length, rightWords.length)
+  for (let size = maxOverlap; size >= 12; size -= 1) {
+    const suffix = leftWords.slice(-size).join(' ').toLocaleLowerCase()
+    const prefix = rightWords.slice(0, size).join(' ').toLocaleLowerCase()
+    if (suffix === prefix) {
+      right = rightWords.slice(size).join(' ').trim()
+      break
+    }
+  }
+
+  return right ? `${left}\n\n${right}` : left
+}
+
+function freshScenePrompt(direction: string) {
+  return [
+    direction,
+    'STUDIO SCENE DELIVERY CONTRACT:',
+    '- Deliver the complete requested scene, not only its setup or buildup.',
+    '- Move into the author-requested core event early enough to complete its full dramatic arc on page.',
+    '- If the requested core is adult intimacy, buildup alone does not satisfy the brief; complete the requested encounter and its immediate emotional or story consequence.',
+    '- Do not stop at the first kiss, first escalation, threshold moment, or other transition into the requested core scene.',
+    '- End only after the scene objective has actually happened and the immediate aftermath or changed state has landed.',
+  ].join('\n\n')
+}
+
+function continuationPrompt(sceneBrief: string, direction: string, existing: string) {
+  const handoff = existing.trim().slice(-9000)
+  return [
+    direction || 'Continue and finish the current scene.',
+    'STUDIO CONTINUATION CONTRACT:',
+    '- Continue from the EXACT END of the existing draft below.',
+    '- The existing draft is already-written manuscript. Do not rewrite, recap, summarize, restart, or paraphrase any of it.',
+    '- Do not return to the beginning of the scene or repeat its buildup.',
+    '- Start with the very next action, perception, line of dialogue, or sentence after the final words of the handoff.',
+    '- Finish the original requested scene objective and its immediate consequence. If the original request was an adult intimacy scene, do not stop after more buildup or at the threshold of the encounter.',
+    '',
+    'ORIGINAL SCENE BRIEF',
+    sceneBrief,
+    '',
+    'EXISTING DRAFT HANDOFF — REFERENCE ONLY; DO NOT REPEAT',
+    handoff,
+    '',
+    'WRITE ONLY NEW PROSE THAT COMES AFTER THAT FINAL LINE.',
+  ].join('\n')
+}
+
 export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [studioMode, setStudioMode] = useState<StudioMode>('scene')
   const [prompt, setPrompt] = useState('')
@@ -143,10 +229,10 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [contextFiles, setContextFiles] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState('Studio ready · isolated scene context · no manuscript continuation anchor')
+  const [status, setStatus] = useState('Studio ready · fresh scenes start clean · Continue uses the current Studio draft')
   const modeCopy = MODE_COPY[studioMode]
 
-  const wordCount = useMemo(() => output.trim() ? output.trim().split(/\s+/).length : 0, [output])
+  const wordCount = useMemo(() => wordsIn(output), [output])
 
   useEffect(() => {
     localStorage.setItem('emberwriter.provider', JSON.stringify(provider))
@@ -189,10 +275,53 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setStatus(`${MODE_COPY[next].title} ready · isolated from old manuscript prose`)
   }
 
+  async function requestGeneration(requestPrompt: string, mode: 'write' | 'continue' | 'brainstorm') {
+    return jsonFetch<GenerateResponse>(`${apiBase}/projects/${project.slug}/generate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt: requestPrompt,
+        mode,
+        active_file: null,
+        selected_text: STUDIO_CONTEXT_SENTINEL,
+        provider,
+        craft,
+      }),
+    })
+  }
+
+  async function continueDraft(existing: string, sceneBrief: string, direction: string) {
+    return requestGeneration(continuationPrompt(sceneBrief, direction, existing), 'continue')
+  }
+
+  async function continueCurrentScene(direction = prompt.trim()) {
+    if (!output.trim() || busy || !provider.model.trim()) return
+    setBusy(true)
+    setContextFiles([])
+    setStatus('Continuing from the exact end of the current Studio draft…')
+    try {
+      const result = await continueDraft(output, prompt.trim() || direction, direction || 'Continue and finish this scene.')
+      const merged = mergeContinuation(output, result.text)
+      setOutput(merged)
+      setContextFiles(result.context_files || [])
+      setStatus(`Scene continued without replacing prior prose · ${wordsIn(merged).toLocaleString()} total words`)
+    } catch (error) {
+      setStatus(`Continuation failed: ${(error as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function generate() {
     if (!prompt.trim() || busy) return
     if (!provider.model.trim()) {
       setStatus('Choose a local model before generating')
+      return
+    }
+
+    const direction = prompt.trim()
+    const explicitContinuation = studioMode === 'scene' && Boolean(output.trim()) && CONTINUATION_INTENT.test(direction)
+    if (explicitContinuation) {
+      await continueCurrentScene(direction)
       return
     }
 
@@ -201,20 +330,52 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setContextFiles([])
     setStatus(`${modeCopy.title} is working…`)
     try {
-      const result = await jsonFetch<GenerateResponse>(`${apiBase}/projects/${project.slug}/generate`, {
-        method: 'POST',
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          mode: modeCopy.mode,
-          active_file: null,
-          selected_text: STUDIO_CONTEXT_SENTINEL,
-          provider,
-          craft,
-        }),
-      })
+      if (studioMode === 'scene') {
+        const sceneBrief = direction
+        const targetWords = sceneWordFloor(sceneBrief, craft.heat_level)
+        let result = await requestGeneration(freshScenePrompt(sceneBrief), 'write')
+        let draft = result.text.trim()
+        let allContextFiles = result.context_files || []
+        let refined = result.refined
+        let attempts = 0
+
+        setOutput(draft)
+        setContextFiles(allContextFiles)
+
+        while ((wordsIn(draft) < targetWords || looksAbrupt(draft)) && attempts < AUTO_CONTINUATION_PASSES) {
+          attempts += 1
+          const reason = looksAbrupt(draft) ? 'the draft stopped mid-beat' : `${wordsIn(draft).toLocaleString()} of about ${targetWords.toLocaleString()} words`
+          setStatus(`Finishing the same scene · pass ${attempts + 1} · ${reason}…`)
+          const continuation = await continueDraft(
+            draft,
+            sceneBrief,
+            'Continue immediately from the final line and finish the requested scene. Do not add another setup sequence.',
+          )
+          const merged = mergeContinuation(draft, continuation.text)
+          if (merged === draft) break
+          draft = merged
+          refined = refined || continuation.refined
+          allContextFiles = Array.from(new Set([...allContextFiles, ...(continuation.context_files || [])]))
+          setOutput(draft)
+          setContextFiles(allContextFiles)
+        }
+
+        const words = wordsIn(draft)
+        const unfinished = words < targetWords || looksAbrupt(draft)
+        if (unfinished) {
+          setStatus(`Draft preserved · ${words.toLocaleString()} words · the model still ended early; use Continue this scene to resume from the exact final line`)
+        } else if (refined) {
+          setStatus(`Scene complete · Craft Pass applied · ${words.toLocaleString()} words`)
+        } else {
+          setStatus(`Scene complete · ${words.toLocaleString()} words`)
+        }
+        return
+      }
+
+      const result = await requestGeneration(direction, modeCopy.mode)
       setOutput(result.text)
       setContextFiles(result.context_files || [])
-      const words = result.text.trim() ? result.text.trim().split(/\s+/).length : 0
+      const words = wordsIn(result.text)
       if (result.partial) {
         setStatus(`Partial draft preserved · ${words.toLocaleString()} words · ${result.warning || 'generation ended before the full scene completed'}`)
       } else if (result.refined) {
@@ -343,7 +504,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
           <div className="ai-studio-card">
             <div className="ai-studio-card-head">
               <div><small>DIRECT THE AI</small><h2>{modeCopy.title}</h2></div>
-              <span className="ai-studio-independent">No manuscript retrieval</span>
+              <span className="ai-studio-independent">{studioMode === 'scene' && output ? 'Current Studio draft available to Continue' : 'No manuscript retrieval'}</span>
             </div>
             <textarea
               value={prompt}
@@ -386,6 +547,11 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
             <button className="ai-studio-generate" type="button" onClick={() => void generate()} disabled={busy || !prompt.trim() || !provider.model}>
               {busy ? 'Ember is writing…' : studioMode === 'scene' ? 'Write the scene' : studioMode === 'brainstorm' ? 'Brainstorm' : 'Explore the idea'}
             </button>
+            {studioMode === 'scene' && output.trim() && (
+              <button className="ai-studio-generate ai-studio-continue" type="button" onClick={() => void continueCurrentScene('Continue immediately from the exact final line and finish this scene.')} disabled={busy || !provider.model}>
+                Continue this scene
+              </button>
+            )}
           </div>
 
           <div className="ai-studio-card ai-studio-output">
