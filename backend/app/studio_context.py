@@ -4,11 +4,11 @@ from .binder import get_binder
 from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context
-from .models import CraftControls
+from .models import CraftControls, FRESH_WRITE_CONTEXT_SENTINEL
 from .storage import read_text, search_story
 from .story_intelligence import build_character_context, relevant_character_names
 
-STUDIO_CONTEXT_SENTINEL = "__EMBER_STUDIO_CONTEXT_V1__"
+STUDIO_CONTEXT_SENTINEL = FRESH_WRITE_CONTEXT_SENTINEL
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
 _BLOCKED_PROSE_PREFIXES = ("manuscript/", "source_archive/", "import/", ".ember/")
 
@@ -103,10 +103,12 @@ def build_studio_context(
     handled elsewhere and is the only mode that receives the current manuscript ending.
     """
     sections: list[str] = [
-        "## Fresh generation boundary\n"
-        "Start the requested prose from a NEW first line. Do not continue, complete, quote, or imitate the ending of a prior scene. "
-        "Everything below is reference knowledge only. Use it to preserve canon, environment, character behavior, voice, relationships, "
-        "world rules, and continuity while beginning the exact new scene requested by the author."
+        (
+            "## Fresh generation boundary\n"
+            "Start the requested prose from a NEW first line. Do not continue, complete, quote, or imitate the ending of a prior scene. "
+            "Everything below is reference knowledge only. Use it to preserve canon, environment, character behavior, voice, relationships, "
+            "world rules, and continuity while beginning the exact new scene requested by the author."
+        )
     ]
     files: list[str] = []
     seen: set[str] = set()
