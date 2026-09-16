@@ -84,34 +84,40 @@ async def generate_streamed(
             pieces: list[str] = []
             timeout = httpx.Timeout(connect=15.0, read=300.0, write=120.0, pool=15.0)
             try:
-                async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
-                    async with client.stream(
+                async with (
+                    httpx.AsyncClient(timeout=timeout, trust_env=False) as client,
+                    client.stream(
                         "POST",
                         f"{config.base_url.rstrip('/')}/api/chat",
                         json=body,
-                    ) as response:
-                        if response.status_code >= 400:
-                            payload = await response.aread()
-                            detail = payload.decode("utf-8", errors="replace")[:500].strip()
+                    ) as response,
+                ):
+                    if response.status_code >= 400:
+                        payload = await response.aread()
+                        detail = payload.decode("utf-8", errors="replace")[:500].strip()
+                        raise RuntimeError(
+                            f"Ollama could not generate with {effective_model}: "
+                            f"{detail or f'HTTP {response.status_code}'}"
+                        )
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            payload = json.loads(line)
+                        except json.JSONDecodeError as exc:
                             raise RuntimeError(
-                                f"Ollama could not generate with {effective_model}: {detail or f'HTTP {response.status_code}'}"
-                            )
-                        async for line in response.aiter_lines():
-                            if not line.strip():
-                                continue
-                            try:
-                                payload = json.loads(line)
-                            except json.JSONDecodeError as exc:
-                                raise RuntimeError("Ollama returned an invalid streaming response") from exc
-                            if payload.get("error"):
-                                raise RuntimeError(f"Ollama generation failed: {payload['error']}")
-                            piece = str(payload.get("message", {}).get("content", ""))
-                            if piece:
-                                pieces.append(piece)
-                                await on_delta(piece)
+                                "Ollama returned an invalid streaming response"
+                            ) from exc
+                        if payload.get("error"):
+                            raise RuntimeError(f"Ollama generation failed: {payload['error']}")
+                        piece = str(payload.get("message", {}).get("content", ""))
+                        if piece:
+                            pieces.append(piece)
+                            await on_delta(piece)
             except httpx.ReadTimeout as exc:
                 raise RuntimeError(
-                    "The local writing model stopped sending output for 5 minutes and EmberWriter ended the stalled request."
+                    "The local writing model stopped sending output for 5 minutes and "
+                    "EmberWriter ended the stalled request."
                 ) from exc
             except httpx.ConnectError as exc:
                 raise RuntimeError(
@@ -139,33 +145,35 @@ async def generate_streamed(
 
         pieces: list[str] = []
         timeout = httpx.Timeout(connect=15.0, read=300.0, write=60.0, pool=15.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=timeout) as client,
+            client.stream(
                 "POST",
                 _openai_chat_url(config.base_url),
                 headers=headers,
                 json=request_body,
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        payload = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    choices = payload.get("choices", [])
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    piece = str(delta.get("content", "") or "")
-                    if piece:
-                        pieces.append(piece)
-                        await on_delta(piece)
+            ) as response,
+        ):
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                line = line.strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    payload = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                choices = payload.get("choices", [])
+                if not choices:
+                    continue
+                delta = choices[0].get("delta", {})
+                piece = str(delta.get("content", "") or "")
+                if piece:
+                    pieces.append(piece)
+                    await on_delta(piece)
 
         content = "".join(pieces)
         if not content.strip():
@@ -213,7 +221,11 @@ async def generate_complete_prose_streamed(
 
     for pass_index in range(max_passes):
         if on_status is not None:
-            label = "Writing scene…" if pass_index == 0 else f"Continuing scene · pass {pass_index + 1}…"
+            label = (
+                "Writing scene…"
+                if pass_index == 0
+                else f"Continuing scene · pass {pass_index + 1}…"
+            )
             await on_status(label)
         if pass_index > 0:
             await on_delta("\n\n")
@@ -246,7 +258,9 @@ async def generate_complete_prose_streamed(
             "scene objective and its immediate consequence."
         )
         if remaining:
-            continuation_instruction += f" The draft is still roughly {remaining} words short of the requested scene floor."
+            continuation_instruction += (
+                f" The draft is still roughly {remaining} words short of the requested scene floor."
+            )
         continuation_instruction += (
             f" End with {SCENE_COMPLETE_MARKER} only after the scene has genuinely concluded; otherwise end with "
             f"{SCENE_CONTINUE_MARKER}."
