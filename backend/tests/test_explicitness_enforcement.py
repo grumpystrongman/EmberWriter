@@ -1,5 +1,8 @@
 from app import generation
-from app.explicitness_enforcement import explicitness_profile, strict_explicit_delivery_failure
+from app.explicitness_enforcement import (
+    explicitness_profile,
+    strict_explicit_delivery_failure,
+)
 
 
 _PROMPT = (
