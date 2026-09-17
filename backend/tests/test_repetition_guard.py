@@ -135,7 +135,11 @@ def test_studio_delivery_verifier_requires_every_delivery_dimension(monkeypatch)
     )
     verdict = asyncio.run(
         streaming_generation.verify_studio_scene_delivery(
-            ProviderConfig(model="test-model"),
+            ProviderConfig(
+                provider="openai_compatible",
+                base_url="http://example.test/v1",
+                model="test-model",
+            ),
             messages,
             _words("draft", 1000),
         )
