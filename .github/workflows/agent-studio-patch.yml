@@ -1,0 +1,54 @@
+name: Agent Studio Patch
+
+on:
+  push:
+    branches: [fix/studio-delivery-end-to-end-audit]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/studio-delivery-end-to-end-audit
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Apply deterministic Studio acceptance patch
+        run: python scripts/apply_studio_acceptance_patch.py
+      - name: Remove one-time patch agent files
+        run: rm scripts/apply_studio_acceptance_patch.py .github/workflows/agent-studio-patch.yml
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools
+          python -m pip install -e './backend[dev]'
+      - name: Run focused Studio acceptance suite
+        run: pytest backend/tests/test_studio_end_to_end_acceptance.py -q
+      - name: Run full backend suite
+        run: pytest backend/tests -q
+      - name: Lint backend
+        run: ruff check backend/app backend/tests
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Build production frontend
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.example.invalid/api
+      - name: Commit verified patch to feature branch
+        run: |
+          git config user.name 'emberwriter-acceptance-agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix Studio delivery wiring after end-to-end audit [agent-patched]'
+          git push origin HEAD:fix/studio-delivery-end-to-end-audit
