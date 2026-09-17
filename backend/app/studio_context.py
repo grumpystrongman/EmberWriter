@@ -11,6 +11,7 @@ from .story_intelligence import build_character_context, relevant_character_name
 STUDIO_CONTEXT_SENTINEL = FRESH_WRITE_CONTEXT_SENTINEL
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
 _BLOCKED_PROSE_PREFIXES = ("manuscript/", "source_archive/", "import/", ".ember/")
+_STUDIO_CONTINUATION_MARKER = "STUDIO CONTINUATION CONTRACT:"
 
 
 def _add_file(
@@ -93,7 +94,7 @@ def build_studio_context(
     controls: CraftControls,
     *,
     max_chars: int = 42000,
-    fresh_start: bool = True,
+    fresh_start: bool | None = None,
 ) -> tuple[str, list[str], str, list[str]]:
     """Build Binder-aware context for a Studio generation.
 
@@ -105,6 +106,9 @@ def build_studio_context(
     the explicit handoff supplied by the author/UI and must never receive a contradictory
     instruction telling the model to start over.
     """
+    if fresh_start is None:
+        fresh_start = _STUDIO_CONTINUATION_MARKER not in prompt
+
     if fresh_start:
         boundary = (
             "## Fresh generation boundary\n"
