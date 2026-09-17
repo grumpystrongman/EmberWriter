@@ -15,10 +15,8 @@ $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 
-# EmberWriter is a fiction-writing application, so setup installs a creative/RP model that is
-# explicitly capable of the author's requested adult prose. The old Qwen Heretic models remain
-# usable if already installed, but they are no longer the managed writing dependency.
 $AdultBaseline = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+$AdultFast = "R4C3R/qwen3-8b-heretic:q4_k_m"
 $AdultHighHeat = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 $HighHeatMinimumFreeGb = 22
 
@@ -35,11 +33,16 @@ function Get-FreeDiskGb([string]$Path) {
     return [math]::Floor($drive.FreeSpace / 1GB)
 }
 
+function Test-OllamaModelInstalled([string]$Model) {
+    try {
+        & ollama show $Model *> $null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
+}
+
 function Stop-FrontendBuildProcesses {
-    # Vite launches esbuild as a child process. On Windows either process can retain an open
-    # handle to node_modules\@esbuild\...\esbuild.exe, which makes npm ci fail with EPERM while
-    # replacing the dependency tree. Stop only processes whose executable/command line belongs
-    # to this EmberWriter frontend; do not kill unrelated Node applications on the machine.
     try {
         $frontendPath = [System.IO.Path]::GetFullPath($Frontend)
         $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
@@ -63,9 +66,7 @@ function Stop-FrontendBuildProcesses {
             $stoppedAny = $true
         }
 
-        if ($stoppedAny) {
-            Start-Sleep -Milliseconds 1000
-        }
+        if ($stoppedAny) { Start-Sleep -Milliseconds 1000 }
     } catch {
         Write-Host "Could not fully inspect running frontend processes: $($_.Exception.Message)" -ForegroundColor Yellow
     }
@@ -127,39 +128,56 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
 
 Require-Command "ollama" "Ollama was installed but is not yet available in this terminal. Open a new PowerShell window and rerun install.ps1."
 
+# Persist GPU-friendly Ollama defaults. An already-running Ollama process keeps its old environment;
+# EmberWriter's Performance panel includes a tuned restart button that applies these immediately.
+$env:OLLAMA_FLASH_ATTENTION = "1"
+$env:OLLAMA_KV_CACHE_TYPE = "q8_0"
+$env:OLLAMA_NUM_PARALLEL = "1"
+[Environment]::SetEnvironmentVariable("OLLAMA_FLASH_ATTENTION", "1", "User")
+[Environment]::SetEnvironmentVariable("OLLAMA_KV_CACHE_TYPE", "q8_0", "User")
+[Environment]::SetEnvironmentVariable("OLLAMA_NUM_PARALLEL", "1", "User")
+Write-Host "Ollama tuning: Flash Attention=on, KV cache=q8_0, parallel generations=1" -ForegroundColor Green
+
 if (-not $SkipModelDownload) {
     $totalRamGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
     $freeDiskGb = Get-FreeDiskGb $Root
     $chosen = $AdultBaseline
+    $modelsToInstall = @($AdultBaseline)
 
-    # Keep the legacy 8b/14b switches accepted so existing setup commands do not break. They now
-    # map to the stronger 12B creative baseline. Auto also stays on 12B: RAM and free disk do not
-    # prove that a machine has enough GPU/VRAM throughput for a 24B model with a large context.
-    # Authors who intentionally want the heavier tier can still request -AdultModelTier 24b.
-    $highHeatRequested = $AdultModelTier -eq "24b"
-    if ($highHeatRequested) {
+    if ($AdultModelTier -eq "8b") {
+        $chosen = $AdultFast
+        $modelsToInstall = @($AdultFast)
+    } elseif ($AdultModelTier -eq "24b") {
         if ($freeDiskGb -lt $HighHeatMinimumFreeGb) {
             throw "The 24B high-heat model needs at least ${HighHeatMinimumFreeGb} GB free. Only ${freeDiskGb} GB is available."
         }
         $chosen = $AdultHighHeat
+        $modelsToInstall = @($AdultHighHeat)
+    } elseif ($AdultModelTier -eq "auto") {
+        # Auto provisions both explicit choices. Quality remains the default; Fast is an author-visible
+        # switch in Studio and is never selected silently merely because it is installed.
+        $modelsToInstall = @($AdultBaseline, $AdultFast)
     }
 
     Write-Host ""
-    Write-Host "Managed EmberWriter fiction model: $chosen" -ForegroundColor Green
+    Write-Host "Quality model: $AdultBaseline" -ForegroundColor Green
+    Write-Host "Fast model:    $AdultFast" -ForegroundColor Green
+    Write-Host "Default model: $chosen"
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
     if ($AdultModelTier -eq "auto") {
-        Write-Host "Auto tier uses the 12B baseline for predictable local inference. Use -AdultModelTier 24b only when you intentionally want the heavier model."
-    }
-    Write-Host "Downloading model if needed. This can take several minutes..."
-    & ollama pull $chosen
-    if ($LASTEXITCODE -ne 0) {
-        throw "Ollama failed to download the managed writing model: $chosen"
+        Write-Host "Auto setup installs Quality 12B and Fast 8B so Studio can switch explicitly between prose quality and throughput."
     }
 
-    $installedModels = @(& ollama list | Select-Object -Skip 1 | ForEach-Object { ($_ -split '\s+')[0] })
-    if (-not ($installedModels | Where-Object { $_ -ieq $chosen })) {
-        throw "Ollama reported a successful pull, but the managed writing model is not installed: $chosen"
+    foreach ($model in $modelsToInstall) {
+        Write-Host "Downloading model if needed: $model"
+        & ollama pull $model
+        if ($LASTEXITCODE -ne 0) {
+            throw "Ollama failed to download the managed writing model: $model"
+        }
+        if (-not (Test-OllamaModelInstalled $model)) {
+            throw "Ollama reported a successful pull, but the managed writing model could not be opened: $model"
+        }
     }
 
     $ConfigDir = Join-Path $Root ".ember"
@@ -169,13 +187,18 @@ if (-not $SkipModelDownload) {
         base_url = "http://localhost:11434"
         preferred_model = $chosen
         adult_model = $chosen
+        quality_model = $AdultBaseline
+        fast_model = $AdultFast
         fallback_adult_model = $AdultBaseline
         high_heat_model = $AdultHighHeat
+        ollama_flash_attention = $true
+        ollama_kv_cache_type = "q8_0"
+        ollama_num_parallel = 1
     } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $ConfigDir "local-models.json")
 
     Write-Host ""
-    Write-Host "Local writing model installed and verified: $chosen" -ForegroundColor Green
-    Write-Host "EmberWriter will prefer this model when Ollama is selected."
+    Write-Host "Local writing models installed and verified." -ForegroundColor Green
+    Write-Host "Studio Quality uses the 12B creative model; Studio Fast uses the 8B uncensored model when installed."
 }
 
 if (-not $SkipImageEngineInstall) {
