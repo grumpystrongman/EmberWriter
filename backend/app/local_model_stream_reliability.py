@@ -14,6 +14,7 @@ from .ollama_runtime import choose_installed_model, installed_ollama_models
 _FIRST_TOKEN_TIMEOUT_SECONDS = 15 * 60
 _INTER_TOKEN_TIMEOUT_SECONDS = 5 * 60
 _LARGE_MODEL_CONTEXT_TOKENS = 16384
+_STUDIO_CONTEXT_TOKENS = 16384
 _LARGE_MODEL_HINTS = ("cydonia", "24b", "24-b", "24_b")
 _HERETIC_ROCINANTE = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
 _STANDARD_ROCINANTE = "HammerAI/rocinante-v1.1:12b-q4_K_M"
@@ -23,12 +24,18 @@ _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
 _INSTALLED = False
 
 
-def ollama_context_tokens_for(model: str) -> int:
-    """Use a smaller prompt window for heavier local models to reduce cold-start pressure."""
+def ollama_context_tokens_for(
+    model: str,
+    messages: list[dict[str, str]] | None = None,
+) -> int:
+    """Use smaller prompt windows where local inference pressure is predictably high."""
     lowered = model.casefold()
+    context_tokens = OLLAMA_CONTEXT_TOKENS
     if any(hint in lowered for hint in _LARGE_MODEL_HINTS):
-        return min(OLLAMA_CONTEXT_TOKENS, _LARGE_MODEL_CONTEXT_TOKENS)
-    return OLLAMA_CONTEXT_TOKENS
+        context_tokens = min(context_tokens, _LARGE_MODEL_CONTEXT_TOKENS)
+    if messages and streaming_generation._is_studio_scene(messages):
+        context_tokens = min(context_tokens, _STUDIO_CONTEXT_TOKENS)
+    return context_tokens
 
 
 async def _next_line(iterator, timeout_seconds: float) -> str | None:
@@ -120,7 +127,7 @@ async def generate_streamed_reliable(
         options: dict[str, float | int] = {
             "temperature": temperature,
             "top_p": top_p,
-            "num_ctx": ollama_context_tokens_for(effective_model),
+            "num_ctx": ollama_context_tokens_for(effective_model, messages),
             "repeat_penalty": streaming_generation._OLLAMA_REPEAT_PENALTY,
             "repeat_last_n": streaming_generation._OLLAMA_REPEAT_LAST_N,
         }
