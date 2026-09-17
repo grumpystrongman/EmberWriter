@@ -74,7 +74,14 @@ def test_complete_scene_continues_across_generation_boundaries(monkeypatch) -> N
 
 def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> None:
     visible: list[str] = []
-    prose = _words("live", 80)
+    prose = " ".join(
+        (
+            _words("livea", 20),
+            _words("liveb", 20),
+            _words("livec", 20),
+            _words("lived", 20),
+        )
+    )
     raw = prose + "\n" + generation.SCENE_COMPLETE_MARKER
 
     async def fake_stream(config, messages, *, on_delta, **kwargs):
@@ -82,7 +89,7 @@ def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> No
         saw_visible_before_return = False
         for index, chunk in enumerate(chunks):
             await on_delta(chunk)
-            if index >= 4 and visible:
+            if index < len(chunks) - 1 and visible:
                 saw_visible_before_return = True
         assert saw_visible_before_return is True
         return raw
@@ -101,7 +108,8 @@ def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> No
     )
 
     streamed = "".join(visible)
-    assert "live0" in streamed
+    assert "livea0" in streamed
+    assert "liveb0" in streamed
     assert generation.SCENE_COMPLETE_MARKER not in streamed
     assert generation.SCENE_COMPLETE_MARKER not in result
     assert len(result.split()) == 80
