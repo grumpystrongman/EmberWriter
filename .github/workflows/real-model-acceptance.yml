@@ -50,4 +50,19 @@ jobs:
         run: ollama list
 
       - name: Run exact-prompt production-path acceptance
+        id: acceptance
+        continue-on-error: true
         run: python scripts/real_model_acceptance.py
+
+      - name: Upload acceptance metrics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rocinante-acceptance-metrics
+          path: acceptance-metrics.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce acceptance result
+        if: steps.acceptance.outcome != 'success'
+        run: exit 1
