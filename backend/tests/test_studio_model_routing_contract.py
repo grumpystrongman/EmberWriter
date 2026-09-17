@@ -38,7 +38,17 @@ def test_manual_model_choice_disables_auto_switching_until_reenabled() -> None:
     assert "setAutoSwitch(false)" in router
     assert "setAutoSwitch(true)" in router
     assert "Manual override locked" in router
-    assert "Auto-switch to best installed model" in router
+    assert "Auto-switch within this profile" in router
+
+
+def test_studio_has_explicit_fast_and_quality_profiles() -> None:
+    router = source("StudioModelRouter.tsx")
+
+    assert "Quality 12B" in router
+    assert "Fast 8B" in router
+    assert "emberwriter.studioPerformanceProfile" in router
+    assert "3072" in router
+    assert "4096" in router
 
 
 def test_known_local_models_have_clear_usage_guidance() -> None:
@@ -48,7 +58,7 @@ def test_known_local_models_have_clear_usage_guidance() -> None:
     assert "qwen3-8b" in router
     assert "mistral-small3.1" in router
     assert "Rocinante" in router
-    assert "When should I use each installed model?" in router
+    assert "Installed model guide" in router
     assert "Best installed fallback" in router
 
 
