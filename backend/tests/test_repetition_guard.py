@@ -165,7 +165,7 @@ def test_studio_rejects_buildup_even_when_writer_claims_complete(monkeypatch) ->
         await on_delta(raw)
         return raw
 
-    async def fake_verifier(config, messages, draft):
+    async def fake_verifier(config, messages, draft, **kwargs):
         nonlocal verifier_calls
         verifier_calls += 1
         if verifier_calls == 1:
