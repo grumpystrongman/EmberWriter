@@ -5,6 +5,13 @@ from dataclasses import dataclass
 
 from . import generation
 from . import generation_reliability_refinement as refinement
+from . import model_provisioning
+from . import ollama_runtime
+
+HERETIC_ROCINANTE_MODEL = (
+    "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+)
+HIGH_HEAT_CYDONIA_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 
 
 @dataclass(frozen=True)
@@ -144,3 +151,14 @@ def install_explicitness_enforcement() -> None:
     _BASE_BUILD_MESSAGES = generation.build_messages
     generation.build_messages = build_messages
     refinement.explicit_delivery_failure = strict_explicit_delivery_failure
+
+    # Keep installation, background provisioning, and stale-model repair on one managed model
+    # contract. This runs after the reliability layer, which otherwise restores the old Qwen /
+    # standard-Rocinante recommendation list.
+    model_provisioning.BASELINE_CREATIVE_MODEL = HERETIC_ROCINANTE_MODEL
+    ollama_runtime._RECOMMENDED_MODELS = (
+        HIGH_HEAT_CYDONIA_MODEL,
+        HERETIC_ROCINANTE_MODEL,
+        "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+        "R4C3R/qwen3-8b-heretic:q4_k_m",
+    )
