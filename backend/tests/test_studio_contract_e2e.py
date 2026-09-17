@@ -248,7 +248,7 @@ def test_studio_continue_context_never_tells_model_to_start_over(tmp_path: Path)
         payload = _payload(
             base_url,
             (
-                "Continue and finish the current scene.\n"
+                "Continue and finish the current 300 word scene.\n"
                 "STUDIO CONTINUATION CONTRACT:\n"
                 "Continue from the EXACT END below; never restart.\n"
                 f"EXISTING DRAFT HANDOFF\n{handoff}\n"
