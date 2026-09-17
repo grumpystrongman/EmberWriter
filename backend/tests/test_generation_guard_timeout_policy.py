@@ -1,5 +1,4 @@
-from app import generation_guard
-from app import local_model_stream_reliability
+from app import generation_guard, local_model_stream_reliability
 
 
 def test_default_total_deadline_outlives_local_first_token_watchdog(monkeypatch) -> None:
