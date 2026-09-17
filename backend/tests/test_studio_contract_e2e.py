@@ -63,7 +63,8 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
         if is_verifier:
             self.state.verifier_calls.append(payload)
             draft = str(messages[-1].get("content", "")) if messages else ""
-            delivered = all(
+            force_reject = "NEVER_VERIFY" in draft
+            delivered = (not force_reject) and all(
                 marker in draft
                 for marker in (
                     "CORE_EVENT_DELIVERED",
@@ -79,7 +80,13 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
                 "ending_complete": delivered,
                 "canon_respected": "CANON_VIOLATION" not in draft,
                 "repetition_loop": False,
-                "reason": "core event and aftermath present" if delivered else "buildup only; requested core event absent",
+                "reason": (
+                    "forced verifier rejection for E2E safety test"
+                    if force_reject
+                    else "core event and aftermath present"
+                    if delivered
+                    else "buildup only; requested core event absent"
+                ),
             }
             self._json(200, {"message": {"content": json.dumps(verdict)}, "done": True})
             return
@@ -94,8 +101,6 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
         )
 
         if call_index == 1 and not is_continuation:
-            # Deliberately long enough to reach the requested word floor and falsely claim
-            # completion, but omit the requested core event. The verifier must reject it.
             prose = _words("BUILDUP_ONLY", 930) + "\n" + COMPLETE
         else:
             prose = (
@@ -135,7 +140,6 @@ def _setup_project(tmp_path: Path) -> str:
     project = storage.create_project("Studio Contract E2E")
     slug = project["slug"]
 
-    # Deliberate contaminating old prose. Fresh Studio generation must never see this.
     storage.save_text(
         slug,
         "manuscript/chapter-001.md",
@@ -146,7 +150,6 @@ def _setup_project(tmp_path: Path) -> str:
         "characters/kaelen.md",
         "# Kaelen\n\nAdult Nexus. Attentive, protective, emotionally responsive.\n",
     )
-    # Put the embodiment fact late enough to catch accidental dossier clipping.
     storage.save_text(
         slug,
         "characters/muna.md",
@@ -160,6 +163,30 @@ def _setup_project(tmp_path: Path) -> str:
         "# Aethelgard Academy\n\nThe academy gym includes a private sauna used after training.\n",
     )
     return slug
+
+
+def _payload(base_url: str, prompt: str, mode: str = "write") -> dict:
+    return {
+        "prompt": prompt,
+        "mode": mode,
+        "active_file": None,
+        "selected_text": "__EMBER_STUDIO_CONTEXT_V1__",
+        "provider": {
+            "provider": "ollama",
+            "base_url": base_url,
+            "model": MODEL,
+            "api_key": None,
+        },
+        "craft": {
+            "heat_level": "inferno",
+            "tension_curve": "flashpoint",
+            "voice_lock": True,
+            "quality_pass": False,
+            "sensory_intensity": 4,
+            "dialogue_intensity": 3,
+            "interiority": 4,
+        },
+    }
 
 
 def _stream_final(client: TestClient, slug: str, payload: dict) -> tuple[list[dict], dict]:
@@ -179,30 +206,13 @@ def test_studio_inferno_is_verified_end_to_end_on_clean_api_path(tmp_path: Path)
     server, state, base_url = _start_fake_ollama()
     try:
         slug = _setup_project(tmp_path)
-        payload = {
-            "prompt": (
+        payload = _payload(
+            base_url,
+            (
                 "Write a 900 word complete adult intimacy scene between Kaelen and Muna in the academy sauna. "
                 "STUDIO SCENE DELIVERY CONTRACT: deliver the requested core event and aftermath, not just buildup."
             ),
-            "mode": "write",
-            "active_file": None,
-            "selected_text": "__EMBER_STUDIO_CONTEXT_V1__",
-            "provider": {
-                "provider": "ollama",
-                "base_url": base_url,
-                "model": MODEL,
-                "api_key": None,
-            },
-            "craft": {
-                "heat_level": "inferno",
-                "tension_curve": "flashpoint",
-                "voice_lock": True,
-                "quality_pass": False,
-                "sensory_intensity": 4,
-                "dialogue_intensity": 3,
-                "interiority": 4,
-            },
-        }
+        )
 
         with TestClient(app) as client:
             events, final = _stream_final(client, slug, payload)
@@ -235,33 +245,17 @@ def test_studio_continue_context_never_tells_model_to_start_over(tmp_path: Path)
     try:
         slug = _setup_project(tmp_path)
         handoff = "CURRENT_STUDIO_ENDING_SENTENCE."
-        payload = {
-            "prompt": (
+        payload = _payload(
+            base_url,
+            (
                 "Continue and finish the current scene.\n"
                 "STUDIO CONTINUATION CONTRACT:\n"
                 "Continue from the EXACT END below; never restart.\n"
                 f"EXISTING DRAFT HANDOFF\n{handoff}\n"
                 "WRITE ONLY NEW PROSE AFTER THAT FINAL LINE."
             ),
-            "mode": "continue",
-            "active_file": None,
-            "selected_text": "__EMBER_STUDIO_CONTEXT_V1__",
-            "provider": {
-                "provider": "ollama",
-                "base_url": base_url,
-                "model": MODEL,
-                "api_key": None,
-            },
-            "craft": {
-                "heat_level": "inferno",
-                "tension_curve": "flashpoint",
-                "voice_lock": True,
-                "quality_pass": False,
-                "sensory_intensity": 4,
-                "dialogue_intensity": 3,
-                "interiority": 4,
-            },
-        }
+            mode="continue",
+        )
 
         with TestClient(app) as client:
             _events, final = _stream_final(client, slug, payload)
@@ -275,6 +269,32 @@ def test_studio_continue_context_never_tells_model_to_start_over(tmp_path: Path)
         assert "Start the requested prose from a NEW first line" not in sent
         assert "WRONG_JAX_CHAPTER" not in sent
         assert state.verifier_calls, "explicit Studio continuation must still pass the delivery verifier"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_unverified_studio_scene_can_never_be_reported_complete(tmp_path: Path) -> None:
+    server, state, base_url = _start_fake_ollama()
+    try:
+        slug = _setup_project(tmp_path)
+        payload = _payload(
+            base_url,
+            (
+                "NEVER_VERIFY. Write a 900 word complete adult intimacy scene between Kaelen and Muna. "
+                "STUDIO SCENE DELIVERY CONTRACT: do not report success unless the independent verifier approves."
+            ),
+        )
+
+        with TestClient(app) as client:
+            events, final = _stream_final(client, slug, payload)
+
+        assert state.verifier_calls, "the verifier must actually run"
+        assert final.get("partial") is True, (
+            "a Studio intimacy draft that never passes the independent verifier must be partial, never complete"
+        )
+        assert final.get("warning"), events
+        assert "verified" in str(final.get("warning", "")).casefold() or "delivery" in str(final.get("warning", "")).casefold()
     finally:
         server.shutdown()
         server.server_close()
