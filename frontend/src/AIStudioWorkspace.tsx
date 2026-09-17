@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import StudioModelRouter from './StudioModelRouter'
 import type { ProviderConfig, WorkspaceProject } from './workspace-types'
 import './ai-studio.css'
 
@@ -246,9 +247,6 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         body: JSON.stringify(provider),
       })
       setModels(next.models)
-      if (!provider.model && next.models[0]) {
-        setProvider((current) => ({ ...current, model: next.models[0] }))
-      }
     } catch (error) {
       setStatus(`Model check failed: ${(error as Error).message}`)
     }
@@ -452,17 +450,16 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
           <h1>Ember Studio</h1>
           <p>AI writing, story exploration, and creative scratch work in a dedicated workspace. Studio uses named-character canon, relationship state, voice, craft rules, and relevant world references while excluding unrelated chapter prose from retrieval.</p>
         </div>
-        <div className="ai-studio-model">
-          <label>Model</label>
-          <div>
-            <select value={provider.model} onChange={(event) => setProvider({ ...provider, model: event.target.value })}>
-              {!provider.model && <option value="">Choose model</option>}
-              {models.map((model) => <option key={model} value={model}>{model}</option>)}
-              {provider.model && !models.includes(provider.model) && <option value={provider.model}>{provider.model}</option>}
-            </select>
-            <button type="button" onClick={() => void refreshModels()} disabled={busy}>↻</button>
-          </div>
-        </div>
+        <StudioModelRouter
+          provider={provider}
+          models={models}
+          studioMode={studioMode}
+          heatLevel={craft.heat_level}
+          prompt={prompt}
+          busy={busy}
+          onProviderChange={setProvider}
+          onRefresh={refreshModels}
+        />
       </header>
 
       <div className="ai-studio-modebar" role="tablist" aria-label="Studio mode">
