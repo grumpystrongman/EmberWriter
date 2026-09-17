@@ -83,20 +83,50 @@ def hard_quality_failure(text: str) -> str:
     return ""
 
 
+def refined_adult_model_score(model: str) -> int:
+    """Prefer adult-capable creative/RP models, not merely uncensored instruct models."""
+    name = model.casefold()
+    if "cydonia" in name and any(token in name for token in ("heretic", "abliter", "decensor")):
+        return 280
+    if "rocinante-x" in name:
+        return 270
+    if "rocinante" in name:
+        return 260
+    if any(token in name for token in ("magidonia", "magnum", "mag-mell", "mag_mell")):
+        return 245
+    # Standard Cydonia remains a strong prose model, but current non-decensored variants can
+    # refuse high-heat requests, so it ranks below a dedicated Rocinante-family option.
+    if "cydonia" in name:
+        return 235
+    if any(token in name for token in ("stheno", "pygmalion", "lunaris", "nemomix")):
+        return 220
+    if "qwen2.5-14b" in name and "heretic" in name:
+        return 150
+    if "qwen3-8b" in name and "heretic" in name:
+        return 140
+    if any(token in name for token in ("heretic", "uncensored", "abliterat")):
+        return 120
+    return 0
+
+
 class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
-    """Interrupt the observed lexical-collapse signature without banning long sentences."""
+    """Buffer the unfinished sentence so lexical collapse never becomes a saved live delta."""
 
     def __init__(self, emit, prior_text: str = "") -> None:
         super().__init__(emit, prior_text)
         self._discard_tail_from: int | None = None
+        self._emit_pending = ""
 
-    def _current_sentence_text(self) -> str:
-        paragraph = re.split(r"\n\s*\n", self._scan_buffer)[-1]
-        return re.split(r"(?<=[.!?…])\s+", paragraph)[-1].strip()
+    def _unfinished_sentence_start(self) -> int:
+        boundaries = list(re.finditer(r"(?<=[.!?…])\s+", self._emit_pending))
+        return boundaries[-1].end() if boundaries else 0
 
-    def _tail_start(self) -> int:
-        matches = list(re.finditer(r"\n\s*\n", self._raw))
-        return matches[-1].end() if matches else 0
+    def _safe_emit_boundary(self) -> int:
+        sentence_boundaries = list(re.finditer(r"(?<=[.!?…])\s+", self._emit_pending))
+        paragraph_boundaries = list(re.finditer(r"\n\s*\n", self._emit_pending))
+        sentence_end = sentence_boundaries[-1].end() if sentence_boundaries else 0
+        paragraph_end = paragraph_boundaries[-1].end() if paragraph_boundaries else 0
+        return max(sentence_end, paragraph_end)
 
     @property
     def text(self) -> str:
@@ -109,16 +139,30 @@ class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
     async def feed(self, piece: str) -> None:
         self._raw += piece
         self._scan_buffer += piece
+        self._emit_pending += piece
 
-        sentence = self._current_sentence_text()
-        if looks_like_semantic_chain(sentence):
-            self._discard_tail_from = self._tail_start()
+        unfinished_start = self._unfinished_sentence_start()
+        unfinished = self._emit_pending[unfinished_start:].strip()
+        if looks_like_semantic_chain(unfinished):
+            # Emit only complete prose that preceded the bad unfinished sentence. The pathological
+            # tail is never forwarded to the Studio delta buffer, so it cannot become the final
+            # partial if recovery later fails.
+            safe_prefix = self._emit_pending[:unfinished_start]
+            if safe_prefix:
+                await self._emit(safe_prefix)
+            self._discard_tail_from = len(self._raw) - len(self._emit_pending) + unfinished_start
+            self._emit_pending = ""
             self.removed_units += 2
             raise streaming.RepetitionLoopDetected(
                 "model entered a runaway semantic-chain degeneration loop"
             )
 
-        await self._emit(piece)
+        safe_boundary = self._safe_emit_boundary()
+        if safe_boundary:
+            safe = self._emit_pending[:safe_boundary]
+            self._emit_pending = self._emit_pending[safe_boundary:]
+            if safe:
+                await self._emit(safe)
 
         # Preserve the repository's proven paragraph-level repetition behavior exactly.
         while True:
@@ -148,10 +192,24 @@ class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
                 self._paragraph_memory.append(normalized)
                 self._paragraph_memory = self._paragraph_memory[-streaming._REPEAT_RECENT_PARAGRAPHS :]
 
+    async def finish(self) -> None:
+        tail = self._scan_buffer.strip()
+        if tail:
+            self.raw_words += reliability._word_count(tail)
+        self._scan_buffer = ""
+
+        if self._discard_tail_from is None and self._emit_pending:
+            pending = self._emit_pending
+            self._emit_pending = ""
+            await self._emit(pending)
+        else:
+            self._emit_pending = ""
+
 
 def install_refinement() -> None:
-    # The base reliability wrapper resolves this global at call time, so replacing it here
-    # also refines delivery verification and ceiling-compression validation.
+    # The base reliability wrapper resolves these globals at call time, so replacing them here
+    # also refines delivery verification, model routing, and ceiling-compression validation.
     reliability._hard_quality_failure = hard_quality_failure
+    reliability.adult_model_score = refined_adult_model_score
     reliability.HardenedNoveltyStreamFilter = RefinedNoveltyStreamFilter
     streaming._NoveltyStreamFilter = RefinedNoveltyStreamFilter
