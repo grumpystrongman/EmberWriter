@@ -15,6 +15,28 @@ _STUDIO_CONTINUATION_MARKER = "STUDIO CONTINUATION CONTRACT:"
 _STUDIO_DELIVERY_MARKER = "STUDIO SCENE DELIVERY CONTRACT:"
 
 
+def _scene_prose_discipline(controls: CraftControls) -> str:
+    heat = controls.heat_level or "hot"
+    lines = [
+        "## Scene prose discipline",
+        "Advance the scene through observable action, dialogue, decisions, reactions, and changed relationship state. Every paragraph should do something new; do not spend multiple paragraphs restating attraction, anticipation, destiny, intensity, or emotional significance in different words.",
+        "Keep syntax readable. Prefer clear finite sentences and purposeful fragments over runaway comma chains. A long sentence should be an intentional cadence choice, not a container for unrelated abstractions.",
+        "Favor concrete, local detail over abstract inflation. Do not drift into generic language about eternity, destiny, souls becoming one, future generations, sacred unions, ultimate fulfillment, unstoppable love, or world-changing significance unless those exact ideas are required by canon in that exact beat.",
+        "Do not repeat a metaphor, emotional claim, physical reaction, or escalation beat after it has already landed. Move forward.",
+        "If the generation has a minimum word target, satisfy it with actual scene development: character-specific choices, dialogue, changing physical circumstances, vulnerability, humor, hesitation, mutual response, consequences, and aftermath. Never pad to reach a target.",
+        "When intimacy is requested, do not hover indefinitely at the threshold. Once consent and intent are established, progress through the requested adult encounter at the level of directness supported by the configured model, then land the immediate emotional or relationship consequence. Do not substitute repeated euphemistic buildup for scene progression.",
+        "Stay in close POV. Describe what this viewpoint character notices and experiences now rather than narrating what the moment will mean to history, destiny, descendants, or the universe.",
+    ]
+    if heat in {"scorching", "inferno"}:
+        lines.extend(
+            [
+                "High-heat scenes must remain grounded rather than becoming more ornate. Higher heat means greater immediacy, specificity, vulnerability, and forward motion—not longer metaphors or more superlatives.",
+                "After a physical or emotional beat is established, advance to the next meaningful beat. Do not reset to kissing, generalized touching, or another paragraph announcing rising desire unless the characters intentionally pause or reverse course.",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def _add_file(
     slug: str,
     sections: list[str],
@@ -127,7 +149,7 @@ def build_studio_context(
             "for maintaining character, embodiment, relationship, environment, and world continuity."
         )
 
-    sections: list[str] = [boundary]
+    sections: list[str] = [boundary, _scene_prose_discipline(controls)]
     files: list[str] = []
     seen: set[str] = set()
 
