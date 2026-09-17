@@ -8,6 +8,7 @@ from . import generation_reliability as reliability
 from . import generation_reliability_refinement as refinement
 from . import model_provisioning
 from . import ollama_runtime
+from . import streaming_generation as streaming
 
 HERETIC_ROCINANTE_MODEL = (
     "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
@@ -49,6 +50,7 @@ _base_explicit_delivery_failure = refinement.explicit_delivery_failure
 _base_quality_pass = craft.quality_pass
 _base_route_adult_model = reliability._route_adult_model
 _base_run_acceptance = model_provisioning._run_acceptance
+_base_generate_complete_prose_streamed = streaming.generate_complete_prose_streamed
 
 
 def is_decensored_creative_model(model: str) -> bool:
@@ -85,9 +87,8 @@ def adult_route_score(model: str) -> int:
         return 140
     if any(marker in name for marker in _DECENSOR_MARKERS):
         return 120
-    # A normal creative/RP model is not enough for Inferno. This is the distinction the
-    # previous policy missed: prose quality and willingness to write direct adult content
-    # are separate capabilities.
+    # A normal creative/RP model is not enough for a request that explicitly requires direct
+    # sexual prose. Prose quality and willingness to deliver explicit content are separate skills.
     return 0
 
 
@@ -164,7 +165,13 @@ async def strict_quality_pass(
 
 
 async def strict_route_adult_model(config, messages) -> None:
-    if config.provider != "ollama" or not reliability._is_intimacy_request(messages):
+    prompt = reliability._author_instruction(messages)
+    direct_explicit_request = refinement.requires_direct_explicitness(prompt)
+    if (
+        config.provider != "ollama"
+        or not reliability._is_intimacy_request(messages)
+        or not direct_explicit_request
+    ):
         await _base_route_adult_model(config, messages)
         return
 
@@ -172,11 +179,61 @@ async def strict_route_adult_model(config, messages) -> None:
     candidates = [model for model in installed if is_decensored_creative_model(model)]
     if not candidates:
         raise RuntimeError(
-            "No decensored creative writing model is ready for this Inferno scene. "
+            "No decensored creative writing model is ready for this explicit scene. "
             "EmberWriter is provisioning its explicit-writing model; refusing to fall back "
             "to a tame model and return another PG-13 draft."
         )
     config.model = max(candidates, key=explicit_creative_model_score)
+
+
+async def strict_generate_complete_prose_streamed(
+    config,
+    messages,
+    *,
+    min_words: int,
+    on_delta,
+    on_status=None,
+    max_passes: int = 6,
+    max_output_tokens: int = 6144,
+) -> str:
+    prompt = reliability._author_instruction(messages)
+    if not refinement.requires_direct_explicitness(prompt):
+        return await _base_generate_complete_prose_streamed(
+            config,
+            messages,
+            min_words=min_words,
+            on_delta=on_delta,
+            on_status=on_status,
+            max_passes=max_passes,
+            max_output_tokens=max_output_tokens,
+        )
+
+    # Direct explicit requests fail closed. Buffer the prose until the independent delivery
+    # verifier accepts it, so a rejected PG-13 attempt can never leak through routes_generation
+    # as a saved "partial" Working Draft merely because some deltas were already visible.
+    buffered: list[str] = []
+
+    async def buffer_delta(text: str) -> None:
+        if text:
+            buffered.append(text)
+
+    text = await _base_generate_complete_prose_streamed(
+        config,
+        messages,
+        min_words=min_words,
+        on_delta=buffer_delta,
+        on_status=on_status,
+        max_passes=max_passes,
+        max_output_tokens=max_output_tokens,
+    )
+    failure = strict_explicit_delivery_failure(prompt, text)
+    if failure:
+        raise streaming.SceneDeliveryIncomplete("", failure)
+
+    # Only verified prose becomes author-visible. The normal final event still carries the same
+    # text, while this delta lets the streaming popup populate once verification has succeeded.
+    await on_delta(text)
+    return text
 
 
 def _cached_acceptance_passed(model: str) -> bool:
@@ -216,8 +273,8 @@ def _run_acceptance_and_stamp(model: str, installed: list[str], auto_installed: 
 
 def install_explicit_delivery_policy() -> None:
     # Provision an actually decensored creative/RP model. Hugging Face publishes this GGUF with
-    # an explicit Ollama invocation, so it remains a one-command local model while avoiding the
-    # high refusal behavior of the ordinary Rocinante family.
+    # an Ollama invocation, so it remains a one-command local model while avoiding the high
+    # refusal behavior of the ordinary Rocinante family for direct explicit requests.
     model_provisioning.BASELINE_CREATIVE_MODEL = HERETIC_ROCINANTE_MODEL
     model_provisioning._ACCEPTANCE_VERSION = EXPLICIT_ACCEPTANCE_VERSION
     model_provisioning.has_creative_model = has_explicit_creative_model
@@ -230,12 +287,11 @@ def install_explicit_delivery_policy() -> None:
     reliability._route_adult_model = strict_route_adult_model
     refinement.refined_adult_model_score = adult_route_score
     refinement.explicit_delivery_failure = strict_explicit_delivery_failure
-    streaming_verifier = refinement.refined_verify_studio_scene_delivery
     # refined_verify_studio_scene_delivery resolves explicit_delivery_failure from its module
     # globals at call time, so replacing the symbol above hardens the existing verifier too.
-    _ = streaming_verifier
 
     craft.quality_pass = strict_quality_pass
+    streaming.generate_complete_prose_streamed = strict_generate_complete_prose_streamed
 
     ollama_runtime._RECOMMENDED_MODELS = (
         "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M",
