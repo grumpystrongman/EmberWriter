@@ -1,10 +1,10 @@
 import asyncio
 
-from app import generation_reliability as reliability
-from app import generation_reliability_refinement as refinement
-from app import local_model_stream_reliability as local_stream
-from app import streaming_generation
-from app import studio_local_performance as performance
+import app.generation_reliability as reliability
+import app.generation_reliability_refinement as refinement
+import app.local_model_stream_reliability as local_stream
+import app.streaming_generation as streaming_generation
+import app.studio_local_performance as performance
 from app.models import ProviderConfig
 
 
