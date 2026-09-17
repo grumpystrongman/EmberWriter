@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from fastapi.testclient import TestClient
 
 from app import storage
 from app.main import app
-
 
 MODEL = "emberwriter-e2e-model:latest"
 COMPLETE = "[[EMBER_SCENE_COMPLETE]]"
@@ -43,13 +42,13 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path == "/api/tags":
             self._json(200, {"models": [{"name": MODEL, "model": MODEL}]})
             return
         self._json(404, {"error": "not found"})
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         if self.path != "/api/chat":
             self._json(404, {"error": "not found"})
             return
