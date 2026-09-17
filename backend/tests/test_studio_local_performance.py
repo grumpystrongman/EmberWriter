@@ -7,7 +7,6 @@ import app.studio_local_performance as performance
 from app import streaming_generation
 from app.models import ProviderConfig
 
-
 STUDIO_MESSAGES = [
     {"role": "system", "content": "Scene intent: intimacy\nSTUDIO SCENE DELIVERY CONTRACT:"},
     {"role": "user", "content": "AUTHOR INSTRUCTION\nWrite the requested scene."},
