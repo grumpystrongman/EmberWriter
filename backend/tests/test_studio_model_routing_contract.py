@@ -47,8 +47,8 @@ def test_studio_has_explicit_fast_and_quality_profiles() -> None:
     assert "Quality 12B" in router
     assert "Fast 8B" in router
     assert "emberwriter.studioPerformanceProfile" in router
-    assert "3072" in router
-    assert "4096" in router
+    assert "3,072-token" in router
+    assert "4,096" in router
 
 
 def test_known_local_models_have_clear_usage_guidance() -> None:
