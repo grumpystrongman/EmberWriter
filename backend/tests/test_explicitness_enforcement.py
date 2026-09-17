@@ -49,3 +49,10 @@ def test_explicit_request_adds_direct_vocabulary_contract() -> None:
     assert "blowjobs" in system
     assert "cumming" in system
     assert "Do not downgrade it to romance-only, PG-13" in system
+
+
+def test_startup_policy_uses_same_explicit_creative_model_as_installer() -> None:
+    managed = app.explicitness_enforcement.HERETIC_ROCINANTE_MODEL
+    assert app.model_provisioning.BASELINE_CREATIVE_MODEL == managed
+    assert managed in app.ollama_runtime._RECOMMENDED_MODELS
+    assert app.ollama_runtime._RECOMMENDED_MODELS[0] == app.explicitness_enforcement.HIGH_HEAT_CYDONIA_MODEL
