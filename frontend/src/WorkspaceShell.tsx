@@ -50,6 +50,34 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function setControlledTextarea(textarea: HTMLTextAreaElement, value: string) {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
+  descriptor?.set?.call(textarea, value)
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+async function injectStudioBrief(prompt: string, mode: string) {
+  const desiredTitle = mode.toLowerCase() === 'brainstorm' ? 'Brainstorm Room' : 'Scene Writer'
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const modeButton = Array.from(document.querySelectorAll<HTMLButtonElement>('.ai-studio-modebar button'))
+      .find((button) => cleanText(button.querySelector('strong')?.textContent) === desiredTitle)
+    const textarea = document.querySelector<HTMLTextAreaElement>('.ai-studio-compose .ai-studio-card textarea')
+    if (modeButton && textarea) {
+      if (!modeButton.classList.contains('active')) {
+        modeButton.click()
+        await sleep(40)
+      }
+      const target = document.querySelector<HTMLTextAreaElement>('.ai-studio-compose .ai-studio-card textarea')
+      if (!target) continue
+      setControlledTextarea(target, prompt)
+      target.focus()
+      target.scrollIntoView({ block: 'center' })
+      return
+    }
+    await sleep(50)
+  }
+}
+
 function binderButton(title: string): HTMLButtonElement | null {
   return Array.from(document.querySelectorAll<HTMLButtonElement>('.binder-node-button'))
     .find((button) => cleanText(button.querySelector('strong')?.textContent) === title) || null
@@ -205,11 +233,7 @@ export default function WorkspaceShell() {
       if (!writerPrompt) return
       setWorkspace('studio')
       setFocusMode(false)
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('emberwriter:studio-brief', {
-          detail: { prompt: writerPrompt, mode: detail.mode || 'write' },
-        }))
-      }, 120)
+      void injectStudioBrief(writerPrompt, detail.mode || 'write')
     }
 
     window.addEventListener('keydown', onKeyDown)
