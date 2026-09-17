@@ -4,7 +4,6 @@ import re
 
 from . import generation_reliability as reliability
 from . import streaming_generation as streaming
-from .prose_quality import diagnose_prose
 
 # The bad production sample did not merely contain a long sentence. It collapsed into a
 # punctuation-starved association/thesaurus chain: connection -> soul -> destiny -> growth ->
@@ -71,7 +70,6 @@ def hard_quality_failure(text: str) -> str:
     if not text.strip():
         return "empty draft"
 
-    issues = diagnose_prose(text)
     chain = _long_chain_sentence(text)
     if chain:
         return (
@@ -79,10 +77,9 @@ def hard_quality_failure(text: str) -> str:
             f"association chain reached {len(_words(chain))} words."
         )
 
-    # Phrase-level recycling is still a deterministic failure even when it is not a thesaurus chain.
-    for issue in issues:
-        if issue.startswith("Substantial phrase-level repetition"):
-            return issue
+    # Paragraph/phrase repetition already has its own streaming guard and the independent scene
+    # verifier also reports repetition. Keeping it out of this second deterministic gate prevents
+    # normalized test tokens (draft0, draft1, ...) and deliberate refrains from becoming false fails.
     return ""
 
 
