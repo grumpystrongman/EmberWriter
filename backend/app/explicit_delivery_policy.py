@@ -50,7 +50,7 @@ _base_explicit_delivery_failure = refinement.explicit_delivery_failure
 _base_quality_pass = craft.quality_pass
 _base_route_adult_model = reliability._route_adult_model
 _base_run_acceptance = model_provisioning._run_acceptance
-_base_generate_complete_prose_streamed = streaming.generate_complete_prose_streamed
+_base_generate_complete_prose_streamed = None
 
 
 def is_decensored_creative_model(model: str) -> bool:
@@ -197,8 +197,12 @@ async def strict_generate_complete_prose_streamed(
     max_output_tokens: int = 6144,
 ) -> str:
     prompt = reliability._author_instruction(messages)
+    base = _base_generate_complete_prose_streamed
+    if base is None:
+        raise RuntimeError("Explicit delivery policy was not fully initialized")
+
     if not refinement.requires_direct_explicitness(prompt):
-        return await _base_generate_complete_prose_streamed(
+        return await base(
             config,
             messages,
             min_words=min_words,
@@ -217,7 +221,7 @@ async def strict_generate_complete_prose_streamed(
         if text:
             buffered.append(text)
 
-    text = await _base_generate_complete_prose_streamed(
+    text = await base(
         config,
         messages,
         min_words=min_words,
@@ -272,6 +276,13 @@ def _run_acceptance_and_stamp(model: str, installed: list[str], auto_installed: 
 
 
 def install_explicit_delivery_policy() -> None:
+    global _base_generate_complete_prose_streamed
+
+    # Capture the already-installed reliability wrapper here, not at module import time. That
+    # preserves hard word ceilings, repetition recovery, and Studio delivery verification underneath
+    # the new fail-closed visibility layer.
+    _base_generate_complete_prose_streamed = streaming.generate_complete_prose_streamed
+
     # Provision an actually decensored creative/RP model. Hugging Face publishes this GGUF with
     # an Ollama invocation, so it remains a one-command local model while avoiding the high
     # refusal behavior of the ordinary Rocinante family for direct explicit requests.
