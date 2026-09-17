@@ -17,10 +17,13 @@ _ACCEPTANCE_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
 _LOG_PATH = _LOG_DIR / "writing-model-install.log"
 _ACCEPTANCE_LOG_PATH = _LOG_DIR / "writing-model-acceptance.log"
 
-# Registry-native baseline: unlike hf.co shorthand, this does not depend on Ollama's
-# Hugging Face proxy/import path. It is small enough for the machines that already run
-# EmberWriter's 8B/14B local models and is purpose-built for creative/RP prose.
+# Registry-native baseline: compact enough for machines that already run EmberWriter's
+# 8B/14B local models and purpose-built for creative/RP prose.
 BASELINE_CREATIVE_MODEL = "HammerAI/rocinante-v1.1:12b-q4_K_M"
+# Escalation tier for authors whose direct-adult acceptance contract defeats the lighter model.
+# This Ollama package is a Q4_K_M Heretic/decensored Cydonia build (~15 GB download footprint).
+HIGH_HEAT_CREATIVE_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+_MIN_HIGH_HEAT_FREE_BYTES = 22 * 1024**3
 _CREATIVE_FAMILIES = (
     "cydonia",
     "rocinante",
@@ -33,7 +36,7 @@ _CREATIVE_FAMILIES = (
     "lunaris",
     "nemomix",
 )
-_ACCEPTANCE_VERSION = 1
+_ACCEPTANCE_VERSION = 2
 
 _STARTED = False
 _START_LOCK = threading.Lock()
@@ -46,6 +49,11 @@ def _enabled() -> bool:
 
 def _acceptance_enabled() -> bool:
     raw = os.getenv("EMBER_AUTO_TEST_CREATIVE_MODEL", "1").strip().casefold()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def _high_heat_escalation_enabled() -> bool:
+    raw = os.getenv("EMBER_AUTO_INSTALL_HIGH_HEAT_MODEL", "1").strip().casefold()
     return raw not in {"0", "false", "no", "off"}
 
 
@@ -88,7 +96,9 @@ def has_creative_model(models: list[str]) -> bool:
 def _creative_model_score(model: str) -> int:
     name = model.casefold()
     if "cydonia" in name and any(token in name for token in ("heretic", "abliter", "decensor")):
-        return 280
+        return 300
+    if "rocinante-x" in name and any(token in name for token in ("heretic", "abliter", "decensor")):
+        return 290
     if "rocinante-x" in name:
         return 270
     if "rocinante" in name:
@@ -126,7 +136,7 @@ def _cached_acceptance_passed(model: str) -> bool:
     return requested == target or target in effective
 
 
-def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> None:
+def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> bool:
     if not _acceptance_enabled():
         _write_status(
             state="ready",
@@ -134,7 +144,7 @@ def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> N
             auto_installed=auto_installed,
             acceptance_state="disabled",
         )
-        return
+        return True
 
     if _cached_acceptance_passed(model):
         _write_status(
@@ -145,7 +155,7 @@ def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> N
             acceptance_model=model,
             acceptance_cached=True,
         )
-        return
+        return True
 
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
     _write_status(
@@ -196,20 +206,50 @@ def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> N
             acceptance_model=model,
             acceptance_reason=f"{type(exc).__name__}: {exc}",
         )
-        return
+        return False
 
+    passed = completed.returncode == 0
     _write_status(
         state="ready",
         installed_models=installed,
         auto_installed=auto_installed,
-        acceptance_state="passed" if completed.returncode == 0 else "failed",
+        acceptance_state="passed" if passed else "failed",
         acceptance_model=model,
         acceptance_cached=False,
         acceptance_returncode=completed.returncode,
     )
+    return passed
 
 
-def _ready(installed: list[str], auto_installed: bool) -> None:
+def _pull_model(ollama: str, model: str) -> bool:
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        with _LOG_PATH.open("ab") as log:
+            completed = subprocess.run(
+                [ollama, "pull", model],
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=log,
+                timeout=60 * 60 * 4,
+                check=False,
+                creationflags=flags,
+            )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
+
+
+def _can_install_high_heat() -> bool:
+    if not _high_heat_escalation_enabled():
+        return False
+    try:
+        return shutil.disk_usage(_REPO_ROOT).free >= _MIN_HIGH_HEAT_FREE_BYTES
+    except OSError:
+        return False
+
+
+def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
     model = _best_creative_model(installed)
     if not model:
         _write_status(
@@ -219,7 +259,55 @@ def _ready(installed: list[str], auto_installed: bool) -> None:
             reason="creative_model_not_resolved",
         )
         return
-    _run_acceptance(model, installed, auto_installed)
+
+    if _run_acceptance(model, installed, auto_installed):
+        return
+
+    high_heat_present = any(HIGH_HEAT_CREATIVE_MODEL.casefold() == item.casefold() for item in installed)
+    if high_heat_present or model.casefold() == HIGH_HEAT_CREATIVE_MODEL.casefold():
+        return
+    if not _can_install_high_heat():
+        _write_status(
+            state="ready",
+            installed_models=installed,
+            auto_installed=auto_installed,
+            acceptance_state="failed",
+            acceptance_model=model,
+            escalation_state="not_available",
+            escalation_reason="high_heat_model_requires_at_least_22GB_free_or_escalation_is_disabled",
+        )
+        return
+
+    _write_status(
+        state="installing",
+        target_model=HIGH_HEAT_CREATIVE_MODEL,
+        installed_models=installed,
+        auto_installed=True,
+        acceptance_state="failed",
+        acceptance_model=model,
+        escalation_state="installing_high_heat_model",
+    )
+    if not _pull_model(ollama, HIGH_HEAT_CREATIVE_MODEL):
+        _write_status(
+            state="ready",
+            installed_models=_installed_model_names(ollama),
+            auto_installed=auto_installed,
+            acceptance_state="failed",
+            acceptance_model=model,
+            escalation_state="install_failed",
+        )
+        return
+
+    upgraded = _installed_model_names(ollama)
+    upgraded_model = _best_creative_model(upgraded)
+    if not upgraded_model:
+        _write_status(
+            state="failed",
+            installed_models=upgraded,
+            reason="high_heat_model_installed_but_not_resolved",
+        )
+        return
+    _run_acceptance(upgraded_model, upgraded, auto_installed=True)
 
 
 def _worker() -> None:
@@ -230,55 +318,39 @@ def _worker() -> None:
 
     installed = _installed_model_names(ollama)
     if has_creative_model(installed):
-        _ready(installed, auto_installed=False)
+        _ready(ollama, installed, auto_installed=False)
         return
 
-    _LOG_DIR.mkdir(parents=True, exist_ok=True)
     _write_status(
         state="installing",
         target_model=BASELINE_CREATIVE_MODEL,
         installed_models=installed,
         auto_installed=True,
     )
-
-    flags = 0
-    if os.name == "nt":
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-    try:
-        with _LOG_PATH.open("ab") as log:
-            completed = subprocess.run(
-                [ollama, "pull", BASELINE_CREATIVE_MODEL],
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                timeout=60 * 60 * 3,
-                check=False,
-                creationflags=flags,
-            )
-    except (OSError, subprocess.SubprocessError) as exc:
+    if not _pull_model(ollama, BASELINE_CREATIVE_MODEL):
         _write_status(
             state="failed",
             target_model=BASELINE_CREATIVE_MODEL,
-            reason=f"{type(exc).__name__}: {exc}",
+            installed_models=_installed_model_names(ollama),
+            reason="baseline_model_install_failed",
         )
         return
 
     installed = _installed_model_names(ollama)
-    if completed.returncode == 0 and has_creative_model(installed):
-        _ready(installed, auto_installed=True)
+    if has_creative_model(installed):
+        _ready(ollama, installed, auto_installed=True)
         return
 
     _write_status(
         state="failed",
         target_model=BASELINE_CREATIVE_MODEL,
         installed_models=installed,
-        returncode=completed.returncode,
+        reason="baseline_model_install_completed_but_model_not_resolved",
     )
 
 
 def start_creative_model_provisioning() -> None:
-    """Ensure, then acceptance-test, a creative/RP-capable local model without blocking startup."""
+    """Ensure, acceptance-test, and if needed escalate a creative/RP-capable local model."""
 
     global _STARTED
     if not _enabled():
