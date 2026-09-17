@@ -12,6 +12,7 @@ STUDIO_CONTEXT_SENTINEL = FRESH_WRITE_CONTEXT_SENTINEL
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
 _BLOCKED_PROSE_PREFIXES = ("manuscript/", "source_archive/", "import/", ".ember/")
 _STUDIO_CONTINUATION_MARKER = "STUDIO CONTINUATION CONTRACT:"
+_STUDIO_DELIVERY_MARKER = "STUDIO SCENE DELIVERY CONTRACT:"
 
 
 def _add_file(
@@ -119,9 +120,11 @@ def build_studio_context(
     else:
         boundary = (
             "## Studio continuation boundary\n"
-            "This request explicitly continues the current Studio draft supplied in the author instruction. Continue ONLY from that explicit "
-            "handoff. Do not restart the scene, return to its opening, recap earlier beats, or use Binder/reference material as prose to copy. "
-            "Everything below is canon/reference knowledge for maintaining character, embodiment, relationship, environment, and world continuity."
+            f"{_STUDIO_DELIVERY_MARKER}\n"
+            "The original Studio delivery contract remains active during this continuation. This request explicitly continues the current "
+            "Studio draft supplied in the author instruction. Continue ONLY from that explicit handoff. Do not restart the scene, return to "
+            "its opening, recap earlier beats, or use Binder/reference material as prose to copy. Everything below is canon/reference knowledge "
+            "for maintaining character, embodiment, relationship, environment, and world continuity."
         )
 
     sections: list[str] = [boundary]
