@@ -22,7 +22,6 @@ type StreamEvent =
   | ({ type: 'final' } & StreamFinal)
   | { type: 'error'; detail: string }
 
-const BROWSER_WATCHDOG_MS = 11 * 60 * 1000
 const PREVIEW_CHARS = 6000
 
 function formatElapsed(ms: number): string {
@@ -81,13 +80,6 @@ export default function GenerationWatchdog() {
       const relayAbort = () => controller.abort(externalSignal?.reason)
       if (externalSignal?.aborted) relayAbort()
       else externalSignal?.addEventListener('abort', relayAbort, { once: true })
-
-      let watchdogExpired = false
-      const timeout = window.setTimeout(() => {
-        watchdogExpired = true
-        void originalFetch(cancelUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-        controller.abort()
-      }, BROWSER_WATCHDOG_MS)
 
       try {
         const response = await originalFetch(streamUrl, { ...init, signal: controller.signal })
@@ -173,13 +165,9 @@ export default function GenerationWatchdog() {
         }
         return jsonResponse(finalPayload)
       } catch (error) {
-        if (watchdogExpired) {
-          throw new Error('Generation was stopped after 11 minutes instead of being allowed to hang indefinitely.')
-        }
         if (controller.signal.aborted) throw new Error('Generation cancelled')
         throw error
       } finally {
-        window.clearTimeout(timeout)
         externalSignal?.removeEventListener('abort', relayAbort)
         if (activeRef.current?.controller === controller) {
           activeRef.current = null
