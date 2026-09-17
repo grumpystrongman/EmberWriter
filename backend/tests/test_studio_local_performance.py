@@ -17,7 +17,7 @@ async def _noop_delta(_text: str) -> None:
     return None
 
 
-def test_local_studio_caps_generation_work(monkeypatch) -> None:
+def _run_budgeted(monkeypatch, model: str) -> tuple[dict[str, int], list[str]]:
     observed: dict[str, int] = {}
     statuses: list[str] = []
 
@@ -30,8 +30,7 @@ def test_local_studio_caps_generation_work(monkeypatch) -> None:
         statuses.append(message)
 
     monkeypatch.setattr(performance, "_BASE_STREAMED_COMPLETE", fake_base)
-    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model="test")
-
+    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=model)
     result = asyncio.run(
         performance.generate_complete_prose_streamed_budgeted(
             config,
@@ -43,12 +42,25 @@ def test_local_studio_caps_generation_work(monkeypatch) -> None:
             max_output_tokens=6144,
         )
     )
-
     assert result == "draft"
+    return observed, statuses
+
+
+def test_quality_local_studio_caps_generation_work(monkeypatch) -> None:
+    observed, statuses = _run_budgeted(monkeypatch, local_stream._HERETIC_ROCINANTE)
+
     assert observed["max_passes"] == 2
     assert observed["max_output_tokens"] == 4096
-    assert any("one repair pass maximum" in message for message in statuses)
+    assert any("Quality 12B" in message for message in statuses)
     assert any("compact semantic verifier" in message for message in statuses)
+
+
+def test_fast_local_studio_uses_tighter_output_budget(monkeypatch) -> None:
+    observed, statuses = _run_budgeted(monkeypatch, local_stream._FAST_ADULT_MODEL)
+
+    assert observed["max_passes"] == 2
+    assert observed["max_output_tokens"] == 3072
+    assert any("Fast 8B" in message for message in statuses)
 
 
 def test_nonlocal_generation_keeps_caller_budget(monkeypatch) -> None:
@@ -153,10 +165,16 @@ def test_nonlocal_generation_keeps_base_llm_verifier(monkeypatch) -> None:
     assert called is True
 
 
-def test_compact_verifier_budget_is_smaller_than_local_prose_budget() -> None:
+def test_compact_verifier_budget_is_smaller_than_quality_prose_context() -> None:
+    quality_context = local_stream.ollama_context_tokens_for(
+        local_stream._HERETIC_ROCINANTE,
+        STUDIO_MESSAGES,
+        max_output_tokens=4096,
+    )
+
     assert performance._LOCAL_VERIFIER_CONTEXT_TOKENS == 8192
     assert performance._LOCAL_VERIFIER_OUTPUT_TOKENS == 220
-    assert performance._LOCAL_VERIFIER_CONTEXT_TOKENS < local_stream._STUDIO_CONTEXT_TOKENS
+    assert performance._LOCAL_VERIFIER_CONTEXT_TOKENS < quality_context
 
 
 def test_installed_verifier_prompt_limits_are_local_model_sized() -> None:
@@ -168,8 +186,9 @@ def test_local_studio_uses_smaller_ollama_context_than_general_writer() -> None:
     studio_tokens = local_stream.ollama_context_tokens_for(
         local_stream._HERETIC_ROCINANTE,
         STUDIO_MESSAGES,
+        max_output_tokens=4096,
     )
     writer_tokens = local_stream.ollama_context_tokens_for(local_stream._HERETIC_ROCINANTE)
 
-    assert studio_tokens == 16384
+    assert studio_tokens == 10240
     assert writer_tokens > studio_tokens

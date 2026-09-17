@@ -5,28 +5,25 @@ import os
 import re
 from collections.abc import Awaitable, Callable
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
+from .models import ProviderConfig
+from .routes_performance import performance_status, restart_ollama, warm_model
+
 _GENERATION_PATH = re.compile(r"^/api/projects/([^/]+)/generate$")
-# Local Studio generation can legitimately include a cold model load, prompt evaluation,
-# multiple bounded continuation passes, an independent delivery verifier, and an optional
-# Craft Pass. The low-level Ollama transport has its own 15-minute first-token watchdog and
-# 5-minute inter-token watchdog, so a 10-minute outer deadline could kill a healthy request
-# before those more meaningful stall detectors fired. Keep a hard wall-clock safety ceiling,
-# but make it large enough to contain the bounded local workflow.
-_DEFAULT_TIMEOUT_SECONDS = 45 * 60.0
+# Local generation now has meaningful phase-level safeguards: the Ollama stream has a 15-minute
+# first-token watchdog and a 5-minute inter-token watchdog, while the Studio semantic verifier has
+# its own bounded 10-minute read timeout. A short aggregate wall-clock deadline can therefore kill
+# a healthy request simply because multiple valid phases ran sequentially. Keep only a distant
+# six-hour emergency ceiling for pathological orchestration bugs; it is not a performance target.
+_DEFAULT_TIMEOUT_SECONDS = 6 * 60 * 60.0
 _ACTIVE_GENERATIONS: dict[str, asyncio.Task[object]] = {}
 
 
 def generation_timeout_seconds() -> float:
-    """Return the hard wall-clock safety budget for one Writer generation request.
-
-    Per-model watchdogs are responsible for detecting a model that never starts or stops
-    producing output. This outer deadline exists only as a final safety valve for the entire
-    bounded generation pipeline (drafting, continuations, verification, and optional Craft Pass).
-    """
+    """Return the emergency wall-clock ceiling for one Writer generation request."""
     raw = os.getenv("EMBER_GENERATION_TIMEOUT_SECONDS", str(_DEFAULT_TIMEOUT_SECONDS)).strip()
     try:
         value = float(raw)
@@ -58,9 +55,6 @@ def cancel_generation(slug: str) -> bool:
     if task is None or task.done():
         return False
 
-    # The cancel endpoint is currently a synchronous FastAPI route and may execute in a
-    # worker thread. Schedule cancellation on the task's owning event loop instead of
-    # mutating an asyncio.Task from the wrong thread.
     loop = task.get_loop()
     try:
         running_loop = asyncio.get_running_loop()
@@ -73,11 +67,33 @@ def cancel_generation(slug: str) -> bool:
     return True
 
 
+async def _performance_api(request: Request) -> Response | None:
+    """Serve local diagnostics without coupling app startup to another router import list."""
+    path = request.url.path.rstrip("/")
+    try:
+        if request.method.upper() == "GET" and path == "/api/performance":
+            return JSONResponse(content=performance_status())
+        if request.method.upper() == "POST" and path == "/api/performance/warm":
+            payload = ProviderConfig.model_validate(await request.json())
+            return JSONResponse(content=await warm_model(payload))
+        if request.method.upper() == "POST" and path == "/api/performance/restart-ollama":
+            return JSONResponse(content=await restart_ollama())
+    except HTTPException as exc:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    except (ValueError, TypeError) as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return None
+
+
 async def guard_generation_request(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    """Bound ordinary JSON Writer generation and expose it to the cancel endpoint."""
+    """Expose performance controls and guard ordinary JSON Writer generation."""
+    performance_response = await _performance_api(request)
+    if performance_response is not None:
+        return performance_response
+
     match = _GENERATION_PATH.fullmatch(request.url.path)
     if request.method.upper() != "POST" or match is None:
         return await call_next(request)
@@ -100,8 +116,8 @@ async def guard_generation_request(
             status_code=504,
             content={
                 "detail": (
-                    "Generation reached EmberWriter's hard total safety limit and was stopped so the Writer cannot hang indefinitely. "
-                    "The local model may need a smaller/faster model, fewer context files, or another Generate pass."
+                    "Generation reached EmberWriter's emergency total safety ceiling. "
+                    "Check the Performance panel for the phase and local-model telemetry that consumed the time."
                 )
             },
         )

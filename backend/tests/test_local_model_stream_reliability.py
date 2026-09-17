@@ -6,6 +6,7 @@ from app.models import ProviderConfig
 
 ROCI = reliability._HERETIC_ROCINANTE
 CYDONIA = reliability._HIGH_HEAT_CYDONIA
+FAST = reliability._FAST_ADULT_MODEL
 
 
 def _intimacy_messages() -> list[dict[str, str]]:
@@ -15,9 +16,37 @@ def _intimacy_messages() -> list[dict[str, str]]:
     ]
 
 
+def _studio_messages(chars: int = 2000) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": "Scene intent: intimacy\nSTUDIO SCENE DELIVERY CONTRACT:"},
+        {"role": "user", "content": "x" * chars},
+    ]
+
+
 def test_heavy_model_uses_smaller_context_window() -> None:
     assert reliability.ollama_context_tokens_for(CYDONIA) == 16384
     assert reliability.ollama_context_tokens_for(ROCI) == generation.OLLAMA_CONTEXT_TOKENS
+
+
+def test_studio_context_adapts_to_prompt_and_model_size() -> None:
+    messages = _studio_messages()
+
+    quality = reliability.ollama_context_tokens_for(ROCI, messages, max_output_tokens=4096)
+    fast = reliability.ollama_context_tokens_for(FAST, messages, max_output_tokens=3072)
+
+    assert quality == 10240
+    assert fast == 8192
+    assert fast < quality < generation.OLLAMA_CONTEXT_TOKENS
+
+
+def test_large_studio_prompt_steps_up_context_without_returning_to_24k() -> None:
+    messages = _studio_messages(chars=28000)
+
+    quality = reliability.ollama_context_tokens_for(ROCI, messages, max_output_tokens=4096)
+    fast = reliability.ollama_context_tokens_for(FAST, messages, max_output_tokens=3072)
+
+    assert quality == 12288
+    assert fast == 12288
 
 
 def test_first_token_watchdog_is_longer_than_midstream_watchdog() -> None:
@@ -28,7 +57,7 @@ def test_first_token_watchdog_is_longer_than_midstream_watchdog() -> None:
 
 def test_adult_routing_respects_valid_configured_12b_model(monkeypatch) -> None:
     async def installed(_base_url: str) -> list[str]:
-        return [CYDONIA, ROCI]
+        return [CYDONIA, FAST, ROCI]
 
     monkeypatch.setattr(reliability, "installed_ollama_models", installed)
     config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=ROCI)
@@ -38,9 +67,21 @@ def test_adult_routing_respects_valid_configured_12b_model(monkeypatch) -> None:
     assert config.model == ROCI
 
 
-def test_stale_adult_model_repairs_to_12b_before_24b(monkeypatch) -> None:
+def test_adult_routing_respects_explicit_fast_model(monkeypatch) -> None:
     async def installed(_base_url: str) -> list[str]:
-        return [CYDONIA, ROCI]
+        return [FAST, ROCI]
+
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=FAST)
+
+    asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
+
+    assert config.model == FAST
+
+
+def test_stale_adult_model_repairs_to_12b_before_fast_or_24b(monkeypatch) -> None:
+    async def installed(_base_url: str) -> list[str]:
+        return [CYDONIA, FAST, ROCI]
 
     monkeypatch.setattr(reliability, "installed_ollama_models", installed)
     config = ProviderConfig(

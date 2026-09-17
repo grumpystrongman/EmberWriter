@@ -6,6 +6,7 @@ type StudioMode = 'scene' | 'brainstorm' | 'creative'
 type HeatLevel = 'simmer' | 'hot' | 'scorching' | 'inferno'
 type WritingPurpose = 'auto' | 'adult' | 'general' | 'character' | 'planning'
 type ResolvedPurpose = Exclude<WritingPurpose, 'auto'>
+type PerformanceProfile = 'quality' | 'fast'
 
 type Props = {
   provider: ProviderConfig
@@ -26,32 +27,33 @@ type ModelGuide = {
 
 const PURPOSE_STORAGE = 'emberwriter.studioWritingPurpose'
 const AUTO_SWITCH_STORAGE = 'emberwriter.studioAutoModelRouting'
+const PERFORMANCE_STORAGE = 'emberwriter.studioPerformanceProfile'
 
 const PURPOSES: Record<WritingPurpose, { label: string; short: string; why: string }> = {
   auto: {
     label: 'Auto-match my writing',
     short: 'Studio decides from mode, heat, and your prompt.',
-    why: 'Use this most of the time. General scenes stay on a strong general model; explicit/high-heat work moves to an uncensored model; planning favors reasoning and instruction-following.',
+    why: 'General scenes stay on a strong general model; high-heat work moves to an uncensored model; planning favors instruction-following.',
   },
   adult: {
     label: 'Adult / high heat',
-    short: 'Explicit intimacy, kink, erotic harem scenes, and other on-page adult material.',
-    why: 'Prioritizes uncensored creative-writing models so the requested adult scene is less likely to soften, refuse, or drift away from the brief.',
+    short: 'Explicit adult intimacy and other on-page mature material.',
+    why: 'Prioritizes uncensored creative-writing models so the requested scene is less likely to soften, refuse, or drift away from the brief.',
   },
   general: {
     label: 'General fiction',
     short: 'Fantasy, sci-fi, horror, action, mystery, romance, and ordinary scene drafting.',
-    why: 'Prioritizes larger or mainstream instruction models for prose control, continuity, action, description, and non-explicit long-form fiction.',
+    why: 'Prioritizes prose control, continuity, action, description, and non-explicit long-form fiction.',
   },
   character: {
     label: 'Character & dialogue',
     short: 'Banter, chemistry, relationship scenes, voice work, and roleplay-heavy passages.',
-    why: 'Prioritizes models known for character voice and roleplay when they are installed, then falls back to the strongest creative model available.',
+    why: 'Prioritizes models known for character voice and roleplay when they are installed.',
   },
   planning: {
     label: 'Plotting & analysis',
     short: 'Brainstorming, outlines, critique, continuity thinking, and story problem-solving.',
-    why: 'Prioritizes reasoning and instruction-following over raw prose heat so ideas, tradeoffs, and story logic stay organized.',
+    why: 'Prioritizes reasoning and instruction-following over raw prose specialization.',
   },
 }
 
@@ -76,6 +78,14 @@ function readAutoSwitch(): boolean {
   }
 }
 
+function readPerformanceProfile(): PerformanceProfile {
+  try {
+    return localStorage.getItem(PERFORMANCE_STORAGE) === 'fast' ? 'fast' : 'quality'
+  } catch {
+    return 'quality'
+  }
+}
+
 function inferPurpose(mode: StudioMode, heat: HeatLevel, prompt: string): ResolvedPurpose {
   if (mode === 'brainstorm') return 'planning'
   if (heat === 'scorching' || heat === 'inferno' || ADULT_PROMPT.test(prompt)) return 'adult'
@@ -87,175 +97,149 @@ function normalized(model: string) {
   return model.toLocaleLowerCase()
 }
 
-function modelSizeBonus(model: string) {
+function modelSize(model: string) {
   const match = normalized(model).match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?:[-_:]|$)/)
-  return match ? Math.min(Number(match[1]), 40) / 10 : 0
+  return match ? Number(match[1]) : 0
 }
 
-function scoreModel(model: string, purpose: ResolvedPurpose): number {
+function scoreModel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile): number {
   const name = normalized(model)
+  const size = modelSize(model)
   const qwen25Heretic14 = name.includes('qwen2.5-14b') && name.includes('heretic')
   const qwen3Heretic8 = name.includes('qwen3-8b') && name.includes('heretic')
+  const rocinante = name.includes('rocinante')
   const uncensored = name.includes('heretic') || name.includes('uncensored') || name.includes('abliterat')
   const mainstreamQwen3 = name.includes('qwen3') && !uncensored
   const mainstreamQwen25 = name.includes('qwen2.5') && !uncensored
   const mistralSmall = name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')
-  const roleplay = name.includes('rocinante') || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
+  const roleplay = rocinante || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
 
-  let score = 20 + modelSizeBonus(model)
-
-  if (purpose === 'adult') {
-    if (qwen25Heretic14) score += 100
-    else if (qwen3Heretic8) score += 92
-    else if (roleplay && uncensored) score += 88
-    else if (uncensored) score += 78
-    else if (roleplay) score += 65
-    else score += 25
+  if (profile === 'fast') {
+    let fastScore = 20
+    if (qwen3Heretic8) fastScore += 150
+    else if (size > 0 && size <= 8 && uncensored) fastScore += 130
+    else if (size > 0 && size <= 9) fastScore += 100
+    else if (size > 12) fastScore -= 40
+    else if (size > 0) fastScore += Math.max(0, 55 - size * 2)
+    if (purpose === 'adult' && uncensored) fastScore += 35
+    if (purpose === 'character' && roleplay) fastScore += 25
+    if (purpose === 'planning' && (mainstreamQwen3 || mainstreamQwen25)) fastScore += 20
+    return fastScore
   }
 
+  let score = 20 + Math.min(size || 0, 40) / 10
+  if (purpose === 'adult') {
+    if (rocinante && uncensored) score += 115
+    else if (qwen25Heretic14) score += 108
+    else if (roleplay && uncensored) score += 104
+    else if (uncensored && size >= 12) score += 98
+    else if (qwen3Heretic8) score += 78
+    else if (roleplay) score += 70
+    else score += 25
+  }
   if (purpose === 'general') {
     if (mistralSmall) score += 100
     else if (mainstreamQwen25) score += 96
     else if (mainstreamQwen3) score += 94
     else if (qwen25Heretic14) score += 88
-    else if (qwen3Heretic8) score += 78
-    else if (roleplay) score += 68
+    else if (rocinante) score += 84
+    else if (qwen3Heretic8) score += 72
     else score += 50
   }
-
   if (purpose === 'character') {
-    if (name.includes('rocinante')) score += 100
-    else if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) score += 98
-    else if (name.includes('stheno')) score += 95
-    else if (name.includes('pygmalion')) score += 92
-    else if (qwen3Heretic8) score += 90
-    else if (qwen25Heretic14) score += 87
-    else if (mistralSmall || mainstreamQwen3 || mainstreamQwen25) score += 80
+    if (rocinante) score += 115
+    else if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) score += 105
+    else if (name.includes('stheno') || name.includes('pygmalion')) score += 98
+    else if (qwen25Heretic14) score += 90
+    else if (qwen3Heretic8) score += 82
     else score += 55
   }
-
   if (purpose === 'planning') {
     if (mainstreamQwen3) score += 100
     else if (mainstreamQwen25) score += 98
     else if (qwen25Heretic14) score += 96
     else if (mistralSmall) score += 94
-    else if (qwen3Heretic8) score += 90
+    else if (qwen3Heretic8) score += 86
     else score += 55
   }
-
   return score
 }
 
-function recommendModel(models: string[], purpose: ResolvedPurpose) {
+function recommendModel(models: string[], purpose: ResolvedPurpose, profile: PerformanceProfile) {
   if (!models.length) return ''
-  return [...models].sort((left, right) => scoreModel(right, purpose) - scoreModel(left, purpose))[0]
+  return [...models].sort((left, right) => scoreModel(right, purpose, profile) - scoreModel(left, purpose, profile))[0]
 }
 
 function describeModel(model: string): ModelGuide {
   const name = normalized(model)
-  if (name.includes('qwen2.5-14b') && name.includes('heretic')) {
-    return {
-      label: '14B uncensored generalist',
-      bestFor: 'High-heat adult scenes, difficult long-form scenes, and complex instructions.',
-      why: 'The larger 14B model gives Studio more room for continuity and instruction-following while keeping refusal behavior reduced. Prefer it when quality matters more than speed.',
-    }
-  }
   if (name.includes('qwen3-8b') && name.includes('heretic')) {
     return {
       label: 'Fast uncensored 8B',
-      bestFor: 'Quick adult drafts, brainstorming, character play, and lower-VRAM machines.',
-      why: 'It is faster and lighter than the 14B option and retains Qwen3 reasoning behavior, but long-scene consistency can be less steady.',
-    }
-  }
-  if (name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')) {
-    return {
-      label: 'Mainstream general-purpose model',
-      bestFor: 'Non-explicit fiction, action, editing, worldbuilding, and conventional prose.',
-      why: 'A strong fit when you want broad instruction-following and prose work without specifically optimizing for uncensored adult content.',
+      bestFor: 'Quick Studio drafts, brainstorming, character play, and lower-VRAM machines.',
+      why: 'This is EmberWriter’s Fast profile target. It uses less model memory and smaller Studio budgets, improving the chance of full-GPU inference.',
     }
   }
   if (name.includes('rocinante')) {
     return {
-      label: 'Creative prose / roleplay specialist',
-      bestFor: 'Character voice, dialogue, chemistry, immersive scenes, and relationship-heavy writing.',
-      why: 'Studio treats Rocinante-family models as character-first creative options when installed.',
+      label: 'Quality creative prose 12B',
+      bestFor: 'Character voice, dialogue, chemistry, immersive scenes, and difficult long-form drafting.',
+      why: 'This is EmberWriter’s preferred Quality profile when the managed Rocinante model is installed.',
     }
+  }
+  if (name.includes('qwen2.5-14b') && name.includes('heretic')) {
+    return {
+      label: '14B uncensored generalist',
+      bestFor: 'Complex adult scenes and difficult instructions when speed is secondary.',
+      why: 'More model capacity, but heavier local inference and VRAM pressure than the 8B and 12B profiles.',
+    }
+  }
+  if (name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')) {
+    return { label: 'Mainstream general-purpose model', bestFor: 'Non-explicit fiction, action, editing, and worldbuilding.', why: 'A broad general-writing option when adult-content specialization is unnecessary.' }
   }
   if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) {
-    return {
-      label: 'Creative prose specialist',
-      bestFor: 'Expressive scene drafting, character chemistry, dialogue, and roleplay-oriented prose.',
-      why: 'Studio favors this family for character-centered creative work when it is available locally.',
-    }
+    return { label: 'Creative prose specialist', bestFor: 'Expressive scene drafting, chemistry, dialogue, and roleplay-oriented prose.', why: 'Studio favors this family for character-centered creative work when available.' }
   }
   if (name.includes('stheno') || name.includes('pygmalion')) {
-    return {
-      label: 'Character / roleplay specialist',
-      bestFor: 'Dialogue, personas, relationship interactions, and voice-forward scene work.',
-      why: 'These model families are weighted toward character interaction rather than planning or editorial analysis.',
-    }
+    return { label: 'Character / roleplay specialist', bestFor: 'Dialogue, personas, relationship interactions, and voice-forward scenes.', why: 'These families emphasize character interaction rather than planning or editorial analysis.' }
   }
   if (name.includes('qwen3') && !name.includes('heretic')) {
-    return {
-      label: 'Reasoning-oriented generalist',
-      bestFor: 'Plotting, brainstorming, continuity, critique, and non-explicit drafting.',
-      why: 'Studio prefers standard Qwen3-family models for structured story thinking when one is installed.',
-    }
+    return { label: 'Reasoning-oriented generalist', bestFor: 'Plotting, brainstorming, continuity, critique, and non-explicit drafting.', why: 'A strong structured-thinking option.' }
   }
   if (name.includes('qwen2.5') && !name.includes('heretic')) {
-    return {
-      label: 'Instruction-following generalist',
-      bestFor: 'General fiction, editing, structured drafting, and story analysis.',
-      why: 'A conventional all-purpose choice when adult-content specialization is unnecessary.',
-    }
+    return { label: 'Instruction-following generalist', bestFor: 'General fiction, editing, structured drafting, and story analysis.', why: 'A conventional all-purpose writing option.' }
   }
-  if (name.includes('gemma') || name.includes('mistral') || name.includes('llama')) {
-    return {
-      label: 'General-purpose model',
-      bestFor: 'General fiction, story development, editing, and ordinary creative work.',
-      why: 'Studio can use it as a mainstream writing option; exact strengths depend on the specific fine-tune and size.',
-    }
-  }
-  return {
-    label: 'Custom installed model',
-    bestFor: 'Manual selection or experimentation.',
-    why: 'Studio does not recognize this model family yet, so it remains available as a manual override and a fallback when needed.',
-  }
+  return { label: 'Custom installed model', bestFor: 'Manual selection or experimentation.', why: 'Studio does not recognize this model family yet, so it remains available as a manual override.' }
 }
 
-function fitLabel(model: string, purpose: ResolvedPurpose) {
-  const score = scoreModel(model, purpose)
-  if (score >= 112) return 'Strong match'
-  if (score >= 95) return 'Good match'
+function fitLabel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile) {
+  const score = scoreModel(model, purpose, profile)
+  if (score >= 120) return 'Strong match'
+  if (score >= 90) return 'Good match'
   return 'Best installed fallback'
 }
 
-export default function StudioModelRouter({
-  provider,
-  models,
-  studioMode,
-  heatLevel,
-  prompt,
-  busy,
-  onProviderChange,
-  onRefresh,
-}: Props) {
+export default function StudioModelRouter({ provider, models, studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
   const [purpose, setPurpose] = useState<WritingPurpose>(readPurpose)
   const [autoSwitch, setAutoSwitch] = useState<boolean>(readAutoSwitch)
+  const [performanceProfile, setPerformanceProfile] = useState<PerformanceProfile>(readPerformanceProfile)
 
   const inferredPurpose = useMemo(() => inferPurpose(studioMode, heatLevel, prompt), [studioMode, heatLevel, prompt])
   const resolvedPurpose: ResolvedPurpose = purpose === 'auto' ? inferredPurpose : purpose
-  const recommended = useMemo(() => recommendModel(models, resolvedPurpose), [models, resolvedPurpose])
+  const recommended = useMemo(
+    () => recommendModel(models, resolvedPurpose, performanceProfile),
+    [models, resolvedPurpose, performanceProfile],
+  )
   const activeGuide = provider.model ? describeModel(provider.model) : null
 
   useEffect(() => {
     try {
       localStorage.setItem(PURPOSE_STORAGE, purpose)
       localStorage.setItem(AUTO_SWITCH_STORAGE, String(autoSwitch))
+      localStorage.setItem(PERFORMANCE_STORAGE, performanceProfile)
     } catch {
-      // Local storage is a convenience only; routing still works for the current session.
+      // Local storage is a convenience only.
     }
-  }, [purpose, autoSwitch])
+  }, [purpose, autoSwitch, performanceProfile])
 
   useEffect(() => {
     if (!autoSwitch || !recommended || provider.model === recommended) return
@@ -267,57 +251,43 @@ export default function StudioModelRouter({
     onProviderChange({ ...provider, model })
   }
 
-  function useBestMatch() {
+  function choosePerformanceProfile(profile: PerformanceProfile) {
+    setPerformanceProfile(profile)
     setAutoSwitch(true)
-    if (recommended && provider.model !== recommended) {
-      onProviderChange({ ...provider, model: recommended })
-    }
   }
 
-  const wrapperStyle = {
-    minWidth: 360,
-    maxWidth: 470,
-    padding: 14,
-    border: '1px solid var(--border, #2c3947)',
-    borderRadius: 12,
-    background: 'rgba(255,255,255,.025)',
-  } as const
+  const wrapperStyle = { minWidth: 360, maxWidth: 470, padding: 14, border: '1px solid var(--border, #2c3947)', borderRadius: 12, background: 'rgba(255,255,255,.025)' } as const
   const rowStyle = { display: 'flex', gap: 8, alignItems: 'center' } as const
   const labelStyle = { display: 'block', marginBottom: 6, color: 'var(--muted, #9eabb8)', fontSize: 12 } as const
   const hintStyle = { margin: '6px 0 0', color: 'var(--muted, #96a4b1)', fontSize: 11, lineHeight: 1.4 } as const
-  const badgeStyle = {
-    display: 'inline-block',
-    marginTop: 7,
-    padding: '3px 7px',
-    border: '1px solid rgba(103,184,143,.35)',
-    borderRadius: 999,
-    color: '#9dd6b8',
-    fontSize: 10,
-  } as const
+  const badgeStyle = { display: 'inline-block', marginTop: 7, padding: '3px 7px', border: '1px solid rgba(103,184,143,.35)', borderRadius: 999, color: '#9dd6b8', fontSize: 10 } as const
 
   return (
     <div className="ai-studio-model" style={wrapperStyle}>
-      <label style={labelStyle}>Writing type</label>
+      <label style={labelStyle}>Performance profile</label>
+      <div style={{ ...rowStyle, marginBottom: 8 }}>
+        <button type="button" className={performanceProfile === 'quality' ? 'active' : ''} onClick={() => choosePerformanceProfile('quality')} disabled={busy}>Quality 12B</button>
+        <button type="button" className={performanceProfile === 'fast' ? 'active' : ''} onClick={() => choosePerformanceProfile('fast')} disabled={busy}>Fast 8B</button>
+      </div>
+      <p style={hintStyle}>
+        {performanceProfile === 'fast'
+          ? 'Fast favors an uncensored 8B model, a smaller adaptive context window, and a 3,072-token prose ceiling per pass.'
+          : 'Quality favors Rocinante 12B and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
+      </p>
+
+      <label style={{ ...labelStyle, marginTop: 12 }}>Writing type</label>
       <select value={purpose} onChange={(event) => setPurpose(event.target.value as WritingPurpose)} disabled={busy}>
-        {(Object.keys(PURPOSES) as WritingPurpose[]).map((item) => (
-          <option key={item} value={item}>{PURPOSES[item].label}</option>
-        ))}
+        {(Object.keys(PURPOSES) as WritingPurpose[]).map((item) => <option key={item} value={item}>{PURPOSES[item].label}</option>)}
       </select>
       <p style={hintStyle}>{PURPOSES[purpose].short}</p>
       <p style={hintStyle}>{PURPOSES[purpose].why}</p>
 
       <div style={{ ...rowStyle, marginTop: 11, justifyContent: 'space-between' }}>
         <label style={{ ...labelStyle, marginBottom: 0 }}>
-          <input
-            type="checkbox"
-            checked={autoSwitch}
-            onChange={(event) => setAutoSwitch(event.target.checked)}
-            disabled={busy}
-            style={{ width: 'auto', minHeight: 0, marginRight: 6 }}
-          />
-          Auto-switch to best installed model
+          <input type="checkbox" checked={autoSwitch} onChange={(event) => setAutoSwitch(event.target.checked)} disabled={busy} style={{ width: 'auto', minHeight: 0, marginRight: 6 }} />
+          Auto-switch within this profile
         </label>
-        <button type="button" onClick={useBestMatch} disabled={busy || !recommended}>Best match</button>
+        <button type="button" onClick={() => { setAutoSwitch(true); if (recommended) onProviderChange({ ...provider, model: recommended }) }} disabled={busy || !recommended}>Best match</button>
       </div>
 
       <div style={{ marginTop: 12 }}>
@@ -334,10 +304,14 @@ export default function StudioModelRouter({
 
       {recommended && (
         <div style={{ marginTop: 10, padding: 10, border: '1px solid rgba(224,120,69,.22)', borderRadius: 9, background: 'rgba(224,120,69,.06)' }}>
-          <strong style={{ display: 'block', fontSize: 12 }}>Recommended for {PURPOSES[resolvedPurpose].label}: {recommended}</strong>
-          <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose)}</span>
+          <strong style={{ display: 'block', fontSize: 12 }}>{performanceProfile === 'fast' ? 'Fast' : 'Quality'} recommendation: {recommended}</strong>
+          <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose, performanceProfile)}</span>
           <p style={hintStyle}>{describeModel(recommended).bestFor}</p>
         </div>
+      )}
+
+      {performanceProfile === 'fast' && !models.some((model) => normalized(model).includes('qwen3-8b') && normalized(model).includes('heretic')) && (
+        <p style={{ ...hintStyle, color: '#e8c986' }}>The managed Fast 8B model is not installed yet. Run install.ps1 after updating EmberWriter; Auto setup now installs both Fast 8B and Quality 12B.</p>
       )}
 
       {activeGuide && (
@@ -351,17 +325,11 @@ export default function StudioModelRouter({
 
       {models.length > 1 && (
         <details style={{ marginTop: 11, color: 'var(--muted, #9eabb8)', fontSize: 11 }}>
-          <summary style={{ cursor: 'pointer' }}>When should I use each installed model?</summary>
+          <summary style={{ cursor: 'pointer' }}>Installed model guide</summary>
           <div style={{ display: 'grid', gap: 9, marginTop: 9 }}>
             {models.map((model) => {
               const guide = describeModel(model)
-              return (
-                <div key={model} style={{ paddingTop: 8, borderTop: '1px solid rgba(255,255,255,.06)' }}>
-                  <strong style={{ display: 'block', color: 'var(--text, #e6edf4)' }}>{model}</strong>
-                  <span>{guide.label} · {guide.bestFor}</span>
-                  <div style={{ marginTop: 3 }}>{guide.why}</div>
-                </div>
-              )
+              return <div key={model} style={{ paddingTop: 8, borderTop: '1px solid rgba(255,255,255,.06)' }}><strong style={{ display: 'block', color: 'var(--text, #e6edf4)' }}>{model}</strong><span>{guide.label} · {guide.bestFor}</span><div style={{ marginTop: 3 }}>{guide.why}</div></div>
             })}
           </div>
         </details>

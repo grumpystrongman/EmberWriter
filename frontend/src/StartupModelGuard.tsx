@@ -19,8 +19,10 @@ const defaultProvider: Provider = {
 }
 
 const preferredLocalModels = [
-  'R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m',
+  'hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M',
+  'HammerAI/rocinante-v1.1:12b-q4_K_M',
   'R4C3R/qwen3-8b-heretic:q4_k_m',
+  'R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m',
 ]
 
 function readProvider(): Provider {
@@ -45,8 +47,6 @@ function chooseModel(models: string[], current: string) {
 
 export default function StartupModelGuard({ children }: { children: ReactNode }) {
   const initialProvider = readProvider()
-  // A known model should never block the writing UI. We still verify it in the
-  // background so stale browser state repairs itself before the next AI action.
   const [ready, setReady] = useState(Boolean(initialProvider.model.trim()))
 
   useEffect(() => {
@@ -70,8 +70,8 @@ export default function StartupModelGuard({ children }: { children: ReactNode })
         localStorage.setItem(PROVIDER_KEY, JSON.stringify(restored))
         window.dispatchEvent(new CustomEvent('emberwriter:provider-ready', { detail: restored }))
       } catch {
-        // The backend generation path also self-heals local Ollama, so a failed
-        // startup probe must never make the writing app unusable.
+        // The backend generation path also self-heals local Ollama, so a failed startup probe must
+        // never make the writing app unusable.
       } finally {
         window.clearTimeout(timeout)
         if (!disposed) setReady(true)
