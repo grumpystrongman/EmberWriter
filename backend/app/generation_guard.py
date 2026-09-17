@@ -10,16 +10,22 @@ from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
 _GENERATION_PATH = re.compile(r"^/api/projects/([^/]+)/generate$")
-_DEFAULT_TIMEOUT_SECONDS = 600.0
+# Local Studio generation can legitimately include a cold model load, prompt evaluation,
+# multiple bounded continuation passes, an independent delivery verifier, and an optional
+# Craft Pass. The low-level Ollama transport has its own 15-minute first-token watchdog and
+# 5-minute inter-token watchdog, so a 10-minute outer deadline could kill a healthy request
+# before those more meaningful stall detectors fired. Keep a hard wall-clock safety ceiling,
+# but make it large enough to contain the bounded local workflow.
+_DEFAULT_TIMEOUT_SECONDS = 45 * 60.0
 _ACTIVE_GENERATIONS: dict[str, asyncio.Task[object]] = {}
 
 
 def generation_timeout_seconds() -> float:
-    """Return the wall-clock budget for one Writer generation request.
+    """Return the hard wall-clock safety budget for one Writer generation request.
 
-    This is intentionally a total request budget, not a per-model-call budget. A complete
-    scene may use several model passes plus Craft Pass; without a total cap those individual
-    waits can compound into an hour-long spinner.
+    Per-model watchdogs are responsible for detecting a model that never starts or stops
+    producing output. This outer deadline exists only as a final safety valve for the entire
+    bounded generation pipeline (drafting, continuations, verification, and optional Craft Pass).
     """
     raw = os.getenv("EMBER_GENERATION_TIMEOUT_SECONDS", str(_DEFAULT_TIMEOUT_SECONDS)).strip()
     try:
@@ -94,7 +100,7 @@ async def guard_generation_request(
             status_code=504,
             content={
                 "detail": (
-                    "Generation reached EmberWriter's total time limit and was stopped so the Writer cannot hang indefinitely. "
+                    "Generation reached EmberWriter's hard total safety limit and was stopped so the Writer cannot hang indefinitely. "
                     "The local model may need a smaller/faster model, fewer context files, or another Generate pass."
                 )
             },
