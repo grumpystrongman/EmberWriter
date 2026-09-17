@@ -2,7 +2,12 @@ import asyncio
 
 import pytest
 
-from app import generation, generation_reliability, generation_reliability_refinement, streaming_generation
+from app import (
+    generation,
+    generation_reliability,
+    generation_reliability_refinement,
+    streaming_generation,
+)
 from app.models import ProviderConfig
 
 
@@ -99,6 +104,11 @@ def test_adult_model_ranking_prefers_creative_rp_models_over_qwen_fallbacks() ->
     assert generation_reliability.adult_model_score(
         "HammerAI/rocinante-v1.1:12b-q4_K_M"
     ) > generation_reliability.adult_model_score(
+        "TheDrummer/Cydonia-24B-v4.3:Q4_K_M"
+    )
+    assert generation_reliability.adult_model_score(
+        "HammerAI/rocinante-v1.1:12b-q4_K_M"
+    ) > generation_reliability.adult_model_score(
         "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m"
     )
 
@@ -109,7 +119,7 @@ def test_long_synthetic_sentence_is_not_mistaken_for_semantic_degeneration() -> 
     assert generation_reliability._hard_quality_failure(synthetic) == ""
 
 
-def test_runaway_semantic_chain_is_discarded_before_it_can_finish_streaming() -> None:
+def test_runaway_semantic_chain_is_never_forwarded_to_visible_stream() -> None:
     visible: list[str] = []
 
     async def emit(text: str) -> None:
@@ -122,13 +132,12 @@ def test_runaway_semantic_chain_is_discarded_before_it_can_finish_streaming() ->
         with pytest.raises(streaming_generation.RepetitionLoopDetected):
             for chunk in chunks:
                 await guard.feed(chunk)
+        await guard.finish()
         return guard.text, "".join(visible)
 
     accepted, streamed = asyncio.run(exercise())
     assert accepted == ""
-    # A prefix can be visible because Studio streams live, but the guard interrupts before the
-    # hundreds-of-words semantic collapse observed in the production sample can continue.
-    assert len(streamed.split()) < len(_semantic_chain().split())
+    assert streamed == ""
 
 
 def test_deterministic_quality_gate_rejects_observed_runaway_shape() -> None:
