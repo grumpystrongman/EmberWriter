@@ -134,7 +134,7 @@ export default function ScenePlannerWorkspace({ apiBase, project, sceneFiles, on
     }
   }
 
-  function sendToWriter(plan: ScenePlan) {
+  function sendToStudio(plan: ScenePlan) {
     window.dispatchEvent(new CustomEvent('emberwriter:writer-brief', { detail: { prompt: writerPrompt(plan), mode: 'write' } }))
   }
 
@@ -162,7 +162,7 @@ export default function ScenePlannerWorkspace({ apiBase, project, sceneFiles, on
       </div>
 
       {result && <section className="scene-center-result">
-        <div className="scene-center-result-head"><div><small>SCENE PLAN</small><h2>{result.plan.title}</h2></div><div><button type="button" className="primary" onClick={() => sendToWriter(result.plan)}>Send plan to Write</button>{result.saved_path && <button type="button" onClick={() => void loadSavedPlan(result.saved_path!)}>Reload saved</button>}</div></div>
+        <div className="scene-center-result-head"><div><small>SCENE PLAN</small><h2>{result.plan.title}</h2></div><div><button type="button" className="primary" onClick={() => sendToStudio(result.plan)}>Send plan to Studio</button>{result.saved_path && <button type="button" onClick={() => void loadSavedPlan(result.saved_path!)}>Reload saved</button>}</div></div>
         <div className="scene-center-meta"><span><b>POV</b> {result.plan.pov || '—'}</span><span><b>Location</b> {result.plan.location || '—'}</span><span><b>Participants</b> {result.plan.participants.join(', ') || '—'}</span></div>
         <div className="scene-center-core"><p><strong>Objective:</strong> {result.plan.scene_objective}</p><p><strong>Conflict:</strong> {result.plan.conflict}</p>{result.plan.opening_state && <p><strong>Opening state:</strong> {result.plan.opening_state}</p>}{result.plan.emotional_arc && <p><strong>Emotional arc:</strong> {result.plan.emotional_arc}</p>}</div>
         <div className="scene-center-beats"><h3>Beats</h3>{result.plan.beats.map((beat, index) => <article key={`${beat.beat}-${index}`}><span>{index + 1}</span><div><strong>{beat.beat}</strong>{beat.purpose && <p>{beat.purpose}</p>}{beat.character_shift && <small>{beat.character_shift}</small>}</div></article>)}</div>

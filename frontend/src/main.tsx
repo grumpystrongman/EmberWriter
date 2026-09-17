@@ -1,12 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import WorkspaceShell from './WorkspaceShell'
-import AuthorCaptureOverlay from './AuthorCaptureOverlay'
 import GenerationModePolicy from './GenerationModePolicy'
 import GenerationWatchdog from './GenerationWatchdog'
 import ProjectRecoveryStatus from './ProjectRecoveryStatus'
 import StableDiffusionStatus from './StableDiffusionStatus'
 import StartupModelGuard from './StartupModelGuard'
+import StickyNoteOverlay from './StickyNoteOverlay'
 import VoiceFingerprintOverlay from './VoiceFingerprintOverlay'
 import WriteWorkspacePro from './WriteWorkspacePro'
 import './folder-picker-directory'
@@ -23,7 +23,7 @@ createRoot(document.getElementById('root')!).render(
       <GenerationModePolicy />
       <WorkspaceShell />
       <WriteWorkspacePro />
-      <AuthorCaptureOverlay />
+      <StickyNoteOverlay />
       <VoiceFingerprintOverlay />
       <ProjectRecoveryStatus />
       <StableDiffusionStatus />

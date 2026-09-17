@@ -10,8 +10,10 @@ import './scene-center.css'
 const AIStudioWorkspace = lazy(() => import('./AIStudioWorkspace'))
 const CharacterVoiceStudio = lazy(() => import('./CharacterVoiceStudio'))
 const CharactersWorkspace = lazy(() => import('./CharactersWorkspace'))
+const NotesWorkspace = lazy(() => import('./NotesWorkspace'))
 const PlanningHub = lazy(() => import('./PlanningHub'))
 const ProvenanceVoicePanel = lazy(() => import('./ProvenanceVoicePanel'))
+const ToolsWorkspace = lazy(() => import('./ToolsWorkspace'))
 const WorldWorkspace = lazy(() => import('./WorldWorkspace'))
 
 type Props = {
@@ -55,6 +57,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
     <div className={`center-workspace-overlay center-workspace-${workspace}`}>
       <Suspense fallback={<LoadingWorkspace />}>
         {workspace === 'studio' && <AIStudioWorkspace apiBase={API} project={project} />}
+        {workspace === 'notes' && <NotesWorkspace project={project} onOpenSource={onOpenSource} />}
         {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
         {workspace === 'characters' && (
           <>
@@ -79,6 +82,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
             <ProvenanceVoicePanel apiBase={API} slug={project.slug} activePath={project.activePath} />
           </section>
         )}
+        {workspace === 'tools' && <ToolsWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />}
         {workspace === 'publish' && (
           <section className="center-tool publish-workspace">
             <header className="center-tool-header">

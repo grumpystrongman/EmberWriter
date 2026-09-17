@@ -10,10 +10,12 @@ const API = 'http://127.0.0.1:8000/api'
 const workspaces: { id: Workspace; label: string; icon: string }[] = [
   { id: 'write', label: 'Write', icon: '✎' },
   { id: 'studio', label: 'Studio', icon: '✦' },
+  { id: 'notes', label: 'Notes', icon: '▰' },
   { id: 'plan', label: 'Plan', icon: '▦' },
   { id: 'characters', label: 'Characters', icon: '♟' },
   { id: 'world', label: 'World', icon: '◎' },
   { id: 'analyze', label: 'Analyze', icon: '◫' },
+  { id: 'tools', label: 'Tools', icon: '⚙' },
   { id: 'publish', label: 'Publish', icon: '▤' },
   { id: 'submit', label: 'Submit', icon: '⇧' },
 ]
@@ -48,15 +50,37 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-function binderButton(title: string): HTMLButtonElement | null {
-  return Array.from(document.querySelectorAll<HTMLButtonElement>('.binder-node-button'))
-    .find((button) => cleanText(button.querySelector('strong')?.textContent) === title) || null
-}
-
 function setControlledTextarea(textarea: HTMLTextAreaElement, value: string) {
   const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
   descriptor?.set?.call(textarea, value)
   textarea.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+async function injectStudioBrief(prompt: string, mode: string) {
+  const desiredTitle = mode.toLowerCase() === 'brainstorm' ? 'Brainstorm Room' : 'Scene Writer'
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const modeButton = Array.from(document.querySelectorAll<HTMLButtonElement>('.ai-studio-modebar button'))
+      .find((button) => cleanText(button.querySelector('strong')?.textContent) === desiredTitle)
+    const textarea = document.querySelector<HTMLTextAreaElement>('.ai-studio-compose .ai-studio-card textarea')
+    if (modeButton && textarea) {
+      if (!modeButton.classList.contains('active')) {
+        modeButton.click()
+        await sleep(40)
+      }
+      const target = document.querySelector<HTMLTextAreaElement>('.ai-studio-compose .ai-studio-card textarea')
+      if (!target) continue
+      setControlledTextarea(target, prompt)
+      target.focus()
+      target.scrollIntoView({ block: 'center' })
+      return
+    }
+    await sleep(50)
+  }
+}
+
+function binderButton(title: string): HTMLButtonElement | null {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>('.binder-node-button'))
+    .find((button) => cleanText(button.querySelector('strong')?.textContent) === title) || null
 }
 
 function highlightEditorText(anchor: string) {
@@ -91,6 +115,10 @@ function highlightEditorText(anchor: string) {
   first.node.parentElement?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 
+function workspaceShortcut(index: number) {
+  return index === 9 ? '0' : String(index + 1)
+}
+
 export default function WorkspaceShell() {
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     const stored = localStorage.getItem('emberwriter.workspace') as Workspace | null
@@ -98,7 +126,6 @@ export default function WorkspaceShell() {
   })
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem('emberwriter.focusMode') === 'true')
   const [binderCollapsed, setBinderCollapsed] = useState(false)
-  const [assistantCollapsed, setAssistantCollapsed] = useState(false)
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
@@ -182,11 +209,15 @@ export default function WorkspaceShell() {
         event.preventDefault()
         setWorkspace('write')
         setFocusMode((value) => !value)
+        return
       }
-      if ((event.ctrlKey || event.metaKey) && event.key >= '1' && event.key <= '8') {
-        event.preventDefault()
-        const next = workspaces[Number(event.key) - 1]
-        if (next) openWorkspace(next.id)
+      if (event.ctrlKey || event.metaKey) {
+        const index = event.key === '0' ? 9 : /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : -1
+        const next = workspaces[index]
+        if (next) {
+          event.preventDefault()
+          openWorkspace(next.id)
+        }
       }
     }
 
@@ -200,19 +231,9 @@ export default function WorkspaceShell() {
       const detail = (event as CustomEvent<WriterBrief>).detail || {}
       const writerPrompt = detail.prompt?.trim()
       if (!writerPrompt) return
-      setWorkspace('write')
+      setWorkspace('studio')
       setFocusMode(false)
-      window.setTimeout(() => {
-        const desiredMode = detail.mode || 'write'
-        const modeButton = Array.from(document.querySelectorAll<HTMLButtonElement>('.mode-grid button'))
-          .find((button) => cleanText(button.textContent).toLowerCase() === desiredMode.toLowerCase())
-        modeButton?.click()
-        const textarea = document.querySelector<HTMLTextAreaElement>('.assistant textarea.prompt')
-        if (!textarea) return
-        setControlledTextarea(textarea, writerPrompt)
-        textarea.focus()
-        textarea.scrollIntoView({ block: 'center' })
-      }, 100)
+      void injectStudioBrief(writerPrompt, detail.mode || 'write')
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -270,7 +291,7 @@ export default function WorkspaceShell() {
 
   return (
     <div
-      className={`workspace-shell workspace-${workspace}${focusMode ? ' focus-mode' : ''}${binderCollapsed ? ' binder-collapsed' : ''}${assistantCollapsed ? ' assistant-collapsed' : ''}`}
+      className={`workspace-shell workspace-${workspace}${focusMode ? ' focus-mode' : ''}${binderCollapsed ? ' binder-collapsed' : ''}`}
       data-workspace={workspace}
     >
       <header className="workspace-topbar">
@@ -285,7 +306,7 @@ export default function WorkspaceShell() {
               type="button"
               className={workspace === item.id ? 'active' : ''}
               onClick={() => openWorkspace(item.id)}
-              title={`${item.label} · Ctrl/Cmd+${index + 1}`}
+              title={`${item.label} · Ctrl/Cmd+${workspaceShortcut(index)}`}
             >
               <span>{item.icon}</span>{item.label}
             </button>
@@ -293,7 +314,7 @@ export default function WorkspaceShell() {
         </nav>
         <div className="workspace-actions">
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
-          <button type="button" onClick={() => setAssistantCollapsed((value) => !value)} title="Toggle Ember">◆</button>
+          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note">▰ Note</button>
           <button
             type="button"
             className={focusMode ? 'active' : ''}
@@ -308,7 +329,7 @@ export default function WorkspaceShell() {
       <div className="workspace-contextbar">
         <span className="workspace-context-label">{active.icon} {active.label}</span>
         <span>{projectContext ? `${projectContext.name} · ${workspace === 'write' ? projectContext.activePath || 'Manuscript' : `${active.label} workspace`}` : workspace === 'write' ? 'Manuscript-first writing workspace' : `Working in ${active.label}`}</span>
-        <span className="workspace-shortcut">Ctrl/Cmd+1–8 changes workspace · Ctrl/Cmd+Shift+F toggles Focus</span>
+        <span className="workspace-shortcut">Ctrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus</span>
       </div>
 
       <div className="workspace-app">

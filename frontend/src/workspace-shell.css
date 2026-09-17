@@ -12,7 +12,7 @@
 
 .workspace-shell {
   --workspace-library-width: 260px;
-  --workspace-assistant-width: 360px;
+  --workspace-assistant-width: 0px;
   height: 100vh;
   overflow: hidden;
   background: var(--ember-bg);
@@ -22,7 +22,7 @@
 .workspace-topbar {
   height: 54px;
   display: grid;
-  grid-template-columns: 230px 1fr auto;
+  grid-template-columns: 210px minmax(0, 1fr) auto;
   align-items: stretch;
   border-bottom: 1px solid var(--ember-border);
   background: #0d151e;
@@ -67,6 +67,7 @@
   justify-content: center;
   min-width: 0;
   overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .workspace-nav button,
@@ -79,15 +80,15 @@
 }
 
 .workspace-nav button {
-  min-width: 74px;
-  padding: .35rem .7rem .25rem;
+  min-width: 66px;
+  padding: .35rem .52rem .25rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: .1rem;
   border-bottom: 2px solid transparent;
-  font-size: .66rem;
+  font-size: .64rem;
 }
 
 .workspace-nav button > span {
@@ -153,8 +154,9 @@
 
 .workspace-app > .app-shell {
   height: 100%;
+  grid-template-columns: minmax(230px, var(--workspace-library-width)) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "library editor assistant";
+  grid-template-areas: "library editor";
 }
 
 .workspace-shell .app-shell > .topbar {
@@ -165,8 +167,13 @@
   background: var(--ember-bg);
 }
 
-.workspace-shell .library,
+/* The old permanent Ember rail is retired. Studio is the one AI-writing surface;
+   former rail utilities live in their top workspaces or the Tools workspace. */
 .workspace-shell .assistant {
+  display: none !important;
+}
+
+.workspace-shell .library {
   min-height: 0;
   background: #101923;
   border-color: var(--ember-border);
@@ -226,15 +233,6 @@
   font-weight: 800;
 }
 
-/* Outside Write, the right rail is a contextual AI rail rather than a warehouse for major tools. */
-.workspace-shell:not(.workspace-write) .assistant > .authoring-panel,
-.workspace-shell:not(.workspace-write) .assistant > .story-intelligence-panel,
-.workspace-shell:not(.workspace-write) .assistant > .memory-panel,
-.workspace-shell:not(.workspace-write) .assistant > .chemistry-panel,
-.workspace-shell:not(.workspace-write) .assistant > .scene-architect-panel {
-  display: none;
-}
-
 .workspace-shell.binder-collapsed {
   --workspace-library-width: 0px;
 }
@@ -243,25 +241,7 @@
   display: none;
 }
 
-.workspace-shell.binder-collapsed .app-shell {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 25vw);
-  grid-template-areas: "editor assistant";
-}
-
-.workspace-shell.assistant-collapsed {
-  --workspace-assistant-width: 0px;
-}
-
-.workspace-shell.assistant-collapsed .assistant {
-  display: none;
-}
-
-.workspace-shell.assistant-collapsed .app-shell {
-  grid-template-columns: minmax(230px, 19vw) minmax(0, 1fr);
-  grid-template-areas: "library editor";
-}
-
-.workspace-shell.binder-collapsed.assistant-collapsed .app-shell,
+.workspace-shell.binder-collapsed .app-shell,
 .workspace-shell.focus-mode .app-shell {
   grid-template-columns: 1fr;
   grid-template-areas: "editor";
@@ -269,11 +249,9 @@
 
 .workspace-shell.focus-mode {
   --workspace-library-width: 0px;
-  --workspace-assistant-width: 0px;
 }
 
 .workspace-shell.focus-mode .library,
-.workspace-shell.focus-mode .assistant,
 .workspace-shell.focus-mode .editor-header {
   display: none;
 }
@@ -303,20 +281,20 @@
 @media (max-width: 1250px) {
   .workspace-shell {
     --workspace-library-width: 220px;
-    --workspace-assistant-width: 320px;
   }
   .workspace-shell.binder-collapsed { --workspace-library-width: 0px; }
-  .workspace-shell.assistant-collapsed { --workspace-assistant-width: 0px; }
+  .workspace-topbar { grid-template-columns: 185px minmax(0, 1fr) auto; }
+  .workspace-nav button { min-width: 58px; padding-inline: .35rem; }
 }
 
 @media (max-width: 1050px) {
   .workspace-topbar {
-    grid-template-columns: 175px 1fr auto;
+    grid-template-columns: 165px minmax(0, 1fr) auto;
   }
 
   .workspace-nav button {
-    min-width: 58px;
-    padding-inline: .35rem;
+    min-width: 54px;
+    padding-inline: .3rem;
   }
 
   .workspace-shortcut {
