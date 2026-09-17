@@ -1,3 +1,5 @@
+import pytest
+
 import app
 
 
@@ -56,3 +58,77 @@ def test_startup_policy_uses_same_explicit_creative_model_as_installer() -> None
     assert app.model_provisioning.BASELINE_CREATIVE_MODEL == managed
     assert managed in app.ollama_runtime._RECOMMENDED_MODELS
     assert app.ollama_runtime._RECOMMENDED_MODELS[0] == app.explicitness_enforcement.HIGH_HEAT_CYDONIA_MODEL
+
+
+@pytest.mark.asyncio
+async def test_studio_stream_quarantines_provisional_text_until_base_verifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    emitted: list[str] = []
+
+    async def fake_base(
+        _config,
+        _messages,
+        *,
+        min_words,
+        on_delta,
+        on_status=None,
+        max_passes=6,
+        max_output_tokens=6144,
+    ) -> str:
+        del min_words, on_status, max_passes, max_output_tokens
+        await on_delta("REJECTED_PROVISIONAL_PASS")
+        return "VERIFIED_FINAL_SCENE"
+
+    async def emit(text: str) -> None:
+        emitted.append(text)
+
+    monkeypatch.setattr(app.explicitness_enforcement, "_BASE_STREAMED_COMPLETE", fake_base)
+    result = await app.explicitness_enforcement.generate_verified_studio_prose_streamed(
+        object(),
+        [{"role": "system", "content": "STUDIO SCENE DELIVERY CONTRACT:"}],
+        min_words=700,
+        on_delta=emit,
+    )
+
+    assert result == "VERIFIED_FINAL_SCENE"
+    assert emitted == ["VERIFIED_FINAL_SCENE"]
+    assert "REJECTED_PROVISIONAL_PASS" not in "".join(emitted)
+
+
+@pytest.mark.asyncio
+async def test_studio_stream_releases_nothing_when_delivery_never_verifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    emitted: list[str] = []
+
+    async def fake_base(
+        _config,
+        _messages,
+        *,
+        min_words,
+        on_delta,
+        on_status=None,
+        max_passes=6,
+        max_output_tokens=6144,
+    ) -> str:
+        del min_words, on_status, max_passes, max_output_tokens
+        await on_delta("REJECTED_PROVISIONAL_PASS")
+        raise app.streaming_generation.SceneDeliveryIncomplete(
+            "REJECTED_PROVISIONAL_PASS",
+            "delivery verifier rejected the scene",
+        )
+
+    async def emit(text: str) -> None:
+        emitted.append(text)
+
+    monkeypatch.setattr(app.explicitness_enforcement, "_BASE_STREAMED_COMPLETE", fake_base)
+    with pytest.raises(app.streaming_generation.SceneDeliveryIncomplete):
+        await app.explicitness_enforcement.generate_verified_studio_prose_streamed(
+            object(),
+            [{"role": "system", "content": "STUDIO SCENE DELIVERY CONTRACT:"}],
+            min_words=700,
+            on_delta=emit,
+        )
+
+    assert emitted == []
