@@ -58,7 +58,11 @@ def test_nonlocal_generation_keeps_caller_pass_budget(monkeypatch) -> None:
         return "draft"
 
     monkeypatch.setattr(performance, "_BASE_STREAMED_COMPLETE", fake_base)
-    config = ProviderConfig(provider="openai", base_url="http://example.test/v1", model="test")
+    config = ProviderConfig(
+        provider="openai_compatible",
+        base_url="http://example.test/v1",
+        model="test",
+    )
 
     asyncio.run(
         performance.generate_complete_prose_streamed_budgeted(
