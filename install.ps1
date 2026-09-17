@@ -35,6 +35,64 @@ function Get-FreeDiskGb([string]$Path) {
     return [math]::Floor($drive.FreeSpace / 1GB)
 }
 
+function Stop-FrontendBuildProcesses {
+    # Vite launches esbuild as a child process. On Windows either process can retain an open
+    # handle to node_modules\@esbuild\...\esbuild.exe, which makes npm ci fail with EPERM while
+    # replacing the dependency tree. Stop only processes whose executable/command line belongs
+    # to this EmberWriter frontend; do not kill unrelated Node applications on the machine.
+    try {
+        $frontendPath = [System.IO.Path]::GetFullPath($Frontend)
+        $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -in @("node.exe", "esbuild.exe") -and (
+                ($_.ExecutablePath -and $_.ExecutablePath.IndexOf($frontendPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                ($_.CommandLine -and $_.CommandLine.IndexOf($frontendPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            )
+        }
+
+        $stoppedAny = $false
+        foreach ($process in $processes) {
+            $processId = [int]$process.ProcessId
+            if (-not $processId -or $processId -eq $PID) { continue }
+
+            Write-Host "Stopping running EmberWriter frontend process $($process.Name) (PID $processId) before dependency install..." -ForegroundColor Yellow
+            if (Get-Command taskkill.exe -ErrorAction SilentlyContinue) {
+                & taskkill.exe /PID $processId /T /F *> $null
+            } else {
+                Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+            }
+            $stoppedAny = $true
+        }
+
+        if ($stoppedAny) {
+            Start-Sleep -Milliseconds 1000
+        }
+    } catch {
+        Write-Host "Could not fully inspect running frontend processes: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+function Install-FrontendDependencies {
+    Stop-FrontendBuildProcesses
+    Push-Location $Frontend
+    try {
+        $maxAttempts = 3
+        for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            npm ci --include=dev
+            if ($LASTEXITCODE -eq 0) { return }
+
+            if ($attempt -lt $maxAttempts) {
+                Write-Host "npm ci failed (attempt $attempt of $maxAttempts). Releasing EmberWriter/Vite/esbuild file handles and retrying..." -ForegroundColor Yellow
+                Stop-FrontendBuildProcesses
+                Start-Sleep -Seconds 2
+            }
+        }
+
+        throw "npm ci failed while installing EmberWriter frontend dependencies after $maxAttempts attempts. Close any remaining EmberWriter/Vite terminal or browser-launched dev process and rerun install.ps1."
+    } finally {
+        Pop-Location
+    }
+}
+
 Write-Host ""
 Write-Host "EmberWriter setup" -ForegroundColor Cyan
 Write-Host "===============`n"
@@ -52,15 +110,7 @@ Write-Host "Installing EmberWriter backend..."
 & $Python -m pip install -e $Backend
 
 Write-Host "Installing locked frontend dependencies (including Vite)..."
-Push-Location $Frontend
-try {
-    npm ci --include=dev
-    if ($LASTEXITCODE -ne 0) {
-        throw "npm ci failed while installing EmberWriter frontend dependencies."
-    }
-} finally {
-    Pop-Location
-}
+Install-FrontendDependencies
 if (-not (Test-Path $FrontendViteCmd)) {
     throw "Frontend setup completed without node_modules\.bin\vite.cmd. Delete frontend\node_modules and rerun install.ps1."
 }
