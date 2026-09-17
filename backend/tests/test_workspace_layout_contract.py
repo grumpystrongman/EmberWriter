@@ -24,12 +24,15 @@ def test_write_workspace_has_no_permanent_ai_right_rail() -> None:
 def test_studio_is_the_single_destination_for_ai_writing_briefs() -> None:
     shell = source("WorkspaceShell.tsx")
     studio = source("AIStudioWorkspace.tsx")
+    planner = source("ScenePlannerWorkspace.tsx")
 
     assert "setWorkspace('studio')" in shell
     assert "injectStudioBrief" in shell
     assert "Scene Writer" in shell
     assert "STUDIO SCENE DELIVERY CONTRACT:" in studio
     assert "Continue this scene" in studio
+    assert "Send plan to Studio" in planner
+    assert "Send plan to Write" not in planner
 
 
 def test_notes_and_tools_are_top_level_workspaces() -> None:
