@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from time import perf_counter
 
 import httpx
 
@@ -10,32 +11,62 @@ from . import streaming_generation
 from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
+from .performance_telemetry import record_model_call
 
 _FIRST_TOKEN_TIMEOUT_SECONDS = 15 * 60
 _INTER_TOKEN_TIMEOUT_SECONDS = 5 * 60
 _LARGE_MODEL_CONTEXT_TOKENS = 16384
-_STUDIO_CONTEXT_TOKENS = 16384
 _LARGE_MODEL_HINTS = ("cydonia", "24b", "24-b", "24_b")
 _HERETIC_ROCINANTE = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
 _STANDARD_ROCINANTE = "HammerAI/rocinante-v1.1:12b-q4_K_M"
 _HIGH_HEAT_CYDONIA = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+_FAST_ADULT_MODEL = "R4C3R/qwen3-8b-heretic:q4_k_m"
 
 _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
 _INSTALLED = False
 
 
+def _is_fast_model(model: str) -> bool:
+    name = model.casefold()
+    return "8b" in name or "8-b" in name or "8_b" in name
+
+
+def _estimated_message_tokens(messages: list[dict[str, str]]) -> int:
+    """Cheap conservative tokenizer estimate suitable for context-window budgeting."""
+    chars = sum(len(str(message.get("content", ""))) for message in messages)
+    return max(1, chars // 4 + len(messages) * 12)
+
+
 def ollama_context_tokens_for(
     model: str,
     messages: list[dict[str, str]] | None = None,
+    max_output_tokens: int | None = None,
 ) -> int:
-    """Use smaller prompt windows where local inference pressure is predictably high."""
+    """Choose the smallest practical Ollama context for the actual request.
+
+    A large configured context reserves more KV memory even when the prompt is smaller. Studio uses
+    bounded context candidates so an 8B model can fit into VRAM more easily and the 12B quality model
+    does not pay for a 24K window when 10K-16K is enough.
+    """
     lowered = model.casefold()
     context_tokens = OLLAMA_CONTEXT_TOKENS
     if any(hint in lowered for hint in _LARGE_MODEL_HINTS):
         context_tokens = min(context_tokens, _LARGE_MODEL_CONTEXT_TOKENS)
-    if messages and streaming_generation._is_studio_scene(messages):
-        context_tokens = min(context_tokens, _STUDIO_CONTEXT_TOKENS)
-    return context_tokens
+
+    if not messages or not streaming_generation._is_studio_scene(messages):
+        return context_tokens
+
+    fast = _is_fast_model(model)
+    output_budget = max_output_tokens or (3072 if fast else 4096)
+    output_budget = min(max(output_budget, 512), 4096)
+    required = _estimated_message_tokens(messages) + output_budget + 768
+    candidates = (8192, 10240, 12288) if fast else (10240, 12288, 16384)
+    selected = candidates[-1]
+    for candidate in candidates:
+        if required <= candidate:
+            selected = candidate
+            break
+    return min(context_tokens, selected)
 
 
 async def _next_line(iterator, timeout_seconds: float) -> str | None:
@@ -67,14 +98,14 @@ async def route_adult_model_stable(
         config.model = current
         return
 
-    # Repair toward the 12B managed baseline first. The 24B tier is deliberately opt-in;
-    # system RAM and disk alone are not enough to prove that a machine can infer it well.
+    # Repair toward the 12B managed baseline first. Fast 8B remains an explicit author choice and
+    # the 24B tier remains opt-in; neither should silently replace a valid quality configuration.
     preferred = (
         _HERETIC_ROCINANTE,
         _STANDARD_ROCINANTE,
+        _FAST_ADULT_MODEL,
         _HIGH_HEAT_CYDONIA,
         "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
-        "R4C3R/qwen3-8b-heretic:q4_k_m",
     )
     installed_by_name = {item.casefold(): item for item in installed}
     for candidate in preferred:
@@ -98,7 +129,7 @@ async def generate_streamed_reliable(
     json_mode: bool = False,
     max_output_tokens: int | None = None,
 ) -> str:
-    """Ollama stream path with separate cold-start and inter-token watchdogs."""
+    """Ollama stream path with adaptive context, telemetry, and state-aware watchdogs."""
     if config.provider != "ollama":
         return await _ORIGINAL_GENERATE_STREAMED(
             config,
@@ -113,6 +144,7 @@ async def generate_streamed_reliable(
     if not config.model.strip():
         raise ValueError("Choose a model before generating")
 
+    call_started = perf_counter()
     async with MODEL_GATE:
         installed = await installed_ollama_models(config.base_url)
         effective_model = choose_installed_model(config.model, installed)
@@ -124,10 +156,15 @@ async def generate_streamed_reliable(
         if effective_model != config.model:
             config.model = effective_model
 
+        context_tokens = ollama_context_tokens_for(
+            effective_model,
+            messages,
+            max_output_tokens=max_output_tokens,
+        )
         options: dict[str, float | int] = {
             "temperature": temperature,
             "top_p": top_p,
-            "num_ctx": ollama_context_tokens_for(effective_model, messages),
+            "num_ctx": context_tokens,
             "repeat_penalty": streaming_generation._OLLAMA_REPEAT_PENALTY,
             "repeat_last_n": streaming_generation._OLLAMA_REPEAT_LAST_N,
         }
@@ -145,7 +182,8 @@ async def generate_streamed_reliable(
             body["format"] = "json"
 
         pieces: list[str] = []
-        # Disable httpx's fixed per-read watchdog and apply our own state-aware timer below.
+        final_metrics: dict[str, object] = {}
+        first_token_ms: float | None = None
         timeout = httpx.Timeout(connect=15.0, read=None, write=120.0, pool=15.0)
         try:
             async with (
@@ -180,7 +218,7 @@ async def generate_streamed_reliable(
                             ) from exc
                         model_note = (
                             " The selected 24B model may be too large for the available GPU/CPU path; "
-                            "rerun install.ps1 with the default auto tier to select the 12B baseline."
+                            "use the Quality 12B or Fast 8B Studio profile instead."
                             if any(hint in effective_model.casefold() for hint in _LARGE_MODEL_HINTS)
                             else ""
                         )
@@ -200,20 +238,35 @@ async def generate_streamed_reliable(
                         raise RuntimeError("Ollama returned an invalid streaming response") from exc
                     if payload.get("error"):
                         raise RuntimeError(f"Ollama generation failed: {payload['error']}")
+                    if payload.get("done"):
+                        final_metrics = payload
                     piece = str(payload.get("message", {}).get("content", ""))
                     if piece:
+                        if not saw_text:
+                            first_token_ms = (perf_counter() - call_started) * 1000.0
                         saw_text = True
                         pieces.append(piece)
                         await on_delta(piece)
         except httpx.ConnectError as exc:
             raise RuntimeError(
                 "The local writing model server disconnected during generation. "
-                "EmberWriter will restart Ollama automatically on the next request."
+                "EmberWriter can restart Ollama from the Performance panel."
             ) from exc
 
         content = "".join(pieces)
         if not content.strip():
             raise RuntimeError(f"Ollama returned an empty response from {effective_model}")
+
+        studio = streaming_generation._is_studio_scene(messages)
+        record_model_call(
+            stage="studio-prose" if studio else "writer-prose",
+            model=effective_model,
+            context_tokens=context_tokens,
+            performance_profile="fast" if _is_fast_model(effective_model) else "quality",
+            payload=final_metrics,
+            first_token_ms=first_token_ms,
+            total_ms=(perf_counter() - call_started) * 1000.0,
+        )
         return content
 
 
