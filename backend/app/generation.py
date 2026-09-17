@@ -44,7 +44,9 @@ SCENE_INTENT_GUIDANCE = {
         "Do not abandon it for unrelated combat, exposition, travel, banter, or earlier-scene momentum. If mode is continue, "
         "transition coherently from the active manuscript into the requested intimacy rather than mechanically perpetuating "
         "the previous activity. Keep the participants, relationship state, consent/choice, voice, pacing, embodiment canon, "
-        "and consequences central. The scene is not complete merely because attraction, kissing, or escalation has begun."
+        "and consequences central. The scene is not complete merely because attraction, kissing, or escalation has begun. "
+        "Once intent and consent are established, keep advancing through concrete character-specific beats instead of circling "
+        "the same desire with increasingly ornate language. Higher heat means greater immediacy and forward motion, not more abstraction."
     ),
     "aftermath": (
         "The author requested the aftermath of intimacy. Stay with the changed emotional, relationship, and physical state; "
@@ -101,7 +103,7 @@ def detect_scene_intent(prompt: str, heat_level: str | None = None) -> str:
 
 
 def scene_word_floor(prompt: str, heat_level: str | None = None) -> int:
-    """Return a useful scene floor while respecting an explicit author word-count request."""
+    """Return a useful anti-fragment floor, not a quota the model should pad toward."""
     normalized = prompt.lower()
     explicit = re.search(r"\b(\d{3,5})\s*(?:-|to\s*)?words?\b", normalized)
     if explicit:
@@ -109,11 +111,11 @@ def scene_word_floor(prompt: str, heat_level: str | None = None) -> int:
     if re.search(r"\b(?:brief|short|quick)\s+(?:scene|passage)\b", normalized):
         return 700
     return {
-        "simmer": 1200,
-        "hot": 1400,
-        "scorching": 1800,
-        "inferno": 2200,
-    }.get(heat_level or "", 1400)
+        "simmer": 1000,
+        "hot": 1200,
+        "scorching": 1400,
+        "inferno": 1600,
+    }.get(heat_level or "", 1200)
 
 
 def build_messages(
@@ -136,7 +138,8 @@ def build_messages(
         completion_note = f"""
 Scene completion contract:
 - Write the complete requested scene, not a teaser, synopsis, opening fragment, or arbitrary token-sized chunk.
-- Unless the author explicitly asked for something shorter, develop the scene to at least about {floor} words before closing it.
+- Unless the author explicitly asked for something shorter, use about {floor} words as an anti-fragment floor, not a quota. Scene completeness and forward motion matter more than padding to a number.
+- Never add filler, repeated emotional claims, abstract romantic inflation, or redundant buildup just to make the scene longer.
 - A scene is complete only after the requested dramatic/intimate objective has happened and the immediate emotional or plot consequence has landed.
 - For an intimacy request, buildup, kissing, or merely beginning the encounter is not completion; the requested encounter and its immediate aftermath/changed relationship state must actually land on page.
 - Do not stop in the middle of a word, sentence, action, exchange, escalation, or aftermath merely because a model generation boundary is approaching.
@@ -250,11 +253,12 @@ async def generate_complete_prose(
         if marker_required:
             continuation_instruction += (
                 " This is an intimacy scene: do not treat buildup, kissing, or initial escalation as completion. "
-                "Continue until the requested encounter and its immediate aftermath/changed state have genuinely landed."
+                "Continue through new concrete beats until the requested encounter and its immediate aftermath/changed state have genuinely landed. "
+                "Do not re-state desire, destiny, intensity, or connection when the draft already established them."
             )
         if remaining:
             continuation_instruction += (
-                f" The draft is still roughly {remaining} words short of the requested scene floor."
+                f" The draft is still roughly {remaining} words below the anti-fragment floor; add only meaningful scene development, never padding."
             )
         continuation_instruction += (
             f" End with {SCENE_COMPLETE_MARKER} only after the scene has genuinely concluded; otherwise end with "
