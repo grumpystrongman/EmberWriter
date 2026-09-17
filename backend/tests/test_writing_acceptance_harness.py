@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
-from pathlib import Path
 
 
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "writing_acceptance.py"
+SCRIPT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "scripts",
+    "writing_acceptance.py",
+)
 
 
 def test_acceptance_harness_help_is_runnable() -> None:
     completed = subprocess.run(
-        [sys.executable, str(SCRIPT), "--help"],
+        [sys.executable, SCRIPT, "--help"],
         capture_output=True,
         text=True,
         timeout=20,
@@ -23,7 +27,8 @@ def test_acceptance_harness_help_is_runnable() -> None:
 
 
 def test_default_acceptance_contract_is_encoded_without_saved_prose() -> None:
-    source = SCRIPT.read_text(encoding="utf-8")
+    with open(SCRIPT, encoding="utf-8") as handle:
+        source = handle.read()
     assert "under 1300 words" in source
     assert "penetration/genitalia" in source
     assert "both participants reach orgasm" in source
