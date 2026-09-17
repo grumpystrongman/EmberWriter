@@ -15,6 +15,7 @@ from .generation import (
     requires_scene_complete_marker,
 )
 from .generation import generate as generate_text
+from .model_profiles import ollama_sampling_options
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 
@@ -27,8 +28,6 @@ _REPEAT_PARAGRAPH_SIMILARITY = 0.60
 _REPEAT_SENTENCE_SIMILARITY = 0.86
 _REPEAT_RECENT_PARAGRAPHS = 18
 _REPEAT_RECENT_SENTENCES = 48
-_OLLAMA_REPEAT_PENALTY = 1.18
-_OLLAMA_REPEAT_LAST_N = 512
 _CONTINUATION_TAIL_CHARS = 12000
 _VERIFIER_CONTEXT_CHARS = 24000
 _VERIFIER_DRAFT_CHARS = 24000
@@ -327,13 +326,13 @@ async def generate_streamed(
             if effective_model != config.model:
                 config.model = effective_model
 
-            options: dict[str, float | int] = {
-                "temperature": temperature,
-                "top_p": top_p,
-                "num_ctx": OLLAMA_CONTEXT_TOKENS,
-                "repeat_penalty": _OLLAMA_REPEAT_PENALTY,
-                "repeat_last_n": _OLLAMA_REPEAT_LAST_N,
-            }
+            options = ollama_sampling_options(
+                effective_model,
+                temperature=temperature,
+                top_p=top_p,
+                json_mode=json_mode,
+            )
+            options["num_ctx"] = OLLAMA_CONTEXT_TOKENS
             if max_output_tokens is not None:
                 options["num_predict"] = max_output_tokens
             body: dict = {
