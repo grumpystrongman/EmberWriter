@@ -5,9 +5,11 @@ from .generation_reliability import install_generation_reliability
 from .generation_reliability_refinement import install_refinement
 from .local_model_stream_reliability import install_local_model_stream_reliability
 from .model_provisioning import start_creative_model_provisioning
+from .studio_local_performance import install_studio_local_performance
 
 install_generation_reliability()
 install_refinement()
 install_explicitness_enforcement()
 install_local_model_stream_reliability()
+install_studio_local_performance()
 start_creative_model_provisioning()
