@@ -34,6 +34,29 @@ def test_choose_installed_model_preserves_valid_selection(monkeypatch: pytest.Mo
     )
 
 
+def test_choose_installed_model_never_falls_back_to_unrelated_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ollama_runtime, "preferred_local_model", lambda: "missing-writing-model")
+
+    assert ollama_runtime.choose_installed_model(
+        "missing-writing-model",
+        ["mistral:latest", "llama3.2:latest"],
+    ) == ""
+
+
+def test_choose_installed_model_repairs_to_managed_creative_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    managed = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+    monkeypatch.setattr(ollama_runtime, "preferred_local_model", lambda: "")
+
+    assert ollama_runtime.choose_installed_model(
+        "stale-browser-model",
+        ["mistral:latest", managed],
+    ) == managed
+
+
 @pytest.mark.asyncio
 async def test_ollama_generation_repairs_stale_model_and_allows_long_jobs(
     monkeypatch: pytest.MonkeyPatch,
