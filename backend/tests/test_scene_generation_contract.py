@@ -24,20 +24,23 @@ def test_inferno_is_controlling_intimacy_intent_even_with_generic_continue_promp
         "Continue from here.",
         "Older context contains a battle.",
         heat_level="inferno",
-        min_scene_words=2200,
+        min_scene_words=1600,
     )
     system = messages[0]["content"]
     assert "Scene intent: intimacy" in system
     assert "author's current instruction and explicit scene objective" in system
     assert "not merely a tone hint" in system
-    assert "at least about 2200 words" in system
+    assert "about 1600 words as an anti-fragment floor, not a quota" in system
+    assert "Never add filler" in system
+    assert "greater immediacy and forward motion, not more abstraction" in system
     assert generation.SCENE_COMPLETE_MARKER in system
 
 
 def test_explicit_word_request_overrides_default_scene_floor() -> None:
     assert generation.scene_word_floor("Write this as a 900 word scene.", "inferno") == 900
     assert generation.scene_word_floor("Write a brief scene.", "inferno") == 700
-    assert generation.scene_word_floor("Continue the scene.", "inferno") == 2200
+    assert generation.scene_word_floor("Continue the scene.", "inferno") == 1600
+    assert generation.scene_word_floor("Continue the scene.", "scorching") == 1400
 
 
 def test_complete_scene_continues_across_generation_boundaries(monkeypatch) -> None:
@@ -104,13 +107,12 @@ def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> No
     assert len(result.split()) == 80
 
 
-def test_streamed_inferno_length_floor_keeps_going_after_682_word_complete_marker(monkeypatch) -> None:
+def test_streamed_inferno_length_floor_keeps_going_after_short_complete_marker(monkeypatch) -> None:
     visible: list[str] = []
     calls = 0
     chunks = [
         _words("first", 682) + "\n" + generation.SCENE_COMPLETE_MARKER,
-        _words("second", 800) + "\n" + generation.SCENE_COMPLETE_MARKER,
-        _words("third", 800) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("second", 950) + "\n" + generation.SCENE_COMPLETE_MARKER,
     ]
 
     async def fake_stream(config, messages, *, on_delta, **kwargs):
@@ -128,13 +130,13 @@ def test_streamed_inferno_length_floor_keeps_going_after_682_word_complete_marke
         streaming_generation.generate_complete_prose_streamed(
             ProviderConfig(model="test-model"),
             [{"role": "system", "content": "system"}, {"role": "user", "content": "user"}],
-            min_words=2200,
+            min_words=1600,
             on_delta=emit,
         )
     )
 
-    assert calls == 3
-    assert len(result.split()) == 2282
+    assert calls == 2
+    assert len(result.split()) == 1632
     assert generation.SCENE_COMPLETE_MARKER not in result
 
 
@@ -197,6 +199,9 @@ def test_studio_context_excludes_unrelated_manuscript_prose(tmp_path: Path) -> N
     assert "Kaelen Thorne" in context
     assert "Muna" in context
     assert "Aethelgard Academy" in context
+    assert "Every paragraph should do something new" in context
+    assert "Never pad to reach a target" in context
+    assert "Higher heat means greater immediacy" in context
     assert {name.casefold() for name in names} >= {"kaelen thorne", "muna"}
 
 

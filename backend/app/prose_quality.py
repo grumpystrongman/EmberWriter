@@ -29,6 +29,12 @@ EMOTION_LABELS = (
     "desire", "wanted", "need", "needed", "nervous", "anxious", "jealous", "jealousy",
 )
 
+ABSTRACT_INFLATION = (
+    "destiny", "eternal", "eternity", "forevermore", "souls", "soul's", "fate", "fated",
+    "ultimate fulfillment", "sacred", "timeless union", "future generations", "legacy",
+    "inseparable", "unbreakable", "unwavering", "indestructible", "bound forever",
+)
+
 
 def _sentences(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text.strip()) if part.strip()]
@@ -36,6 +42,14 @@ def _sentences(text: str) -> list[str]:
 
 def _words(text: str) -> list[str]:
     return re.findall(r"[A-Za-z][A-Za-z'-]*", text.lower())
+
+
+def _repeated_ngrams(text: str, size: int = 8) -> list[tuple[str, int]]:
+    words = _words(text)
+    if len(words) < size * 2:
+        return []
+    grams = Counter(" ".join(words[index:index + size]) for index in range(len(words) - size + 1))
+    return [(gram, count) for gram, count in grams.most_common() if count >= 2]
 
 
 def diagnose_prose(text: str) -> list[str]:
@@ -50,6 +64,30 @@ def diagnose_prose(text: str) -> list[str]:
         issues.append("Generic/AI-associated phrasing appears: " + ", ".join(repeated_tells[:8]))
 
     sentences = _sentences(text)
+    sentence_lengths = [len(_words(sentence)) for sentence in sentences]
+    runaway = [length for length in sentence_lengths if length >= 55]
+    if runaway:
+        issues.append(
+            f"Runaway syntax detected ({len(runaway)} sentence(s) at 55+ words; longest {max(runaway)} words). "
+            "Split accidental clause chains into readable sentences without flattening intentional cadence."
+        )
+
+    repeated_grams = _repeated_ngrams(text)
+    if repeated_grams:
+        examples = ", ".join(f"'{gram}' x{count}" for gram, count in repeated_grams[:3])
+        issues.append(
+            "Substantial phrase-level repetition suggests generation looping rather than intentional refrain: " + examples
+        )
+
+    inflation_hits = [(phrase, lowered.count(phrase)) for phrase in ABSTRACT_INFLATION if lowered.count(phrase)]
+    inflation_total = sum(count for _, count in inflation_hits)
+    if inflation_total >= 6:
+        examples = ", ".join(f"{phrase} x{count}" for phrase, count in inflation_hits[:6])
+        issues.append(
+            "Abstract romantic significance is crowding out scene action: " + examples
+            + ". Keep only canonically necessary abstractions and return to concrete POV, action, dialogue, and consequence."
+        )
+
     starts = Counter(" ".join(_words(sentence)[:3]) for sentence in sentences if len(_words(sentence)) >= 3)
     repeated_starts = [(start, count) for start, count in starts.items() if start and count >= 3]
     if repeated_starts:
@@ -88,9 +126,9 @@ def diagnose_prose(text: str) -> list[str]:
             + ". Vary only where the repetition is not intentional."
         )
 
-    short = sum(1 for sentence in sentences if len(_words(sentence)) <= 5)
-    medium = sum(1 for sentence in sentences if 6 <= len(_words(sentence)) <= 20)
-    long = sum(1 for sentence in sentences if len(_words(sentence)) >= 21)
+    short = sum(1 for length in sentence_lengths if length <= 5)
+    medium = sum(1 for length in sentence_lengths if 6 <= length <= 20)
+    long = sum(1 for length in sentence_lengths if length >= 21)
     if len(sentences) >= 8 and (short == 0 or long == 0):
         issues.append(
             f"Cadence variety may be too even ({short} short / {medium} medium / {long} long sentences); compare against the learned author fingerprint before smoothing further."
