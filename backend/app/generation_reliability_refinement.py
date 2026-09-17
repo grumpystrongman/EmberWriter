@@ -32,6 +32,39 @@ _SEMANTIC_CHAIN_TERMS = {
     "consciousness", "experience", "embodiment", "existence", "purpose", "meaning",
 }
 
+_EXPLICIT_REQUEST_PATTERNS = (
+    r"\bexplicit\b",
+    r"\bsex\s+scene\b",
+    r"\bpenetrat(?:e|ion|ing)\b",
+    r"\bgenital(?:s|ia)?\b",
+    r"\bblow\s*job\b",
+    r"\bhand\s*job\b",
+    r"\banal\b",
+    r"\bcumm?(?:ing)?\b",
+    r"\borgasm\b",
+)
+_DIRECT_DRAFT_PATTERNS = (
+    r"\b(?:penis|cock|dick)\b",
+    r"\b(?:vagina|pussy|cunt|clit|clitoris)\b",
+    r"\b(?:anus|asshole|genitals?|genitalia)\b",
+    r"\bpenetrat(?:e|ed|es|ing|ion)\b",
+    r"\b(?:fuck|fucked|fucking|thrust|thrusting|thrusts)\b",
+    r"\b(?:blow\s*job|hand\s*job|oral\s+sex)\b",
+    r"\b(?:suck|sucked|sucking|lick|licked|licking)\b",
+    r"\b(?:masturbat\w*|stroke|stroked|stroking)\b",
+    r"\b(?:semen|ejaculat\w*|cum|cumming)\b",
+    r"\b(?:orgasm|orgasmed|climax|climaxed|came)\b",
+)
+_CLIMAX_PATTERN = re.compile(r"\b(?:orgasm(?:ed)?|climax(?:ed)?|came|cum|cumming|ejaculat\w*)\b", re.IGNORECASE)
+_BOTH_CLIMAX_REQUEST = re.compile(
+    r"\bboth\b.{0,60}\b(?:orgasm|climax|cum|come)",
+    re.IGNORECASE | re.DOTALL,
+)
+_BOTH_CLIMAX_DRAFT = re.compile(
+    r"\bboth\b.{0,70}\b(?:orgasm(?:ed)?|climax(?:ed)?|came|cum|cumming)",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def _words(text: str) -> list[str]:
     return re.findall(r"[A-Za-z][A-Za-z'-]*", text.casefold())
@@ -83,6 +116,37 @@ def hard_quality_failure(text: str) -> str:
     return ""
 
 
+def requires_direct_explicitness(prompt: str) -> bool:
+    lowered = prompt.casefold()
+    hits = sum(bool(re.search(pattern, lowered, flags=re.IGNORECASE)) for pattern in _EXPLICIT_REQUEST_PATTERNS)
+    return hits >= 2 or bool(re.search(r"\bexplicit\b", lowered))
+
+
+def direct_explicitness_score(draft: str) -> int:
+    return sum(
+        bool(re.search(pattern, draft, flags=re.IGNORECASE))
+        for pattern in _DIRECT_DRAFT_PATTERNS
+    )
+
+
+def explicit_delivery_failure(prompt: str, draft: str) -> str:
+    if not requires_direct_explicitness(prompt):
+        return ""
+    score = direct_explicitness_score(draft)
+    if score < 3:
+        return (
+            "author requested direct explicit scene delivery, but the draft lacks enough direct "
+            "anatomical/sexual-action evidence and appears euphemistic or faded"
+        )
+    if not _CLIMAX_PATTERN.search(draft):
+        return "author requested explicit completion, but the draft has no clear climax evidence"
+    if _BOTH_CLIMAX_REQUEST.search(prompt):
+        climax_mentions = len(_CLIMAX_PATTERN.findall(draft))
+        if not _BOTH_CLIMAX_DRAFT.search(draft) and climax_mentions < 2:
+            return "author required both participants to climax, but the draft does not support both"
+    return ""
+
+
 def refined_adult_model_score(model: str) -> int:
     """Prefer adult-capable creative/RP models, not merely uncensored instruct models."""
     name = model.casefold()
@@ -107,6 +171,20 @@ def refined_adult_model_score(model: str) -> int:
     if any(token in name for token in ("heretic", "uncensored", "abliterat")):
         return 120
     return 0
+
+
+_base_verify_studio_scene_delivery = reliability.verify_studio_scene_delivery
+
+
+async def refined_verify_studio_scene_delivery(config, messages, draft: str) -> dict[str, object]:
+    verdict = await _base_verify_studio_scene_delivery(config, messages, draft)
+    prompt = reliability._author_instruction(messages)
+    delivery_failure = explicit_delivery_failure(prompt, draft)
+    if delivery_failure:
+        verdict["verified"] = False
+        verdict["requested_explicitness_delivered"] = False
+        verdict["reason"] = delivery_failure
+    return verdict
 
 
 class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
@@ -213,3 +291,4 @@ def install_refinement() -> None:
     reliability.adult_model_score = refined_adult_model_score
     reliability.HardenedNoveltyStreamFilter = RefinedNoveltyStreamFilter
     streaming._NoveltyStreamFilter = RefinedNoveltyStreamFilter
+    streaming.verify_studio_scene_delivery = refined_verify_studio_scene_delivery
