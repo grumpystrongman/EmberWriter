@@ -139,12 +139,17 @@ def test_style_fidelity_measurement_and_round_trip(tmp_path: Path) -> None:
 
 
 def test_quality_pass_preserves_craft_instruction(monkeypatch) -> None:
-    captured = {}
+    calls: list[tuple[list[dict[str, str]], dict]] = []
 
     async def fake_generate(provider, messages, **kwargs):
-        captured["messages"] = messages
-        captured["kwargs"] = kwargs
-        return "Revised prose"
+        calls.append((messages, kwargs))
+        if len(calls) == 1:
+            return "Revised prose"
+        return (
+            '{"preserves_core_events":true,"preserves_requested_intensity":true,'
+            '"preserves_character_and_body_canon":true,"preserves_ending_and_aftermath":true,'
+            '"introduces_contradiction":false,"reason":"preserved"}'
+        )
 
     monkeypatch.setattr(craft, "generate", fake_generate)
     result = asyncio.run(
@@ -157,10 +162,41 @@ def test_quality_pass_preserves_craft_instruction(monkeypatch) -> None:
     )
 
     assert result == "Revised prose"
-    user_message = captured["messages"][1]["content"]
+    user_message = calls[0][0][1]["content"]
     assert "Draft prose" in user_message
     assert "clipped, tactile, dry humor" in user_message
-    assert captured["kwargs"]["temperature"] == 0.35
+    assert calls[0][1]["temperature"] == 0.35
+    assert calls[1][1]["json_mode"] is True
+
+
+def test_quality_pass_reverts_when_verifier_says_delivery_was_lost(monkeypatch) -> None:
+    draft = " ".join(f"draft{index}" for index in range(500)) + "."
+    revised = " ".join(f"revised{index}" for index in range(480)) + "."
+    calls = 0
+
+    async def fake_generate(provider, messages, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return revised
+        return (
+            '{"preserves_core_events":false,"preserves_requested_intensity":false,'
+            '"preserves_character_and_body_canon":true,"preserves_ending_and_aftermath":false,'
+            '"introduces_contradiction":false,"reason":"core delivery was softened"}'
+        )
+
+    monkeypatch.setattr(craft, "generate", fake_generate)
+    result = asyncio.run(
+        craft.quality_pass(
+            ProviderConfig(model="test-model"),
+            draft=draft,
+            author_prompt="Preserve the complete requested scene and its intensity.",
+            craft_context="Requested heat: inferno.",
+        )
+    )
+
+    assert result == draft
+    assert calls == 2
 
 
 def test_relevant_character_gets_dossier_context(tmp_path: Path) -> None:
