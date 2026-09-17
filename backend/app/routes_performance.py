@@ -104,13 +104,13 @@ def _performance_recommendations(models: list[dict[str, str]]) -> list[str]:
         recommendations.append("The loaded model is CPU-only. Fast 8B or a smaller context can materially improve speed if it enables GPU offload.")
     elif any("CPU" in processor and "GPU" in processor for processor in processors):
         recommendations.append("The loaded model is split across CPU and GPU. Fast 8B or a smaller context may let it fit fully in VRAM.")
-    elif all("100% GPU" in processor for processor in processors if processor):
+    elif processors and all("100% GPU" in processor for processor in processors):
         recommendations.append("The loaded model is fully GPU-resident; focus next on prompt-evaluation size and generated token count.")
 
     if os.getenv("OLLAMA_FLASH_ATTENTION", "").strip() != "1":
-        recommendations.append("Flash Attention is not enabled in EmberWriter's launch environment.")
+        recommendations.append("Flash Attention is not enabled in EmberWriter's Ollama runtime. Use Restart Ollama tuned.")
     if os.getenv("OLLAMA_KV_CACHE_TYPE", "").strip().casefold() != "q8_0":
-        recommendations.append("KV cache is not set to q8_0 in EmberWriter's launch environment.")
+        recommendations.append("KV cache is not q8_0 in EmberWriter's Ollama runtime. Use Restart Ollama tuned.")
     return recommendations
 
 
@@ -140,8 +140,14 @@ async def warm_model(provider: ProviderConfig) -> dict[str, object]:
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             response = await client.post(
-                f"{provider.base_url.rstrip('/')}/api/chat",
-                json={"model": provider.model, "keep_alive": "30m"},
+                f"{provider.base_url.rstrip('/')}/api/generate",
+                json={
+                    "model": provider.model,
+                    "prompt": "",
+                    "stream": False,
+                    "keep_alive": "30m",
+                    "options": {"num_predict": 1},
+                },
             )
             response.raise_for_status()
     except httpx.HTTPError as exc:
@@ -161,10 +167,10 @@ async def restart_ollama() -> dict[str, object]:
     if not executable:
         raise HTTPException(status_code=404, detail="Ollama executable was not found")
 
+    os.environ["OLLAMA_FLASH_ATTENTION"] = "1"
+    os.environ["OLLAMA_KV_CACHE_TYPE"] = "q8_0"
+    os.environ["OLLAMA_NUM_PARALLEL"] = "1"
     env = os.environ.copy()
-    env["OLLAMA_FLASH_ATTENTION"] = "1"
-    env["OLLAMA_KV_CACHE_TYPE"] = "q8_0"
-    env["OLLAMA_NUM_PARALLEL"] = "1"
     try:
         subprocess.run(
             ["taskkill.exe", "/IM", "ollama.exe", "/T", "/F"],
@@ -185,7 +191,6 @@ async def restart_ollama() -> dict[str, object]:
     except (OSError, subprocess.SubprocessError) as exc:
         raise HTTPException(status_code=500, detail=f"Could not restart Ollama: {exc}") from exc
 
-    # Give the server a brief chance to bind before the panel refreshes.
     await asyncio.sleep(1.5)
     return {
         "ok": True,
