@@ -6,7 +6,6 @@ import platform
 import re
 import shutil
 import subprocess
-from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -172,23 +171,28 @@ async def restart_ollama() -> dict[str, object]:
     os.environ["OLLAMA_NUM_PARALLEL"] = "1"
     env = os.environ.copy()
     try:
-        subprocess.run(
-            ["taskkill.exe", "/IM", "ollama.exe", "/T", "/F"],
-            capture_output=True,
-            timeout=10,
-            check=False,
+        stop_process = await asyncio.create_subprocess_exec(
+            "taskkill.exe",
+            "/IM",
+            "ollama.exe",
+            "/T",
+            "/F",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        await stop_process.communicate()
         await asyncio.sleep(1.0)
         creationflags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        subprocess.Popen(
-            [str(Path(executable)), "serve"],
+        await asyncio.create_subprocess_exec(
+            executable,
+            "serve",
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+            stdin=asyncio.subprocess.DEVNULL,
             creationflags=creationflags,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
         raise HTTPException(status_code=500, detail=f"Could not restart Ollama: {exc}") from exc
 
     await asyncio.sleep(1.5)
