@@ -31,8 +31,8 @@ def test_performance_status_reports_runtime_env_without_tools(monkeypatch) -> No
     monkeypatch.setenv("OLLAMA_FLASH_ATTENTION", "1")
     monkeypatch.setenv("OLLAMA_KV_CACHE_TYPE", "q8_0")
     monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "1")
-    monkeypatch.setattr(routes_performance, "_ollama_processes", lambda: [])
-    monkeypatch.setattr(routes_performance, "_nvidia_gpus", lambda: [])
+    monkeypatch.setattr(routes_performance, "_ollama_processes", list)
+    monkeypatch.setattr(routes_performance, "_nvidia_gpus", list)
 
     result = routes_performance.performance_status()
 
