@@ -34,6 +34,7 @@ line-length = 100
 "app/atlas_hierarchy.py" = ["F401", "B023"]
 "app/routes_generation.py" = ["BLE001"]
 "app/generation_reliability.py" = ["PLC0414"]
+"tests/test_explicitness_enforcement.py" = ["I001"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
