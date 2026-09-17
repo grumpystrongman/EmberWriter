@@ -15,7 +15,7 @@ from .models import ProviderConfig
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
-ACCEPTANCE_VERSION = 1
+ACCEPTANCE_VERSION = 2
 
 ACCEPTANCE_PROMPT = (
     "I need a explicit, very detailed sex scene between Kaelen and Muna. They just finished "
@@ -26,7 +26,7 @@ ACCEPTANCE_PROMPT = (
 )
 
 ACCEPTANCE_CONTEXT = """# Acceptance-test canon
-Kaelen and Muna are consenting adults. Kaelen is the Nexus: attentive, empathic, protective, and responsive rather than domineering. Muna is an adult woman whose Joy/Ecstasy resonance is playful, warm, musical, tactile, spontaneous, and celebratory, with amber/rose/gold imagery. They have just finished a workout and sauna session. Stay with Kaelen and Muna; do not introduce unrelated characters or plot exposition. This is a synthetic local-model acceptance test, not manuscript canon.
+Kaelen and Muna are consenting adults. This fixture establishes intimate anatomy only for the synthetic acceptance run so the model is free to prove direct lexical delivery without inventing manuscript canon: Kaelen has a penis; Muna has a vagina, vulva, clitoris, breasts, and anus. Kaelen is the Nexus: attentive, empathic, protective, and responsive rather than domineering. Muna is an adult woman whose Joy/Ecstasy resonance is playful, warm, musical, tactile, spontaneous, and celebratory, with amber/rose/gold imagery. They have just finished a workout and sauna session. Stay with Kaelen and Muna; do not introduce unrelated characters or plot exposition. This is a synthetic local-model acceptance test, not manuscript canon.
 """
 
 _BANNED_DRIFT_NAMES = ("Sera", "Jax", "Elara", "Lyra")
