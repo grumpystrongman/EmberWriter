@@ -1,9 +1,12 @@
 import asyncio
 
-from app import generation_reliability as reliability
-from app import generation_reliability_refinement as refinement
-from app import streaming_generation
-from app import studio_local_performance as performance
+from app import (
+    generation_reliability as reliability,
+    generation_reliability_refinement as refinement,
+    local_model_stream_reliability as local_stream,
+    streaming_generation,
+    studio_local_performance as performance,
+)
 from app.models import ProviderConfig
 
 
@@ -120,3 +123,14 @@ def test_llm_verifier_runs_only_after_deterministic_gates_pass(monkeypatch) -> N
 def test_installed_verifier_prompt_limits_are_local_model_sized() -> None:
     assert streaming_generation._VERIFIER_CONTEXT_CHARS == 12000
     assert streaming_generation._VERIFIER_DRAFT_CHARS == 14000
+
+
+def test_local_studio_uses_smaller_ollama_context_than_general_writer() -> None:
+    studio_tokens = local_stream.ollama_context_tokens_for(
+        local_stream._HERETIC_ROCINANTE,
+        STUDIO_MESSAGES,
+    )
+    writer_tokens = local_stream.ollama_context_tokens_for(local_stream._HERETIC_ROCINANTE)
+
+    assert studio_tokens == 16384
+    assert writer_tokens > studio_tokens
