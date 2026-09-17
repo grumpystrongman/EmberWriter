@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import WorkspaceShell from './WorkspaceShell'
 import GenerationModePolicy from './GenerationModePolicy'
 import GenerationWatchdog from './GenerationWatchdog'
+import PerformancePanel from './PerformancePanel'
 import ProjectRecoveryStatus from './ProjectRecoveryStatus'
 import StableDiffusionStatus from './StableDiffusionStatus'
 import StartupModelGuard from './StartupModelGuard'
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
       <VoiceFingerprintOverlay />
       <ProjectRecoveryStatus />
       <StableDiffusionStatus />
+      <PerformancePanel />
     </StartupModelGuard>
   </StrictMode>,
 )
