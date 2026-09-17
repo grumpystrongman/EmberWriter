@@ -4,11 +4,8 @@ import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from . import generation
+from . import generation, model_provisioning, ollama_runtime, streaming_generation
 from . import generation_reliability_refinement as refinement
-from . import model_provisioning
-from . import ollama_runtime
-from . import streaming_generation
 from .models import ProviderConfig
 
 HERETIC_ROCINANTE_MODEL = (
