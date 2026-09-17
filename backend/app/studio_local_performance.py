@@ -1,19 +1,23 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Awaitable, Callable
+
+import httpx
 
 from . import generation_reliability as reliability
 from . import generation_reliability_refinement as refinement
 from . import streaming_generation
+from .generation import MODEL_GATE
 from .models import ProviderConfig
+from .ollama_runtime import choose_installed_model, installed_ollama_models
 
 DeltaCallback = Callable[[str], Awaitable[None]]
 StatusCallback = Callable[[str], Awaitable[None]]
 
 _LOCAL_STUDIO_MAX_PASSES = 2
 _LOCAL_STUDIO_MAX_OUTPUT_TOKENS = 4096
-_LOCAL_STUDIO_LLM_VERIFIER_ENV = "EMBER_LOCAL_STUDIO_LLM_VERIFIER"
+_LOCAL_VERIFIER_CONTEXT_TOKENS = 8192
+_LOCAL_VERIFIER_OUTPUT_TOKENS = 220
 _VERIFIER_CONTEXT_CHARS = 12000
 _VERIFIER_DRAFT_CHARS = 14000
 
@@ -24,10 +28,6 @@ _INSTALLED = False
 
 def _is_local_studio(config: ProviderConfig, messages: list[dict[str, str]]) -> bool:
     return config.provider == "ollama" and streaming_generation._is_studio_scene(messages)
-
-
-def _env_enabled(name: str) -> bool:
-    return os.getenv(name, "").strip().casefold() in {"1", "true", "yes", "on"}
 
 
 def _failed_verdict(reason: str, *, explicitness: bool = False) -> dict[str, object]:
@@ -42,18 +42,100 @@ def _failed_verdict(reason: str, *, explicitness: bool = False) -> dict[str, obj
     return verdict
 
 
-def _deterministic_success_verdict() -> dict[str, object]:
-    return {
-        "verified": True,
-        "core_encounter_on_page": True,
-        "requested_explicitness_delivered": True,
-        "buildup_only": False,
-        "fade_or_skip": False,
-        "ending_complete": True,
-        "canon_respected": True,
-        "repetition_loop": False,
-        "reason": "local Studio deterministic delivery gates accepted the completed scene",
-    }
+def _verified_from_payload(verdict: dict[str, object]) -> dict[str, object]:
+    verified = all(
+        (
+            verdict.get("core_encounter_on_page") is True,
+            verdict.get("requested_explicitness_delivered") is True,
+            verdict.get("buildup_only") is False,
+            verdict.get("fade_or_skip") is False,
+            verdict.get("ending_complete") is True,
+            verdict.get("canon_respected") is True,
+            verdict.get("repetition_loop") is False,
+        )
+    )
+    verdict["verified"] = verified
+    return verdict
+
+
+async def _verify_local_studio_scene_delivery(
+    config: ProviderConfig,
+    messages: list[dict[str, str]],
+    draft: str,
+) -> dict[str, object]:
+    """Run the semantic Studio judge with a small verifier-only Ollama context.
+
+    The general non-streaming generation path allocates EmberWriter's broad manuscript context
+    window. The verifier only classifies a bounded excerpt, so using that large window wastes KV
+    memory and can reduce GPU offload on constrained local hardware. Keep the same semantic contract
+    while giving the judge an 8K context and a small JSON output budget.
+    """
+    request_context = streaming_generation._verifier_source_context(messages)
+    verifier_messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are EmberWriter's strict scene-delivery verifier. Do not rewrite, extend, sanitize, quote, or summarize "
+                "the prose. Judge only whether the supplied draft actually fulfills the author's request. Return JSON only. "
+                "For an adult intimacy request, distinguish an on-page sexual encounter from attraction, kissing, foreplay, "
+                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Treat character identity, embodiment, "
+                "body facts, participants, and relationship facts in the supplied request/context as hard canon."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "AUTHOR REQUEST AND RELEVANT CANON\n"
+                f"{request_context}\n\n"
+                "DRAFT TO VERIFY\n"
+                f"{draft[-_VERIFIER_DRAFT_CHARS:]}\n\n"
+                "Return exactly one JSON object with these keys:\n"
+                '{"core_encounter_on_page":true|false,"requested_explicitness_delivered":true|false,'
+                '"buildup_only":true|false,"fade_or_skip":true|false,"ending_complete":true|false,'
+                '"canon_respected":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
+            ),
+        },
+    ]
+
+    try:
+        async with MODEL_GATE:
+            installed = await installed_ollama_models(config.base_url)
+            effective_model = choose_installed_model(config.model, installed)
+            if not effective_model:
+                return _failed_verdict("delivery verifier could not resolve the configured local model")
+            if effective_model != config.model:
+                config.model = effective_model
+
+            body = {
+                "model": effective_model,
+                "messages": verifier_messages,
+                "stream": False,
+                "format": "json",
+                "keep_alive": "30m",
+                "options": {
+                    "temperature": 0.0,
+                    "top_p": 0.8,
+                    "num_ctx": _LOCAL_VERIFIER_CONTEXT_TOKENS,
+                    "num_predict": _LOCAL_VERIFIER_OUTPUT_TOKENS,
+                },
+            }
+            timeout = httpx.Timeout(connect=15.0, read=600.0, write=60.0, pool=15.0)
+            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                response = await client.post(
+                    f"{config.base_url.rstrip('/')}/api/chat",
+                    json=body,
+                )
+                if response.status_code >= 400:
+                    return _failed_verdict("delivery verifier could not complete")
+                payload = response.json()
+    except (RuntimeError, ValueError, httpx.HTTPError):
+        return _failed_verdict("delivery verifier could not complete")
+
+    raw = str(payload.get("message", {}).get("content", ""))
+    verdict = streaming_generation._parse_verifier_json(raw)
+    if not verdict:
+        return _failed_verdict("delivery verifier returned unreadable JSON")
+    return _verified_from_payload(verdict)
 
 
 async def verify_studio_scene_delivery_fast(
@@ -61,17 +143,7 @@ async def verify_studio_scene_delivery_fast(
     messages: list[dict[str, str]],
     draft: str,
 ) -> dict[str, object]:
-    """Use cheap deterministic delivery gates before an optional local-model judge.
-
-    The streaming pipeline only invokes this verifier after a candidate has already emitted the
-    explicit scene-complete marker, met the requested word floor, reached a natural sentence ending,
-    and produced new candidate prose. Re-running the same 12B model as an independent judge can add
-    another full prompt-evaluation/inference cycle to an otherwise finished local scene.
-
-    For local Studio, deterministic prose/explicitness gates are therefore the default final check.
-    Authors who prefer the slower independent LLM judge can opt back in with
-    EMBER_LOCAL_STUDIO_LLM_VERIFIER=1. Non-local providers keep the independent verifier.
-    """
+    """Reject deterministic failures before paying for the semantic delivery judge."""
     quality_failure = reliability._hard_quality_failure(draft)
     if quality_failure:
         return _failed_verdict(
@@ -83,9 +155,8 @@ async def verify_studio_scene_delivery_fast(
     if delivery_failure:
         return _failed_verdict(delivery_failure, explicitness=True)
 
-    if _is_local_studio(config, messages) and not _env_enabled(_LOCAL_STUDIO_LLM_VERIFIER_ENV):
-        return _deterministic_success_verdict()
-
+    if _is_local_studio(config, messages):
+        return await _verify_local_studio_scene_delivery(config, messages, draft)
     return await _BASE_VERIFY(config, messages, draft)
 
 
@@ -106,14 +177,8 @@ async def generate_complete_prose_streamed_budgeted(
         effective_passes = min(max_passes, _LOCAL_STUDIO_MAX_PASSES)
         effective_output_tokens = min(max_output_tokens, _LOCAL_STUDIO_MAX_OUTPUT_TOKENS)
         if on_status is not None:
-            verifier_mode = (
-                "strict LLM verifier"
-                if _env_enabled(_LOCAL_STUDIO_LLM_VERIFIER_ENV)
-                else "fast deterministic verifier"
-            )
             await on_status(
-                "Local Studio · primary draft + one repair pass maximum · "
-                f"{verifier_mode}"
+                "Local Studio · primary draft + one repair pass maximum · compact semantic verifier"
             )
 
     return await _BASE_STREAMED_COMPLETE(
@@ -136,9 +201,8 @@ def install_studio_local_performance() -> None:
     _BASE_STREAMED_COMPLETE = streaming_generation.generate_complete_prose_streamed
     _BASE_VERIFY = streaming_generation.verify_studio_scene_delivery
 
-    # The verifier only needs enough request/canon context to judge the delivered scene, not the
-    # same broad context window used to write it. Smaller verifier prompts materially reduce prompt
-    # evaluation time and KV pressure on local models when strict verification is explicitly enabled.
+    # The semantic judge only needs bounded request/canon and draft excerpts. The local verifier
+    # then uses an 8K Ollama context instead of the general manuscript context allocation.
     streaming_generation._VERIFIER_CONTEXT_CHARS = _VERIFIER_CONTEXT_CHARS
     streaming_generation._VERIFIER_DRAFT_CHARS = _VERIFIER_DRAFT_CHARS
     streaming_generation.verify_studio_scene_delivery = verify_studio_scene_delivery_fast
