@@ -188,7 +188,7 @@ def _payload(base_url: str, prompt: str, mode: str = "write") -> dict:
     }
 
 
-def _stream_final(client: TestClient, slug: str, payload: dict) -> tuple[list[dict], dict]:
+def _stream_events(client: TestClient, slug: str, payload: dict) -> list[dict]:
     events: list[dict] = []
     with client.stream("POST", f"/api/projects/{slug}/generate/stream", json=payload) as response:
         assert response.status_code == 200, response.text
@@ -196,6 +196,11 @@ def _stream_final(client: TestClient, slug: str, payload: dict) -> tuple[list[di
             if not line.strip():
                 continue
             events.append(json.loads(line))
+    return events
+
+
+def _stream_final(client: TestClient, slug: str, payload: dict) -> tuple[list[dict], dict]:
+    events = _stream_events(client, slug, payload)
     finals = [event for event in events if event.get("type") == "final"]
     assert finals, events
     return events, finals[-1]
@@ -227,6 +232,17 @@ def test_studio_inferno_is_verified_end_to_end_on_clean_api_path(tmp_path: Path)
         assert any(event.get("message") == "Verifying requested scene delivery…" for event in events)
         assert any("Delivery check failed" in str(event.get("message", "")) for event in events)
         assert any("Requested scene delivery verified" in str(event.get("message", "")) for event in events)
+
+        verified_index = next(
+            index
+            for index, event in enumerate(events)
+            if "Requested scene delivery verified" in str(event.get("message", ""))
+        )
+        delta_indices = [index for index, event in enumerate(events) if event.get("type") == "delta"]
+        assert delta_indices, "verified Studio prose should be released after approval"
+        assert min(delta_indices) > verified_index, (
+            "Studio prose must remain quarantined until the independent delivery verifier approves it"
+        )
 
         first_writer_context = "\n".join(
             str(message.get("content", "")) for message in state.writer_calls[0].get("messages", [])
@@ -273,7 +289,7 @@ def test_studio_continue_context_never_tells_model_to_start_over(tmp_path: Path)
         server.server_close()
 
 
-def test_unverified_studio_scene_can_never_be_reported_complete(tmp_path: Path) -> None:
+def test_unverified_studio_scene_never_reaches_the_client_as_prose(tmp_path: Path) -> None:
     server, state, base_url = _start_fake_ollama()
     try:
         slug = _setup_project(tmp_path)
@@ -286,14 +302,22 @@ def test_unverified_studio_scene_can_never_be_reported_complete(tmp_path: Path) 
         )
 
         with TestClient(app) as client:
-            events, final = _stream_final(client, slug, payload)
+            events = _stream_events(client, slug, payload)
 
         assert state.verifier_calls, "the verifier must actually run"
-        assert final.get("partial") is True, (
-            "a Studio intimacy draft that never passes the independent verifier must be partial, never complete"
+        assert not any(event.get("type") == "delta" for event in events), (
+            "unverified Studio prose must remain quarantined rather than reaching the live preview"
         )
-        assert final.get("warning"), events
-        assert "verified" in str(final.get("warning", "")).casefold() or "delivery" in str(final.get("warning", "")).casefold()
+        assert not any(event.get("type") == "final" for event in events), (
+            "a Studio scene that never verifies must fail closed instead of becoming a partial draft"
+        )
+        errors = [event for event in events if event.get("type") == "error"]
+        assert errors, events
+        detail = str(errors[-1].get("detail", ""))
+        assert "verified" in detail.casefold() or "delivery" in detail.casefold()
+        assert "BUILDUP_ONLY" not in json.dumps(events), (
+            "rejected model prose must not leak into any author-visible stream event"
+        )
     finally:
         server.shutdown()
         server.server_close()

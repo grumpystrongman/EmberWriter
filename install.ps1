@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("auto", "8b", "14b")]
+    [ValidateSet("auto", "8b", "12b", "14b", "24b")]
     [string]$AdultModelTier = "auto",
     [switch]$SkipModelDownload,
     [ValidateSet("forge", "automatic1111")]
@@ -15,13 +15,24 @@ $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 
-$Adult8B = "R4C3R/qwen3-8b-heretic:q4_k_m"
-$Adult14B = "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m"
+# EmberWriter is a fiction-writing application, so setup installs a creative/RP model that is
+# explicitly capable of the author's requested adult prose. The old Qwen Heretic models remain
+# usable if already installed, but they are no longer the managed writing dependency.
+$AdultBaseline = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+$AdultHighHeat = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+$HighHeatMinimumFreeGb = 22
 
 function Require-Command([string]$Name, [string]$Message) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
         throw $Message
     }
+}
+
+function Get-FreeDiskGb([string]$Path) {
+    $rootPath = [System.IO.Path]::GetPathRoot((Resolve-Path $Path).Path)
+    $drive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$($rootPath.TrimEnd('\'))'"
+    if (-not $drive) { return 0 }
+    return [math]::Floor($drive.FreeSpace / 1GB)
 }
 
 Write-Host ""
@@ -68,17 +79,36 @@ Require-Command "ollama" "Ollama was installed but is not yet available in this 
 
 if (-not $SkipModelDownload) {
     $totalRamGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
-    $chosen = $Adult8B
-    if ($AdultModelTier -eq "14b" -or ($AdultModelTier -eq "auto" -and $totalRamGb -ge 24)) {
-        $chosen = $Adult14B
+    $freeDiskGb = Get-FreeDiskGb $Root
+    $chosen = $AdultBaseline
+
+    # Keep the legacy 8b/14b switches accepted so existing setup commands do not break. Both now
+    # map to the stronger 12B creative baseline rather than reinstalling the old Qwen stack.
+    $highHeatRequested = $AdultModelTier -eq "24b"
+    $highHeatAuto = $AdultModelTier -eq "auto" -and $totalRamGb -ge 32 -and $freeDiskGb -ge $HighHeatMinimumFreeGb
+    if ($highHeatRequested) {
+        if ($freeDiskGb -lt $HighHeatMinimumFreeGb) {
+            throw "The 24B high-heat model needs at least ${HighHeatMinimumFreeGb} GB free. Only ${freeDiskGb} GB is available."
+        }
+        $chosen = $AdultHighHeat
+    } elseif ($highHeatAuto) {
+        $chosen = $AdultHighHeat
     }
-    if ($AdultModelTier -eq "8b") { $chosen = $Adult8B }
 
     Write-Host ""
-    Write-Host "Recommended adult-fiction model: $chosen" -ForegroundColor Green
+    Write-Host "Managed EmberWriter fiction model: $chosen" -ForegroundColor Green
     Write-Host "System RAM detected: ${totalRamGb} GB"
+    Write-Host "Free disk detected: ${freeDiskGb} GB"
     Write-Host "Downloading model if needed. This can take several minutes..."
     & ollama pull $chosen
+    if ($LASTEXITCODE -ne 0) {
+        throw "Ollama failed to download the managed writing model: $chosen"
+    }
+
+    $installedModels = @(& ollama list | Select-Object -Skip 1 | ForEach-Object { ($_ -split '\s+')[0] })
+    if (-not ($installedModels | Where-Object { $_ -ieq $chosen })) {
+        throw "Ollama reported a successful pull, but the managed writing model is not installed: $chosen"
+    }
 
     $ConfigDir = Join-Path $Root ".ember"
     New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
@@ -87,11 +117,12 @@ if (-not $SkipModelDownload) {
         base_url = "http://localhost:11434"
         preferred_model = $chosen
         adult_model = $chosen
-        fallback_adult_model = $Adult8B
+        fallback_adult_model = $AdultBaseline
+        high_heat_model = $AdultHighHeat
     } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $ConfigDir "local-models.json")
 
     Write-Host ""
-    Write-Host "Local writing model installed: $chosen" -ForegroundColor Green
+    Write-Host "Local writing model installed and verified: $chosen" -ForegroundColor Green
     Write-Host "EmberWriter will prefer this model when Ollama is selected."
 }
 

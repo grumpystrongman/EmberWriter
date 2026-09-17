@@ -16,6 +16,8 @@ _LOG_DIR = _REPO_ROOT / ".ember" / "logs"
 _START_LOCK = asyncio.Lock()
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 _RECOMMENDED_MODELS = (
+    "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M",
+    "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M",
     "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
     "R4C3R/qwen3-8b-heretic:q4_k_m",
 )
@@ -141,6 +143,12 @@ async def installed_ollama_models(base_url: str) -> list[str]:
 
 
 def choose_installed_model(configured_model: str, installed_models: list[str]) -> str:
+    """Resolve a valid writing model without ever falling through to an arbitrary local model.
+
+    A stale UI selection may be repaired to EmberWriter's persisted preferred model or a known
+    recommended writing model. If none of those are installed, fail closed. Returning the first
+    item from `ollama list` previously allowed unrelated local models to receive manuscript prompts.
+    """
     by_name = {item.casefold(): item for item in installed_models}
     configured = configured_model.strip()
     if configured and configured.casefold() in by_name:
@@ -154,4 +162,4 @@ def choose_installed_model(configured_model: str, installed_models: list[str]) -
         if model.casefold() in by_name:
             return by_name[model.casefold()]
 
-    return installed_models[0] if installed_models else ""
+    return ""

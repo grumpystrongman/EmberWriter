@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from . import generation
+from . import generation, model_provisioning, ollama_runtime, streaming_generation
 from . import generation_reliability_refinement as refinement
+from .models import ProviderConfig
+
+HERETIC_ROCINANTE_MODEL = (
+    "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+)
+HIGH_HEAT_CYDONIA_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+
+DeltaCallback = Callable[[str], Awaitable[None]]
+StatusCallback = Callable[[str], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -57,8 +67,13 @@ _AUTHOR_DIRECT_TERMS = (
     "face",
     "tits",
 )
+_STUDIO_DELIVERY_MARKERS = (
+    "STUDIO SCENE DELIVERY CONTRACT:",
+    "STUDIO CONTINUATION CONTRACT:",
+)
 
 _BASE_BUILD_MESSAGES = generation.build_messages
+_BASE_STREAMED_COMPLETE = streaming_generation.generate_complete_prose_streamed
 
 
 def _sentences(text: str) -> list[str]:
@@ -118,6 +133,61 @@ def _author_direct_terms(prompt: str) -> list[str]:
     return [term for term in _AUTHOR_DIRECT_TERMS if term in lowered]
 
 
+def _is_studio_delivery(messages: list[dict[str, str]]) -> bool:
+    return any(
+        marker in message.get("content", "")
+        for message in messages
+        for marker in _STUDIO_DELIVERY_MARKERS
+    )
+
+
+async def generate_verified_studio_prose_streamed(
+    config: ProviderConfig,
+    messages: list[dict[str, str]],
+    *,
+    min_words: int,
+    on_delta: DeltaCallback,
+    on_status: StatusCallback | None = None,
+    max_passes: int = 6,
+    max_output_tokens: int = 6144,
+) -> str:
+    """Keep Studio prose provisional until the delivery verifier has accepted the whole scene.
+
+    The base streamed generator may reject buildup-only, canon-conflicting, repetitive, or otherwise
+    incomplete attempts after model tokens have already arrived. Forwarding those provisional tokens
+    lets rejected prose leak into the watchdog preview and lets route-level partial preservation turn a
+    failed Studio attempt into a visible draft. Studio prose therefore streams into a quarantine sink.
+    Only the final text returned by the base generator -- which means Studio verification passed -- is
+    released to the author-facing stream. Non-Studio generation keeps normal live streaming behavior.
+    """
+    if not _is_studio_delivery(messages):
+        return await _BASE_STREAMED_COMPLETE(
+            config,
+            messages,
+            min_words=min_words,
+            on_delta=on_delta,
+            on_status=on_status,
+            max_passes=max_passes,
+            max_output_tokens=max_output_tokens,
+        )
+
+    async def quarantine_delta(_text: str) -> None:
+        return None
+
+    text = await _BASE_STREAMED_COMPLETE(
+        config,
+        messages,
+        min_words=min_words,
+        on_delta=quarantine_delta,
+        on_status=on_status,
+        max_passes=max_passes,
+        max_output_tokens=max_output_tokens,
+    )
+    if text:
+        await on_delta(text)
+    return text
+
+
 def build_messages(*args, **kwargs):
     messages = _BASE_BUILD_MESSAGES(*args, **kwargs)
     prompt = str(args[1] if len(args) >= 2 else kwargs.get("prompt", ""))
@@ -140,7 +210,22 @@ Direct-explicitness contract for this request:
 
 
 def install_explicitness_enforcement() -> None:
-    global _BASE_BUILD_MESSAGES
+    global _BASE_BUILD_MESSAGES, _BASE_STREAMED_COMPLETE
     _BASE_BUILD_MESSAGES = generation.build_messages
     generation.build_messages = build_messages
     refinement.explicit_delivery_failure = strict_explicit_delivery_failure
+
+    if streaming_generation.generate_complete_prose_streamed is not generate_verified_studio_prose_streamed:
+        _BASE_STREAMED_COMPLETE = streaming_generation.generate_complete_prose_streamed
+        streaming_generation.generate_complete_prose_streamed = generate_verified_studio_prose_streamed
+
+    # Keep installation, background provisioning, and stale-model repair on one managed model
+    # contract. This runs after the reliability layer, which otherwise restores the old Qwen /
+    # standard-Rocinante recommendation list.
+    model_provisioning.BASELINE_CREATIVE_MODEL = HERETIC_ROCINANTE_MODEL
+    ollama_runtime._RECOMMENDED_MODELS = (
+        HIGH_HEAT_CYDONIA_MODEL,
+        HERETIC_ROCINANTE_MODEL,
+        "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+        "R4C3R/qwen3-8b-heretic:q4_k_m",
+    )
