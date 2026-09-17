@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 import httpx
 
@@ -14,6 +15,9 @@ _FIRST_TOKEN_TIMEOUT_SECONDS = 15 * 60
 _INTER_TOKEN_TIMEOUT_SECONDS = 5 * 60
 _LARGE_MODEL_CONTEXT_TOKENS = 16384
 _LARGE_MODEL_HINTS = ("cydonia", "24b", "24-b", "24_b")
+_HERETIC_ROCINANTE = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+_STANDARD_ROCINANTE = "HammerAI/rocinante-v1.1:12b-q4_K_M"
+_HIGH_HEAT_CYDONIA = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 
 _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
 _INSTALLED = False
@@ -32,6 +36,49 @@ async def _next_line(iterator, timeout_seconds: float) -> str | None:
         return await asyncio.wait_for(iterator.__anext__(), timeout=timeout_seconds)
     except StopAsyncIteration:
         return None
+
+
+async def route_adult_model_stable(
+    config: ProviderConfig,
+    messages: list[dict[str, str]],
+) -> None:
+    """Repair stale model choices without upgrading a valid configured creative model."""
+    from . import generation_reliability as reliability
+
+    if config.provider != "ollama" or not reliability._is_intimacy_request(messages):
+        return
+
+    installed = await installed_ollama_models(config.base_url)
+    if not installed:
+        return
+
+    current = next(
+        (item for item in installed if item.casefold() == config.model.casefold()),
+        None,
+    )
+    if current and reliability.adult_model_score(current) > 0:
+        config.model = current
+        return
+
+    # Repair toward the 12B managed baseline first. The 24B tier is deliberately opt-in;
+    # system RAM and disk alone are not enough to prove that a machine can infer it well.
+    preferred = (
+        _HERETIC_ROCINANTE,
+        _STANDARD_ROCINANTE,
+        _HIGH_HEAT_CYDONIA,
+        "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+        "R4C3R/qwen3-8b-heretic:q4_k_m",
+    )
+    installed_by_name = {item.casefold(): item for item in installed}
+    for candidate in preferred:
+        resolved = installed_by_name.get(candidate.casefold())
+        if resolved:
+            config.model = resolved
+            return
+
+    ranked = sorted(installed, key=reliability.adult_model_score, reverse=True)
+    if ranked and reliability.adult_model_score(ranked[0]) > 0:
+        config.model = ranked[0]
 
 
 async def generate_streamed_reliable(
@@ -91,7 +138,7 @@ async def generate_streamed_reliable(
             body["format"] = "json"
 
         pieces: list[str] = []
-        # Disable httpx's per-read watchdog and apply our own state-aware timeout below.
+        # Disable httpx's fixed per-read watchdog and apply our own state-aware timer below.
         timeout = httpx.Timeout(connect=15.0, read=None, write=120.0, pool=15.0)
         try:
             async with (
@@ -168,5 +215,15 @@ def install_local_model_stream_reliability() -> None:
     global _INSTALLED
     if _INSTALLED:
         return
-    streaming_generation.generate_streamed = generate_streamed_reliable
+
+    from . import generation_reliability as reliability
+
+    # generation_reliability owns the public streamed wrapper (sampling, word ceilings, model
+    # routing). Replace only its low-level transport so those contracts remain intact.
+    reliability._original_generate_streamed = generate_streamed_reliable
+    reliability._route_adult_model = route_adult_model_stable
+
+    # High-heat auto-escalation remains available as an explicit environment opt-in, but it is
+    # unsafe as a default without GPU/VRAM evidence.
+    os.environ.setdefault("EMBER_AUTO_INSTALL_HIGH_HEAT_MODEL", "0")
     _INSTALLED = True
