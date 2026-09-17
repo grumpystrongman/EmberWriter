@@ -38,6 +38,7 @@ from .routes_generation import router as generation_router
 from .routes_knowledge import router as knowledge_router
 from .routes_media import router as media_router
 from .routes_memory import router as memory_router
+from .routes_models import router as models_router
 from .routes_preview import router as preview_router
 from .routes_provenance import router as provenance_router
 from .routes_reader import router as reader_router
@@ -111,7 +112,7 @@ async def lifespan(_: FastAPI):
             await refresh_task
 
 
-app = FastAPI(title="EmberWriter API", version="0.14.3", lifespan=lifespan)
+app = FastAPI(title="EmberWriter API", version="0.14.4", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -128,6 +129,7 @@ async def writer_generation_guard(request: Request, call_next):
 
 
 app.include_router(generation_router)
+app.include_router(models_router)
 app.include_router(memory_router)
 app.include_router(story_router)
 app.include_router(atlas_router)
@@ -176,7 +178,7 @@ def cancel_writer_generation(slug: str) -> dict:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.14.3"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.14.4"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
