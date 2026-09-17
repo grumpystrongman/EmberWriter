@@ -3,8 +3,8 @@ import asyncio
 import app.generation_reliability as reliability
 import app.generation_reliability_refinement as refinement
 import app.local_model_stream_reliability as local_stream
-import app.streaming_generation as streaming_generation
 import app.studio_local_performance as performance
+from app import streaming_generation
 from app.models import ProviderConfig
 
 
