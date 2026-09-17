@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import RLock
 from time import perf_counter
 from uuid import uuid4
@@ -15,7 +15,7 @@ _MAX_RECENT_CALLS = 24
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _duration_ms(payload: dict[str, object], key: str) -> float | None:
