@@ -1,8 +1,4 @@
-from app import generation
-from app.explicitness_enforcement import (
-    explicitness_profile,
-    strict_explicit_delivery_failure,
-)
+from app import explicitness_enforcement, generation
 
 
 _PROMPT = (
@@ -17,7 +13,7 @@ def test_pg13_euphemistic_scene_fails_direct_explicitness_gate() -> None:
         "With a final push he breached her fully and they found a steady rhythm. Their bodies moved "
         "together until they reached culmination and climax. They collapsed together afterward, satisfied."
     )
-    reason = strict_explicit_delivery_failure(_PROMPT, draft)
+    reason = explicitness_enforcement.strict_explicit_delivery_failure(_PROMPT, draft)
     assert reason
     assert "anatom" in reason.lower() or "pg-13" in reason.lower() or "euphem" in reason.lower()
 
@@ -31,12 +27,12 @@ def test_direct_lexical_fixture_passes_density_gate() -> None:
         "They continued fucking, with direct penetration and thrusting described clearly. "
         "Muna orgasmed first. Kaelen came afterward, ejaculating as they finished together."
     )
-    profile = explicitness_profile(draft)
+    profile = explicitness_enforcement.explicitness_profile(draft)
     assert profile.anatomy_groups >= 2
     assert profile.action_groups >= 2
     assert profile.direct_action_sentences >= 3
     assert profile.explicit_sentences >= 5
-    assert strict_explicit_delivery_failure(_PROMPT, draft) == ""
+    assert explicitness_enforcement.strict_explicit_delivery_failure(_PROMPT, draft) == ""
 
 
 def test_explicit_request_adds_direct_vocabulary_contract() -> None:
