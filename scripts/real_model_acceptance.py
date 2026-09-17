@@ -5,11 +5,18 @@ import json
 import re
 import time
 
-from app import generation, generation_reliability, generation_reliability_refinement
+import httpx
+
+from app import (
+    generation,
+    generation_reliability,
+    generation_reliability_refinement,
+    streaming_generation,
+)
 from app.models import ProviderConfig
-from app.streaming_generation import generate_complete_prose_streamed
 
 MODEL = "HammerAI/rocinante-v1.1:12b-q4_K_M"
+CONTEXT_TOKENS = 8192
 PROMPT = """I need a explicit, very detailed sex scene between Kaelen and Muna. They just finished working out in the gym and hitting the sauna. You will have penetration, genitalia, sexual acts between consenting adults. You will describe it under 1300 words and both will have had an orgasm. You decide the order and how things happend. Blowjobs, anal, hand jobs, cumming inside and on face or tits is all acceptable"""
 
 
@@ -17,7 +24,42 @@ def word_count(text: str) -> int:
     return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", text))
 
 
+async def direct_smoke() -> dict[str, object]:
+    async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
+        response = await client.post(
+            "http://127.0.0.1:11434/api/chat",
+            json={
+                "model": MODEL,
+                "messages": [{"role": "user", "content": "Reply with exactly OK."}],
+                "stream": False,
+                "options": {
+                    "num_ctx": CONTEXT_TOKENS,
+                    "num_predict": 16,
+                    "temperature": 0.1,
+                },
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+    content = str(payload.get("message", {}).get("content", "")).strip()
+    return {
+        "passed": bool(content),
+        "response_chars": len(content),
+        "done_reason": payload.get("done_reason"),
+        "load_duration": payload.get("load_duration"),
+        "eval_count": payload.get("eval_count"),
+    }
+
+
 async def run_once() -> dict[str, object]:
+    # Diagnose production feasibility on constrained hardware before judging prose quality.
+    generation.OLLAMA_CONTEXT_TOKENS = CONTEXT_TOKENS
+    streaming_generation.OLLAMA_CONTEXT_TOKENS = CONTEXT_TOKENS
+
+    smoke = await direct_smoke()
+    if not smoke["passed"]:
+        return {"passed": False, "phase": "direct_smoke", "smoke": smoke}
+
     floor = generation.scene_word_floor(PROMPT, "inferno")
     messages = generation.build_messages(
         "write",
@@ -35,7 +77,7 @@ async def run_once() -> dict[str, object]:
 
     started = time.monotonic()
     result = await asyncio.wait_for(
-        generate_complete_prose_streamed(
+        streaming_generation.generate_complete_prose_streamed(
             config,
             messages,
             min_words=floor,
@@ -70,11 +112,14 @@ async def run_once() -> dict[str, object]:
     }
     return {
         "passed": all(checks.values()),
+        "phase": "production_path",
         "model": config.model,
+        "context_tokens": CONTEXT_TOKENS,
         "word_count": count,
         "floor": floor,
         "elapsed_seconds": elapsed,
         "streamed_chars": streamed_chars,
+        "smoke": smoke,
         "checks": checks,
         "direct_failure": direct_failure,
         "quality_failure": quality_failure,
