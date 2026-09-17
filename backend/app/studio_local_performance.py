@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from time import perf_counter
 
 import httpx
 
@@ -10,12 +11,14 @@ from . import streaming_generation
 from .generation import MODEL_GATE
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
+from .performance_telemetry import record_model_call
 
 DeltaCallback = Callable[[str], Awaitable[None]]
 StatusCallback = Callable[[str], Awaitable[None]]
 
 _LOCAL_STUDIO_MAX_PASSES = 2
-_LOCAL_STUDIO_MAX_OUTPUT_TOKENS = 4096
+_LOCAL_STUDIO_QUALITY_OUTPUT_TOKENS = 4096
+_LOCAL_STUDIO_FAST_OUTPUT_TOKENS = 3072
 _LOCAL_VERIFIER_CONTEXT_TOKENS = 8192
 _LOCAL_VERIFIER_OUTPUT_TOKENS = 220
 _VERIFIER_CONTEXT_CHARS = 12000
@@ -24,6 +27,11 @@ _VERIFIER_DRAFT_CHARS = 14000
 _BASE_STREAMED_COMPLETE = streaming_generation.generate_complete_prose_streamed
 _BASE_VERIFY = streaming_generation.verify_studio_scene_delivery
 _INSTALLED = False
+
+
+def _is_fast_model(model: str) -> bool:
+    name = model.casefold()
+    return "8b" in name or "8-b" in name or "8_b" in name
 
 
 def _is_local_studio(config: ProviderConfig, messages: list[dict[str, str]]) -> bool:
@@ -63,13 +71,7 @@ async def _verify_local_studio_scene_delivery(
     messages: list[dict[str, str]],
     draft: str,
 ) -> dict[str, object]:
-    """Run the semantic Studio judge with a small verifier-only Ollama context.
-
-    The general non-streaming generation path allocates EmberWriter's broad manuscript context
-    window. The verifier only classifies a bounded excerpt, so using that large window wastes KV
-    memory and can reduce GPU offload on constrained local hardware. Keep the same semantic contract
-    while giving the judge an 8K context and a small JSON output budget.
-    """
+    """Run the semantic Studio judge with a small verifier-only Ollama context."""
     request_context = streaming_generation._verifier_source_context(messages)
     verifier_messages = [
         {
@@ -97,6 +99,8 @@ async def _verify_local_studio_scene_delivery(
         },
     ]
 
+    started = perf_counter()
+    effective_model = config.model
     try:
         async with MODEL_GATE:
             installed = await installed_ollama_models(config.base_url)
@@ -130,6 +134,15 @@ async def _verify_local_studio_scene_delivery(
                 payload = response.json()
     except (RuntimeError, ValueError, httpx.HTTPError):
         return _failed_verdict("delivery verifier could not complete")
+
+    record_model_call(
+        stage="studio-verifier",
+        model=effective_model,
+        context_tokens=_LOCAL_VERIFIER_CONTEXT_TOKENS,
+        performance_profile="fast" if _is_fast_model(effective_model) else "quality",
+        payload=payload,
+        total_ms=(perf_counter() - started) * 1000.0,
+    )
 
     raw = str(payload.get("message", {}).get("content", ""))
     verdict = streaming_generation._parse_verifier_json(raw)
@@ -175,10 +188,16 @@ async def generate_complete_prose_streamed_budgeted(
     effective_output_tokens = max_output_tokens
     if _is_local_studio(config, messages):
         effective_passes = min(max_passes, _LOCAL_STUDIO_MAX_PASSES)
-        effective_output_tokens = min(max_output_tokens, _LOCAL_STUDIO_MAX_OUTPUT_TOKENS)
+        profile = "Fast 8B" if _is_fast_model(config.model) else "Quality 12B"
+        profile_cap = (
+            _LOCAL_STUDIO_FAST_OUTPUT_TOKENS
+            if _is_fast_model(config.model)
+            else _LOCAL_STUDIO_QUALITY_OUTPUT_TOKENS
+        )
+        effective_output_tokens = min(max_output_tokens, profile_cap)
         if on_status is not None:
             await on_status(
-                "Local Studio · primary draft + one repair pass maximum · compact semantic verifier"
+                f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
             )
 
     return await _BASE_STREAMED_COMPLETE(
@@ -201,8 +220,6 @@ def install_studio_local_performance() -> None:
     _BASE_STREAMED_COMPLETE = streaming_generation.generate_complete_prose_streamed
     _BASE_VERIFY = streaming_generation.verify_studio_scene_delivery
 
-    # The semantic judge only needs bounded request/canon and draft excerpts. The local verifier
-    # then uses an 8K Ollama context instead of the general manuscript context allocation.
     streaming_generation._VERIFIER_CONTEXT_CHARS = _VERIFIER_CONTEXT_CHARS
     streaming_generation._VERIFIER_DRAFT_CHARS = _VERIFIER_DRAFT_CHARS
     streaming_generation.verify_studio_scene_delivery = verify_studio_scene_delivery_fast
