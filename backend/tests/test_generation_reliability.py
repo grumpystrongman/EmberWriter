@@ -2,12 +2,28 @@ import asyncio
 
 import pytest
 
-from app import generation, generation_reliability, streaming_generation
+from app import generation, generation_reliability, generation_reliability_refinement, streaming_generation
 from app.models import ProviderConfig
 
 
 def _words(prefix: str, count: int) -> str:
     return " ".join(f"{prefix}{index}" for index in range(count)) + "."
+
+
+def _semantic_chain() -> str:
+    seed = (
+        "connection memory essence soul destiny eternity sacred foundation growth development evolution "
+        "progression advancement improvement transformation manifestation recognition appreciation valuation "
+        "judgment determination choice belief faith doctrine principle legacy tradition honor admiration success "
+        "achievement triumph victory domination power strength vitality capability potential probability ambiguity "
+        "complexity harmony unity integrity wholeness completeness richness intensity consequence aftermath desire "
+        "longing yearning lust passion consent permission approval validation authorization alignment synchrony agreement "
+        "bind unite expand intensify reinforce preserve control regulate manage guide teach enlighten discovery "
+        "understanding knowledge wisdom truth reality awareness consciousness experience embodiment existence purpose meaning"
+    )
+    # Repeat the same semantic field with connective language to reproduce the production failure's
+    # punctuation-starved association drift rather than merely constructing a long sentence.
+    return f"{seed} and then {seed}"
 
 
 def test_under_word_limit_overrides_inferno_floor() -> None:
@@ -87,7 +103,13 @@ def test_adult_model_ranking_prefers_creative_rp_models_over_qwen_fallbacks() ->
     )
 
 
-def test_runaway_single_sentence_is_discarded_before_it_can_finish_streaming() -> None:
+def test_long_synthetic_sentence_is_not_mistaken_for_semantic_degeneration() -> None:
+    synthetic = _words("advance", 1000)
+    assert generation_reliability_refinement.looks_like_semantic_chain(synthetic) is False
+    assert generation_reliability._hard_quality_failure(synthetic) == ""
+
+
+def test_runaway_semantic_chain_is_discarded_before_it_can_finish_streaming() -> None:
     visible: list[str] = []
 
     async def emit(text: str) -> None:
@@ -95,7 +117,7 @@ def test_runaway_single_sentence_is_discarded_before_it_can_finish_streaming() -
 
     async def exercise() -> tuple[str, str]:
         guard = streaming_generation._NoveltyStreamFilter(emit)
-        runaway = " ".join(f"association{index}" for index in range(180))
+        runaway = _semantic_chain()
         chunks = [runaway[index:index + 48] for index in range(0, len(runaway), 48)]
         with pytest.raises(streaming_generation.RepetitionLoopDetected):
             for chunk in chunks:
@@ -104,15 +126,15 @@ def test_runaway_single_sentence_is_discarded_before_it_can_finish_streaming() -
 
     accepted, streamed = asyncio.run(exercise())
     assert accepted == ""
-    # A small prefix can be visible because Studio streams live, but the guard interrupts
-    # before the hundreds-of-words lexical collapse observed in the regression sample.
-    assert len(streamed.split()) < 120
+    # A prefix can be visible because Studio streams live, but the guard interrupts before the
+    # hundreds-of-words semantic collapse observed in the production sample can continue.
+    assert len(streamed.split()) < len(_semantic_chain().split())
 
 
 def test_deterministic_quality_gate_rejects_observed_runaway_shape() -> None:
-    bad = "Muna smiled. " + " ".join(f"meaning{index}" for index in range(160)) + "."
+    bad = "Muna smiled. " + _semantic_chain() + "."
     reason = generation_reliability._hard_quality_failure(bad)
-    assert "Runaway syntax detected" in reason
+    assert "semantic-chain degeneration" in reason
 
 
 def test_streamed_hard_ceiling_uses_compression_only_when_needed(monkeypatch) -> None:
