@@ -93,23 +93,34 @@ def build_studio_context(
     controls: CraftControls,
     *,
     max_chars: int = 42000,
+    fresh_start: bool = True,
 ) -> tuple[str, list[str], str, list[str]]:
-    """Build Binder-aware context for a fresh generation.
+    """Build Binder-aware context for a Studio generation.
 
-    Fresh Write/Studio generation starts from a blank prose boundary. Binder material is reference
-    knowledge only: world, environment, characters, behavior, relationships, timeline, research,
-    notes, style, summaries, and other author-provided reference material can inform the new scene,
-    but Draft/manuscript prose is never supplied as something to continue. Explicit Continue mode is
-    handled elsewhere and is the only mode that receives the current manuscript ending.
+    Binder material is reference knowledge only: world, environment, characters, behavior,
+    relationships, timeline, research, notes, style, summaries, and other author-provided
+    reference material can inform the scene. Draft/manuscript prose is never retrieved here.
+
+    Fresh Studio Write starts from a blank prose boundary. Studio Continue instead preserves
+    the explicit handoff supplied by the author/UI and must never receive a contradictory
+    instruction telling the model to start over.
     """
-    sections: list[str] = [
-        (
+    if fresh_start:
+        boundary = (
             "## Fresh generation boundary\n"
             "Start the requested prose from a NEW first line. Do not continue, complete, quote, or imitate the ending of a prior scene. "
             "Everything below is reference knowledge only. Use it to preserve canon, environment, character behavior, voice, relationships, "
             "world rules, and continuity while beginning the exact new scene requested by the author."
         )
-    ]
+    else:
+        boundary = (
+            "## Studio continuation boundary\n"
+            "This request explicitly continues the current Studio draft supplied in the author instruction. Continue ONLY from that explicit "
+            "handoff. Do not restart the scene, return to its opening, recap earlier beats, or use Binder/reference material as prose to copy. "
+            "Everything below is canon/reference knowledge for maintaining character, embodiment, relationship, environment, and world continuity."
+        )
+
+    sections: list[str] = [boundary]
     files: list[str] = []
     seen: set[str] = set()
 
@@ -169,8 +180,6 @@ def build_studio_context(
                         seen.add(path)
                         files.append(path)
 
-    # Retrieve the most relevant author-provided Binder references, regardless of whether they
-    # live under World, Relationships, Research, Notes, Scenes, or another non-Draft area.
     relevant_hits = 0
     for hit in search_story(slug, prompt, limit=60):
         path = str(hit.get("path", ""))
@@ -189,8 +198,6 @@ def build_studio_context(
         if relevant_hits >= 8:
             break
 
-    # If lexical retrieval found little, still provide a small amount of world/context reference
-    # so a new scene is not generated in a vacuum merely because the prompt used different wording.
     if relevant_hits < 3:
         for node in reference_nodes:
             path = node.path or ""
