@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import threading
-from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
