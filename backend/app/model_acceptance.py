@@ -106,7 +106,7 @@ async def run_model_acceptance(
             assessment["model"] = config.model
             results.append(assessment)
             effective_models.append(config.model)
-        except Exception as exc:  # acceptance runner must report failure instead of crashing startup
+        except (RuntimeError, ValueError, OSError) as exc:
             results.append(
                 {
                     "attempt": index + 1,
