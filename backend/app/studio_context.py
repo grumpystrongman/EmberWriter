@@ -60,6 +60,17 @@ def _add_file(
     sections.append(f"## {label}\nSource: {path}\n\n{text[:char_limit]}")
 
 
+def _is_generated_studio_node(node) -> bool:
+    """Never use saved AI prose as automatic prompt context.
+
+    Studio-generated drafts are useful artifacts for the author to review, but feeding them back into
+    later generations causes the model to imitate its own mistakes and repetition. Author scratchpad
+    notes remain eligible because they are human-authored guidance.
+    """
+    metadata = node.custom_metadata or {}
+    return metadata.get("workspace") == "studio" and metadata.get("source") == "generated"
+
+
 def _binder_reference_nodes(slug: str):
     """Return non-Draft, non-Trash Binder documents that are safe as reference knowledge."""
     state = get_binder(slug)
@@ -82,6 +93,8 @@ def _binder_reference_nodes(slug: str):
         if not node.path or node.kind in {"folder", "trash"}:
             continue
         if node.custom_metadata.get("source_missing"):
+            continue
+        if _is_generated_studio_node(node):
             continue
         if root_title(node) in {"Draft", "Trash"}:
             continue
@@ -123,7 +136,8 @@ def build_studio_context(
 
     Binder material is reference knowledge only: world, environment, characters, behavior,
     relationships, timeline, research, notes, style, summaries, and other author-provided
-    reference material can inform the scene. Draft/manuscript prose is never retrieved here.
+    reference material can inform the scene. Draft/manuscript prose and prior AI-generated Studio
+    prose are never retrieved here.
 
     Fresh Studio Write starts from a blank prose boundary. Studio Continue instead preserves
     the explicit handoff supplied by the author/UI and must never receive a contradictory
@@ -153,33 +167,9 @@ def build_studio_context(
     files: list[str] = []
     seen: set[str] = set()
 
-    _add_file(
-        slug,
-        sections,
-        files,
-        seen,
-        "project.json",
-        label="Project settings",
-        char_limit=5000,
-    )
-    _add_file(
-        slug,
-        sections,
-        files,
-        seen,
-        "style/author-profile.md",
-        label="Author style",
-        char_limit=7000,
-    )
-    _add_file(
-        slug,
-        sections,
-        files,
-        seen,
-        "summaries/rolling-summary.md",
-        label="Current story state",
-        char_limit=7000,
-    )
+    _add_file(slug, sections, files, seen, "project.json", label="Project settings", char_limit=5000)
+    _add_file(slug, sections, files, seen, "style/author-profile.md", label="Author style", char_limit=7000)
+    _add_file(slug, sections, files, seen, "summaries/rolling-summary.md", label="Current story state", char_limit=7000)
 
     reference_nodes = _binder_reference_nodes(slug)
     if reference_nodes:
@@ -214,15 +204,7 @@ def build_studio_context(
         path = str(hit.get("path", ""))
         if path not in allowed_paths:
             continue
-        _add_file(
-            slug,
-            sections,
-            files,
-            seen,
-            path,
-            label="Relevant Binder reference",
-            char_limit=4500,
-        )
+        _add_file(slug, sections, files, seen, path, label="Relevant Binder reference", char_limit=4500)
         relevant_hits += 1
         if relevant_hits >= 8:
             break
@@ -232,15 +214,7 @@ def build_studio_context(
             path = node.path or ""
             if not path.startswith(("world/", "relationships/", "timeline/", "characters/")):
                 continue
-            _add_file(
-                slug,
-                sections,
-                files,
-                seen,
-                path,
-                label="Binder canon reference",
-                char_limit=2400,
-            )
+            _add_file(slug, sections, files, seen, path, label="Binder canon reference", char_limit=2400)
             relevant_hits += 1
             if relevant_hits >= 5:
                 break
