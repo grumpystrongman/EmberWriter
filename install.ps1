@@ -132,16 +132,15 @@ if (-not $SkipModelDownload) {
     $freeDiskGb = Get-FreeDiskGb $Root
     $chosen = $AdultBaseline
 
-    # Keep the legacy 8b/14b switches accepted so existing setup commands do not break. Both now
-    # map to the stronger 12B creative baseline rather than reinstalling the old Qwen stack.
+    # Keep the legacy 8b/14b switches accepted so existing setup commands do not break. They now
+    # map to the stronger 12B creative baseline. Auto also stays on 12B: RAM and free disk do not
+    # prove that a machine has enough GPU/VRAM throughput for a 24B model with a large context.
+    # Authors who intentionally want the heavier tier can still request -AdultModelTier 24b.
     $highHeatRequested = $AdultModelTier -eq "24b"
-    $highHeatAuto = $AdultModelTier -eq "auto" -and $totalRamGb -ge 32 -and $freeDiskGb -ge $HighHeatMinimumFreeGb
     if ($highHeatRequested) {
         if ($freeDiskGb -lt $HighHeatMinimumFreeGb) {
             throw "The 24B high-heat model needs at least ${HighHeatMinimumFreeGb} GB free. Only ${freeDiskGb} GB is available."
         }
-        $chosen = $AdultHighHeat
-    } elseif ($highHeatAuto) {
         $chosen = $AdultHighHeat
     }
 
@@ -149,6 +148,9 @@ if (-not $SkipModelDownload) {
     Write-Host "Managed EmberWriter fiction model: $chosen" -ForegroundColor Green
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
+    if ($AdultModelTier -eq "auto") {
+        Write-Host "Auto tier uses the 12B baseline for predictable local inference. Use -AdultModelTier 24b only when you intentionally want the heavier model."
+    }
     Write-Host "Downloading model if needed. This can take several minutes..."
     & ollama pull $chosen
     if ($LASTEXITCODE -ne 0) {
