@@ -1,0 +1,109 @@
+name: Agent Studio Patch
+
+on:
+  push:
+    branches: [fix/studio-delivery-end-to-end-audit]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/studio-delivery-end-to-end-audit
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Correct patch-agent Craft Pass anchors
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/apply_studio_acceptance_patch.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''# Patch both quality-pass blocks to preserve and re-verify the final author-facing Studio draft.
+          text = read(path)
+          needle = ''' + "'''        targets = quality_guidance(text)\\n        text = await quality_pass(\\n'''" + '''
+          if text.count(needle) != 2:
+              raise RuntimeError(f"Expected two quality pass blocks, found {text.count(needle)}")
+          text = text.replace(needle, ''' + "'''        targets = quality_guidance(text)\\n        pre_refine = text\\n        text = await quality_pass(\\n'''" + ''')
+          quality_tail = ''' + "'''        refined = True\\n'''" + '''
+          replacement = ''' + "'''        if _is_studio_request(payload):\\n            verdict = await verify_studio_scene_delivery(\\n                payload.provider,\\n                messages,\\n                text,\\n                heat_level=heat,\\n                verifier_context=context_text,\\n            )\\n            if verdict.get(\"verified\") is not True:\\n                text = pre_refine\\n                if on_status is not None:\\n                    await on_status(\"Craft Pass failed Studio delivery verification · preserving verified draft…\")\\n        refined = True\\n'''" + '''
+          if text.count(quality_tail) < 2:
+              raise RuntimeError("Expected quality refined markers")
+          text = text.replace(quality_tail, replacement, 1)
+          # Stream producer has no optional on_status variable; use emit_status in its copy.
+          replacement_stream = ''' + "'''        if _is_studio_request(payload):\\n            verdict = await verify_studio_scene_delivery(\\n                payload.provider,\\n                messages,\\n                text,\\n                heat_level=heat,\\n                verifier_context=context_text,\\n            )\\n            if verdict.get(\"verified\") is not True:\\n                text = pre_refine\\n                await emit_status(\"Craft Pass failed Studio delivery verification · preserving verified draft…\")\\n        refined = True\\n'''" + '''
+          text = text.replace(quality_tail, replacement_stream, 1)
+          write(path, text)
+          '''
+          new = '''# Patch both quality-pass blocks to preserve and re-verify the final author-facing Studio draft.
+          text = read(path)
+          outer = ''' + "'''        targets = quality_guidance(text)\\n        text = await quality_pass(\\n'''" + '''
+          inner = ''' + "'''                targets = quality_guidance(text)\\n                text = await quality_pass(\\n'''" + '''
+          if text.count(outer) != 1 or text.count(inner) != 1:
+              raise RuntimeError(
+                  f"Expected one outer and one inner quality block, found {text.count(outer)} / {text.count(inner)}"
+              )
+          text = text.replace(
+              outer,
+              ''' + "'''        targets = quality_guidance(text)\\n        pre_refine = text\\n        text = await quality_pass(\\n'''" + ''',
+              1,
+          )
+          text = text.replace(
+              inner,
+              ''' + "'''                targets = quality_guidance(text)\\n                pre_refine = text\\n                text = await quality_pass(\\n'''" + ''',
+              1,
+          )
+          outer_tail = ''' + "'''        refined = True\\n'''" + '''
+          inner_tail = ''' + "'''                refined = True\\n'''" + '''
+          outer_replacement = ''' + "'''        if _is_studio_request(payload):\\n            verdict = await verify_studio_scene_delivery(\\n                payload.provider,\\n                messages,\\n                text,\\n                heat_level=heat,\\n                verifier_context=context_text,\\n            )\\n            if verdict.get(\"verified\") is not True:\\n                text = pre_refine\\n                if on_status is not None:\\n                    await on_status(\"Craft Pass failed Studio delivery verification · preserving verified draft…\")\\n        refined = True\\n'''" + '''
+          inner_replacement = ''' + "'''                if _is_studio_request(payload):\\n                    verdict = await verify_studio_scene_delivery(\\n                        payload.provider,\\n                        messages,\\n                        text,\\n                        heat_level=heat,\\n                        verifier_context=context_text,\\n                    )\\n                    if verdict.get(\"verified\") is not True:\\n                        text = pre_refine\\n                        await emit_status(\"Craft Pass failed Studio delivery verification · preserving verified draft…\")\\n                refined = True\\n'''" + '''
+          if text.count(outer_tail) < 1 or text.count(inner_tail) < 1:
+              raise RuntimeError("Expected both quality refined markers")
+          text = text.replace(outer_tail, outer_replacement, 1)
+          text = text.replace(inner_tail, inner_replacement, 1)
+          write(path, text)
+          '''
+          if old not in text:
+              raise SystemExit('Could not locate old quality-pass patch block in agent script')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Apply deterministic Studio acceptance patch
+        run: python scripts/apply_studio_acceptance_patch.py
+      - name: Remove one-time patch agent files
+        run: rm scripts/apply_studio_acceptance_patch.py .github/workflows/agent-studio-patch.yml
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools
+          python -m pip install -e './backend[dev]'
+      - name: Run focused Studio acceptance suite
+        run: pytest backend/tests/test_studio_end_to_end_acceptance.py -q
+      - name: Run full backend suite
+        run: pytest backend/tests -q
+      - name: Lint backend
+        run: ruff check backend/app backend/tests
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Build production frontend
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.example.invalid/api
+      - name: Commit verified patch to feature branch
+        run: |
+          git config user.name 'emberwriter-acceptance-agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix Studio delivery wiring after end-to-end audit [agent-patched]'
+          git push origin HEAD:fix/studio-delivery-end-to-end-audit

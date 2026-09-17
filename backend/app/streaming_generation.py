@@ -30,13 +30,27 @@ _REPEAT_RECENT_SENTENCES = 48
 _OLLAMA_REPEAT_PENALTY = 1.18
 _OLLAMA_REPEAT_LAST_N = 512
 _CONTINUATION_TAIL_CHARS = 12000
-_VERIFIER_CONTEXT_CHARS = 16000
+_VERIFIER_CONTEXT_CHARS = 24000
 _VERIFIER_DRAFT_CHARS = 24000
-_STUDIO_CONTRACT_MARKER = "STUDIO SCENE DELIVERY CONTRACT:"
+_STUDIO_CONTRACT_MARKERS = (
+    "STUDIO SCENE DELIVERY CONTRACT:",
+    "STUDIO CONTINUATION CONTRACT:",
+)
 
 
 class RepetitionLoopDetected(RuntimeError):
     """Raised when a live model stream starts recycling the same paragraph-level beat."""
+
+
+class SceneDeliveryIncomplete(RuntimeError):
+    """Raised when a Studio scene exhausts its passes without passing delivery verification."""
+
+    def __init__(self, partial_text: str, reason: str) -> None:
+        self.partial_text = partial_text.strip()
+        self.reason = reason.strip() or "requested scene delivery was not independently verified"
+        super().__init__(
+            "Studio scene remained unverified after the generation safety limit: " + self.reason
+        )
 
 
 def _openai_chat_url(base_url: str) -> str:
@@ -168,14 +182,34 @@ def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, 
 
 
 def _is_studio_scene(messages: list[dict[str, str]]) -> bool:
-    return any(_STUDIO_CONTRACT_MARKER in message.get("content", "") for message in messages)
+    return any(
+        marker in message.get("content", "")
+        for message in messages
+        for marker in _STUDIO_CONTRACT_MARKERS
+    )
 
 
 def _verifier_source_context(messages: list[dict[str, str]]) -> str:
-    user_messages = [message.get("content", "") for message in messages if message.get("role") == "user"]
-    if not user_messages:
-        return ""
-    return user_messages[0][:_VERIFIER_CONTEXT_CHARS]
+    """Preserve both heat/system contract and the important head/tail of author/Binder context."""
+    system_text = "\n\n".join(
+        message.get("content", "") for message in messages if message.get("role") == "system"
+    ).strip()
+    user_text = "\n\n".join(
+        message.get("content", "") for message in messages if message.get("role") == "user"
+    ).strip()
+
+    system_excerpt = system_text[-6000:]
+    if len(user_text) <= 17000:
+        user_excerpt = user_text
+    else:
+        user_excerpt = f"{user_text[:8500]}\n\n...[context middle omitted]...\n\n{user_text[-8500:]}"
+    combined = (
+        "SYSTEM / HEAT / DELIVERY CONTRACT\n"
+        f"{system_excerpt}\n\n"
+        "AUTHOR REQUEST / RELEVANT BINDER CANON\n"
+        f"{user_excerpt}"
+    )
+    return combined[:_VERIFIER_CONTEXT_CHARS]
 
 
 def _parse_verifier_json(raw: str) -> dict[str, object]:
@@ -589,7 +623,9 @@ async def generate_complete_prose_streamed(
                         await on_status("Requested scene delivery verified · finishing…")
                     return accumulated
 
-                verifier_reason = str(verdict.get("reason", "requested core encounter was not fully delivered")).strip()
+                verifier_reason = str(
+                    verdict.get("reason", "requested core encounter was not fully delivered")
+                ).strip()
                 complete = False
                 wants_more = True
                 canon_respected = verdict.get("canon_respected") is not False
@@ -627,7 +663,17 @@ async def generate_complete_prose_streamed(
             and not abrupt
         ):
             return accumulated
+
         if pass_index == max_passes - 1:
+            if studio_delivery_verifier:
+                reason = verifier_reason or (
+                    "requested scene never passed the independent Studio delivery verifier"
+                )
+                if on_status is not None:
+                    await on_status(
+                        "Scene preserved as partial · independent delivery verification did not pass."
+                    )
+                raise SceneDeliveryIncomplete(accumulated, reason)
             return accumulated
 
         remaining = max(min_words - words, 0)
@@ -676,4 +722,9 @@ async def generate_complete_prose_streamed(
             {"role": "user", "content": continuation_instruction},
         ]
 
+    if studio_delivery_verifier:
+        raise SceneDeliveryIncomplete(
+            accumulated,
+            verifier_reason or "requested scene never passed independent delivery verification",
+        )
     return accumulated

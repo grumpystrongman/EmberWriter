@@ -43,6 +43,12 @@ Improve the prose rather than rewriting for rewriting's sake:
 Aim to keep roughly the same length unless tightening clearly improves the passage. The revised output must still contain the complete scene.
 """
 
+QUALITY_PRESERVATION_SYSTEM_PROMPT = """You are EmberWriter's post-edit safety verifier.
+Return ONLY JSON. Do not rewrite, quote, summarize, or extend either passage.
+Judge whether the revised passage preserves the original draft's delivered story content and the author's constraints.
+A line edit fails if it removes or weakens a requested core scene event, changes participant identity or body canon, changes consent/relationship meaning, drops the ending/aftermath, introduces a contradiction, or materially lowers requested intensity.
+"""
+
 HEAT_GUIDANCE = {
     "simmer": (
         "Keep physical intimacy mostly in anticipation and subtext. Build charge through proximity, attention, "
@@ -239,6 +245,57 @@ STYLE SAMPLE
     return profile
 
 
+async def _quality_pass_preserves_delivery(
+    provider: ProviderConfig,
+    *,
+    original: str,
+    revised: str,
+    author_prompt: str,
+    craft_context: str,
+) -> bool:
+    """Fail closed if a line edit drops scene delivery, intensity, canon, or ending state."""
+    verification_prompt = f"""AUTHOR INTENT / CONSTRAINTS
+{author_prompt[:10000]}
+
+CRAFT / HEAT / VOICE CONTEXT
+{craft_context[:8000]}
+
+ORIGINAL DRAFT
+{original[-18000:]}
+
+REVISED DRAFT
+{revised[-18000:]}
+
+Return exactly this JSON object:
+{{"preserves_core_events":true|false,"preserves_requested_intensity":true|false,"preserves_character_and_body_canon":true|false,"preserves_ending_and_aftermath":true|false,"introduces_contradiction":true|false,"reason":"brief non-graphic explanation"}}
+"""
+    try:
+        raw = await generate(
+            provider,
+            [
+                {"role": "system", "content": QUALITY_PRESERVATION_SYSTEM_PROMPT},
+                {"role": "user", "content": verification_prompt},
+            ],
+            temperature=0.0,
+            top_p=0.8,
+            json_mode=True,
+            max_output_tokens=350,
+        )
+        verdict = _parse_json_object(raw)
+    except (RuntimeError, TypeError, ValueError):
+        return False
+
+    return all(
+        (
+            verdict.get("preserves_core_events") is True,
+            verdict.get("preserves_requested_intensity") is True,
+            verdict.get("preserves_character_and_body_canon") is True,
+            verdict.get("preserves_ending_and_aftermath") is True,
+            verdict.get("introduces_contradiction") is False,
+        )
+    )
+
+
 async def quality_pass(
     provider: ProviderConfig,
     draft: str,
@@ -266,11 +323,18 @@ DRAFT TO LINE-EDIT
         top_p=0.9,
         max_output_tokens=8192,
     )
-    # A line edit must never silently replace a complete scene with a truncated rewrite.
-    # If the second pass loses more than 25% of the draft, preserve the complete draft.
     draft_words = len(draft.split())
     revised_words = len(revised.split())
     if draft_words >= 400 and revised_words < int(draft_words * 0.75):
+        return draft
+
+    if not await _quality_pass_preserves_delivery(
+        provider,
+        original=draft,
+        revised=revised,
+        author_prompt=author_prompt,
+        craft_context=craft_context,
+    ):
         return draft
     return revised
 

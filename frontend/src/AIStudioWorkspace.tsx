@@ -11,7 +11,6 @@ const DEFAULT_PROVIDER: ProviderConfig = {
 }
 
 const STUDIO_CONTEXT_SENTINEL = '__EMBER_STUDIO_CONTEXT_V1__'
-const AUTO_CONTINUATION_PASSES = 4
 const CONTINUATION_INTENT = /^(?:please\s+)?(?:continue\b|keep\s+(?:going|writing)\b|resume\b|pick\s+up\b|finish\s+(?:this|the|current)\s+(?:scene|sex\s+scene|intimate\s+scene)\b)/i
 
 type StudioMode = 'scene' | 'brainstorm' | 'creative'
@@ -136,19 +135,6 @@ function wordsIn(text: string) {
   return text.trim() ? text.trim().split(/\s+/).length : 0
 }
 
-function sceneWordFloor(prompt: string, heat: HeatLevel) {
-  const explicit = prompt.toLowerCase().match(/\b(\d{3,5})\s*(?:-|to\s*)?words?\b/)
-  if (explicit) return Math.max(300, Math.min(Number(explicit[1]), 12000))
-  if (/\b(?:brief|short|quick)\s+(?:scene|passage)\b/i.test(prompt)) return 700
-  return { simmer: 1200, hot: 1400, scorching: 1800, inferno: 2200 }[heat]
-}
-
-function looksAbrupt(text: string) {
-  const trimmed = text.trim()
-  if (!trimmed) return true
-  return !/[.!?…]["'”’\])}]*$/.test(trimmed)
-}
-
 function normalizeForOverlap(text: string) {
   return text.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
 }
@@ -220,6 +206,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [studioMode, setStudioMode] = useState<StudioMode>('scene')
   const [prompt, setPrompt] = useState('')
   const [output, setOutput] = useState('')
+  const [sceneBrief, setSceneBrief] = useState('')
   const [scratchpad, setScratchpad] = useState('')
   const [title, setTitle] = useState(() => defaultTitle('scene'))
   const [destination, setDestination] = useState<SaveDestination>('studio')
@@ -270,6 +257,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   function chooseMode(next: StudioMode) {
     setStudioMode(next)
     setOutput('')
+    setSceneBrief('')
     setContextFiles([])
     setTitle(defaultTitle(next))
     setStatus(`${MODE_COPY[next].title} ready · isolated from old manuscript prose`)
@@ -289,8 +277,8 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     })
   }
 
-  async function continueDraft(existing: string, sceneBrief: string, direction: string) {
-    return requestGeneration(continuationPrompt(sceneBrief, direction, existing), 'continue')
+  async function continueDraft(existing: string, originalBrief: string, direction: string) {
+    return requestGeneration(continuationPrompt(originalBrief, direction, existing), 'continue')
   }
 
   async function continueCurrentScene(direction = prompt.trim()) {
@@ -299,11 +287,23 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setContextFiles([])
     setStatus('Continuing from the exact end of the current Studio draft…')
     try {
-      const result = await continueDraft(output, prompt.trim() || direction, direction || 'Continue and finish this scene.')
+      const originalBrief = sceneBrief.trim() || prompt.trim() || direction
+      const result = await continueDraft(
+        output,
+        originalBrief,
+        direction || 'Continue and finish this scene.',
+      )
       const merged = mergeContinuation(output, result.text)
       setOutput(merged)
       setContextFiles(result.context_files || [])
-      setStatus(`Scene continued without replacing prior prose · ${wordsIn(merged).toLocaleString()} total words`)
+      const words = wordsIn(merged)
+      if (result.partial) {
+        setStatus(`Partial / unverified continuation preserved · ${words.toLocaleString()} total words · ${result.warning || 'the backend did not verify complete scene delivery'}`)
+      } else if (result.refined) {
+        setStatus(`Scene continued and verified · Craft Pass applied · ${words.toLocaleString()} total words`)
+      } else {
+        setStatus(`Scene continued and verified · ${words.toLocaleString()} total words`)
+      }
     } catch (error) {
       setStatus(`Continuation failed: ${(error as Error).message}`)
     } finally {
@@ -331,43 +331,18 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setStatus(`${modeCopy.title} is working…`)
     try {
       if (studioMode === 'scene') {
-        const sceneBrief = direction
-        const targetWords = sceneWordFloor(sceneBrief, craft.heat_level)
-        let result = await requestGeneration(freshScenePrompt(sceneBrief), 'write')
-        let draft = result.text.trim()
-        let allContextFiles = result.context_files || []
-        let refined = result.refined
-        let attempts = 0
-
+        setSceneBrief(direction)
+        const result = await requestGeneration(freshScenePrompt(direction), 'write')
+        const draft = result.text.trim()
         setOutput(draft)
-        setContextFiles(allContextFiles)
-
-        while ((wordsIn(draft) < targetWords || looksAbrupt(draft)) && attempts < AUTO_CONTINUATION_PASSES) {
-          attempts += 1
-          const reason = looksAbrupt(draft) ? 'the draft stopped mid-beat' : `${wordsIn(draft).toLocaleString()} of about ${targetWords.toLocaleString()} words`
-          setStatus(`Finishing the same scene · pass ${attempts + 1} · ${reason}…`)
-          const continuation = await continueDraft(
-            draft,
-            sceneBrief,
-            'Continue immediately from the final line and finish the requested scene. Do not add another setup sequence.',
-          )
-          const merged = mergeContinuation(draft, continuation.text)
-          if (merged === draft) break
-          draft = merged
-          refined = refined || continuation.refined
-          allContextFiles = Array.from(new Set([...allContextFiles, ...(continuation.context_files || [])]))
-          setOutput(draft)
-          setContextFiles(allContextFiles)
-        }
-
+        setContextFiles(result.context_files || [])
         const words = wordsIn(draft)
-        const unfinished = words < targetWords || looksAbrupt(draft)
-        if (unfinished) {
-          setStatus(`Draft preserved · ${words.toLocaleString()} words · the model still ended early; use Continue this scene to resume from the exact final line`)
-        } else if (refined) {
-          setStatus(`Scene complete · Craft Pass applied · ${words.toLocaleString()} words`)
+        if (result.partial) {
+          setStatus(`Partial / unverified draft preserved · ${words.toLocaleString()} words · ${result.warning || 'the backend did not verify complete scene delivery'} · use Continue this scene to resume from the exact final state`)
+        } else if (result.refined) {
+          setStatus(`Scene complete · backend delivery verified · Craft Pass applied · ${words.toLocaleString()} words`)
         } else {
-          setStatus(`Scene complete · ${words.toLocaleString()} words`)
+          setStatus(`Scene complete · backend delivery verified · ${words.toLocaleString()} words`)
         }
         return
       }
