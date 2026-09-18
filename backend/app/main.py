@@ -49,6 +49,8 @@ from .runtime_config import cors_origins
 from .storage import (
     PROJECTS_ROOT,
     create_project,
+    delete_project,
+    delete_text,
     get_project,
     list_projects,
     list_snapshots,
@@ -253,6 +255,17 @@ def project(slug: str) -> dict:
         raise HTTPException(status_code=404, detail="Project not found") from exc
 
 
+@app.delete("/api/projects/{slug}")
+def remove_project(slug: str) -> dict:
+    cancel_generation(slug)
+    try:
+        return delete_project(slug)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/projects/{slug}/file")
 def get_file(slug: str, path: str = Query(...)) -> dict:
     try:
@@ -272,6 +285,16 @@ def put_file(slug: str, payload: FilePayload, path: str = Query(...)) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/projects/{slug}/file")
+def remove_file(slug: str, path: str = Query(...)) -> dict:
+    try:
+        return delete_text(slug, path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="File not found") from exc
+    except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

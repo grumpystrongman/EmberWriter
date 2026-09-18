@@ -272,6 +272,32 @@
   font: 16px/1.7 Georgia, serif;
 }
 
+.ai-studio-prose-editor {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  background: rgba(0,0,0,.14);
+}
+
+.ai-studio-prose-editor[readonly] {
+  cursor: default;
+}
+
+.ai-studio-output-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-studio-output-meta span {
+  color: var(--muted, #95a4b2);
+  font-size: 12px;
+}
+
+.ai-studio-clear {
+  margin-top: 8px;
+}
+
 .ai-studio-empty {
   min-height: 210px;
   display: grid;

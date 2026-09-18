@@ -84,7 +84,7 @@ def test_startup_policy_uses_same_explicit_creative_model_as_installer() -> None
 
 
 @pytest.mark.asyncio
-async def test_studio_stream_quarantines_provisional_text_until_base_verifies(
+async def test_studio_streams_provisional_text_live_while_base_verifies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     emitted: list[str] = []
@@ -100,7 +100,7 @@ async def test_studio_stream_quarantines_provisional_text_until_base_verifies(
         max_output_tokens=6144,
     ) -> str:
         del min_words, on_status, max_passes, max_output_tokens
-        await on_delta("REJECTED_PROVISIONAL_PASS")
+        await on_delta("LIVE_PROVISIONAL_PASS")
         return "VERIFIED_FINAL_SCENE"
 
     async def emit(text: str) -> None:
@@ -115,12 +115,11 @@ async def test_studio_stream_quarantines_provisional_text_until_base_verifies(
     )
 
     assert result == "VERIFIED_FINAL_SCENE"
-    assert emitted == ["VERIFIED_FINAL_SCENE"]
-    assert "REJECTED_PROVISIONAL_PASS" not in "".join(emitted)
+    assert emitted == ["LIVE_PROVISIONAL_PASS"]
 
 
 @pytest.mark.asyncio
-async def test_studio_stream_releases_nothing_when_delivery_never_verifies(
+async def test_studio_stream_keeps_unverified_partial_visible_when_delivery_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     emitted: list[str] = []
@@ -154,4 +153,4 @@ async def test_studio_stream_releases_nothing_when_delivery_never_verifies(
             on_delta=emit,
         )
 
-    assert emitted == []
+    assert emitted == ["REJECTED_PROVISIONAL_PASS"]

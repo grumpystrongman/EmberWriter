@@ -5,6 +5,7 @@ type ActiveGeneration = {
   startedAt: number
   cancelUrl: string
   controller: AbortController
+  studio: boolean
 }
 
 type StreamFinal = {
@@ -19,6 +20,7 @@ type StreamFinal = {
 type StreamEvent =
   | { type: 'delta'; text: string }
   | { type: 'status'; message: string }
+  | { type: 'reset'; reason?: string }
   | ({ type: 'final' } & StreamFinal)
   | { type: 'error'; detail: string }
 
@@ -61,6 +63,16 @@ export default function GenerationWatchdog() {
 
       if (!match) return originalFetch(input, init)
 
+      let studioRequest = false
+      if (typeof init?.body === 'string') {
+        try {
+          const payload = JSON.parse(init.body) as { selected_text?: string }
+          studioRequest = payload.selected_text === '__EMBER_STUDIO_CONTEXT_V1__'
+        } catch {
+          // Non-JSON bodies are not Studio generation requests.
+        }
+      }
+
       const controller = new AbortController()
       const cancelUrl = url.replace(/\/generate(?:\?.*)?$/, '/generate/cancel')
       const streamUrl = url.replace(/\/generate(?:\?.*)?$/, '/generate/stream')
@@ -69,12 +81,16 @@ export default function GenerationWatchdog() {
         startedAt: Date.now(),
         cancelUrl,
         controller,
+        studio: studioRequest,
       }
       activeRef.current = generation
       setActive(generation)
       setElapsed(0)
       setPhase('Preparing story context…')
       setPreview('')
+      window.dispatchEvent(new CustomEvent('emberwriter:generation-start', {
+        detail: { slug: generation.slug, studio: generation.studio },
+      }))
 
       const externalSignal = init?.signal
       const relayAbort = () => controller.abort(externalSignal?.reason)
@@ -106,19 +122,36 @@ export default function GenerationWatchdog() {
 
           if (event.type === 'status') {
             setPhase(event.message)
+            window.dispatchEvent(new CustomEvent('emberwriter:generation-status', {
+              detail: { slug: generation.slug, message: event.message, studio: generation.studio },
+            }))
+            return
+          }
+          if (event.type === 'reset') {
+            accumulated = ''
+            setPreview('')
+            window.dispatchEvent(new CustomEvent('emberwriter:generation-preview', {
+              detail: { slug: generation.slug, text: '', studio: generation.studio, reset: true },
+            }))
             return
           }
           if (event.type === 'delta') {
             accumulated += event.text
             const now = Date.now()
-            if (now - lastPreviewPaint >= 120) {
+            if (now - lastPreviewPaint >= 80) {
               setPreview(accumulated.slice(-PREVIEW_CHARS))
+              window.dispatchEvent(new CustomEvent('emberwriter:generation-preview', {
+                detail: { slug: generation.slug, text: accumulated, studio: generation.studio, reset: false },
+              }))
               lastPreviewPaint = now
             }
             return
           }
           if (event.type === 'error') {
             streamError = event.detail
+            window.dispatchEvent(new CustomEvent('emberwriter:generation-error', {
+              detail: { slug: generation.slug, detail: event.detail, studio: generation.studio },
+            }))
             return
           }
           if (event.type === 'final') {
@@ -132,6 +165,9 @@ export default function GenerationWatchdog() {
             }
             accumulated = event.text
             setPreview(event.text.slice(-PREVIEW_CHARS))
+            window.dispatchEvent(new CustomEvent('emberwriter:generation-final', {
+              detail: { slug: generation.slug, ...finalPayload, studio: generation.studio },
+            }))
             if (event.partial && event.warning) setPhase(event.warning)
           }
         }
@@ -146,6 +182,11 @@ export default function GenerationWatchdog() {
         }
         buffer += decoder.decode()
         if (buffer.trim()) consumeLine(buffer)
+        if (accumulated && !finalPayload) {
+          window.dispatchEvent(new CustomEvent('emberwriter:generation-preview', {
+            detail: { slug: generation.slug, text: accumulated, studio: generation.studio, reset: false },
+          }))
+        }
 
         if (streamError && !finalPayload) return jsonResponse({ detail: streamError }, 502)
         if (!finalPayload && accumulated.trim()) {
@@ -165,10 +206,21 @@ export default function GenerationWatchdog() {
         }
         return jsonResponse(finalPayload)
       } catch (error) {
-        if (controller.signal.aborted) throw new Error('Generation cancelled')
+        if (controller.signal.aborted) {
+          window.dispatchEvent(new CustomEvent('emberwriter:generation-error', {
+            detail: { slug: generation.slug, detail: 'Generation cancelled', studio: generation.studio },
+          }))
+          throw new Error('Generation cancelled')
+        }
+        window.dispatchEvent(new CustomEvent('emberwriter:generation-error', {
+          detail: { slug: generation.slug, detail: (error as Error).message, studio: generation.studio },
+        }))
         throw error
       } finally {
         externalSignal?.removeEventListener('abort', relayAbort)
+        window.dispatchEvent(new CustomEvent('emberwriter:generation-end', {
+          detail: { slug: generation.slug, studio: generation.studio },
+        }))
         if (activeRef.current?.controller === controller) {
           activeRef.current = null
           setActive(null)
@@ -210,7 +262,7 @@ export default function GenerationWatchdog() {
         right: 20,
         bottom: 20,
         zIndex: 10000,
-        width: 'min(520px, calc(100vw - 40px))',
+        width: active.studio ? 'min(390px, calc(100vw - 40px))' : 'min(520px, calc(100vw - 40px))',
         maxHeight: '52vh',
         display: 'flex',
         flexDirection: 'column',
@@ -226,10 +278,11 @@ export default function GenerationWatchdog() {
         <div>
           <strong>Ember is writing · {formatElapsed(elapsed)}</strong>
           <div style={{ opacity: 0.75, fontSize: 12, marginTop: 2 }}>{phase}</div>
+          {active.studio && <div style={{ opacity: 0.65, fontSize: 11, marginTop: 3 }}>Live prose is streaming into Studio → Working Draft.</div>}
         </div>
         <button type="button" onClick={cancel}>Cancel</button>
       </div>
-      {preview && (
+      {!active.studio && preview && (
         <div
           aria-live="off"
           style={{

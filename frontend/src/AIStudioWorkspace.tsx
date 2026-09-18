@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import StudioModelRouter from './StudioModelRouter'
 import type { ProviderConfig, WorkspaceProject } from './workspace-types'
@@ -218,6 +218,8 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState('Studio ready · fresh scenes start clean · Continue uses the current Studio draft')
+  const [streamingDraft, setStreamingDraft] = useState(false)
+  const streamSessionRef = useRef<{ base: string; continuation: boolean } | null>(null)
   const modeCopy = MODE_COPY[studioMode]
 
   const wordCount = useMemo(() => wordsIn(output), [output])
@@ -229,6 +231,36 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   useEffect(() => {
     localStorage.setItem('emberwriter.craftControls', JSON.stringify(craft))
   }, [craft])
+
+  useEffect(() => {
+    function onPreview(event: Event) {
+      const detail = (event as CustomEvent<{ slug?: string; text?: string; studio?: boolean }>).detail || {}
+      const session = streamSessionRef.current
+      if (!session || detail.slug !== project.slug || detail.studio !== true) return
+      const streamed = detail.text || ''
+      setStreamingDraft(true)
+      setOutput(session.continuation ? mergeContinuation(session.base, streamed) : streamed)
+    }
+
+    function onFinal(event: Event) {
+      const detail = (event as CustomEvent<{ slug?: string; studio?: boolean }>).detail || {}
+      if (detail.slug === project.slug && detail.studio === true) setStreamingDraft(false)
+    }
+
+    function onError(event: Event) {
+      const detail = (event as CustomEvent<{ slug?: string; studio?: boolean }>).detail || {}
+      if (detail.slug === project.slug && detail.studio === true) setStreamingDraft(false)
+    }
+
+    window.addEventListener('emberwriter:generation-preview', onPreview)
+    window.addEventListener('emberwriter:generation-final', onFinal)
+    window.addEventListener('emberwriter:generation-error', onError)
+    return () => {
+      window.removeEventListener('emberwriter:generation-preview', onPreview)
+      window.removeEventListener('emberwriter:generation-final', onFinal)
+      window.removeEventListener('emberwriter:generation-error', onError)
+    }
+  }, [project.slug])
 
   useEffect(() => {
     setTitle((current) => current.trim() ? current : defaultTitle(studioMode))
@@ -283,7 +315,9 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     if (!output.trim() || busy || !provider.model.trim()) return
     setBusy(true)
     setContextFiles([])
-    setStatus('Continuing from the exact end of the current Studio draft…')
+    streamSessionRef.current = { base: output, continuation: true }
+    setStreamingDraft(true)
+    setStatus('Continuing live in Working Draft · provisional until verification passes…')
     try {
       const originalBrief = sceneBrief.trim() || prompt.trim() || direction
       const result = await continueDraft(
@@ -305,6 +339,8 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     } catch (error) {
       setStatus(`Continuation failed: ${(error as Error).message}`)
     } finally {
+      streamSessionRef.current = null
+      setStreamingDraft(false)
       setBusy(false)
     }
   }
@@ -326,7 +362,9 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setBusy(true)
     setOutput('')
     setContextFiles([])
-    setStatus(`${modeCopy.title} is working…`)
+    streamSessionRef.current = { base: '', continuation: false }
+    setStreamingDraft(true)
+    setStatus(`${modeCopy.title} is writing live in Working Draft · provisional until complete…`)
     try {
       if (studioMode === 'scene') {
         setSceneBrief(direction)
@@ -359,6 +397,8 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     } catch (error) {
       setStatus(`Generation failed: ${(error as Error).message}`)
     } finally {
+      streamSessionRef.current = null
+      setStreamingDraft(false)
       setBusy(false)
     }
   }
@@ -529,9 +569,39 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
           <div className="ai-studio-card ai-studio-output">
             <div className="ai-studio-card-head">
               <div><small>AI OUTPUT</small><h2>Working Draft</h2></div>
-              <span>{wordCount.toLocaleString()} words</span>
+              <div className="ai-studio-output-meta">
+                <span>{streamingDraft ? 'LIVE · UNVERIFIED' : `${wordCount.toLocaleString()} words`}</span>
+                {output && !busy && (
+                  <button
+                    type="button"
+                    className="quiet"
+                    onClick={() => {
+                      if (window.confirm('Clear the current Studio working draft?')) {
+                        setOutput('')
+                        setSceneBrief('')
+                        setContextFiles([])
+                        setStatus('Working Draft cleared')
+                      }
+                    }}
+                  >
+                    Clear draft
+                  </button>
+                )}
+              </div>
             </div>
-            {output ? <div className="ai-studio-prose">{output}</div> : <div className="ai-studio-empty">Your generated scene, brainstorm, or creative exploration will appear here. Live generation is shown by the global writing overlay while the model is working.</div>}
+            {output ? (
+              <textarea
+                className="ai-studio-prose ai-studio-prose-editor"
+                value={output}
+                onChange={(event) => setOutput(event.target.value)}
+                readOnly={busy}
+                rows={24}
+                spellCheck
+                aria-label="Studio Working Draft"
+              />
+            ) : (
+              <div className="ai-studio-empty">Your generated scene, brainstorm, or creative exploration will stream into this Working Draft as Ember writes.</div>
+            )}
             {contextFiles.length > 0 && <details><summary>Studio context used ({contextFiles.length})</summary>{contextFiles.map((file) => <div key={file}>{file}</div>)}</details>}
           </div>
         </div>
@@ -542,6 +612,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
             <h2>Your thoughts</h2>
             <p>Capture fragments, alternate beats, dialogue, reminders, or notes without changing the manuscript.</p>
             <textarea value={scratchpad} onChange={(event) => setScratchpad(event.target.value)} placeholder="Private working notes for this idea…" rows={12} />
+            {scratchpad && <button type="button" className="quiet ai-studio-clear" onClick={() => { if (window.confirm('Clear the Studio scratchpad?')) setScratchpad('') }}>Clear scratchpad</button>}
           </div>
 
           <div className="ai-studio-card ai-studio-save">
