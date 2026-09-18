@@ -116,7 +116,7 @@ def strict_explicit_delivery_failure(prompt: str, draft: str) -> str:
     # a scene with unspecified intimate anatomy could only pass by inventing body facts.
     if profile.action_groups == 0 and profile.direct_action_sentences == 0:
         return (
-            "author requested direct on-page sexual action, but the draft contains no concrete direct-action evidence "
+            "author requested explicit, direct on-page sexual action, but the draft contains no concrete direct-action evidence "
             "and appears euphemistic or faded"
         )
     if profile.explicit_sentences < 3:
