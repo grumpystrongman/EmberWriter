@@ -37,6 +37,17 @@ type GenerateResponse = {
   warning?: string
 }
 
+type StudioPersistedState = {
+  studio_mode: StudioMode
+  prompt: string
+  output: string
+  scene_brief: string
+  scratchpad: string
+  title: string
+  destination: SaveDestination
+  updated_at: string
+}
+
 type BinderNode = {
   id: string
   title: string
@@ -120,6 +131,37 @@ function readStoredCraft(): CraftControls {
   } catch {
     return DEFAULT_CRAFT
   }
+}
+
+function studioStateCacheKey(slug: string) {
+  return `emberwriter.studioState.${slug}`
+}
+
+function readCachedStudioState(slug: string): StudioPersistedState | null {
+  try {
+    const raw = localStorage.getItem(studioStateCacheKey(slug))
+    if (!raw) return null
+    const state = JSON.parse(raw) as Partial<StudioPersistedState>
+    if (!state || typeof state !== 'object') return null
+    return {
+      studio_mode: state.studio_mode === 'brainstorm' || state.studio_mode === 'creative' ? state.studio_mode : 'scene',
+      prompt: typeof state.prompt === 'string' ? state.prompt : '',
+      output: typeof state.output === 'string' ? state.output : '',
+      scene_brief: typeof state.scene_brief === 'string' ? state.scene_brief : '',
+      scratchpad: typeof state.scratchpad === 'string' ? state.scratchpad : '',
+      title: typeof state.title === 'string' ? state.title : '',
+      destination: state.destination === 'draft' || state.destination === 'research' ? state.destination : 'studio',
+      updated_at: typeof state.updated_at === 'string' ? state.updated_at : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+function stateTimestamp(state: StudioPersistedState | null) {
+  if (!state?.updated_at) return 0
+  const value = Date.parse(state.updated_at)
+  return Number.isFinite(value) ? value : 0
 }
 
 function defaultTitle(mode: StudioMode) {
@@ -235,7 +277,9 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState('Studio ready · fresh scenes start clean · Continue uses the current Studio draft')
   const [streamingDraft, setStreamingDraft] = useState(false)
+  const [studioStateReady, setStudioStateReady] = useState(false)
   const streamSessionRef = useRef<{ base: string; continuation: boolean } | null>(null)
+  const autosaveTimerRef = useRef<number | null>(null)
   const modeCopy = MODE_COPY[studioMode]
 
   const wordCount = useMemo(() => wordsIn(output), [output])
@@ -247,6 +291,114 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   useEffect(() => {
     localStorage.setItem('emberwriter.craftControls', JSON.stringify(craft))
   }, [craft])
+
+  useEffect(() => {
+    let cancelled = false
+    setStudioStateReady(false)
+
+    const cached = readCachedStudioState(project.slug)
+    setStudioMode(cached?.studio_mode || 'scene')
+    setPrompt(cached?.prompt || '')
+    setOutput(cached?.output || '')
+    setSceneBrief(cached?.scene_brief || '')
+    setScratchpad(cached?.scratchpad || '')
+    setTitle(cached?.title || defaultTitle(cached?.studio_mode || 'scene'))
+    setDestination(cached?.destination || 'studio')
+    setContextFiles([])
+
+    async function restoreStudioState() {
+      let remote: StudioPersistedState | null = null
+      try {
+        const response = await jsonFetch<{ state: StudioPersistedState | null }>(
+          `${apiBase}/projects/${project.slug}/studio-state`,
+        )
+        remote = response.state
+      } catch {
+        // The local cache is still a valid crash/restart recovery source.
+      }
+      if (cancelled) return
+
+      const chosen = stateTimestamp(remote) >= stateTimestamp(cached) ? remote : cached
+      if (chosen) {
+        setStudioMode(chosen.studio_mode)
+        setPrompt(chosen.prompt)
+        setOutput(chosen.output)
+        setSceneBrief(chosen.scene_brief)
+        setScratchpad(chosen.scratchpad)
+        setTitle(chosen.title || defaultTitle(chosen.studio_mode))
+        setDestination(chosen.destination)
+        localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(chosen))
+        if (chosen.output.trim()) {
+          setStatus(`Restored Studio Working Draft · ${wordsIn(chosen.output).toLocaleString()} words`)
+        } else {
+          setStatus('Studio state restored')
+        }
+      } else {
+        setStatus('Studio ready · autosave is on')
+      }
+      setStudioStateReady(true)
+    }
+
+    void restoreStudioState()
+    return () => {
+      cancelled = true
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+    }
+  }, [apiBase, project.slug])
+
+  useEffect(() => {
+    if (!studioStateReady) return
+
+    const state: StudioPersistedState = {
+      studio_mode: studioMode,
+      prompt,
+      output,
+      scene_brief: sceneBrief,
+      scratchpad,
+      title,
+      destination,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Synchronous local cache protects the latest keystrokes/tokens if the desktop app closes
+    // before the debounced project-file autosave completes.
+    localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(state))
+
+    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = window.setTimeout(() => {
+      autosaveTimerRef.current = null
+      void jsonFetch<{ state: StudioPersistedState }>(
+        `${apiBase}/projects/${project.slug}/studio-state`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(state),
+        },
+      ).catch(() => {
+        // Keep working without interrupting generation; the local cache still preserves the draft.
+      })
+    }, 650)
+
+    return () => {
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+    }
+  }, [
+    apiBase,
+    destination,
+    output,
+    project.slug,
+    prompt,
+    sceneBrief,
+    scratchpad,
+    studioMode,
+    studioStateReady,
+    title,
+  ])
 
   useEffect(() => {
     function onPreview(event: Event) {
@@ -592,7 +744,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
             <div className="ai-studio-card-head">
               <div><small>AI OUTPUT</small><h2>Working Draft</h2></div>
               <div className="ai-studio-output-meta">
-                <span>{streamingDraft ? 'LIVE · UNVERIFIED' : `${wordCount.toLocaleString()} words`}</span>
+                <span>{streamingDraft ? 'LIVE · UNVERIFIED · autosaving' : `${wordCount.toLocaleString()} words · autosaved`}</span>
                 {output && !busy && (
                   <button
                     type="button"
