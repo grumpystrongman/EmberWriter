@@ -182,7 +182,7 @@ export default function GenerationWatchdog() {
         }
         buffer += decoder.decode()
         if (buffer.trim()) consumeLine(buffer)
-        if (accumulated) {
+        if (accumulated && !finalPayload) {
           window.dispatchEvent(new CustomEvent('emberwriter:generation-preview', {
             detail: { slug: generation.slug, text: accumulated, studio: generation.studio, reset: false },
           }))
