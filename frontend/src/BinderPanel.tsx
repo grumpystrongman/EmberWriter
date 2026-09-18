@@ -63,7 +63,7 @@ type Props = {
   onReorder: (parentId: string | null, nodeIds: string[]) => Promise<void>
   onTrash: (nodeId: string) => Promise<void>
   onRestore: (nodeId: string) => Promise<void>
-  onDelete: (nodeId: string, title: string) => Promise<void>
+  onDelete?: (nodeId: string, title: string) => Promise<void>
   onSync: () => Promise<void>
 }
 
@@ -306,8 +306,8 @@ export default function BinderPanel({
                   <button
                     type="button"
                     className="binder-delete"
-                    disabled={disabled}
-                    onClick={() => void onDelete(selected.id, selected.title)}
+                    disabled={disabled || !onDelete}
+                    onClick={() => { if (onDelete) void onDelete(selected.id, selected.title) }}
                   >
                     Delete permanently
                   </button>
