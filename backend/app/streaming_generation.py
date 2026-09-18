@@ -555,6 +555,7 @@ async def generate_complete_prose_streamed(
     canon_restart_used = False
 
     for pass_index in range(max_passes):
+        verifier_ran_this_pass = False
         if on_status is not None:
             label = (
                 "Writing scene…"
@@ -617,6 +618,7 @@ async def generate_complete_prose_streamed(
             if studio_delivery_verifier:
                 if on_status is not None:
                     await on_status("Verifying requested scene delivery…")
+                verifier_ran_this_pass = True
                 verdict = await verify_studio_scene_delivery(config, messages, accumulated)
                 if verdict.get("verified") is True:
                     if on_status is not None:
@@ -666,12 +668,51 @@ async def generate_complete_prose_streamed(
 
         if pass_index == max_passes - 1:
             if studio_delivery_verifier:
+                # The scene-complete marker is a writer hint, not proof. On the final allowed pass,
+                # always give a substantial draft one last independent delivery check even when the
+                # writer forgot the control marker or the abrupt-ending heuristic was conservative.
+                # The verifier already owns the authoritative ending_complete decision.
+                if (
+                    not verifier_ran_this_pass
+                    and accumulated.strip()
+                    and words >= min_words
+                    and candidate_words > 0
+                ):
+                    if on_status is not None:
+                        await on_status("Final Studio delivery verification…")
+                    verdict = await verify_studio_scene_delivery(config, messages, accumulated)
+                    verifier_ran_this_pass = True
+                    if verdict.get("verified") is True:
+                        if on_status is not None:
+                            await on_status("Requested scene delivery verified · finishing…")
+                        return accumulated
+                    verifier_reason = str(
+                        verdict.get("reason", "requested core encounter was not fully delivered")
+                    ).strip()
+
+                if not verifier_ran_this_pass:
+                    final_state_reason = ""
+                    if words < min_words:
+                        final_state_reason = (
+                            f"final draft ended at {words} words before the requested minimum of {min_words}"
+                        )
+                    elif candidate_words <= 0:
+                        final_state_reason = "final pass produced no usable new prose to verify"
+                    elif abrupt:
+                        final_state_reason = "final draft ended abruptly before it could be verified as complete"
+                    if final_state_reason:
+                        verifier_reason = (
+                            f"{final_state_reason}; previous verifier: {verifier_reason}"
+                            if verifier_reason
+                            else final_state_reason
+                        )
+
                 reason = verifier_reason or (
-                    "requested scene never passed the independent Studio delivery verifier"
+                    "final Studio draft did not pass independent delivery verification"
                 )
                 if on_status is not None:
                     await on_status(
-                        "Scene preserved as partial · independent delivery verification did not pass."
+                        f"Scene preserved as partial · delivery verification failed: {reason[:180]}"
                     )
                 raise SceneDeliveryIncomplete(accumulated, reason)
             return accumulated
@@ -700,7 +741,6 @@ async def generate_complete_prose_streamed(
                 f" An independent delivery verifier rejected the previous ending: {verifier_reason[:240]}. "
                 "Do not add another buildup sequence. Correct the missing delivery by advancing the scene itself."
             )
-            verifier_reason = ""
         if marker_required:
             continuation_instruction += (
                 " This is an intimacy scene: buildup, kissing, and initial escalation are not completion. Continue until the "
