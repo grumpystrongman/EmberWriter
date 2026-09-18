@@ -188,3 +188,65 @@ def test_collection_references_stable_node_ids(tmp_path: Path) -> None:
     assert len(state.collections) == 1
     assert state.collections[0].name == "Revision Pass"
     assert state.collections[0].node_ids == [chapter.id]
+
+
+def test_permanent_delete_removes_trashed_subtree_files_and_collection_refs(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Binder Permanent Delete")
+    slug = project["slug"]
+    state = binder.get_binder(slug)
+    draft = node_by_title(state, "Draft")
+
+    state = binder.create_node(
+        slug,
+        BinderNodeCreate(title="Disposable Folder", kind="folder", parent_id=draft.id),
+    )
+    folder = node_by_title(state, "Disposable Folder")
+    state = binder.create_node(
+        slug,
+        BinderNodeCreate(title="Disposable Scene", kind="document", parent_id=folder.id),
+    )
+    scene = node_by_title(state, "Disposable Scene")
+    scene_path = storage.project_root(slug) / scene.path
+    assert scene_path.exists()
+
+    state = binder.create_collection(
+        slug,
+        BinderCollectionCreate(name="Delete Me", node_ids=[scene.id]),
+    )
+    state = binder.trash_node(slug, folder.id)
+    deleted = binder.delete_node(slug, folder.id)
+
+    assert folder.id not in {node.id for node in deleted.nodes}
+    assert scene.id not in {node.id for node in deleted.nodes}
+    assert not scene_path.exists()
+    assert deleted.collections[0].node_ids == []
+
+
+def test_permanent_delete_requires_trash_and_protects_roots(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Binder Delete Guard")
+    slug = project["slug"]
+    state = binder.get_binder(slug)
+    draft = node_by_title(state, "Draft")
+    chapter = next(node for node in state.nodes if node.path == "manuscript/chapter-001.md")
+
+    with pytest.raises(ValueError, match="Trash"):
+        binder.delete_node(slug, chapter.id)
+
+    with pytest.raises(ValueError, match="root"):
+        binder.delete_node(slug, draft.id)
+
+
+def test_delete_project_removes_entire_local_project(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Disposable Project")
+    root = storage.project_root(project["slug"])
+    assert root.exists()
+
+    result = storage.delete_project(project["slug"])
+
+    assert result["deleted"] is True
+    assert not root.exists()
+    with pytest.raises(FileNotFoundError):
+        storage.get_project(project["slug"])
