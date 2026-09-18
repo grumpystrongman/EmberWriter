@@ -154,3 +154,14 @@ async def test_studio_stream_keeps_unverified_partial_visible_when_delivery_fail
         )
 
     assert emitted == ["REJECTED_PROVISIONAL_PASS"]
+
+def test_consent_analysis_loop_fails_before_more_buildup_is_accepted() -> None:
+    draft = (
+        "They had already agreed they wanted the encounter, but he kept asking about consent and permission. "
+        "She answered that she trusted him and repeated her boundaries. He worried about safety and whether she really wanted it. "
+        "They discussed trust, fear, vulnerability, choice, choosing, permission, boundaries, consent, safety, and trust again. "
+        "He asked whether she was afraid, whether she felt safe, and whether choosing him was truly her choice. "
+        "They remained at the threshold without advancing into the requested encounter."
+    )
+    reason = app.explicitness_enforcement.strict_explicit_delivery_failure(_PROMPT, draft)
+    assert "re-litigating consent/trust/boundaries" in reason
