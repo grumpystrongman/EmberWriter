@@ -216,6 +216,25 @@ def read_text(slug: str, relative_path: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def delete_text(slug: str, relative_path: str) -> dict:
+    if relative_path in {"project.json", "binder.json"}:
+        raise ValueError("Project and Binder metadata cannot be deleted as individual files")
+    path = safe_project_path(slug, relative_path)
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(relative_path)
+    path.unlink()
+    _touch_project(slug)
+    return {"path": relative_path, "deleted": True}
+
+
+def delete_project(slug: str) -> dict:
+    root = project_root(slug)
+    if not root.exists() or not (root / "project.json").exists():
+        raise FileNotFoundError(slug)
+    shutil.rmtree(root)
+    return {"slug": slug, "deleted": True}
+
+
 def save_text(slug: str, relative_path: str, content: str) -> dict:
     path = safe_project_path(slug, relative_path)
     path.parent.mkdir(parents=True, exist_ok=True)
