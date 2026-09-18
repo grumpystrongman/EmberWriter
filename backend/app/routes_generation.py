@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from contextlib import suppress
 
 import httpx
@@ -46,6 +47,19 @@ router = APIRouter(prefix="/api")
 _GENERATION_CONTEXT_MAX_CHARS = 76000
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
 _ACTIVE_ANCHOR_MARKER = "## HIGH-PRIORITY ACTIVE CONTINUATION ANCHOR"
+
+_STUDIO_HANDOFF_MARKER = "EXISTING DRAFT HANDOFF — REFERENCE ONLY; DO NOT REPEAT"
+_STUDIO_HANDOFF_END_MARKER = "WRITE ONLY NEW PROSE THAT COMES AFTER THAT FINAL LINE."
+
+
+def _studio_continuation_existing_words(prompt: str) -> int:
+    if _STUDIO_HANDOFF_MARKER not in prompt:
+        return 0
+    handoff = prompt.split(_STUDIO_HANDOFF_MARKER, 1)[1]
+    if _STUDIO_HANDOFF_END_MARKER in handoff:
+        handoff = handoff.split(_STUDIO_HANDOFF_END_MARKER, 1)[0]
+    return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", handoff))
+
 
 
 def _relevant_names(slug: str, context_text: str, prompt: str, selected_text: str | None) -> list[str]:
@@ -335,6 +349,12 @@ async def _generate_payload(
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat = payload.craft.heat_level
     minimum_words = scene_word_floor(payload.prompt, heat)
+    if _is_studio_request(payload) and payload.mode == "continue":
+        existing_words = _studio_continuation_existing_words(payload.prompt)
+        if existing_words:
+            # The Working Draft already counts toward scene length. A continuation should finish
+            # the scene, not manufacture another Inferno-sized block of hesitation/padding.
+            minimum_words = max(220, minimum_words - existing_words)
     messages = build_messages(
         payload.mode,
         payload.prompt,
