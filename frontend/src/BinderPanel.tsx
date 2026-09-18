@@ -63,6 +63,7 @@ type Props = {
   onReorder: (parentId: string | null, nodeIds: string[]) => Promise<void>
   onTrash: (nodeId: string) => Promise<void>
   onRestore: (nodeId: string) => Promise<void>
+  onDelete: (nodeId: string, title: string) => Promise<void>
   onSync: () => Promise<void>
 }
 
@@ -95,6 +96,7 @@ export default function BinderPanel({
   onReorder,
   onTrash,
   onRestore,
+  onDelete,
   onSync,
 }: Props) {
   const projectSlug = slug || state.project_slug
@@ -298,9 +300,21 @@ export default function BinderPanel({
             <div className="binder-actions">
               <button type="button" disabled={disabled} onClick={() => void move(selected, -1)}>↑</button>
               <button type="button" disabled={disabled} onClick={() => void move(selected, 1)}>↓</button>
-              {selectedIsInTrash
-                ? <button type="button" disabled={disabled} onClick={() => void onRestore(selected.id)}>Restore</button>
-                : <button type="button" disabled={disabled} onClick={() => void onTrash(selected.id)}>Trash</button>}
+              {selectedIsInTrash ? (
+                <>
+                  <button type="button" disabled={disabled} onClick={() => void onRestore(selected.id)}>Restore</button>
+                  <button
+                    type="button"
+                    className="binder-delete"
+                    disabled={disabled}
+                    onClick={() => void onDelete(selected.id, selected.title)}
+                  >
+                    Delete permanently
+                  </button>
+                </>
+              ) : (
+                <button type="button" disabled={disabled} onClick={() => void onTrash(selected.id)}>Trash</button>
+              )}
             </div>
           </div>}
         </details>
