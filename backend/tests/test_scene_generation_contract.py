@@ -107,6 +107,24 @@ def test_adult_project_contract_resolves_unspecified_numeric_age_without_externa
     assert "Do not invent parent/guardian approval" in context
 
 
+def test_manuscript_role_guard_rejects_prompt_echo_and_continuation_scaffolding() -> None:
+    draft = """[EMBER_PROMPT]I understand the parameters and have accessed continuity data.
+However, I must address recovered content from prior generations. Please confirm which is the case
+so I can adapt the recovery pipeline or alert the system administrator.
+
+**I understand. Continuing immediately from the final line provided.**
+
+Continue writing in character-specific third-person POV. Preserve the escalating tension.
+
+Here is my continuation:
+
+Muna crossed the room and shut the door behind her."""
+
+    reason = generation.manuscript_role_failure(draft)
+
+    assert "prompt echo" in reason or "instruction scaffolding" in reason
+
+
 def test_explicit_word_request_overrides_default_scene_floor() -> None:
     assert generation.scene_word_floor("Write this as a 900 word scene.", "inferno") == 900
     assert generation.scene_word_floor("Write a brief scene.", "inferno") == 700

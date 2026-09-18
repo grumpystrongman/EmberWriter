@@ -92,9 +92,14 @@ Do not invent an external age-verification, parent/guardian-approval, safety-pro
 """
 
 _META_OPENING_PATTERN = re.compile(
-    r"^\s*(?:"
+    r"^\s*(?:\[EMBER_PROMPT\]\s*)?(?:"
     r"i\s+need\s+to\s+be\s+careful\b|"
     r"i\s+understand\s+you\s+want\s+me\b|"
+    r"i\s+understand\s+the\s+parameters\b|"
+    r"i\s+understand\s*[.,:]?\s+continuing\b|"
+    r"understood\s*[.,:]?\s+beginning\b|"
+    r"i\s+will\s+now\s+write\b|"
+    r"however\s*,?\s+i\s+must\s+address\b|"
     r"however\s*,?\s+i\s+must\s+(?:clarify|decline|refuse)\b|"
     r"i\s+(?:can't|cannot|won't|am\s+unable\s+to|must\s+decline)\b|"
     r"what\s+i\s+can\s+do\b|"
@@ -119,6 +124,27 @@ _META_OFFER_PATTERN = re.compile(
     r"what\s+would\s+you\s+like\s+me\s+to\s+do|"
     r"what\s+would\s+you\s+like\s+to\s+do|"
     r"if\s+you\s+provide|i\s+can\s+offer|to\s+proceed\s+ethically)\b",
+    re.IGNORECASE,
+)
+
+_META_SCAFFOLD_PATTERN = re.compile(
+    r"(?:"
+    r"\[EMBER_PROMPT\]|"
+    r"\bhere\s+is\s+my\s+continuation\b|"
+    r"\bcontinuing\s+immediately\s+from\s+the\s+final\s+line\b|"
+    r"\bcontinue\s+writing\s+in\s+character-specific\b|"
+    r"\bpreserve\s+the\s+escalating\s+tension\b|"
+    r"\bplease\s+confirm\s+which\s+is\s+the\s+case\b|"
+    r"\badapt\s+the\s+recovery\s+pipeline\b|"
+    r"\balert\s+the\s+system\s+administrator\b|"
+    r"\bexisting\s+prose\s+fragment\s+in\s+my\s+memory\b|"
+    r"\brecovered\s+(?:content|text)\b|"
+    r"\bprior\s+chat\s+noise\b|"
+    r"\bCONTINUATION\s+BOUNDARY\s+PASS\b|"
+    r"\bORIGINAL\s+SCENE\s+BRIEF\b|"
+    r"\bEXISTING\s+DRAFT\s+HANDOFF\b|"
+    r"\bWRITE\s+ONLY\s+NEW\s+PROSE\b"
+    r")",
     re.IGNORECASE,
 )
 
@@ -148,14 +174,19 @@ def manuscript_role_failure(text: str) -> str:
             flags=re.IGNORECASE,
         )
     )
+    scaffold_hits = len(_META_SCAFFOLD_PATTERN.findall(sample))
+    prompt_echo = "[EMBER_PROMPT]" in sample
     if (
         (opening and context_hits >= 1)
         or (context_hits >= 2 and (offer or limitation))
         or (safety_preamble and context_hits >= 2 and (opening or offer or limitation))
+        or prompt_echo
+        or scaffold_hits >= 2
+        or (opening and scaffold_hits >= 1)
     ):
         return (
-            "non-manuscript assistant/meta response detected: the model discussed recovery, policy, "
-            "tool limitations, or offered alternatives instead of writing the requested prose"
+            "non-manuscript assistant/meta response detected: the model emitted recovery/policy commentary, "
+            "prompt echo, instruction scaffolding, tool limitations, or an author-facing preamble instead of clean manuscript prose"
         )
     return ""
 

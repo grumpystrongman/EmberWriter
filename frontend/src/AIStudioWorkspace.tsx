@@ -170,6 +170,22 @@ function mergeContinuation(existing: string, continuation: string) {
   return right ? `${left}\n\n${right}` : left
 }
 
+const NON_MANUSCRIPT_HANDOFF_BLOCK = /(?:^|\b)(?:\[EMBER_PROMPT\]|I\s+understand(?:\s+the\s+parameters|[.,:]?\s+continuing)|Understood[.,:]?\s+beginning|Here\s+is\s+my\s+continuation|Continue\s+writing\s+in\s+character-specific|Please\s+confirm\s+which\s+is\s+the\s+case|adapt\s+the\s+recovery\s+pipeline|alert\s+the\s+system\s+administrator|CONTINUATION\s+BOUNDARY\s+PASS|ORIGINAL\s+SCENE\s+BRIEF|EXISTING\s+DRAFT\s+HANDOFF|WRITE\s+ONLY\s+NEW\s+PROSE)/i
+const INSTRUCTION_BULLET = /^\s*[-*]\s+(?:preserve|match|advance|keep|avoid|continue|write|do\s+not)\b/im
+
+function manuscriptOnlyHandoff(text: string) {
+  const blocks = text.split(/\n\s*\n/)
+  const kept = blocks.filter((block) => {
+    const trimmed = block.trim().replace(/^[*#>\s]+/, '')
+    if (!trimmed) return false
+    if (NON_MANUSCRIPT_HANDOFF_BLOCK.test(trimmed)) return false
+    const instructionBullets = block.split('\n').filter((line) => INSTRUCTION_BULLET.test(line)).length
+    if (instructionBullets >= 2) return false
+    return true
+  })
+  return kept.join('\n\n').trim()
+}
+
 function freshScenePrompt(direction: string) {
   return [
     direction,
@@ -313,19 +329,25 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
 
   async function continueCurrentScene(direction = prompt.trim()) {
     if (!output.trim() || busy || !provider.model.trim()) return
+    const cleanBase = manuscriptOnlyHandoff(output)
+    if (!cleanBase) {
+      setStatus('Continuation blocked · Working Draft contains no manuscript prose after removing assistant/prompt scaffolding')
+      return
+    }
+    if (cleanBase !== output.trim()) setOutput(cleanBase)
     setBusy(true)
     setContextFiles([])
-    streamSessionRef.current = { base: output, continuation: true }
+    streamSessionRef.current = { base: cleanBase, continuation: true }
     setStreamingDraft(true)
     setStatus('Continuing live in Working Draft · provisional until verification passes…')
     try {
       const originalBrief = sceneBrief.trim() || prompt.trim() || direction
       const result = await continueDraft(
-        output,
+        cleanBase,
         originalBrief,
         direction || 'Continue and finish this scene.',
       )
-      const merged = mergeContinuation(output, result.text)
+      const merged = mergeContinuation(cleanBase, result.text)
       setOutput(merged)
       setContextFiles(result.context_files || [])
       const words = wordsIn(merged)

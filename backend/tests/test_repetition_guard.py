@@ -503,3 +503,84 @@ def test_studio_discards_fabricated_minor_policy_preamble_before_accepting_prose
     assert "parent/guardian" not in result
     assert "scene179" in result
     assert any("Non-manuscript assistant response detected" in message for message in statuses)
+
+
+def test_role_confusion_retry_does_not_consume_studio_repair_pass(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    statuses: list[str] = []
+    chunks = [
+        (
+            "[EMBER_PROMPT]I understand the parameters. However, I must address recovered content. "
+            "Please confirm which is the case so I can adapt the recovery pipeline."
+        ),
+        _words("buildup", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("repair", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls == 1:
+            return {
+                "verified": False,
+                "core_encounter_on_page": False,
+                "requested_explicitness_delivered": False,
+                "buildup_only": True,
+                "fade_or_skip": False,
+                "ending_complete": False,
+                "canon_respected": True,
+                "repetition_loop": False,
+                "reason": "requested core event is still only buildup",
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult intimacy scene.",
+        "Trusted project context.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            on_status=status,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 3
+    assert verifier_calls == 2
+    assert "buildup179" in result
+    assert "repair179" in result
+    assert any("without consuming the repair pass" in message for message in statuses)
