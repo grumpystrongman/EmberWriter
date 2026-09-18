@@ -253,11 +253,20 @@ def build_messages(
     heat_level: str | None = None,
     finish_scene: bool = True,
     min_scene_words: int | None = None,
+    delivery_scope: str = "full_scene",
 ) -> list[dict[str, str]]:
     guidance = MODE_GUIDANCE.get(mode, MODE_GUIDANCE["write"])
     resolved_intent = scene_intent or detect_scene_intent(prompt, heat_level)
     intent_guidance = SCENE_INTENT_GUIDANCE.get(resolved_intent, SCENE_INTENT_GUIDANCE["general"])
     heat_note = f"Requested heat: {heat_level}." if heat_level else ""
+    scope_note = (
+        "Delivery scope: core-only. The author wants only the requested central action/encounter segment. "
+        "Do not add setup, consent analysis, side plots, interruptions, transition scenes, emotional processing, "
+        "relationship discussion, or aftermath unless the author explicitly asked for one of those inside this segment. "
+        "Begin at the core action as quickly as continuity allows and stop when that requested segment reaches a natural ending."
+        if delivery_scope == "core_only"
+        else "Delivery scope: complete scene."
+    )
     completion_note = ""
     if finish_scene and mode in PROSE_MODES:
         floor = min_scene_words or scene_word_floor(prompt, heat_level)
@@ -266,8 +275,9 @@ Scene completion contract:
 - Write the complete requested scene, not a teaser, synopsis, opening fragment, or arbitrary token-sized chunk.
 - Unless the author explicitly asked for something shorter, use about {floor} words as an anti-fragment floor, not a quota. Scene completeness and forward motion matter more than padding to a number.
 - Never add filler, repeated emotional claims, abstract romantic inflation, or redundant buildup just to make the scene longer.
-- A scene is complete only after the requested dramatic/intimate objective has happened and the immediate emotional or plot consequence has landed.
-- For an intimacy request, buildup, kissing, or merely beginning the encounter is not completion; the requested encounter and its immediate aftermath/changed relationship state must actually land on page.
+- For complete-scene delivery, a scene is complete only after the requested dramatic/intimate objective and its immediate consequence have landed.
+- For core-only delivery, completion means the requested central action/encounter segment itself has happened and reached a natural stopping point. Do NOT require setup or aftermath.
+- For an intimacy request, buildup, kissing, or merely beginning the encounter is not completion. In core-only scope, the requested sexual segment itself must occur on page; in complete-scene scope, its immediate aftermath/changed state must also land.
 - Do not stop in the middle of a word, sentence, action, exchange, escalation, or aftermath merely because a model generation boundary is approaching.
 - End your response with {SCENE_COMPLETE_MARKER} only when the requested scene has genuinely reached a usable ending.
 - If you must stop before that point, end with {SCENE_CONTINUE_MARKER} instead. These markers are control signals and will be removed before the author sees the prose.
@@ -287,6 +297,7 @@ Current task mode: {mode}
 Scene intent: {resolved_intent}
 {intent_guidance}
 {heat_note}
+{scope_note}
 {completion_note}"""
     user = f"""AUTHOR INSTRUCTION
 {prompt}
