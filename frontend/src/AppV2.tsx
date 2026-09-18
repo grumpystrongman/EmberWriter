@@ -329,6 +329,33 @@ export default function AppV2() {
     }
   }
 
+  async function deleteCurrentProject() {
+    if (!project || workspaceBusy) return
+    const current = project
+    if (!window.confirm(`Delete “${current.name}” and all of its local files? This cannot be undone from the Library.`)) return
+    setBusy(true)
+    try {
+      await jsonFetch(`${API}/projects/${current.slug}`, { method: 'DELETE' })
+      setProject(null)
+      setBinderState(null)
+      setActiveFile('')
+      setContent('')
+      setDirty(false)
+      setOutput('')
+      setContextFiles([])
+      setMemoryFacts([])
+      setMemoryStats(emptyMemoryStats)
+      setStoryIntelligence(emptyStoryIntelligence)
+      setChemistryProfiles([])
+      await refreshProjects()
+      setStatus(`Deleted project “${current.name}”`)
+    } catch (error) {
+      setStatus(`Project delete failed: ${(error as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function openFile(slug: string, path: string) {
     try {
       const data = await jsonFetch<{ path: string; content: string }>(`${API}/projects/${slug}/file?path=${encodeURIComponent(path)}`)
@@ -433,6 +460,29 @@ export default function AppV2() {
       setStatus('Binder item restored')
     } catch (error) {
       setStatus(`Binder restore failed: ${(error as Error).message}`)
+    } finally {
+      setBinderBusy(false)
+    }
+  }
+
+  async function deleteBinderNode(nodeId: string, title: string) {
+    if (!project || binderBusy) return
+    if (!window.confirm(`Delete “${title}” permanently? Its source file and any nested Binder items will be removed.`)) return
+    setBinderBusy(true)
+    try {
+      const state = await jsonFetch<BinderState>(`${API}/projects/${project.slug}/binder/nodes/${nodeId}`, { method: 'DELETE' })
+      setBinderState(state)
+      await refreshProjectDetail(project.slug)
+      if (activeFile && !state.nodes.some((node) => node.path === activeFile)) {
+        setActiveFile('')
+        setContent('')
+        setDirty(false)
+        const first = firstDraftPath(state) || state.nodes.find((node) => node.path)?.path || ''
+        if (first) await openFile(project.slug, first)
+      }
+      setStatus(`Deleted “${title}” permanently`)
+    } catch (error) {
+      setStatus(`Binder delete failed: ${(error as Error).message}`)
     } finally {
       setBinderBusy(false)
     }
@@ -825,6 +875,11 @@ export default function AppV2() {
             </button>
           ))}
         </div>
+        {project && (
+          <button type="button" className="quiet project-delete" disabled={workspaceBusy} onClick={() => void deleteCurrentProject()}>
+            Delete project
+          </button>
+        )}
 
         {project && <ImportPanel disabled={workspaceBusy} onFiles={importFiles} onText={importText} />}
 
@@ -839,6 +894,7 @@ export default function AppV2() {
             onReorder={reorderBinder}
             onTrash={trashBinderNode}
             onRestore={restoreBinderNode}
+            onDelete={deleteBinderNode}
             onSync={syncBinder}
           />
         )}
