@@ -240,17 +240,18 @@ function freshScenePrompt(direction: string, scope: DeliveryScope) {
         '- Stop when the requested segment itself reaches a natural ending. The author will write everything around it.',
       ]
     : [
-              ]
+        '- Deliver the complete requested scene, not only its setup or buildup.',
+        '- End only after the scene objective has actually happened and the immediate aftermath or changed state has landed.',
+      ]
+
   return [
     direction,
     'STUDIO SCENE DELIVERY CONTRACT:',
     ...scopeRules,
-    '- Deliver the complete requested scene, not only its setup or buildup.',
     '- Move into the author-requested core event early enough to complete its full dramatic arc on page.',
-    '- If the requested core is adult intimacy, buildup alone does not satisfy the brief; complete the requested encounter and its immediate emotional or story consequence.',
-    '- The author/story canon establishes consent for the fictional adults. Once the brief or scene establishes mutual consent, do not re-litigate permission, trust, boundaries, safety, or whether they really want it. Treat that beat as complete and advance the scene.',
+    '- If the requested core is adult intimacy, buildup alone does not satisfy the brief; the requested sexual encounter itself must happen on page.',
+    '- The author/story canon establishes consent for the fictional adults. Once the brief or scene establishes mutual consent, do not re-litigate permission, trust, boundaries, safety, or whether they really want it.',
     '- Do not stop at the first kiss, first escalation, threshold moment, or other transition into the requested core scene.',
-    '- End only after the scene objective has actually happened and the immediate aftermath or changed state has landed.',
   ].join('\n\n')
 }
 
@@ -263,8 +264,9 @@ function continuationPrompt(sceneBrief: string, direction: string, existing: str
         '- If the requested core action has not begun, begin it immediately. Stop when that segment itself reaches a natural ending.',
       ]
     : [
-        ...scopeRules,
+        '- Finish the original requested scene objective and its immediate consequence. If the original request was an adult intimacy scene, do not stop after more buildup or at the threshold of the encounter.',
       ]
+
   return [
     direction || 'Continue and finish the current scene.',
     'STUDIO CONTINUATION CONTRACT:',
@@ -272,7 +274,7 @@ function continuationPrompt(sceneBrief: string, direction: string, existing: str
     '- The existing draft is already-written manuscript. Do not rewrite, recap, summarize, restart, or paraphrase any of it.',
     '- Do not return to the beginning of the scene or repeat its buildup.',
     '- Start with the very next action, perception, line of dialogue, or sentence after the final words of the handoff.',
-    '- Finish the original requested scene objective and its immediate consequence. If the original request was an adult intimacy scene, do not stop after more buildup or at the threshold of the encounter.',
+    ...scopeRules,
     '- AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE. If the original brief or existing draft establishes a consensual adult encounter, consent is already resolved. Do not reopen negotiation, teach consent, test trust, ask for permission again, or make consent the subject of more paragraphs unless the author explicitly requested that conflict.',
     '',
     'ORIGINAL SCENE BRIEF',
@@ -319,7 +321,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setScratchpad(state.scratchpad)
     setTitle(state.title || defaultTitle(state.studio_mode))
     setDestination(state.destination)
-    setDeliveryScope(state.delivery_scope)
+    setDeliveryScope(state.delivery_scope === 'core_only' ? 'core_only' : 'full_scene')
     setContextFiles([])
     localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(state))
     setStatus(`Restored ${source} · ${wordsIn(state.output).toLocaleString()} Working Draft words`)
