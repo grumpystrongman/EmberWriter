@@ -239,9 +239,9 @@ def test_studio_inferno_is_verified_end_to_end_on_clean_api_path(tmp_path: Path)
             if "Requested scene delivery verified" in str(event.get("message", ""))
         )
         delta_indices = [index for index, event in enumerate(events) if event.get("type") == "delta"]
-        assert delta_indices, "verified Studio prose should be released after approval"
-        assert min(delta_indices) > verified_index, (
-            "Studio prose must remain quarantined until the independent delivery verifier approves it"
+        assert delta_indices, "Studio prose should stream live while the verifier is still pending"
+        assert min(delta_indices) < verified_index, (
+            "Studio should show provisional prose before independent delivery verification finishes"
         )
 
         first_writer_context = "\n".join(
@@ -289,7 +289,7 @@ def test_studio_continue_context_never_tells_model_to_start_over(tmp_path: Path)
         server.server_close()
 
 
-def test_unverified_studio_scene_never_reaches_the_client_as_prose(tmp_path: Path) -> None:
+def test_unverified_studio_scene_remains_visible_as_partial_draft(tmp_path: Path) -> None:
     server, state, base_url = _start_fake_ollama()
     try:
         slug = _setup_project(tmp_path)
@@ -305,19 +305,16 @@ def test_unverified_studio_scene_never_reaches_the_client_as_prose(tmp_path: Pat
             events = _stream_events(client, slug, payload)
 
         assert state.verifier_calls, "the verifier must actually run"
-        assert not any(event.get("type") == "delta" for event in events), (
-            "unverified Studio prose must remain quarantined rather than reaching the live preview"
+        assert any(event.get("type") == "delta" for event in events), (
+            "unverified Studio prose should remain visible as a provisional Working Draft"
         )
-        assert not any(event.get("type") == "final" for event in events), (
-            "a Studio scene that never verifies must fail closed instead of becoming a partial draft"
-        )
-        errors = [event for event in events if event.get("type") == "error"]
-        assert errors, events
-        detail = str(errors[-1].get("detail", ""))
+        finals = [event for event in events if event.get("type") == "final"]
+        assert finals, events
+        final = finals[-1]
+        assert final.get("partial") is True
+        detail = str(final.get("warning", ""))
         assert "verified" in detail.casefold() or "delivery" in detail.casefold()
-        assert "BUILDUP_ONLY" not in json.dumps(events), (
-            "rejected model prose must not leak into any author-visible stream event"
-        )
+        assert str(final.get("text", "")).strip(), "failed verification should preserve author-visible prose"
     finally:
         server.shutdown()
         server.server_close()
