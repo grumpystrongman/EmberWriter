@@ -237,7 +237,7 @@ def test_complete_scene_continues_across_generation_boundaries(monkeypatch) -> N
 
     assert len(calls) == 2
     assert "first699" in calls[1][-2]["content"]
-    assert "Continue the SAME scene seamlessly" in calls[1][-1]["content"]
+    assert "Continue seamlessly from the exact final line above" in calls[1][-1]["content"]
     assert generation.SCENE_COMPLETE_MARKER not in result
     assert generation.SCENE_CONTINUE_MARKER not in result
     assert len(result.split()) == 1500
