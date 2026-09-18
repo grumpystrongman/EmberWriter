@@ -35,6 +35,17 @@ class FilePayload(BaseModel):
     content: str
 
 
+class StudioStatePayload(BaseModel):
+    studio_mode: Literal["scene", "brainstorm", "creative"] = "scene"
+    prompt: str = ""
+    output: str = ""
+    scene_brief: str = ""
+    scratchpad: str = ""
+    title: str = ""
+    destination: Literal["studio", "draft", "research"] = "studio"
+    updated_at: str = ""
+
+
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
     limit: int = Field(default=8, ge=1, le=30)
