@@ -336,11 +336,11 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
           `${apiBase}/projects/${project.slug}/studio-state`,
         )
         remote = response.state
-        setProjectRecovery(remote)
       } catch {
         // The local cache is still a valid crash/restart recovery source.
       }
       if (cancelled) return
+      setProjectRecovery(remote)
 
       const chosen = stateTimestamp(remote) >= stateTimestamp(cached) ? remote : cached
       if (chosen) {
