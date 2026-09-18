@@ -125,6 +125,43 @@ Muna crossed the room and shut the door behind her."""
     assert "prompt echo" in reason or "instruction scaffolding" in reason
 
 
+def test_author_canon_is_authoritative_for_consent_state() -> None:
+    messages = generation.build_messages(
+        "continue",
+        "Continue the consensual adult intimacy scene.",
+        "Trusted project canon says both participants are consenting adults.",
+        heat_level="inferno",
+        min_scene_words=500,
+    )
+    system = messages[0]["content"]
+    assert "AUTHOR/CANON AUTHORITY FOR CONSENT" in system
+    assert "accept that as settled story state" in system
+    assert "re-confirm consent for the model's benefit" in system.casefold()
+
+
+def test_context_guide_leak_is_rejected_even_after_long_manuscript_prefix() -> None:
+    draft = (_words("prose", 900) + "\n\n# PROSE GUIDE REFERENCE\n\n## Current Continuity State\nInternal guidance.")
+    reason = generation.manuscript_role_failure(draft)
+    assert "non-manuscript assistant/meta response" in reason
+
+
+def test_studio_continuation_length_counts_existing_working_draft() -> None:
+    handoff = _words("existing", 1450)
+    prompt = (
+        "Continue immediately.\n"
+        "STUDIO CONTINUATION CONTRACT:\n"
+        "ORIGINAL SCENE BRIEF\n"
+        "Write the complete scene.\n"
+        "EXISTING DRAFT HANDOFF — REFERENCE ONLY; DO NOT REPEAT\n"
+        f"{handoff}\n"
+        "WRITE ONLY NEW PROSE THAT COMES AFTER THAT FINAL LINE."
+    )
+    assert routes_generation._studio_continuation_original_brief(prompt) == "Write the complete scene."
+    assert routes_generation._studio_continuation_existing_words(prompt) == 1450
+    base_floor = generation.scene_word_floor("Write the complete scene.", "inferno")
+    assert max(220, base_floor - 1450) == 220
+
+
 def test_explicit_word_request_overrides_default_scene_floor() -> None:
     assert generation.scene_word_floor("Write this as a 900 word scene.", "inferno") == 900
     assert generation.scene_word_floor("Write a brief scene.", "inferno") == 700

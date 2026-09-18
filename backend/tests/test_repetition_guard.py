@@ -584,3 +584,81 @@ def test_role_confusion_retry_does_not_consume_studio_repair_pass(monkeypatch) -
     assert "buildup179" in result
     assert "repair179" in result
     assert any("without consuming the repair pass" in message for message in statuses)
+
+
+def test_studio_repair_closes_consent_beat_and_uses_short_handoff(monkeypatch) -> None:
+    writer_calls = 0
+    captured_second_messages: list[dict[str, str]] = []
+    chunks = [
+        _words("buildup", 900) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("advance", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls, captured_second_messages
+        if writer_calls == 1:
+            captured_second_messages = messages
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    verifier_calls = 0
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls == 1:
+            return {
+                "verified": False,
+                "core_encounter_on_page": False,
+                "requested_explicitness_delivered": False,
+                "buildup_only": True,
+                "fade_or_skip": False,
+                "ending_complete": False,
+                "canon_respected": True,
+                "repetition_loop": False,
+                "reason": "draft is stuck re-litigating consent/trust/boundaries",
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested consensual adult intimacy scene.",
+        "Trusted project canon establishes consenting adults.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 2
+    assert "advance219" in result
+    assert captured_second_messages
+    assert len(captured_second_messages[-2]["content"]) <= 3500
+    assert "AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE" in captured_second_messages[-1]["content"]
+    assert "Do not reopen it" in captured_second_messages[-1]["content"]

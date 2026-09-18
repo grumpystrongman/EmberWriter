@@ -83,9 +83,11 @@ async def _verify_local_studio_scene_delivery(
                 "buildup, euphemistic implication, fade-to-black, or skipping ahead. Mentions of requested acts inside assistant "
                 "commentary, refusals, prompt echo, negative statements about what the draft lacks, or writing instructions DO NOT "
                 "count as on-page scene delivery. Judge only actions that actually occur in manuscript narrative. Treat character "
-                "identity, embodiment, body facts, participants, consent requirements, and relationship facts in the supplied "
-                "request/context as hard canon. If the project/request requires consent, reject sexual escalation framed as ignoring "
-                "permission unless clear prior consent is established."
+                "identity, embodiment, body facts, participants, and relationship facts in the supplied request/context as hard canon. "
+                "The author/story canon is authoritative for consent. If the author request or trusted project context establishes a "
+                "consensual adult encounter, treat that consent state as settled and DO NOT require repeated verbal negotiation, permission "
+                "checks, or safety discussion. Reject only when the draft itself directly contradicts that canon, such as ignoring an explicit "
+                "stop/refusal or introducing coercion that the author did not request."
             ),
         },
         {

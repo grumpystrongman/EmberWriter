@@ -55,6 +55,11 @@ _EUPHEMISM_HEAVY = re.compile(
     r"bodies\s+moving|skin\s+met\s+skin|became\s+one)\b",
     re.IGNORECASE,
 )
+_CONSENT_LOOP_TERM = re.compile(
+    r"\b(?:consent|permission|boundar\w*|trust\w*|safe(?:ty)?|afraid|fear\w*|"
+    r"choose|choosing|choice|want(?:ed|ing|s)?|vulnerab\w*)\b",
+    re.IGNORECASE,
+)
 _AUTHOR_DIRECT_TERMS = (
     "penetration",
     "genitalia",
@@ -110,6 +115,17 @@ def strict_explicit_delivery_failure(prompt: str, draft: str) -> str:
         return ""
 
     profile = explicitness_profile(draft)
+
+    consent_loop_mentions = len(_CONSENT_LOOP_TERM.findall(draft))
+    if (
+        consent_loop_mentions >= 12
+        and profile.direct_action_sentences < 2
+        and profile.action_groups < 2
+    ):
+        return (
+            "explicit-scene draft is stuck re-litigating consent/trust/boundaries after the author requested a direct adult encounter; "
+            "treat author-established consent as settled canon and advance the requested core event"
+        )
 
     # This is a cheap pre-verifier, not the final semantic judge. Reject only clear misses.
     # Requiring multiple anatomy categories created a contradiction with the canon rule below:

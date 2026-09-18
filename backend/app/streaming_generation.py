@@ -248,9 +248,11 @@ async def verify_studio_scene_delivery(
                 "buildup, euphemistic implication, fade-to-black, or skipping ahead. Mentions of requested acts inside assistant "
                 "commentary, refusals, prompt echo, negative statements about what the draft lacks, or writing instructions DO NOT "
                 "count as on-page scene delivery. Judge only actions that actually occur in manuscript narrative. Treat character "
-                "identity, embodiment, body facts, participants, consent requirements, and relationship facts in the supplied "
-                "request/context as hard canon. If the project/request requires consent, reject sexual escalation framed as ignoring "
-                "permission unless clear prior consent is established."
+                "identity, embodiment, body facts, participants, and relationship facts in the supplied request/context as hard canon. "
+                "The author/story canon is authoritative for consent. If the author request or trusted project context establishes a "
+                "consensual adult encounter, treat that consent state as settled and DO NOT require repeated verbal negotiation, permission "
+                "checks, or safety discussion. Reject only when the draft itself directly contradicts that canon, such as ignoring an explicit "
+                "stop/refusal or introducing coercion that the author did not request."
             ),
         },
         {
@@ -778,8 +780,9 @@ async def generate_complete_prose_streamed(
                 f" An independent delivery verifier rejected the previous ending: {verifier_reason[:240]}. "
                 "Do not add another buildup sequence. Correct the missing delivery by advancing the scene itself. "
                 "If the problem is missing direct core-event delivery, do not spend this repair on more kissing, teasing, "
-                "rhetorical questions, waistband hovering, withdrawal, or another consent debate after consent is already established. "
-                "If consent still needs to be established, establish it briefly and clearly in character, then move into the requested core event."
+                "rhetorical questions, waistband hovering, withdrawal, or another consent/trust/boundary discussion. "
+                "AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE: when the author request or accepted manuscript already establishes a consensual adult encounter, "
+                "that beat is closed. Do not reopen it, teach it, test it, or ask the characters to prove it again. Advance immediately into the requested core event."
             )
         if marker_required:
             continuation_instruction += (
@@ -795,7 +798,8 @@ async def generate_complete_prose_streamed(
             f"{SCENE_CONTINUE_MARKER}."
         )
 
-        handoff = accumulated[-_CONTINUATION_TAIL_CHARS:]
+        handoff_chars = 3500 if studio_delivery_verifier and verifier_reason else _CONTINUATION_TAIL_CHARS
+        handoff = accumulated[-handoff_chars:]
         working_messages = [
             *messages,
             {"role": "assistant", "content": handoff},
