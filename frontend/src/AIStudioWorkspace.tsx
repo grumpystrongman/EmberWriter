@@ -278,11 +278,32 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [status, setStatus] = useState('Studio ready · fresh scenes start clean · Continue uses the current Studio draft')
   const [streamingDraft, setStreamingDraft] = useState(false)
   const [studioStateReady, setStudioStateReady] = useState(false)
+  const [browserRecovery, setBrowserRecovery] = useState<StudioPersistedState | null>(null)
+  const [projectRecovery, setProjectRecovery] = useState<StudioPersistedState | null>(null)
   const streamSessionRef = useRef<{ base: string; continuation: boolean } | null>(null)
   const autosaveTimerRef = useRef<number | null>(null)
   const modeCopy = MODE_COPY[studioMode]
 
   const wordCount = useMemo(() => wordsIn(output), [output])
+
+  function applyStudioState(state: StudioPersistedState, source: string) {
+    setStudioMode(state.studio_mode)
+    setPrompt(state.prompt)
+    setOutput(state.output)
+    setSceneBrief(state.scene_brief)
+    setScratchpad(state.scratchpad)
+    setTitle(state.title || defaultTitle(state.studio_mode))
+    setDestination(state.destination)
+    setContextFiles([])
+    localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(state))
+    setStatus(`Restored ${source} · ${wordsIn(state.output).toLocaleString()} Working Draft words`)
+  }
+
+  function recoveryTime(state: StudioPersistedState | null) {
+    if (!state?.updated_at) return 'not saved yet'
+    const date = new Date(state.updated_at)
+    return Number.isNaN(date.getTime()) ? 'saved time unavailable' : date.toLocaleString()
+  }
 
   useEffect(() => {
     localStorage.setItem('emberwriter.provider', JSON.stringify(provider))
@@ -297,6 +318,8 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setStudioStateReady(false)
 
     const cached = readCachedStudioState(project.slug)
+    setBrowserRecovery(cached)
+    setProjectRecovery(null)
     setStudioMode(cached?.studio_mode || 'scene')
     setPrompt(cached?.prompt || '')
     setOutput(cached?.output || '')
@@ -313,6 +336,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
           `${apiBase}/projects/${project.slug}/studio-state`,
         )
         remote = response.state
+        setProjectRecovery(remote)
       } catch {
         // The local cache is still a valid crash/restart recovery source.
       }
@@ -328,6 +352,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         setTitle(chosen.title || defaultTitle(chosen.studio_mode))
         setDestination(chosen.destination)
         localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(chosen))
+        setBrowserRecovery(chosen)
         if (chosen.output.trim()) {
           setStatus(`Restored Studio Working Draft · ${wordsIn(chosen.output).toLocaleString()} words`)
         } else {
@@ -366,6 +391,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     // Synchronous local cache protects the latest keystrokes/tokens if the desktop app closes
     // before the debounced project-file autosave completes.
     localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(state))
+    setBrowserRecovery(state)
 
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(() => {
@@ -376,7 +402,9 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
           method: 'PUT',
           body: JSON.stringify(state),
         },
-      ).catch(() => {
+      ).then((response) => {
+        setProjectRecovery(response.state)
+      }).catch(() => {
         // Keep working without interrupting generation; the local cache still preserves the draft.
       })
     }, 650)
@@ -776,6 +804,42 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
             ) : (
               <div className="ai-studio-empty">Your generated scene, brainstorm, or creative exploration will stream into this Working Draft as Ember writes.</div>
             )}
+            <div className="ai-studio-recovery" aria-label="Studio recovery copies">
+              <div className="ai-studio-recovery-head">
+                <div>
+                  <small>RECOVERY & AUTOSAVE</small>
+                  <strong>Visible recovery copies</strong>
+                </div>
+                <span>These are not Binder/canon files.</span>
+              </div>
+              <div className="ai-studio-recovery-grid">
+                <div className="ai-studio-recovery-copy">
+                  <strong>Browser recovery</strong>
+                  <span>{browserRecovery ? `${wordsIn(browserRecovery.output).toLocaleString()} words · ${recoveryTime(browserRecovery)}` : 'No browser recovery copy yet'}</span>
+                  <button
+                    type="button"
+                    className="quiet"
+                    disabled={!browserRecovery || busy}
+                    onClick={() => { if (browserRecovery) applyStudioState(browserRecovery, 'browser recovery copy') }}
+                  >
+                    Restore browser copy
+                  </button>
+                </div>
+                <div className="ai-studio-recovery-copy">
+                  <strong>Project autosave</strong>
+                  <span>{projectRecovery ? `${wordsIn(projectRecovery.output).toLocaleString()} words · ${recoveryTime(projectRecovery)}` : 'No project autosave yet'}</span>
+                  <button
+                    type="button"
+                    className="quiet"
+                    disabled={!projectRecovery || busy}
+                    onClick={() => { if (projectRecovery) applyStudioState(projectRecovery, 'project autosave') }}
+                  >
+                    Restore project autosave
+                  </button>
+                </div>
+              </div>
+              <p>The project copy is stored in <code>.ember/studio-state.json</code>; the browser copy is a crash-recovery fallback. Neither is included in normal story retrieval.</p>
+            </div>
             {contextFiles.length > 0 && <details><summary>Studio context used ({contextFiles.length})</summary>{contextFiles.map((file) => <div key={file}>{file}</div>)}</details>}
           </div>
         </div>
