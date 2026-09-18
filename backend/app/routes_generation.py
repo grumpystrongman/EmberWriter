@@ -439,6 +439,9 @@ async def _produce_generation_stream(
         await queue.put({"type": "delta", "text": text})
 
     async def emit_status(message: str) -> None:
+        if message.startswith("Hard-canon conflict detected"):
+            streamed_parts.clear()
+            await queue.put({"type": "reset", "reason": message})
         await queue.put({"type": "status", "message": message})
 
     async def partial_or_error(detail: str) -> None:
