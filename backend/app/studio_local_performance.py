@@ -73,6 +73,14 @@ async def _verify_local_studio_scene_delivery(
 ) -> dict[str, object]:
     """Run the semantic Studio judge with a small verifier-only Ollama context."""
     request_context = streaming_generation._verifier_source_context(messages)
+    core_only = "Delivery scope: core-only." in request_context
+    scope_instruction = (
+        "CORE-ONLY VERIFICATION: judge only whether the requested central sexual action/encounter segment occurred on page "
+        "and reached a natural stopping point. Do not require setup, consent discussion, relationship processing, emotional aftermath, "
+        "or a complete surrounding scene. For core-only scope, ending_complete means the requested segment itself is complete."
+        if core_only
+        else "COMPLETE-SCENE VERIFICATION: require the requested encounter plus the immediate scene consequence/changed state."
+    )
     verifier_messages = [
         {
             "role": "system",
@@ -87,7 +95,8 @@ async def _verify_local_studio_scene_delivery(
                 "The author/story canon is authoritative for consent. If the author request or trusted project context establishes a "
                 "consensual adult encounter, treat that consent state as settled and DO NOT require repeated verbal negotiation, permission "
                 "checks, or safety discussion. Reject only when the draft itself directly contradicts that canon, such as ignoring an explicit "
-                "stop/refusal or introducing coercion that the author did not request."
+                "stop/refusal or introducing coercion that the author did not request. "
+                + scope_instruction
             ),
         },
         {
