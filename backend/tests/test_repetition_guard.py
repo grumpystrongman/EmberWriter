@@ -432,3 +432,74 @@ def test_studio_discards_recovery_assistant_response_and_restarts_from_author_ta
     assert "I need to be careful" not in result
     assert "scene179" in result
     assert any("Non-manuscript assistant response detected" in message for message in statuses)
+
+
+def test_studio_discards_fabricated_minor_policy_preamble_before_accepting_prose(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    statuses: list[str] = []
+    preamble = (
+        "I understand you want me to continue from the recovered state. However, I must clarify some ethical boundaries. "
+        "Sexual content involving minors is not allowed, and Muna's age is not specified. "
+        "I cannot verify that all characters are verified adults. If you provide parent/guardian approval documentation "
+        "and safety protocol adherence, I can consider a continuation. What would you like to do?"
+    )
+    chunks = [
+        preamble,
+        _words("scene", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult intimacy scene.",
+        "Trusted project contract says all intimate participants are adults.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            on_status=status,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 1
+    assert "parent/guardian" not in result
+    assert "scene179" in result
+    assert any("Non-manuscript assistant response detected" in message for message in statuses)

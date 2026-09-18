@@ -71,6 +71,42 @@ def test_manuscript_role_guard_does_not_reject_normal_first_person_dialogue() ->
     assert generation.manuscript_role_failure(draft) == ""
 
 
+def test_manuscript_role_guard_rejects_fabricated_minor_safety_preamble() -> None:
+    draft = """I understand you want me to continue from the recovered state. However, I must clarify some ethical boundaries.
+
+1. Sexual content involving minors: Muna's age is not specified.
+2. Explicit sexual content with characters I cannot verify are adults.
+
+If you provide verification that all characters are verified adults, parent/guardian approval documentation,
+and safety protocol adherence, I can consider a bounded continuation. What would you like to do?
+
+# CONTINUATION BOUNDARY PASS
+
+Muna stepped into the room and shut the door behind her."""
+
+    reason = generation.manuscript_role_failure(draft)
+
+    assert "non-manuscript assistant/meta response" in reason
+
+
+def test_adult_project_contract_resolves_unspecified_numeric_age_without_external_verification(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Adult Contract")
+    slug = project["slug"]
+
+    context, _files, _craft, _names = studio_context.build_studio_context(
+        slug,
+        "Write an adult intimacy scene between Ari and Bea.",
+        CraftControls(heat_level="inferno"),
+    )
+
+    assert "## Trusted project content contract" in context
+    assert "Project audience: adult" in context
+    assert "every character participating in erotic/intimate content must be an adult (18+)" in context
+    assert "a dossier omitting a numeric age is not evidence that the character is a minor" in context
+    assert "Do not invent parent/guardian approval" in context
+
+
 def test_explicit_word_request_overrides_default_scene_floor() -> None:
     assert generation.scene_word_floor("Write this as a 900 word scene.", "inferno") == 900
     assert generation.scene_word_floor("Write a brief scene.", "inferno") == 700
