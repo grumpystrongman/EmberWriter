@@ -123,7 +123,7 @@ def strict_explicit_delivery_failure(prompt: str, draft: str) -> str:
         and profile.action_groups < 2
     ):
         return (
-            "draft is stuck re-litigating consent/trust/boundaries after the author requested a direct adult encounter; "
+            "explicit-scene draft is stuck re-litigating consent/trust/boundaries after the author requested a direct adult encounter; "
             "treat author-established consent as settled canon and advance the requested core event"
         )
 
