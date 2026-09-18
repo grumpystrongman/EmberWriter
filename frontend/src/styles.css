@@ -74,6 +74,7 @@ button.quiet { padding: 5px 10px; font-size: 12px; }
 .project-card strong { color: #e8dfdb; font-size: 13px; }
 .project-card small { color: #887d78; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .project-card.active { background: #2a211e; border-color: #46342e; }
+.project-delete { width: 100%; margin-top: 6px; color: #d99a90; border-color: rgba(210, 88, 72, .35); }
 .section-title { margin: 22px 8px 6px; color: #766c68; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .file-list { display: grid; gap: 1px; }
 .file-list button { text-align: left; padding: 7px 9px; background: transparent; border-color: transparent; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
