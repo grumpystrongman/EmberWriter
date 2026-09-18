@@ -43,6 +43,7 @@ class StudioStatePayload(BaseModel):
     scratchpad: str = ""
     title: str = ""
     destination: Literal["studio", "draft", "research"] = "studio"
+    delivery_scope: Literal["full_scene", "core_only"] = "full_scene"
     updated_at: str = ""
 
 
@@ -77,6 +78,7 @@ class CraftControls(BaseModel):
 class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=1)
     mode: Literal["write", "continue", "rewrite", "brainstorm", "critic", "continuity"] = "write"
+    delivery_scope: Literal["full_scene", "core_only"] = "full_scene"
     active_file: str | None = None
     selected_text: str | None = None
     provider: ProviderConfig
