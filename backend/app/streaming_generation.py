@@ -780,8 +780,9 @@ async def generate_complete_prose_streamed(
                 f" An independent delivery verifier rejected the previous ending: {verifier_reason[:240]}. "
                 "Do not add another buildup sequence. Correct the missing delivery by advancing the scene itself. "
                 "If the problem is missing direct core-event delivery, do not spend this repair on more kissing, teasing, "
-                "rhetorical questions, waistband hovering, withdrawal, or another consent debate after consent is already established. "
-                "If consent still needs to be established, establish it briefly and clearly in character, then move into the requested core event."
+                "rhetorical questions, waistband hovering, withdrawal, or another consent/trust/boundary discussion. "
+                "AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE: when the author request or accepted manuscript already establishes a consensual adult encounter, "
+                "that beat is closed. Do not reopen it, teach it, test it, or ask the characters to prove it again. Advance immediately into the requested core event."
             )
         if marker_required:
             continuation_instruction += (
@@ -797,7 +798,8 @@ async def generate_complete_prose_streamed(
             f"{SCENE_CONTINUE_MARKER}."
         )
 
-        handoff = accumulated[-_CONTINUATION_TAIL_CHARS:]
+        handoff_chars = 3500 if studio_delivery_verifier and verifier_reason else _CONTINUATION_TAIL_CHARS
+        handoff = accumulated[-handoff_chars:]
         working_messages = [
             *messages,
             {"role": "assistant", "content": handoff},
