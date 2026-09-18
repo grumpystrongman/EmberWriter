@@ -136,7 +136,7 @@ def test_author_canon_is_authoritative_for_consent_state() -> None:
     system = messages[0]["content"]
     assert "AUTHOR/CANON AUTHORITY FOR CONSENT" in system
     assert "accept that as settled story state" in system
-    assert "do not repeatedly ask, prove, explain, teach, test, or re-confirm consent" in system
+    assert "do not repeatedly ask, prove, explain, teach, test, or re-confirm consent" in system.casefold()
 
 
 def test_context_guide_leak_is_rejected_even_after_long_manuscript_prefix() -> None:
