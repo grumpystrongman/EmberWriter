@@ -216,6 +216,41 @@ def read_text(slug: str, relative_path: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _studio_state_path(slug: str) -> Path:
+    return project_root(slug) / ".ember" / "studio-state.json"
+
+
+def read_studio_state(slug: str) -> dict | None:
+    _metadata(slug)
+    path = _studio_state_path(slug)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("Saved Studio state is unreadable") from exc
+    return payload if isinstance(payload, dict) else None
+
+
+def save_studio_state(slug: str, state: dict) -> dict:
+    _metadata(slug)
+    path = _studio_state_path(slug)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {**state, "updated_at": utc_now()}
+    temp_path = path.with_suffix(".json.tmp")
+    temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(path)
+    return payload
+
+
+def delete_studio_state(slug: str) -> dict:
+    _metadata(slug)
+    path = _studio_state_path(slug)
+    if path.exists():
+        path.unlink()
+    return {"deleted": True}
+
+
 def delete_text(slug: str, relative_path: str) -> dict:
     if relative_path in {"project.json", "binder.json"}:
         raise ValueError("Project and Binder metadata cannot be deleted as individual files")
