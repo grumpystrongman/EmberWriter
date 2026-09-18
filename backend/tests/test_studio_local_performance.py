@@ -93,6 +93,34 @@ def test_nonlocal_generation_keeps_caller_budget(monkeypatch) -> None:
     assert observed["max_output_tokens"] == 6144
 
 
+def test_prompt_echo_is_rejected_before_explicitness_scoring(monkeypatch) -> None:
+    called = False
+
+    async def expensive_verify(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return {"verified": True}
+
+    def explicitness_should_not_run(_prompt: str, _draft: str) -> str:
+        raise AssertionError("explicitness scoring must not inspect assistant/prompt-echo prose")
+
+    monkeypatch.setattr(performance, "_verify_local_studio_scene_delivery", expensive_verify)
+    monkeypatch.setattr(refinement, "explicit_delivery_failure", explicitness_should_not_run)
+    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model="test")
+
+    verdict = asyncio.run(
+        performance.verify_studio_scene_delivery_fast(
+            config,
+            STUDIO_MESSAGES,
+            "[EMBER_PROMPT]I understand the parameters. Here is my continuation.",
+        )
+    )
+
+    assert verdict["verified"] is False
+    assert "non-manuscript assistant/meta response" in str(verdict["reason"])
+    assert called is False
+
+
 def test_deterministic_explicitness_failure_skips_semantic_verifier(monkeypatch) -> None:
     called = False
 
