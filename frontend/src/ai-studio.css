@@ -309,6 +309,63 @@
   text-align: center;
 }
 
+.ai-studio-recovery {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px;
+  background: rgba(0,0,0,.12);
+}
+
+.ai-studio-recovery-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.ai-studio-recovery-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.ai-studio-recovery-head small,
+.ai-studio-recovery-head span,
+.ai-studio-recovery-copy span,
+.ai-studio-recovery p {
+  color: var(--muted, #95a4b2);
+  font-size: 11px;
+}
+
+.ai-studio-recovery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ai-studio-recovery-copy {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+}
+
+.ai-studio-recovery-copy button {
+  justify-self: start;
+}
+
+.ai-studio-recovery p {
+  margin: 10px 0 0;
+  line-height: 1.4;
+}
+
+.ai-studio-recovery code {
+  font-size: 11px;
+}
+
 .ai-studio-output details {
   margin-top: 18px;
   color: var(--muted, #95a4b2);
@@ -356,6 +413,7 @@
 
 @media (max-width: 1100px) {
   .ai-studio-grid { grid-template-columns: 1fr; }
+  .ai-studio-recovery-grid { grid-template-columns: 1fr; }
   .ai-studio-sidebar { grid-template-columns: 1fr 1fr; }
   .ai-studio-status { grid-column: 1 / -1; }
 }
