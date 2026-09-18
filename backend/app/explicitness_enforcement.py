@@ -45,7 +45,7 @@ _ACTION_GROUPS = (
 _CLIMAX = re.compile(r"\b(?:orgasm\w*|climax\w*|came|cum|cumming|ejaculat\w*)\b", re.IGNORECASE)
 _FLUID = re.compile(r"\b(?:semen|cum|cumming|ejaculat\w*)\b", re.IGNORECASE)
 _EXPLICIT_TOKEN = re.compile(
-    r"\b(?:penis|cock|dick|vagina|vaginal|vulva|pussy|cunt|clit|clitoris|anus|anal|asshole|"
+    r"\b(?:penis|cock|dick|vagina|vaginal|vulva|pussy|cunt|clit|clitoris|anus|anal|asshole|genitals?|genitalia|"
     r"penetrat\w*|fuck\w*|thrust\w*|blow\s*job|hand\s*job|oral\s+sex|suck\w*|lick\w*|"
     r"masturbat\w*|stroke\w*|semen|ejaculat\w*|cum|cumming|orgasm\w*)\b",
     re.IGNORECASE,
