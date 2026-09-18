@@ -209,6 +209,11 @@
   flex: 1;
 }
 
+.binder-actions .binder-delete {
+  border-color: rgba(210, 88, 72, .5);
+  color: #f0a095;
+}
+
 .binder-collection {
   display: grid;
   gap: 0.1rem;
