@@ -67,3 +67,12 @@ def test_model_refresh_no_longer_blindly_selects_first_model() -> None:
 
     assert "setModels(next.models)" in studio
     assert "next.models[0]" not in studio
+
+
+def test_studio_exposes_core_only_scope_without_removing_complete_scene_mode() -> None:
+    studio = _read("frontend/src/AIStudioWorkspace.tsx")
+    assert "Complete scene" in studio
+    assert "Core only" in studio
+    assert "CORE_ONLY_INTENT" in studio
+    assert "I will write everything else" not in studio  # regex handles contractions/spacing generically
+    assert "delivery_scope: scope" in studio
