@@ -228,6 +228,27 @@ def detect_scene_intent(prompt: str, heat_level: str | None = None) -> str:
     return "general"
 
 
+def core_only_word_floor(prompt: str, heat_level: str | None = None) -> int:
+    """Short anti-fragment floor for an author-requested central action segment."""
+    normalized = prompt.lower()
+    explicit = re.search(r"\b(\d{3,5})\s*(?:-|to\s*)?words?\b", normalized)
+    if explicit:
+        return max(250, min(int(explicit.group(1)), 2500))
+    return {
+        "simmer": 350,
+        "hot": 400,
+        "scorching": 500,
+        "inferno": 600,
+    }.get(heat_level or "", 450)
+
+
+def core_only_scope(messages: list[dict[str, str]]) -> bool:
+    return any(
+        message.get("role") == "system" and "Delivery scope: core-only." in message.get("content", "")
+        for message in messages
+    )
+
+
 def scene_word_floor(prompt: str, heat_level: str | None = None) -> int:
     """Return a useful anti-fragment floor, not a quota the model should pad toward."""
     normalized = prompt.lower()
@@ -352,6 +373,7 @@ async def generate_complete_prose(
     accumulated = ""
     working_messages = list(messages)
     marker_required = requires_scene_complete_marker(messages)
+    core_only = core_only_scope(messages)
 
     for pass_index in range(max_passes):
         chunk = await generate(
@@ -383,14 +405,25 @@ async def generate_complete_prose(
 
         remaining = max(min_words - words, 0)
         continuation_instruction = (
-            "Continue the SAME scene seamlessly from the exact final line above. Do not restart, recap, "
-            "repeat earlier beats, change POV, or jump to a different scene. Finish the author's requested "
-            "scene objective and its immediate consequence. Do not stop mid-word or mid-sentence."
+            "Continue seamlessly from the exact final line above. Do not restart, recap, repeat earlier beats, "
+            "change POV, or jump to a different scene. "
+            + (
+                "CORE-ONLY SCOPE: write only the requested central action/encounter segment. Do not add setup, "
+                "side plots, interruptions, consent discussion, emotional processing, relationship analysis, or aftermath. "
+                "Stop once the requested segment itself reaches a natural ending. "
+                if core_only
+                else "Finish the author's requested scene objective and its immediate consequence. "
+            )
+            + "Do not stop mid-word or mid-sentence."
         )
         if marker_required:
             continuation_instruction += (
                 " This is an intimacy scene: do not treat buildup, kissing, or initial escalation as completion. "
-                "Continue through new concrete beats until the requested encounter and its immediate aftermath/changed state have genuinely landed. "
+                + (
+                    "Continue through new concrete beats until the requested sexual segment itself has genuinely landed; do not require aftermath. "
+                    if core_only
+                    else "Continue through new concrete beats until the requested encounter and its immediate aftermath/changed state have genuinely landed. "
+                )
                 "Do not re-state desire, destiny, intensity, or connection when the draft already established them."
             )
         if remaining:
