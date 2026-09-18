@@ -15,7 +15,7 @@ from .binder_models import (
     BinderReorderRequest,
     BinderState,
 )
-from .storage import get_project, project_root, read_text, save_text, utc_now
+from .storage import delete_text, get_project, project_root, read_text, save_text, utc_now
 
 BINDER_PATH = "binder.json"
 ROOT_TITLES = ("Draft", "Research", "Story Bible", "Trash")
@@ -455,6 +455,41 @@ def restore_node(slug: str, node_id: str) -> BinderState:
     node.position = len(_children(state, target))
     node.updated_at = utc_now()
     _renumber_siblings(state, trash.id)
+    return _save_state(slug, state)
+
+
+def delete_node(slug: str, node_id: str) -> BinderState:
+    state = get_binder(slug)
+    node = _require_node(state, node_id)
+    if node_id in state.roots:
+        raise ValueError("Binder root nodes cannot be deleted")
+
+    trash = _root_by_title(state, "Trash")
+    current = node
+    inside_trash = False
+    while current.parent_id is not None:
+        if current.parent_id == trash.id:
+            inside_trash = True
+            break
+        current = _require_node(state, current.parent_id)
+    if not inside_trash:
+        raise ValueError("Move the Binder item to Trash before deleting it permanently")
+
+    removed_ids = {node_id, *_descendant_ids(state, node_id)}
+    removed_nodes = [item for item in state.nodes if item.id in removed_ids]
+    for item in removed_nodes:
+        if not item.path:
+            continue
+        try:
+            delete_text(slug, item.path)
+        except FileNotFoundError:
+            pass
+
+    state.nodes = [item for item in state.nodes if item.id not in removed_ids]
+    for collection in state.collections:
+        collection.node_ids = [item_id for item_id in collection.node_ids if item_id not in removed_ids]
+        collection.updated_at = utc_now()
+    _renumber_siblings(state, node.parent_id)
     return _save_state(slug, state)
 
 
