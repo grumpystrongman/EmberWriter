@@ -250,3 +250,53 @@ def test_delete_project_removes_entire_local_project(tmp_path: Path) -> None:
     assert not root.exists()
     with pytest.raises(FileNotFoundError):
         storage.get_project(project["slug"])
+
+
+def test_studio_working_state_persists_outside_story_context(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Studio Autosave")
+    slug = project["slug"]
+    state = {
+        "studio_mode": "scene",
+        "prompt": "Continue the current scene.",
+        "output": "A live working draft that must survive restart.",
+        "scene_brief": "The scene brief.",
+        "scratchpad": "Private scratch note.",
+        "title": "Working Scene",
+        "destination": "studio",
+        "updated_at": "",
+    }
+
+    saved = storage.save_studio_state(slug, state)
+    restored = storage.read_studio_state(slug)
+
+    assert restored == saved
+    assert restored["output"].startswith("A live working draft")
+    assert restored["updated_at"]
+    assert (storage.project_root(slug) / ".ember" / "studio-state.json").exists()
+    assert ".ember/studio-state.json" not in storage.get_project(slug)["files"]
+
+
+def test_studio_working_state_can_be_cleared_without_deleting_project(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    project = storage.create_project("Studio Autosave Clear")
+    slug = project["slug"]
+    storage.save_studio_state(
+        slug,
+        {
+            "studio_mode": "scene",
+            "prompt": "",
+            "output": "Disposable draft",
+            "scene_brief": "",
+            "scratchpad": "",
+            "title": "Disposable",
+            "destination": "studio",
+            "updated_at": "",
+        },
+    )
+
+    result = storage.delete_studio_state(slug)
+
+    assert result["deleted"] is True
+    assert storage.read_studio_state(slug) is None
+    assert storage.get_project(slug)["slug"] == slug
