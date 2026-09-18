@@ -161,41 +161,22 @@ async def generate_verified_studio_prose_streamed(
     max_passes: int = 6,
     max_output_tokens: int = 6144,
 ) -> str:
-    """Keep Studio prose provisional until the delivery verifier has accepted the whole scene.
+    """Stream Studio prose live while keeping verification as the final acceptance authority.
 
-    The base streamed generator may reject buildup-only, canon-conflicting, repetitive, or otherwise
-    incomplete attempts after model tokens have already arrived. Forwarding those provisional tokens
-    lets rejected prose leak into the watchdog preview and lets route-level partial preservation turn a
-    failed Studio attempt into a visible draft. Studio prose therefore streams into a quarantine sink.
-    Only the final text returned by the base generator -- which means Studio verification passed -- is
-    released to the author-facing stream. Non-Studio generation keeps normal live streaming behavior.
+    Studio deltas are provisional manuscript text: the author should see the model write in the Working
+    Draft instead of staring at a progress timer. The base generator still owns repetition recovery,
+    canon restarts, repair passes, and independent delivery verification. If a scene ultimately fails,
+    the streamed prose remains available as an explicitly unverified partial rather than disappearing.
     """
-    if not _is_studio_delivery(messages):
-        return await _BASE_STREAMED_COMPLETE(
-            config,
-            messages,
-            min_words=min_words,
-            on_delta=on_delta,
-            on_status=on_status,
-            max_passes=max_passes,
-            max_output_tokens=max_output_tokens,
-        )
-
-    async def quarantine_delta(_text: str) -> None:
-        return None
-
-    text = await _BASE_STREAMED_COMPLETE(
+    return await _BASE_STREAMED_COMPLETE(
         config,
         messages,
         min_words=min_words,
-        on_delta=quarantine_delta,
+        on_delta=on_delta,
         on_status=on_status,
         max_passes=max_passes,
         max_output_tokens=max_output_tokens,
     )
-    if text:
-        await on_delta(text)
-    return text
 
 
 def build_messages(*args, **kwargs):
