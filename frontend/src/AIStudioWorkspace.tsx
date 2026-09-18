@@ -558,6 +558,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
       const effectiveScope: DeliveryScope = (
         deliveryScope === 'core_only' || CORE_ONLY_INTENT.test(direction) || CORE_ONLY_INTENT.test(originalBrief)
       ) ? 'core_only' : 'full_scene'
+      if (effectiveScope === 'core_only' && deliveryScope !== 'core_only') setDeliveryScope('core_only')
       const result = await continueDraft(
         cleanBase,
         originalBrief,
@@ -610,6 +611,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         const effectiveScope: DeliveryScope = (
           deliveryScope === 'core_only' || CORE_ONLY_INTENT.test(direction)
         ) ? 'core_only' : 'full_scene'
+        if (effectiveScope === 'core_only' && deliveryScope !== 'core_only') setDeliveryScope('core_only')
         const result = await requestGeneration(freshScenePrompt(direction, effectiveScope), 'write', effectiveScope)
         const draft = result.text.trim()
         setOutput(draft)
