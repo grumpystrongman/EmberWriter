@@ -20,6 +20,7 @@ from .models import (
     ProjectSummary,
     SearchHit,
     SearchRequest,
+    StudioStatePayload,
 )
 from .project_recovery import recover_legacy_projects
 from .project_restore import restore_uploaded_project
@@ -50,12 +51,15 @@ from .storage import (
     PROJECTS_ROOT,
     create_project,
     delete_project,
+    delete_studio_state,
     delete_text,
     get_project,
     list_projects,
     list_snapshots,
+    read_studio_state,
     read_text,
     restore_snapshot,
+    save_studio_state,
     save_text,
     search_story,
 )
@@ -261,6 +265,36 @@ def remove_project(slug: str) -> dict:
     try:
         return delete_project(slug)
     except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/projects/{slug}/studio-state")
+def get_studio_state(slug: str) -> dict:
+    try:
+        return {"state": read_studio_state(slug)}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/projects/{slug}/studio-state")
+def put_studio_state(slug: str, payload: StudioStatePayload) -> dict:
+    try:
+        return {"state": save_studio_state(slug, payload.model_dump())}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/projects/{slug}/studio-state")
+def clear_studio_state(slug: str) -> dict:
+    try:
+        return delete_studio_state(slug)
+    except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
     except OSError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
