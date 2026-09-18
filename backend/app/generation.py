@@ -424,7 +424,7 @@ async def generate_complete_prose(
                     if core_only
                     else "Continue through new concrete beats until the requested encounter and its immediate aftermath/changed state have genuinely landed. "
                 )
-                "Do not re-state desire, destiny, intensity, or connection when the draft already established them."
+                + "Do not re-state desire, destiny, intensity, or connection when the draft already established them."
             )
         if remaining:
             continuation_instruction += (
