@@ -32,6 +32,9 @@ _ANATOMY_GROUPS = (
     re.compile(r"\b(?:vagina|vaginal|vulva|pussy|cunt|clit|clitoris)\b", re.IGNORECASE),
     re.compile(r"\b(?:anus|anal|asshole)\b", re.IGNORECASE),
     re.compile(r"\b(?:breasts?|tits?|nipples?)\b", re.IGNORECASE),
+    # Neutral anatomy language matters when canon intentionally does not establish a more
+    # specific body fact. The delivery gate must never pressure the writer into inventing canon.
+    re.compile(r"\b(?:genitals?|genitalia)\b", re.IGNORECASE),
 )
 _ACTION_GROUPS = (
     re.compile(r"\b(?:penetrat\w*|fuck\w*|thrust\w*)\b", re.IGNORECASE),
@@ -42,7 +45,7 @@ _ACTION_GROUPS = (
 _CLIMAX = re.compile(r"\b(?:orgasm\w*|climax\w*|came|cum|cumming|ejaculat\w*)\b", re.IGNORECASE)
 _FLUID = re.compile(r"\b(?:semen|cum|cumming|ejaculat\w*)\b", re.IGNORECASE)
 _EXPLICIT_TOKEN = re.compile(
-    r"\b(?:penis|cock|dick|vagina|vaginal|vulva|pussy|cunt|clit|clitoris|anus|anal|asshole|"
+    r"\b(?:penis|cock|dick|vagina|vaginal|vulva|pussy|cunt|clit|clitoris|anus|anal|asshole|genitals?|genitalia|"
     r"penetrat\w*|fuck\w*|thrust\w*|blow\s*job|hand\s*job|oral\s+sex|suck\w*|lick\w*|"
     r"masturbat\w*|stroke\w*|semen|ejaculat\w*|cum|cumming|orgasm\w*)\b",
     re.IGNORECASE,
@@ -107,17 +110,24 @@ def strict_explicit_delivery_failure(prompt: str, draft: str) -> str:
         return ""
 
     profile = explicitness_profile(draft)
-    if profile.anatomy_groups < 2:
+
+    # This is a cheap pre-verifier, not the final semantic judge. Reject only clear misses.
+    # Requiring multiple anatomy categories created a contradiction with the canon rule below:
+    # a scene with unspecified intimate anatomy could only pass by inventing body facts.
+    if profile.action_groups == 0 and profile.direct_action_sentences == 0:
         return (
-            "author requested explicit on-page sexual detail, but the draft names too little concrete anatomy; "
-            "this is either model softening or missing intimate-body canon and must not be accepted as explicit"
+            "author requested explicit, direct on-page sexual action, but the draft contains no concrete direct-action evidence "
+            "and appears euphemistic or faded"
         )
-    if profile.action_groups < 2:
-        return "author requested explicit sexual action, but the draft does not contain enough distinct direct action types"
-    if profile.direct_action_sentences < 3 or profile.explicit_sentences < 5:
+    if profile.explicit_sentences < 3:
         return (
-            "author requested sustained explicit detail, but direct anatomy/action language is too sparse and the scene "
-            "reads as euphemistic or PG-13"
+            "author requested sustained explicit detail, but direct sexual language is too sparse across the scene "
+            "and appears euphemistic or PG-13"
+        )
+    if profile.direct_action_sentences < 2 and profile.action_groups < 2:
+        return (
+            "author requested sustained explicit action, but the draft does not contain enough distinct direct-action "
+            "evidence to clear the deterministic delivery gate"
         )
     if profile.climax_mentions < 2 and re.search(r"\bboth\b.{0,80}\borgasm", prompt, re.IGNORECASE | re.DOTALL):
         return "author required both participants to climax, but the prose does not directly support both climaxes"
@@ -201,9 +211,9 @@ Direct-explicitness contract for this request:
 - The author explicitly requested direct, on-page adult sexual prose. Do not downgrade it to romance-only, PG-13, fade-to-black, or summary language.
 - Preserve and actually use the author's own direct vocabulary where applicable: {vocabulary}.
 - Do not replace requested direct terms with coy placeholders such as 'breached', 'joined', 'merged', 'center', 'length', 'release', 'completion', or 'skin met skin'.
-- Directness must be sustained across the encounter, not satisfied by one token or one sentence. Several separate sentences should plainly describe concrete anatomy and concrete sexual actions.
+- Directness must be sustained across the encounter, not satisfied by one token or one sentence. Several separate sentences should plainly describe concrete sexual actions and embodied detail.
 - Keep the prose character-specific and readable; direct vocabulary is not permission for repetitive choreography or a body-part inventory.
-- Intimate anatomy remains hard canon. If a character's relevant anatomy is explicitly established in AUTHOR INSTRUCTION or PROJECT CONTEXT, name it directly when the scene calls for it. If the requested level of anatomical specificity cannot be delivered without inventing a body fact, do not silently soften the whole scene; preserve all other direct detail and make the missing-canon limitation explicit to the delivery verifier.
+- Intimate anatomy remains hard canon. If a character's relevant anatomy is explicitly established in AUTHOR INSTRUCTION or PROJECT CONTEXT, direct anatomical language is appropriate when the scene calls for it. If that anatomy is not established, DO NOT invent a body fact merely to satisfy a vocabulary quota. Deliver the requested directness through canon-safe named acts, physical action, sensation, dialogue, climax/resolution, and aftermath, and let the independent semantic verifier judge whether the request was fulfilled.
 """
     messages[0]["content"] = f"{messages[0]['content']}\n{contract}"
     return messages

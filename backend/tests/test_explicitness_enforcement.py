@@ -37,6 +37,29 @@ def test_direct_lexical_fixture_passes_density_gate() -> None:
     assert app.explicitness_enforcement.strict_explicit_delivery_failure(_PROMPT, draft) == ""
 
 
+def test_single_canon_safe_anatomy_group_can_reach_semantic_verifier() -> None:
+    draft = (
+        "They kept the language direct about their genitalia as penetration began. "
+        "The penetration continued with clear physical action rather than implication. "
+        "One partner gave the other oral sex, described directly instead of fading away. "
+        "A hand job followed as the encounter changed pace. "
+        "One partner orgasmed, and the other orgasmed later in the same completed scene."
+    )
+    profile = app.explicitness_enforcement.explicitness_profile(draft)
+    assert profile.anatomy_groups == 1
+    assert profile.action_groups >= 2
+    assert profile.explicit_sentences >= 3
+    assert app.explicitness_enforcement.strict_explicit_delivery_failure(_PROMPT, draft) == ""
+
+
+def test_neutral_anatomy_language_counts_without_inventing_body_canon() -> None:
+    profile = app.explicitness_enforcement.explicitness_profile(
+        "Their genitalia remained explicitly described while penetration continued."
+    )
+    assert profile.anatomy_groups == 1
+    assert profile.explicit_sentences == 1
+
+
 def test_explicit_request_adds_direct_vocabulary_contract() -> None:
     messages = app.generation.build_messages(
         "write",
