@@ -227,3 +227,138 @@ def test_studio_rejects_buildup_even_when_writer_claims_complete(monkeypatch) ->
     assert "advance179" in result
     assert any("Delivery check failed" in message for message in statuses)
     assert any("Requested scene delivery verified" in message for message in statuses)
+
+
+
+def test_studio_final_repair_is_verified_even_without_complete_marker(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    statuses: list[str] = []
+    chunks = [
+        _words("buildup", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("repair", 180),
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls == 1:
+            return {
+                "verified": False,
+                "canon_respected": True,
+                "reason": "only buildup was delivered",
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult intimacy scene.",
+        "Character canon and relationship context.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            on_status=status,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 2
+    assert "repair179" in result
+    assert any("Final Studio delivery verification" in message for message in statuses)
+    assert any("Requested scene delivery verified" in message for message in statuses)
+
+
+def test_studio_final_repair_reports_actual_verifier_reason_without_marker(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    chunks = [
+        _words("buildup", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("repair", 180),
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        reason = "only buildup was delivered" if verifier_calls == 1 else "immediate aftermath is still missing"
+        return {
+            "verified": False,
+            "core_encounter_on_page": verifier_calls > 1,
+            "requested_explicitness_delivered": verifier_calls > 1,
+            "buildup_only": verifier_calls == 1,
+            "fade_or_skip": False,
+            "ending_complete": False,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": reason,
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult intimacy scene.",
+        "Character canon and relationship context.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    try:
+        asyncio.run(
+            streaming_generation.generate_complete_prose_streamed(
+                ProviderConfig(model="test-model"),
+                messages,
+                min_words=150,
+                on_delta=emit,
+                max_passes=2,
+            )
+        )
+    except streaming_generation.SceneDeliveryIncomplete as exc:
+        assert exc.reason == "immediate aftermath is still missing"
+    else:
+        raise AssertionError("Expected final Studio delivery verification to reject the incomplete repair")
+
+    assert writer_calls == 2
+    assert verifier_calls == 2
