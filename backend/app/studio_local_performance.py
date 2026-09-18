@@ -8,7 +8,7 @@ import httpx
 from . import generation_reliability as reliability
 from . import generation_reliability_refinement as refinement
 from . import streaming_generation
-from .generation import MODEL_GATE
+from .generation import MODEL_GATE, manuscript_role_failure
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 from .performance_telemetry import record_model_call
@@ -80,8 +80,12 @@ async def _verify_local_studio_scene_delivery(
                 "You are EmberWriter's strict scene-delivery verifier. Do not rewrite, extend, sanitize, quote, or summarize "
                 "the prose. Judge only whether the supplied draft actually fulfills the author's request. Return JSON only. "
                 "For an adult intimacy request, distinguish an on-page sexual encounter from attraction, kissing, foreplay, "
-                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Treat character identity, embodiment, "
-                "body facts, participants, and relationship facts in the supplied request/context as hard canon."
+                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Mentions of requested acts inside assistant "
+                "commentary, refusals, prompt echo, negative statements about what the draft lacks, or writing instructions DO NOT "
+                "count as on-page scene delivery. Judge only actions that actually occur in manuscript narrative. Treat character "
+                "identity, embodiment, body facts, participants, consent requirements, and relationship facts in the supplied "
+                "request/context as hard canon. If the project/request requires consent, reject sexual escalation framed as ignoring "
+                "permission unless clear prior consent is established."
             ),
         },
         {
@@ -157,6 +161,10 @@ async def verify_studio_scene_delivery_fast(
     draft: str,
 ) -> dict[str, object]:
     """Reject deterministic failures before paying for the semantic delivery judge."""
+    role_failure = manuscript_role_failure(draft)
+    if role_failure:
+        return _failed_verdict(role_failure)
+
     quality_failure = reliability._hard_quality_failure(draft)
     if quality_failure:
         return _failed_verdict(
