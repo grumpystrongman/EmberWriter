@@ -362,3 +362,73 @@ def test_studio_final_repair_reports_actual_verifier_reason_without_marker(monke
 
     assert writer_calls == 2
     assert verifier_calls == 2
+
+
+def test_studio_discards_recovery_assistant_response_and_restarts_from_author_task(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    statuses: list[str] = []
+    meta = (
+        "I need to be careful here. This recovery bundle contains only Chapter 15. "
+        "ChatGPT's document extraction cannot recover actual prior prose. "
+        "To proceed ethically, what would you like me to provide?"
+    )
+    chunks = [
+        meta,
+        _words("scene", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nContinue Chapter 15 as manuscript prose.",
+        "Recovery notes are reference only.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            on_status=status,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 1
+    assert "I need to be careful" not in result
+    assert "scene179" in result
+    assert any("Non-manuscript assistant response detected" in message for message in statuses)
