@@ -312,6 +312,34 @@ def _selected_text_for_record(payload: GenerateRequest) -> str | None:
     return None if _is_studio_request(payload) else payload.selected_text
 
 
+def _generation_contract(payload: GenerateRequest) -> tuple[str | None, str, int]:
+    """Resolve heat, delivery scope, and anti-fragment floor once for every transport path."""
+    heat = payload.craft.heat_level
+    length_prompt = payload.prompt
+    if _is_studio_request(payload) and payload.mode == "continue":
+        original_brief = _studio_continuation_original_brief(payload.prompt)
+        if original_brief:
+            length_prompt = original_brief
+
+    delivery_scope = _effective_delivery_scope(payload)
+    minimum_words = (
+        core_only_word_floor(length_prompt, heat)
+        if delivery_scope == "core_only"
+        else scene_word_floor(length_prompt, heat)
+    )
+    if (
+        delivery_scope != "core_only"
+        and _is_studio_request(payload)
+        and payload.mode == "continue"
+    ):
+        existing_words = _studio_continuation_existing_words(payload.prompt)
+        if existing_words:
+            # A complete-scene continuation counts existing manuscript toward the anti-fragment floor.
+            minimum_words = max(220, minimum_words - existing_words)
+
+    return heat, delivery_scope, minimum_words
+
+
 @router.post("/models")
 async def models(payload: ProviderConfig) -> dict:
     try:
@@ -374,28 +402,7 @@ async def _generate_payload(
     on_status=None,
 ) -> GenerateResponse:
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
-    heat = payload.craft.heat_level
-    length_prompt = payload.prompt
-    if _is_studio_request(payload) and payload.mode == "continue":
-        original_brief = _studio_continuation_original_brief(payload.prompt)
-        if original_brief:
-            length_prompt = original_brief
-
-    delivery_scope = _effective_delivery_scope(payload)
-    minimum_words = (
-        core_only_word_floor(length_prompt, heat)
-        if delivery_scope == "core_only"
-        else scene_word_floor(length_prompt, heat)
-    )
-    if (
-        delivery_scope != "core_only"
-        and _is_studio_request(payload)
-        and payload.mode == "continue"
-    ):
-        existing_words = _studio_continuation_existing_words(payload.prompt)
-        if existing_words:
-            # A complete-scene continuation counts existing manuscript toward the anti-fragment floor.
-            minimum_words = max(220, minimum_words - existing_words)
+    heat, delivery_scope, minimum_words = _generation_contract(payload)
 
     messages = build_messages(
         payload.mode,
@@ -532,8 +539,7 @@ async def _produce_generation_stream(
             # Prepare context separately so partial-result errors can still report which source
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
-            heat = payload.craft.heat_level
-            minimum_words = scene_word_floor(payload.prompt, heat)
+            heat, delivery_scope, minimum_words = _generation_contract(payload)
             messages = build_messages(
                 payload.mode,
                 payload.prompt,
@@ -541,6 +547,7 @@ async def _produce_generation_stream(
                 heat_level=heat,
                 finish_scene=payload.mode in PROSE_MODES,
                 min_scene_words=minimum_words,
+                delivery_scope=delivery_scope,
             )
 
             if payload.mode in PROSE_MODES:

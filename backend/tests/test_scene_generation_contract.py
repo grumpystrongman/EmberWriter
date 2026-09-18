@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from pathlib import Path
 
 from app import craft, generation, routes_generation, storage, streaming_generation, studio_context
@@ -192,6 +193,26 @@ def test_studio_auto_detects_exact_core_only_author_language() -> None:
     )
 
     assert routes_generation._effective_delivery_scope(payload) == "core_only"
+
+
+def test_streaming_path_uses_same_core_only_generation_contract() -> None:
+    payload = GenerateRequest(
+        prompt="Continue from here and write only the requested central action.",
+        mode="continue",
+        delivery_scope="core_only",
+        selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
+        provider=ProviderConfig(model="test-model"),
+        craft=CraftControls(heat_level="inferno"),
+    )
+
+    heat, scope, minimum_words = routes_generation._generation_contract(payload)
+    stream_source = inspect.getsource(routes_generation._produce_generation_stream)
+
+    assert heat == "inferno"
+    assert scope == "core_only"
+    assert minimum_words == 600
+    assert "_generation_contract(payload)" in stream_source
+    assert "delivery_scope=delivery_scope" in stream_source
 
 
 def test_complete_scene_remains_default_when_author_does_not_narrow_scope() -> None:
