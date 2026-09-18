@@ -70,7 +70,7 @@ def test_model_refresh_no_longer_blindly_selects_first_model() -> None:
 
 
 def test_studio_exposes_core_only_scope_without_removing_complete_scene_mode() -> None:
-    studio = _read("frontend/src/AIStudioWorkspace.tsx")
+    studio = source("AIStudioWorkspace.tsx")
     assert "Complete scene" in studio
     assert "Core only" in studio
     assert "CORE_ONLY_INTENT" in studio
