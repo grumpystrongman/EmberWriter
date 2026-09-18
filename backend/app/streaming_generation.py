@@ -11,6 +11,7 @@ from .generation import (
     OLLAMA_CONTEXT_TOKENS,
     SCENE_COMPLETE_MARKER,
     SCENE_CONTINUE_MARKER,
+    core_only_scope,
     looks_abrupt_ending,
     manuscript_role_failure,
     requires_scene_complete_marker,
@@ -238,6 +239,14 @@ async def verify_studio_scene_delivery(
 ) -> dict[str, object]:
     """Use the configured local model as a strict independent delivery judge."""
     request_context = _verifier_source_context(messages)
+    core_only = "Delivery scope: core-only." in request_context
+    scope_instruction = (
+        "CORE-ONLY VERIFICATION: judge only whether the requested central sexual action/encounter segment occurred on page "
+        "and reached a natural stopping point. Do not require setup, consent discussion, relationship processing, emotional aftermath, "
+        "or a complete surrounding scene. For core-only scope, ending_complete means the requested segment itself is complete."
+        if core_only
+        else "COMPLETE-SCENE VERIFICATION: require the requested encounter plus the immediate scene consequence/changed state."
+    )
     verifier_messages = [
         {
             "role": "system",
@@ -252,7 +261,8 @@ async def verify_studio_scene_delivery(
                 "The author/story canon is authoritative for consent. If the author request or trusted project context establishes a "
                 "consensual adult encounter, treat that consent state as settled and DO NOT require repeated verbal negotiation, permission "
                 "checks, or safety discussion. Reject only when the draft itself directly contradicts that canon, such as ignoring an explicit "
-                "stop/refusal or introducing coercion that the author did not request."
+                "stop/refusal or introducing coercion that the author did not request. "
+                + scope_instruction
             ),
         },
         {
@@ -556,6 +566,7 @@ async def generate_complete_prose_streamed(
     accumulated = ""
     working_messages = list(messages)
     marker_required = requires_scene_complete_marker(messages)
+    core_only = core_only_scope(messages)
     studio_delivery_verifier = marker_required and _is_studio_scene(messages)
     repetition_recoveries = 0
     verifier_reason = ""
@@ -758,12 +769,19 @@ async def generate_complete_prose_streamed(
 
         remaining = max(min_words - words, 0)
         continuation_instruction = (
-            "Continue the SAME scene from the exact final state below. Advance immediately into a NEW beat. "
+            "Continue from the exact final state below and advance immediately into a NEW beat. "
             "Do not restart, recap, paraphrase, recycle prior sentences, or repeat the same action with different adjectives. "
-            "Every paragraph must change the physical action, dialogue, emotional state, magical state, or consequence. "
-            "Do not linger on generic setting sensation, anticipation, or body-close language when the requested core event "
-            "has not yet happened. Finish the author's requested scene objective and its immediate consequence. "
-            "Do not stop mid-word or mid-sentence."
+            "Every paragraph must change the physical action or dialogue. "
+            + (
+                "CORE-ONLY SCOPE: the author wants only the requested central action/encounter segment. Do not add setup, "
+                "consent discussion, trust/boundary analysis, side plots, interruptions, emotional processing, relationship analysis, "
+                "or aftermath. If the requested sexual action has not started, begin it immediately. Stop when that segment reaches a "
+                "natural ending. "
+                if core_only
+                else "Do not linger on generic setting sensation, anticipation, or body-close language when the requested core event "
+                "has not yet happened. Finish the author's requested scene objective and its immediate consequence. "
+            )
+            + "Do not stop mid-word or mid-sentence."
         )
         if repetition_detected:
             continuation_instruction += (
@@ -782,7 +800,12 @@ async def generate_complete_prose_streamed(
                 "If the problem is missing direct core-event delivery, do not spend this repair on more kissing, teasing, "
                 "rhetorical questions, waistband hovering, withdrawal, or another consent/trust/boundary discussion. "
                 "AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE: when the author request or accepted manuscript already establishes a consensual adult encounter, "
-                "that beat is closed. Do not reopen it, teach it, test it, or ask the characters to prove it again. Advance immediately into the requested core event."
+                "that beat is closed. Do not reopen it, teach it, test it, or ask the characters to prove it again. "
+                + (
+                    "CORE-ONLY SCOPE: write only the requested sexual action now; no setup, interruption, philosophy, or aftermath."
+                    if core_only
+                    else "Advance immediately into the requested core event."
+                )
             )
         if marker_required:
             continuation_instruction += (

@@ -162,6 +162,51 @@ def test_studio_continuation_length_counts_existing_working_draft() -> None:
     assert max(220, base_floor - 1450) == 220
 
 
+def test_core_only_scope_obeys_author_request_without_full_scene_aftermath() -> None:
+    prompt = "I JUST WANT THE SEX. I will write everything else."
+    assert generation.core_only_word_floor(prompt, "inferno") == 600
+
+    messages = generation.build_messages(
+        "continue",
+        prompt,
+        "Trusted canon establishes consenting adults.",
+        heat_level="inferno",
+        min_scene_words=600,
+        delivery_scope="core_only",
+    )
+    system = messages[0]["content"]
+
+    assert "Delivery scope: core-only." in system
+    assert "Do NOT require setup or aftermath" in system
+    assert "requested central action/encounter segment" in system
+    assert generation.core_only_scope(messages) is True
+
+
+def test_studio_auto_detects_exact_core_only_author_language() -> None:
+    payload = GenerateRequest(
+        prompt="I JUST WANT THE SEX. I will write everything else.",
+        mode="continue",
+        selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
+        provider=ProviderConfig(model="test-model"),
+        craft=CraftControls(heat_level="inferno"),
+    )
+
+    assert routes_generation._effective_delivery_scope(payload) == "core_only"
+
+
+def test_complete_scene_remains_default_when_author_does_not_narrow_scope() -> None:
+    payload = GenerateRequest(
+        prompt="Continue the scene and finish the whole beat.",
+        mode="continue",
+        selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
+        provider=ProviderConfig(model="test-model"),
+        craft=CraftControls(heat_level="inferno"),
+    )
+
+    assert routes_generation._effective_delivery_scope(payload) == "full_scene"
+    assert generation.scene_word_floor(payload.prompt, "inferno") == 1600
+
+
 def test_explicit_word_request_overrides_default_scene_floor() -> None:
     assert generation.scene_word_floor("Write this as a 900 word scene.", "inferno") == 900
     assert generation.scene_word_floor("Write a brief scene.", "inferno") == 700
@@ -192,7 +237,7 @@ def test_complete_scene_continues_across_generation_boundaries(monkeypatch) -> N
 
     assert len(calls) == 2
     assert "first699" in calls[1][-2]["content"]
-    assert "Continue the SAME scene seamlessly" in calls[1][-1]["content"]
+    assert "Continue seamlessly from the exact final line above" in calls[1][-1]["content"]
     assert generation.SCENE_COMPLETE_MARKER not in result
     assert generation.SCENE_CONTINUE_MARKER not in result
     assert len(result.split()) == 1500

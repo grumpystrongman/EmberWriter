@@ -215,6 +215,30 @@
   border-color: #d9784a;
 }
 
+.ai-studio-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.ai-studio-scope button {
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+.ai-studio-scope button.active {
+  background: #7f3e28;
+  border-color: #d9784a;
+}
+
+.ai-studio-scope-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted, #95a4b2);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .ai-studio-sliders {
   grid-column: 1 / -1;
   display: grid;

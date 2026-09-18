@@ -16,6 +16,7 @@ from .development import DEVELOPMENT_PATH, build_development_context
 from .generation import (
     PROSE_MODES,
     build_messages,
+    core_only_word_floor,
     generate,
     generate_complete_prose,
     list_models,
@@ -51,6 +52,23 @@ _ACTIVE_ANCHOR_MARKER = "## HIGH-PRIORITY ACTIVE CONTINUATION ANCHOR"
 _STUDIO_ORIGINAL_BRIEF_MARKER = "ORIGINAL SCENE BRIEF"
 _STUDIO_HANDOFF_MARKER = "EXISTING DRAFT HANDOFF — REFERENCE ONLY; DO NOT REPEAT"
 _STUDIO_HANDOFF_END_MARKER = "WRITE ONLY NEW PROSE THAT COMES AFTER THAT FINAL LINE."
+
+_CORE_ONLY_INTENT = re.compile(
+    r"\b(?:just\s+the\s+sex|sex\s+only|only\s+(?:write\s+)?(?:the\s+)?sex|"
+    r"only\s+(?:write\s+)?(?:the\s+)?sexual\s+(?:action|encounter|part|segment)|"
+    r"i(?:'ll|\s+will)\s+write\s+everything\s+else|no\s+setup|no\s+aftermath|"
+    r"core\s+only|action\s+only)\b",
+    re.IGNORECASE,
+)
+
+
+def _effective_delivery_scope(payload: GenerateRequest) -> str:
+    if payload.delivery_scope == "core_only":
+        return "core_only"
+    if _is_studio_request(payload) and _CORE_ONLY_INTENT.search(payload.prompt):
+        return "core_only"
+    return "full_scene"
+
 
 
 def _studio_continuation_original_brief(prompt: str) -> str:
@@ -362,13 +380,23 @@ async def _generate_payload(
         original_brief = _studio_continuation_original_brief(payload.prompt)
         if original_brief:
             length_prompt = original_brief
-    minimum_words = scene_word_floor(length_prompt, heat)
-    if _is_studio_request(payload) and payload.mode == "continue":
+
+    delivery_scope = _effective_delivery_scope(payload)
+    minimum_words = (
+        core_only_word_floor(length_prompt, heat)
+        if delivery_scope == "core_only"
+        else scene_word_floor(length_prompt, heat)
+    )
+    if (
+        delivery_scope != "core_only"
+        and _is_studio_request(payload)
+        and payload.mode == "continue"
+    ):
         existing_words = _studio_continuation_existing_words(payload.prompt)
         if existing_words:
-            # The Working Draft already counts toward scene length. A continuation should finish
-            # the scene, not manufacture another Inferno-sized block of hesitation/padding.
+            # A complete-scene continuation counts existing manuscript toward the anti-fragment floor.
             minimum_words = max(220, minimum_words - existing_words)
+
     messages = build_messages(
         payload.mode,
         payload.prompt,
@@ -376,6 +404,7 @@ async def _generate_payload(
         heat_level=heat,
         finish_scene=payload.mode in PROSE_MODES,
         min_scene_words=minimum_words,
+        delivery_scope=delivery_scope,
     )
 
     if streamed:
