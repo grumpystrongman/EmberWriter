@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from .binder import (
     create_collection,
     create_node,
+    delete_node,
     get_binder,
     reorder_nodes,
     restore_node,
@@ -112,6 +113,16 @@ def restore(slug: str, node_id: str) -> BinderState:
     except FileNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/projects/{slug}/binder/nodes/{node_id}", response_model=BinderState)
+def delete_binder_node(slug: str, node_id: str) -> BinderState:
+    try:
+        return _owned(slug, delete_node(slug, node_id))
+    except FileNotFoundError as exc:
+        raise _not_found(exc) from exc
+    except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
