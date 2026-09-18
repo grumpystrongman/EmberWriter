@@ -212,7 +212,7 @@ function mergeContinuation(existing: string, continuation: string) {
   return right ? `${left}\n\n${right}` : left
 }
 
-const NON_MANUSCRIPT_HANDOFF_BLOCK = /(?:^|\b)(?:\[EMBER_PROMPT\]|I\s+understand(?:\s+the\s+parameters|[.,:]?\s+continuing)|Understood[.,:]?\s+beginning|Here\s+is\s+my\s+continuation|Continue\s+writing\s+in\s+character-specific|Please\s+confirm\s+which\s+is\s+the\s+case|adapt\s+the\s+recovery\s+pipeline|alert\s+the\s+system\s+administrator|CONTINUATION\s+BOUNDARY\s+PASS|ORIGINAL\s+SCENE\s+BRIEF|EXISTING\s+DRAFT\s+HANDOFF|WRITE\s+ONLY\s+NEW\s+PROSE)/i
+const NON_MANUSCRIPT_HANDOFF_BLOCK = /(?:^|\b)(?:\[EMBER_PROMPT\]|I\s+understand(?:\s+the\s+parameters|[.,:]?\s+continuing)|Understood[.,:]?\s+beginning|Here\s+is\s+my\s+continuation|Continue\s+writing\s+in\s+character-specific|Please\s+confirm\s+which\s+is\s+the\s+case|adapt\s+the\s+recovery\s+pipeline|alert\s+the\s+system\s+administrator|CONTINUATION\s+BOUNDARY\s+PASS|ORIGINAL\s+SCENE\s+BRIEF|EXISTING\s+DRAFT\s+HANDOFF|WRITE\s+ONLY\s+NEW\s+PROSE|PROSE\s+GUIDE\s+REFERENCE|CURRENT\s+CONTINUITY\s+STATE|CHARACTER\s+EMOTIONAL\s+STATE|SCENE\s+PROSE\s+DISCIPLINE|TRUSTED\s+PROJECT\s+CONTENT\s+CONTRACT|BINDER\s+KNOWLEDGE\s+MAP)/i
 const INSTRUCTION_BULLET = /^\s*[-*]\s+(?:preserve|match|advance|keep|avoid|continue|write|do\s+not)\b/im
 
 function manuscriptOnlyHandoff(text: string) {
@@ -235,6 +235,7 @@ function freshScenePrompt(direction: string) {
     '- Deliver the complete requested scene, not only its setup or buildup.',
     '- Move into the author-requested core event early enough to complete its full dramatic arc on page.',
     '- If the requested core is adult intimacy, buildup alone does not satisfy the brief; complete the requested encounter and its immediate emotional or story consequence.',
+    '- The author/story canon establishes consent for the fictional adults. Once the brief or scene establishes mutual consent, do not re-litigate permission, trust, boundaries, safety, or whether they really want it. Treat that beat as complete and advance the scene.',
     '- Do not stop at the first kiss, first escalation, threshold moment, or other transition into the requested core scene.',
     '- End only after the scene objective has actually happened and the immediate aftermath or changed state has landed.',
   ].join('\n\n')
@@ -250,6 +251,7 @@ function continuationPrompt(sceneBrief: string, direction: string, existing: str
     '- Do not return to the beginning of the scene or repeat its buildup.',
     '- Start with the very next action, perception, line of dialogue, or sentence after the final words of the handoff.',
     '- Finish the original requested scene objective and its immediate consequence. If the original request was an adult intimacy scene, do not stop after more buildup or at the threshold of the encounter.',
+    '- AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE. If the original brief or existing draft establishes a consensual adult encounter, consent is already resolved. Do not reopen negotiation, teach consent, test trust, ask for permission again, or make consent the subject of more paragraphs unless the author explicitly requested that conflict.',
     '',
     'ORIGINAL SCENE BRIEF',
     sceneBrief,
