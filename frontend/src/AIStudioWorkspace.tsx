@@ -13,9 +13,11 @@ const DEFAULT_PROVIDER: ProviderConfig = {
 
 const STUDIO_CONTEXT_SENTINEL = '__EMBER_STUDIO_CONTEXT_V1__'
 const CONTINUATION_INTENT = /^(?:please\s+)?(?:continue\b|keep\s+(?:going|writing)\b|resume\b|pick\s+up\b|finish\s+(?:this|the|current)\s+(?:scene|sex\s+scene|intimate\s+scene)\b)/i
+const CORE_ONLY_INTENT = /\b(?:just\s+(?:the\s+)?sex|sex\s+only|only\s+(?:write\s+)?(?:the\s+)?(?:sex|sexual\s+(?:action|part|segment|encounter))|i(?:'ll|\s+will)\s+write\s+everything\s+else|no\s+(?:setup|aftermath)|core\s+only|action\s+only)\b/i
 
 type StudioMode = 'scene' | 'brainstorm' | 'creative'
 type SaveDestination = 'studio' | 'draft' | 'research'
+type DeliveryScope = 'full_scene' | 'core_only'
 type HeatLevel = 'simmer' | 'hot' | 'scorching' | 'inferno'
 type TensionCurve = 'slow_burn' | 'steady_rise' | 'pressure_cooker' | 'flashpoint'
 
@@ -45,6 +47,7 @@ type StudioPersistedState = {
   scratchpad: string
   title: string
   destination: SaveDestination
+  delivery_scope: DeliveryScope
   updated_at: string
 }
 
@@ -151,6 +154,7 @@ function readCachedStudioState(slug: string): StudioPersistedState | null {
       scratchpad: typeof state.scratchpad === 'string' ? state.scratchpad : '',
       title: typeof state.title === 'string' ? state.title : '',
       destination: state.destination === 'draft' || state.destination === 'research' ? state.destination : 'studio',
+      delivery_scope: state.delivery_scope === 'core_only' ? 'core_only' : 'full_scene',
       updated_at: typeof state.updated_at === 'string' ? state.updated_at : '',
     }
   } catch {
@@ -228,10 +232,19 @@ function manuscriptOnlyHandoff(text: string) {
   return kept.join('\n\n').trim()
 }
 
-function freshScenePrompt(direction: string) {
+function freshScenePrompt(direction: string, scope: DeliveryScope) {
+  const scopeRules = scope === 'core_only'
+    ? [
+        '- CORE ONLY: write only the requested central action/encounter segment.',
+        '- Start at the core action as quickly as continuity allows. Do not add setup, consent discussion, relationship analysis, side plots, interruptions, or aftermath.',
+        '- Stop when the requested segment itself reaches a natural ending. The author will write everything around it.',
+      ]
+    : [
+              ]
   return [
     direction,
     'STUDIO SCENE DELIVERY CONTRACT:',
+    ...scopeRules,
     '- Deliver the complete requested scene, not only its setup or buildup.',
     '- Move into the author-requested core event early enough to complete its full dramatic arc on page.',
     '- If the requested core is adult intimacy, buildup alone does not satisfy the brief; complete the requested encounter and its immediate emotional or story consequence.',
@@ -241,8 +254,17 @@ function freshScenePrompt(direction: string) {
   ].join('\n\n')
 }
 
-function continuationPrompt(sceneBrief: string, direction: string, existing: string) {
+function continuationPrompt(sceneBrief: string, direction: string, existing: string, scope: DeliveryScope) {
   const handoff = existing.trim().slice(-9000)
+  const scopeRules = scope === 'core_only'
+    ? [
+        '- CORE ONLY: write only the requested central sexual/action segment from here.',
+        '- Do not add another setup beat, consent/trust discussion, interruption, relationship processing, or aftermath.',
+        '- If the requested core action has not begun, begin it immediately. Stop when that segment itself reaches a natural ending.',
+      ]
+    : [
+        ...scopeRules,
+      ]
   return [
     direction || 'Continue and finish the current scene.',
     'STUDIO CONTINUATION CONTRACT:',
@@ -271,6 +293,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [scratchpad, setScratchpad] = useState('')
   const [title, setTitle] = useState(() => defaultTitle('scene'))
   const [destination, setDestination] = useState<SaveDestination>('studio')
+  const [deliveryScope, setDeliveryScope] = useState<DeliveryScope>('full_scene')
   const [provider, setProvider] = useState<ProviderConfig>(readStoredProvider)
   const [models, setModels] = useState<string[]>([])
   const [craft, setCraft] = useState<CraftControls>(readStoredCraft)
@@ -296,6 +319,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setScratchpad(state.scratchpad)
     setTitle(state.title || defaultTitle(state.studio_mode))
     setDestination(state.destination)
+    setDeliveryScope(state.delivery_scope)
     setContextFiles([])
     localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(state))
     setStatus(`Restored ${source} · ${wordsIn(state.output).toLocaleString()} Working Draft words`)
@@ -329,6 +353,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setScratchpad(cached?.scratchpad || '')
     setTitle(cached?.title || defaultTitle(cached?.studio_mode || 'scene'))
     setDestination(cached?.destination || 'studio')
+    setDeliveryScope(cached?.delivery_scope || 'full_scene')
     setContextFiles([])
 
     async function restoreStudioState() {
@@ -353,6 +378,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         setScratchpad(chosen.scratchpad)
         setTitle(chosen.title || defaultTitle(chosen.studio_mode))
         setDestination(chosen.destination)
+        setDeliveryScope(chosen.delivery_scope || 'full_scene')
         localStorage.setItem(studioStateCacheKey(project.slug), JSON.stringify(chosen))
         setBrowserRecovery(chosen)
         if (chosen.output.trim()) {
@@ -387,6 +413,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
       scratchpad,
       title,
       destination,
+      delivery_scope: deliveryScope,
       updated_at: new Date().toISOString(),
     }
 
@@ -419,6 +446,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     }
   }, [
     apiBase,
+    deliveryScope,
     destination,
     output,
     project.slug,
@@ -491,12 +519,13 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setStatus(`${MODE_COPY[next].title} ready · isolated from old manuscript prose`)
   }
 
-  async function requestGeneration(requestPrompt: string, mode: 'write' | 'continue' | 'brainstorm') {
+  async function requestGeneration(requestPrompt: string, mode: 'write' | 'continue' | 'brainstorm', scope: DeliveryScope = 'full_scene') {
     return jsonFetch<GenerateResponse>(`${apiBase}/projects/${project.slug}/generate`, {
       method: 'POST',
       body: JSON.stringify({
         prompt: requestPrompt,
         mode,
+        delivery_scope: scope,
         active_file: null,
         selected_text: STUDIO_CONTEXT_SENTINEL,
         provider,
@@ -505,8 +534,8 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     })
   }
 
-  async function continueDraft(existing: string, originalBrief: string, direction: string) {
-    return requestGeneration(continuationPrompt(originalBrief, direction, existing), 'continue')
+  async function continueDraft(existing: string, originalBrief: string, direction: string, scope: DeliveryScope) {
+    return requestGeneration(continuationPrompt(originalBrief, direction, existing, scope), 'continue', scope)
   }
 
   async function continueCurrentScene(direction = prompt.trim()) {
@@ -524,10 +553,14 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     setStatus('Continuing live in Working Draft · provisional until verification passes…')
     try {
       const originalBrief = sceneBrief.trim() || prompt.trim() || direction
+      const effectiveScope: DeliveryScope = (
+        deliveryScope === 'core_only' || CORE_ONLY_INTENT.test(direction) || CORE_ONLY_INTENT.test(originalBrief)
+      ) ? 'core_only' : 'full_scene'
       const result = await continueDraft(
         cleanBase,
         originalBrief,
         direction || 'Continue and finish this scene.',
+        effectiveScope,
       )
       const merged = mergeContinuation(cleanBase, result.text)
       setOutput(merged)
@@ -572,7 +605,10 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
     try {
       if (studioMode === 'scene') {
         setSceneBrief(direction)
-        const result = await requestGeneration(freshScenePrompt(direction), 'write')
+        const effectiveScope: DeliveryScope = (
+          deliveryScope === 'core_only' || CORE_ONLY_INTENT.test(direction)
+        ) ? 'core_only' : 'full_scene'
+        const result = await requestGeneration(freshScenePrompt(direction, effectiveScope), 'write', effectiveScope)
         const draft = result.text.trim()
         setOutput(draft)
         setContextFiles(result.context_files || [])
@@ -738,6 +774,16 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
                       <button key={level} type="button" className={craft.heat_level === level ? 'active' : ''} onClick={() => setCraft({ ...craft, heat_level: level })}>{level}</button>
                     ))}
                   </div>
+                </div>
+                <div className="ai-studio-field">
+                  <label>Scene scope</label>
+                  <div className="ai-studio-scope">
+                    <button type="button" className={deliveryScope === 'full_scene' ? 'active' : ''} onClick={() => setDeliveryScope('full_scene')}>Complete scene</button>
+                    <button type="button" className={deliveryScope === 'core_only' ? 'active' : ''} onClick={() => setDeliveryScope('core_only')}>Core only</button>
+                  </div>
+                  <small className="ai-studio-scope-help">
+                    Core only writes just the requested central action and leaves setup/aftermath to you.
+                  </small>
                 </div>
                 <div className="ai-studio-field">
                   <label>Tension curve</label>
