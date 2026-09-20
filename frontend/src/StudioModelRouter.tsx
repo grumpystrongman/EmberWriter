@@ -108,11 +108,13 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   const qwen25Heretic14 = name.includes('qwen2.5-14b') && name.includes('heretic')
   const qwen3Heretic8 = name.includes('qwen3-8b') && name.includes('heretic')
   const rocinante = name.includes('rocinante')
+  const pygmalion3 = name.includes('pygmalion-3') || name.includes('pygmalion3')
+  const magnumV4 = name.includes('magnum-v4') || name.includes('magnum_v4')
   const uncensored = name.includes('heretic') || name.includes('uncensored') || name.includes('abliterat')
   const mainstreamQwen3 = name.includes('qwen3') && !uncensored
   const mainstreamQwen25 = name.includes('qwen2.5') && !uncensored
   const mistralSmall = name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')
-  const roleplay = rocinante || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
+  const roleplay = rocinante || magnumV4 || pygmalion3 || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
 
   if (profile === 'fast') {
     let fastScore = 20
@@ -129,7 +131,9 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
 
   let score = 20 + Math.min(size || 0, 40) / 10
   if (purpose === 'adult') {
-    if (rocinante && uncensored) score += 115
+    if (pygmalion3) score += 132
+    else if (magnumV4) score += 122
+    else if (rocinante && uncensored) score += 115
     else if (qwen25Heretic14) score += 108
     else if (roleplay && uncensored) score += 104
     else if (uncensored && size >= 12) score += 98
@@ -147,7 +151,9 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
     else score += 50
   }
   if (purpose === 'character') {
-    if (rocinante) score += 115
+    if (magnumV4) score += 120
+    else if (pygmalion3) score += 116
+    else if (rocinante) score += 115
     else if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) score += 105
     else if (name.includes('stheno') || name.includes('pygmalion')) score += 98
     else if (qwen25Heretic14) score += 90
@@ -172,6 +178,20 @@ function recommendModel(models: string[], purpose: ResolvedPurpose, profile: Per
 
 function describeModel(model: string): ModelGuide {
   const name = normalized(model)
+  if (name.includes('pygmalion-3') || name.includes('pygmalion3')) {
+    return {
+      label: 'Adult / roleplay specialist 12B',
+      bestFor: 'Direct adult scenes, roleplay-heavy intimacy, character interaction, and requests where scene delivery matters more than general reasoning.',
+      why: 'Pygmalion-3 is a dedicated roleplaying fine-tune with permissive Apache-2.0 licensing. EmberWriter treats it as the first adult-scene candidate, subject to the local acceptance bakeoff.',
+    }
+  }
+  if (name.includes('magnum-v4') || name.includes('magnum_v4')) {
+    return {
+      label: 'Creative prose specialist 12B',
+      bestFor: 'Polished scene prose, chemistry, dialogue, character voice, and adult fiction when it passes the local delivery acceptance test.',
+      why: 'Magnum-v4 emphasizes creative prose and conversation and is available under Apache-2.0 in the upstream 12B release. EmberWriter keeps it distinct from the adult-first roleplay candidate.',
+    }
+  }
   if (name.includes('qwen3-8b') && name.includes('heretic')) {
     return {
       label: 'Fast uncensored 8B',
@@ -272,7 +292,7 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
       <p style={hintStyle}>
         {performanceProfile === 'fast'
           ? 'Fast favors an uncensored 8B model, a smaller adaptive context window, and a 3,072-token prose ceiling per pass.'
-          : 'Quality favors Rocinante 12B and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
+          : 'Quality favors accepted 12B creative specialists and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
       </p>
 
       <label style={{ ...labelStyle, marginTop: 12 }}>Writing type</label>
