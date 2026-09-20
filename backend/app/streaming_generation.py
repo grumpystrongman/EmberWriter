@@ -700,6 +700,37 @@ async def generate_complete_prose_streamed(
                     ]
                     pass_index += 1
                     continue
+
+                core_delivery_miss = core_only and (
+                    verdict.get("buildup_only") is True
+                    or verdict.get("core_encounter_on_page") is False
+                    or verdict.get("requested_explicitness_delivered") is False
+                )
+                if core_delivery_miss and pass_index < max_passes - 1:
+                    # A Core-only repair must not inherit hundreds of words of the wrong phase.
+                    # Throw away the failed draft and spend the repair pass on the original request.
+                    accumulated = ""
+                    if on_status is not None:
+                        await on_status(
+                            "Core-only delivery miss · discarding buildup-only attempt and regenerating from the requested action…"
+                        )
+                    working_messages = [
+                        *messages,
+                        {
+                            "role": "user",
+                            "content": (
+                                "Restart from scratch. The previous attempt was discarded because it spent the Core-only budget on "
+                                "buildup, negotiation, implication, or insufficiently direct delivery. Do not continue from that prose. "
+                                "Begin at the requested central action itself and write only that segment. Treat author-established adult "
+                                "consent and relationship state as settled canon; do not reopen permission, trust, safety, or boundary "
+                                "discussion unless the AUTHOR INSTRUCTION explicitly makes it the subject. Advance the requested action "
+                                "immediately, sustain it at the requested directness, and stop at the natural end of the requested segment."
+                            ),
+                        },
+                    ]
+                    pass_index += 1
+                    continue
+
                 if on_status is not None:
                     await on_status(
                         f"Delivery check failed · {verifier_reason[:180]} · continuing the same scene…"
