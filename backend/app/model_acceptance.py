@@ -11,11 +11,13 @@ from . import generation
 from .generation_reliability import _hard_quality_failure, parse_scene_length
 from .generation_reliability_refinement import explicit_delivery_failure
 from .models import ProviderConfig
+from .writing_model_catalog import ADULT_EXPLICIT_CANDIDATES
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
-ACCEPTANCE_VERSION = 2
+BAKEOFF_REPORT_PATH = _RUNTIME_DIR / "writing-model-bakeoff.json"
+ACCEPTANCE_VERSION = 3
 
 ACCEPTANCE_PROMPT = (
     "I need a explicit, very detailed sex scene between Kaelen and Muna. They just finished "
@@ -85,7 +87,12 @@ async def run_model_acceptance(
     floor = contract.floor_words or 700
 
     for index in range(attempts):
-        config = ProviderConfig(provider="ollama", base_url=base_url, model=model)
+        config = ProviderConfig(
+            provider="ollama",
+            base_url=base_url,
+            model=model,
+            lock_model=True,
+        )
         messages = generation.build_messages(
             "write",
             ACCEPTANCE_PROMPT,
@@ -139,16 +146,75 @@ def write_acceptance_report(report: dict[str, object]) -> None:
     ACCEPTANCE_REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
+def _report_rank(report: dict[str, object]) -> tuple[int, int, int, int]:
+    """Stable bakeoff ordering: contract reliability first, then clean completion."""
+    results = [item for item in report.get("results", []) if isinstance(item, dict)]
+    passes = int(report.get("passes", 0) or 0)
+    failures = sum(len(item.get("failures", [])) for item in results)
+    word_counts = [int(item.get("word_count", 0) or 0) for item in results if item.get("passed") is True]
+    average_words = int(sum(word_counts) / len(word_counts)) if word_counts else 0
+    # The acceptance contract is capped at 1300 words. Among equally reliable models, prefer
+    # one that lands a complete scene without spending the entire budget.
+    compactness = -abs(900 - average_words) if average_words else -5000
+    return (1 if report.get("passed") is True else 0, passes, -failures, compactness)
+
+
+async def run_model_bakeoff(
+    models: tuple[str, ...] | list[str] = ADULT_EXPLICIT_CANDIDATES,
+    *,
+    base_url: str = "http://localhost:11434",
+    attempts: int = 3,
+) -> dict[str, object]:
+    candidates: list[dict[str, object]] = []
+    for model in models:
+        report = await run_model_acceptance(model, base_url=base_url, attempts=attempts)
+        candidates.append(report)
+
+    ranked = sorted(candidates, key=_report_rank, reverse=True)
+    passing = [report for report in ranked if report.get("passed") is True]
+    best_model = str(passing[0].get("requested_model", "")) if passing else ""
+    return {
+        "acceptance_version": ACCEPTANCE_VERSION,
+        "updated_at": datetime.now(UTC).isoformat(),
+        "models": [str(model) for model in models],
+        "best_model": best_model,
+        "passed": bool(best_model),
+        "candidates": candidates,
+    }
+
+
+def write_bakeoff_report(report: dict[str, object]) -> None:
+    _RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    BAKEOFF_REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run EmberWriter's real local-model writing acceptance test")
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--model", action="append")
+    parser.add_argument("--bakeoff", action="store_true")
     parser.add_argument("--base-url", default="http://localhost:11434")
     parser.add_argument("--attempts", type=int, default=3)
     args = parser.parse_args()
 
+    if args.bakeoff:
+        models = tuple(args.model) if args.model else ADULT_EXPLICIT_CANDIDATES
+        report = asyncio.run(
+            run_model_bakeoff(
+                models,
+                base_url=args.base_url,
+                attempts=args.attempts,
+            )
+        )
+        write_bakeoff_report(report)
+        print(json.dumps(report, indent=2))
+        return 0 if report.get("passed") is True else 2
+
+    if not args.model or len(args.model) != 1:
+        parser.error("provide exactly one --model, or use --bakeoff to compare candidates")
+
     report = asyncio.run(
         run_model_acceptance(
-            args.model,
+            args.model[0],
             base_url=args.base_url,
             attempts=args.attempts,
         )
