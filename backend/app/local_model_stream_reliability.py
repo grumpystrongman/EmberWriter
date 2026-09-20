@@ -175,6 +175,7 @@ async def generate_streamed_reliable(
             "model": effective_model,
             "messages": messages,
             "stream": True,
+            "think": False,
             "keep_alive": "30m",
             "options": options,
         }
@@ -253,7 +254,7 @@ async def generate_streamed_reliable(
                 "EmberWriter can restart Ollama from the Performance panel."
             ) from exc
 
-        content = "".join(pieces)
+        content = streaming_generation.strip_reasoning_blocks("".join(pieces)) if hasattr(streaming_generation, "strip_reasoning_blocks") else "".join(pieces).strip()
         if not content.strip():
             raise RuntimeError(f"Ollama returned an empty response from {effective_model}")
 
