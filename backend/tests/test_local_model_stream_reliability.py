@@ -4,6 +4,8 @@ from app import generation, generation_reliability
 from app import local_model_stream_reliability as reliability
 from app.models import ProviderConfig
 
+PYG = reliability._PYGMALION_ADULT
+MAGNUM = reliability._MAGNUM_ADULT
 ROCI = reliability._HERETIC_ROCINANTE
 CYDONIA = reliability._HIGH_HEAT_CYDONIA
 FAST = reliability._FAST_ADULT_MODEL
@@ -67,23 +69,55 @@ def test_adult_routing_respects_valid_configured_12b_model(monkeypatch) -> None:
     assert config.model == ROCI
 
 
-def test_adult_routing_respects_explicit_fast_model(monkeypatch) -> None:
+def test_adult_routing_respects_explicit_manual_model_lock(monkeypatch) -> None:
     async def installed(_base_url: str) -> list[str]:
-        return [FAST, ROCI]
+        return [PYG, MAGNUM, FAST, ROCI]
 
     monkeypatch.setattr(reliability, "installed_ollama_models", installed)
-    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=FAST)
+    config = ProviderConfig(
+        provider="ollama",
+        base_url="http://localhost:11434",
+        model=FAST,
+        lock_model=True,
+    )
 
     asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
 
     assert config.model == FAST
 
 
-def test_stale_adult_model_repairs_to_12b_before_fast_or_24b(monkeypatch) -> None:
+def test_auto_adult_routing_prefers_dedicated_12b_candidate(monkeypatch) -> None:
     async def installed(_base_url: str) -> list[str]:
-        return [CYDONIA, FAST, ROCI]
+        return [PYG, MAGNUM, ROCI]
 
     monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability, "preferred_adult_model", lambda _installed: PYG)
+    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=ROCI)
+
+    asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
+
+    assert config.model == PYG
+
+
+def test_auto_adult_routing_honors_measured_bakeoff_winner(monkeypatch) -> None:
+    async def installed(_base_url: str) -> list[str]:
+        return [PYG, MAGNUM, ROCI]
+
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability, "preferred_adult_model", lambda _installed: MAGNUM)
+    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=ROCI)
+
+    asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
+
+    assert config.model == MAGNUM
+
+
+def test_stale_adult_model_repairs_to_dedicated_candidate_before_fast_or_24b(monkeypatch) -> None:
+    async def installed(_base_url: str) -> list[str]:
+        return [CYDONIA, FAST, ROCI, PYG]
+
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability, "preferred_adult_model", lambda _installed: PYG)
     config = ProviderConfig(
         provider="ollama",
         base_url="http://localhost:11434",
@@ -92,7 +126,7 @@ def test_stale_adult_model_repairs_to_12b_before_fast_or_24b(monkeypatch) -> Non
 
     asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
 
-    assert config.model == ROCI
+    assert config.model == PYG
 
 
 def test_reliability_layer_replaces_low_level_transport_not_public_wrapper() -> None:
