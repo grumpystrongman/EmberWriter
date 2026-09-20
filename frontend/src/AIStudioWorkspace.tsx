@@ -298,6 +298,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [deliveryScope, setDeliveryScope] = useState<DeliveryScope>('full_scene')
   const [provider, setProvider] = useState<ProviderConfig>(readStoredProvider)
   const [models, setModels] = useState<string[]>([])
+  const [adultModelRecommendation, setAdultModelRecommendation] = useState('')
   const [craft, setCraft] = useState<CraftControls>(readStoredCraft)
   const [contextFiles, setContextFiles] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
@@ -502,11 +503,12 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
 
   async function refreshModels() {
     try {
-      const next = await jsonFetch<{ models: string[] }>(`${apiBase}/models`, {
+      const next = await jsonFetch<{ models: string[]; adult_model?: string | null }>(`${apiBase}/models`, {
         method: 'POST',
         body: JSON.stringify(provider),
       })
       setModels(next.models)
+      setAdultModelRecommendation(next.adult_model || '')
     } catch (error) {
       setStatus(`Model check failed: ${(error as Error).message}`)
     }
@@ -737,6 +739,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         <StudioModelRouter
           provider={provider}
           models={models}
+          adultModelRecommendation={adultModelRecommendation}
           studioMode={studioMode}
           heatLevel={craft.heat_level}
           prompt={prompt}
