@@ -40,6 +40,7 @@ from .prose_quality import quality_guidance
 from .provenance_store import record_assistance_event
 from .storage import compile_context, read_text
 from .story_intelligence import build_character_context, relevant_character_names
+from .writing_model_catalog import preferred_adult_model
 from .streaming_generation import generate_complete_prose_streamed, generate_streamed
 from .studio_context import STUDIO_CONTEXT_SENTINEL, build_studio_context
 
@@ -343,7 +344,12 @@ def _generation_contract(payload: GenerateRequest) -> tuple[str | None, str, int
 @router.post("/models")
 async def models(payload: ProviderConfig) -> dict:
     try:
-        return {"models": await list_models(payload)}
+        installed = await list_models(payload)
+        adult_model = preferred_adult_model(installed) if payload.provider == "ollama" else None
+        return {
+            "models": installed,
+            "adult_model": adult_model,
+        }
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach model server: {exc}") from exc
 
