@@ -39,6 +39,8 @@ def test_manual_model_choice_disables_auto_switching_until_reenabled() -> None:
     assert "setAutoSwitch(true)" in router
     assert "Manual override locked" in router
     assert "Auto-switch within this profile" in router
+    assert "lock_model: true" in router
+    assert "lock_model: false" in router
 
 
 def test_studio_has_explicit_fast_and_quality_profiles() -> None:
@@ -58,6 +60,9 @@ def test_known_local_models_have_clear_usage_guidance() -> None:
     assert "qwen3-8b" in router
     assert "mistral-small3.1" in router
     assert "Rocinante" in router
+    assert "pygmalion-3-12b" in router
+    assert "magnum-v4-12b" in router
+    assert "Adult / roleplay specialist 12B" in router
     assert "Installed model guide" in router
     assert "Best installed fallback" in router
 
