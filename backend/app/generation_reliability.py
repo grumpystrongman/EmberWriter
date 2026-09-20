@@ -8,6 +8,14 @@ from . import ollama_runtime
 from . import streaming_generation as streaming
 from .models import ProviderConfig
 from .prose_quality import diagnose_prose
+from .writing_model_catalog import adult_model_score as catalog_adult_model_score
+from .writing_model_catalog import (
+    HIGH_HEAT_CYDONIA_24B,
+    HERETIC_ROCINANTE_12B,
+    MAGNUM_V4_12B,
+    PYGMALION_3_12B,
+    FAST_ADULT_8B,
+)
 
 
 @dataclass(frozen=True)
@@ -29,30 +37,9 @@ _RANGE_PATTERN = re.compile(r"\b(\d{2,5})\s*(?:-|–|—|to)\s*(\d{2,5})\s*words
 _EXACT_PATTERN = re.compile(r"\b(?:exactly|about|around|roughly|approximately)\s+(\d{2,5})\s*words?\b", re.IGNORECASE)
 _GENERIC_WORD_PATTERN = re.compile(r"\b(\d{3,5})\s*words?\b", re.IGNORECASE)
 
-# Known creative/RP families are intentionally ranked above generic uncensored instruct models
-# for adult manuscript prose. Exact model names are not required; local variants still benefit.
+# Public compatibility wrapper used by existing reliability tests and routing code.
 def adult_model_score(model: str) -> int:
-    name = model.casefold()
-    score = 0
-    if "cydonia" in name and ("heretic" in name or "abliter" in name or "decensor" in name):
-        score = 260
-    elif "rocinante-x" in name:
-        score = 250
-    elif "cydonia" in name:
-        score = 240
-    elif "rocinante" in name:
-        score = 230
-    elif any(token in name for token in ("magidonia", "magnum", "mag-mell", "mag_mell")):
-        score = 220
-    elif any(token in name for token in ("stheno", "pygmalion", "lunaris", "nemomix")):
-        score = 205
-    elif "qwen2.5-14b" in name and "heretic" in name:
-        score = 150
-    elif "qwen3-8b" in name and "heretic" in name:
-        score = 140
-    elif any(token in name for token in ("heretic", "uncensored", "abliterat")):
-        score = 120
-    return score
+    return catalog_adult_model_score(model)
 
 
 def parse_scene_length(prompt: str, heat_level: str | None = None) -> SceneLengthContract:
@@ -503,8 +490,10 @@ def install_generation_reliability() -> None:
 
     # For invalid/stale configured names, creative prose models are now preferred before Qwen fallbacks.
     ollama_runtime._RECOMMENDED_MODELS = (
-        "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M",
-        "HammerAI/rocinante-v1.1:12b-q4_K_M",
+        PYGMALION_3_12B,
+        MAGNUM_V4_12B,
+        HERETIC_ROCINANTE_12B,
+        HIGH_HEAT_CYDONIA_24B,
         "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
-        "R4C3R/qwen3-8b-heretic:q4_k_m",
+        FAST_ADULT_8B,
     )
