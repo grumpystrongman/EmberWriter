@@ -9,6 +9,10 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from .adult_specialist import (
+    build_adult_specialist_messages,
+    should_use_adult_explicit_specialist,
+)
 from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
@@ -339,6 +343,46 @@ def _generation_contract(payload: GenerateRequest) -> tuple[str | None, str, int
             minimum_words = max(220, minimum_words - existing_words)
 
     return heat, delivery_scope, minimum_words
+
+
+def _generation_messages(
+    payload: GenerateRequest,
+    context_text: str,
+    *,
+    heat: str | None,
+    delivery_scope: str,
+    minimum_words: int,
+) -> tuple[list[dict[str, str]], bool]:
+    specialist = should_use_adult_explicit_specialist(
+        payload.provider.model,
+        payload.prompt,
+        heat,
+        payload.mode,
+    )
+    if specialist:
+        return (
+            build_adult_specialist_messages(
+                payload.mode,
+                payload.prompt,
+                context_text,
+                heat_level=heat,
+                delivery_scope=delivery_scope,
+                min_scene_words=minimum_words,
+            ),
+            True,
+        )
+    return (
+        build_messages(
+            payload.mode,
+            payload.prompt,
+            context_text,
+            heat_level=heat,
+            finish_scene=payload.mode in PROSE_MODES,
+            min_scene_words=minimum_words,
+            delivery_scope=delivery_scope,
+        ),
+        False,
+    )
 
 
 @router.post("/models")
