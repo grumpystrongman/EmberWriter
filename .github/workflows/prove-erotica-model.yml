@@ -1,0 +1,101 @@
+name: Prove erotic scene model
+
+on:
+  push:
+    branches:
+      - proof/literotica-model
+    paths:
+      - ".github/workflows/prove-erotica-model.yml"
+      - "scripts/prove_erotica_model.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove-full-scene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      LLAMA_RELEASE: b10964
+      MODEL_URL: https://huggingface.co/mradermacher/Qwen3.5-4B-NSFW-ARA-Heretic-Literotica-i1-GGUF/resolve/main/Qwen3.5-4B-NSFW-ARA-Heretic-Literotica.i1-Q4_K_M.gguf
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download llama.cpp CPU runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/llama"
+          curl -L --fail --retry 5 --retry-all-errors \
+            -o "$RUNNER_TEMP/llama.tar.gz" \
+            "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_RELEASE/llama-$LLAMA_RELEASE-bin-ubuntu-x64.tar.gz"
+          tar -xzf "$RUNNER_TEMP/llama.tar.gz" -C "$RUNNER_TEMP/llama"
+          LLAMA_SERVER="$(find "$RUNNER_TEMP/llama" -type f -name llama-server -print -quit)"
+          test -n "$LLAMA_SERVER"
+          chmod +x "$LLAMA_SERVER"
+          echo "LLAMA_SERVER=$LLAMA_SERVER" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$(dirname "$LLAMA_SERVER"):$RUNNER_TEMP/llama/lib" >> "$GITHUB_ENV"
+
+      - name: Download erotica-specialized Q4 model
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 5 --retry-all-errors \
+            -o "$RUNNER_TEMP/erotica.gguf" \
+            "$MODEL_URL"
+          test "$(stat -c%s "$RUNNER_TEMP/erotica.gguf")" -gt 2000000000
+          echo "model_bytes=$(stat -c%s "$RUNNER_TEMP/erotica.gguf")"
+
+      - name: Start isolated local inference server
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$LLAMA_SERVER" \
+            -m "$RUNNER_TEMP/erotica.gguf" \
+            --alias erotica-proof \
+            --ctx-size 4096 \
+            --threads 4 \
+            --host 127.0.0.1 \
+            --port 8080 \
+            > "$RUNNER_TEMP/llama-server.log" 2>&1 &
+          echo "LLAMA_PID=$!" >> "$GITHUB_ENV"
+
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl --silent --fail http://127.0.0.1:8080/health >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "llama.cpp server failed to become healthy"
+            tail -100 "$RUNNER_TEMP/llama-server.log" || true
+            exit 1
+          fi
+
+      - name: Generate full adult scene without exposing prose
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/prove_erotica_model.py \
+            --generate \
+            --endpoint http://127.0.0.1:8080 \
+            --out "$RUNNER_TEMP/scene.txt"
+          test -s "$RUNNER_TEMP/scene.txt"
+
+      - name: Deterministically verify full-scene delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/prove_erotica_model.py \
+            --evaluate \
+            --input "$RUNNER_TEMP/scene.txt"
+
+      - name: Clean generated prose
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/scene.txt"
+          if [ -n "${LLAMA_PID:-}" ]; then kill "$LLAMA_PID" 2>/dev/null || true; fi
