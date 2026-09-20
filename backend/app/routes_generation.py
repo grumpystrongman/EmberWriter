@@ -488,7 +488,7 @@ async def _generate_payload(
         text = await generate(payload.provider, messages)
 
     refined = False
-    if payload.craft.quality_pass and payload.mode in PROSE_MODES:
+    if payload.craft.quality_pass and payload.mode in PROSE_MODES and not adult_specialist:
         if on_status is not None:
             await on_status("Applying Craft Pass…")
         targets = quality_guidance(text)
@@ -502,6 +502,9 @@ async def _generate_payload(
             craft_context=craft_text,
         )
         refined = True
+
+    if payload.craft.quality_pass and adult_specialist and on_status is not None:
+        await on_status("Adult explicit specialist owns final prose · Craft Pass skipped to preserve proven scene delivery…")
 
     event = record_assistance_event(
         slug,
@@ -610,7 +613,7 @@ async def _produce_generation_stream(
                 ).strip()
 
             refined = False
-            if payload.craft.quality_pass and payload.mode in PROSE_MODES:
+            if payload.craft.quality_pass and payload.mode in PROSE_MODES and not adult_specialist:
                 await emit_status("Applying Craft Pass…")
                 targets = quality_guidance(text)
                 text = await quality_pass(
@@ -623,6 +626,9 @@ async def _produce_generation_stream(
                     craft_context=craft_text,
                 )
                 refined = True
+
+            if payload.craft.quality_pass and adult_specialist:
+                await emit_status("Adult explicit specialist owns final prose · Craft Pass skipped to preserve proven scene delivery…")
 
             event = record_assistance_event(
                 slug,
