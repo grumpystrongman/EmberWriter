@@ -168,7 +168,7 @@ if (-not $SkipModelDownload) {
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
     if ($AdultModelTier -eq "auto") {
-        Write-Host "Auto setup installs Quality 12B and Fast 8B so Studio can switch explicitly between prose quality and throughput."
+        Write-Host "Auto setup installs the managed adult/prose candidates so Studio can route by author intent and local acceptance results."
     }
 
     foreach ($model in $modelsToInstall) {
@@ -203,14 +203,14 @@ if (-not $SkipModelDownload) {
 
     Write-Host ""
     Write-Host "Local writing models installed and verified." -ForegroundColor Green
-    Write-Host "Running the local adult-scene bakeoff between the managed 12B candidates..." -ForegroundColor Cyan
+    Write-Host "Running the local adult-scene bakeoff across the installed managed candidates..." -ForegroundColor Cyan
     & $Python -m app.model_bakeoff --attempts 3
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Adult-model bakeoff passed; the winning model was persisted for intent routing." -ForegroundColor Green
     } else {
-        Write-Host "Neither managed 12B candidate passed the adult-scene acceptance contract. EmberWriter will keep them available for manual testing and fallbacks." -ForegroundColor Yellow
+        Write-Host "No installed managed candidate passed the adult-scene acceptance contract. EmberWriter will keep the models available for manual testing and non-adult routing." -ForegroundColor Yellow
     }
-    Write-Host "Studio Quality uses intent-aware 12B creative specialists; Studio Fast uses the 8B uncensored model when installed."
+    Write-Host "Studio Quality uses the locally accepted model for the selected intent; Studio Fast prioritizes low-latency models."
 }
 
 if (-not $SkipImageEngineInstall) {
