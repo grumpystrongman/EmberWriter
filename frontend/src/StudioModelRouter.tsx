@@ -11,6 +11,7 @@ type PerformanceProfile = 'quality' | 'fast'
 type Props = {
   provider: ProviderConfig
   models: string[]
+  preferences: Record<string, string>
   studioMode: StudioMode
   heatLevel: HeatLevel
   prompt: string
@@ -102,7 +103,7 @@ function modelSize(model: string) {
   return match ? Number(match[1]) : 0
 }
 
-function scoreModel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile): number {
+function scoreModel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string> = {}): number {
   const name = normalized(model)
   const size = modelSize(model)
   const qwen25Heretic14 = name.includes('qwen2.5-14b') && name.includes('heretic')
@@ -115,6 +116,7 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   const mainstreamQwen25 = name.includes('qwen2.5') && !uncensored
   const mistralSmall = name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')
   const roleplay = rocinante || magnumV4 || pygmalion3 || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
+  const acceptedAdult = normalized(preferences.accepted_adult_model || preferences.adult_model || '')
 
   if (profile === 'fast') {
     let fastScore = 20
@@ -131,7 +133,8 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
 
   let score = 20 + Math.min(size || 0, 40) / 10
   if (purpose === 'adult') {
-    if (pygmalion3) score += 132
+    if (acceptedAdult && name === acceptedAdult) score += 180
+    else if (pygmalion3) score += 132
     else if (magnumV4) score += 122
     else if (rocinante && uncensored) score += 115
     else if (qwen25Heretic14) score += 108
@@ -171,9 +174,9 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   return score
 }
 
-function recommendModel(models: string[], purpose: ResolvedPurpose, profile: PerformanceProfile) {
+function recommendModel(models: string[], purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string>) {
   if (!models.length) return ''
-  return [...models].sort((left, right) => scoreModel(right, purpose, profile) - scoreModel(left, purpose, profile))[0]
+  return [...models].sort((left, right) => scoreModel(right, purpose, profile, preferences) - scoreModel(left, purpose, profile, preferences))[0]
 }
 
 function describeModel(model: string): ModelGuide {
@@ -231,14 +234,14 @@ function describeModel(model: string): ModelGuide {
   return { label: 'Custom installed model', bestFor: 'Manual selection or experimentation.', why: 'Studio does not recognize this model family yet, so it remains available as a manual override.' }
 }
 
-function fitLabel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile) {
-  const score = scoreModel(model, purpose, profile)
+function fitLabel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string>) {
+  const score = scoreModel(model, purpose, profile, preferences)
   if (score >= 120) return 'Strong match'
   if (score >= 90) return 'Good match'
   return 'Best installed fallback'
 }
 
-export default function StudioModelRouter({ provider, models, studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
+export default function StudioModelRouter({ provider, models, preferences, studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
   const [purpose, setPurpose] = useState<WritingPurpose>(readPurpose)
   const [autoSwitch, setAutoSwitch] = useState<boolean>(readAutoSwitch)
   const [performanceProfile, setPerformanceProfile] = useState<PerformanceProfile>(readPerformanceProfile)
@@ -246,8 +249,8 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
   const inferredPurpose = useMemo(() => inferPurpose(studioMode, heatLevel, prompt), [studioMode, heatLevel, prompt])
   const resolvedPurpose: ResolvedPurpose = purpose === 'auto' ? inferredPurpose : purpose
   const recommended = useMemo(
-    () => recommendModel(models, resolvedPurpose, performanceProfile),
-    [models, resolvedPurpose, performanceProfile],
+    () => recommendModel(models, resolvedPurpose, performanceProfile, preferences),
+    [models, resolvedPurpose, performanceProfile, preferences],
   )
   const activeGuide = provider.model ? describeModel(provider.model) : null
 
@@ -325,8 +328,9 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
       {recommended && (
         <div style={{ marginTop: 10, padding: 10, border: '1px solid rgba(224,120,69,.22)', borderRadius: 9, background: 'rgba(224,120,69,.06)' }}>
           <strong style={{ display: 'block', fontSize: 12 }}>{performanceProfile === 'fast' ? 'Fast' : 'Quality'} recommendation: {recommended}</strong>
-          <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose, performanceProfile)}</span>
+          <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose, performanceProfile, preferences)}</span>
           <p style={hintStyle}>{describeModel(recommended).bestFor}</p>
+          {resolvedPurpose === 'adult' && normalized(preferences.accepted_adult_model || '') === normalized(recommended) && <p style={hintStyle}>Passed EmberWriter’s local adult-scene bakeoff on this machine.</p>}
         </div>
       )}
 
