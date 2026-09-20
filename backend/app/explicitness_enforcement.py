@@ -9,8 +9,8 @@ from . import generation_reliability_refinement as refinement
 from .models import ProviderConfig
 from .writing_model_catalog import (
     FAST_ADULT_8B,
-    HIGH_HEAT_CYDONIA_24B,
     HERETIC_ROCINANTE_12B,
+    HIGH_HEAT_CYDONIA_24B,
     MAGNUM_V4_12B,
     PYGMALION_3_12B,
 )
