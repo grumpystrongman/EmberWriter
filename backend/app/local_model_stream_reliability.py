@@ -10,6 +10,7 @@ import httpx
 from . import streaming_generation
 from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
 from .models import ProviderConfig
+from .model_preferences import local_model_preferences
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 from .performance_telemetry import record_model_call
 
@@ -20,6 +21,8 @@ _LARGE_MODEL_HINTS = ("cydonia", "24b", "24-b", "24_b")
 _HERETIC_ROCINANTE = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
 _STANDARD_ROCINANTE = "HammerAI/rocinante-v1.1:12b-q4_K_M"
 _HIGH_HEAT_CYDONIA = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+_PYGMALION_ADULT_MODEL = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
+_MAGNUM_ADULT_MODEL = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
 _FAST_ADULT_MODEL = "R4C3R/qwen3-8b-heretic:q4_k_m"
 
 _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
@@ -98,14 +101,22 @@ async def route_adult_model_stable(
         config.model = current
         return
 
-    # Repair toward the 12B managed baseline first. Fast 8B remains an explicit author choice and
-    # the 24B tier remains opt-in; neither should silently replace a valid quality configuration.
-    preferred = (
-        _HERETIC_ROCINANTE,
-        _STANDARD_ROCINANTE,
-        _FAST_ADULT_MODEL,
-        _HIGH_HEAT_CYDONIA,
-        "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+    preferences = local_model_preferences()
+    accepted = preferences.get("accepted_adult_model", "")
+    # Repair stale/invalid choices toward the locally accepted adult model first. If no bakeoff
+    # winner exists yet, prefer the managed candidates before legacy fallbacks.
+    preferred = tuple(
+        model for model in (
+            accepted,
+            _FAST_ADULT_MODEL,
+            _PYGMALION_ADULT_MODEL,
+            _MAGNUM_ADULT_MODEL,
+            _HERETIC_ROCINANTE,
+            _STANDARD_ROCINANTE,
+            _HIGH_HEAT_CYDONIA,
+            "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+        )
+        if model
     )
     installed_by_name = {item.casefold(): item for item in installed}
     for candidate in preferred:
