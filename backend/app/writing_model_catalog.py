@@ -5,6 +5,7 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _BAKEOFF_REPORT_PATH = _REPO_ROOT / ".ember" / "writing-model-bakeoff.json"
+_BAKEOFF_ACCEPTANCE_VERSION = 3
 
 # Dedicated adult-fiction candidates. Keep these as capability-slot defaults rather than
 # embedding them throughout Studio so EmberWriter can replace either model later without
@@ -60,6 +61,12 @@ def _load_bakeoff_winner() -> str | None:
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(payload, dict) or payload.get("passed") is not True:
+        return None
+    if payload.get("acceptance_version") != _BAKEOFF_ACCEPTANCE_VERSION:
+        return None
+    requested = {str(value).casefold() for value in payload.get("models", []) if value}
+    required = {value.casefold() for value in ADULT_EXPLICIT_CANDIDATES}
+    if requested != required:
         return None
     winner = str(payload.get("best_model", "")).strip()
     return winner or None
