@@ -5,6 +5,7 @@ type Props = {
   project: ProjectSummary
   activePath: string
   tabs: string[]
+  splitOpen: boolean
   onTabs: (tabs: string[]) => void
   onSplit: () => void
   onSearch: () => void
@@ -14,7 +15,7 @@ function label(path: string) {
   return path.split('/').at(-1)?.replace(/\.(md|txt)$/i, '') || path
 }
 
-export default function WriteTabsBar({ project, activePath, tabs, onTabs, onSplit, onSearch }: Props) {
+export default function WriteTabsBar({ project, activePath, tabs, splitOpen, onTabs, onSplit, onSearch }: Props) {
   async function activate(path: string) {
     await openProjectPath(project.slug, path)
   }
@@ -32,6 +33,6 @@ export default function WriteTabsBar({ project, activePath, tabs, onTabs, onSpli
         <button type="button" className="write-tab-close" aria-label={`Close ${label(path)}`} onClick={() => close(path)}>×</button>
       </div>)}
     </div>
-    <div className="write-tabs-actions"><button type="button" onClick={onSearch}>⌕ Search</button><button type="button" onClick={onSplit}>◫ Split</button></div>
+    <div className="write-tabs-actions"><button type="button" onClick={onSearch}>⌕ Search</button><button type="button" className={splitOpen ? 'active' : ''} onClick={onSplit} aria-pressed={splitOpen}>{splitOpen ? '× Close split' : '◫ Split'}</button></div>
   </div>
 }
