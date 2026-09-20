@@ -15,9 +15,12 @@ $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 
-$AdultBaseline = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+$AdultExplicit = "hf.co/PygmalionAI/Pygmalion-3-12B-GGUF:Q4_K_S"
+$AdultProse = "hf.co/anthracite-org/magnum-v4-12b-gguf:Q4_K_M"
 $AdultFast = "R4C3R/qwen3-8b-heretic:q4_k_m"
+$Adult14 = "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m"
 $AdultHighHeat = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+$AdultBakeoffMinimumFreeGb = 18
 $HighHeatMinimumFreeGb = 22
 
 function Require-Command([string]$Name, [string]$Message) {
@@ -141,35 +144,48 @@ Write-Host "Ollama tuning: Flash Attention=on, KV cache=q8_0, parallel generatio
 if (-not $SkipModelDownload) {
     $totalRamGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
     $freeDiskGb = Get-FreeDiskGb $Root
-    $chosen = $AdultBaseline
-    $modelsToInstall = @($AdultBaseline)
+    $chosen = $AdultExplicit
+    $modelsToInstall = @($AdultExplicit)
 
     if ($AdultModelTier -eq "8b") {
         $chosen = $AdultFast
         $modelsToInstall = @($AdultFast)
+    } elseif ($AdultModelTier -eq "14b") {
+        $chosen = $Adult14
+        $modelsToInstall = @($Adult14)
     } elseif ($AdultModelTier -eq "24b") {
         if ($freeDiskGb -lt $HighHeatMinimumFreeGb) {
             throw "The 24B high-heat model needs at least ${HighHeatMinimumFreeGb} GB free. Only ${freeDiskGb} GB is available."
         }
         $chosen = $AdultHighHeat
         $modelsToInstall = @($AdultHighHeat)
-    } elseif ($AdultModelTier -eq "auto") {
-        # Auto provisions both explicit choices. Quality remains the default; Fast is an author-visible
-        # switch in Studio and is never selected silently merely because it is installed.
-        $modelsToInstall = @($AdultBaseline, $AdultFast)
+    } elseif ($AdultModelTier -in @("auto", "12b")) {
+        # The 12B adult capability is a measured slot, not a permanent hard-coded model.
+        # When disk permits, install both candidates and let EmberWriter's acceptance suite
+        # select the winner for this machine/configuration.
+        if ($freeDiskGb -ge $AdultBakeoffMinimumFreeGb) {
+            $modelsToInstall = @($AdultExplicit, $AdultProse)
+            if ($AdultModelTier -eq "auto") {
+                $modelsToInstall += $AdultFast
+            }
+        } else {
+            Write-Host "Only ${freeDiskGb} GB free; installing Pygmalion 12B without the Magnum bakeoff challenger." -ForegroundColor Yellow
+            $modelsToInstall = @($AdultExplicit)
+            if ($AdultModelTier -eq "auto") {
+                $modelsToInstall += $AdultFast
+            }
+        }
     }
 
     Write-Host ""
-    Write-Host "Quality model: $AdultBaseline" -ForegroundColor Green
-    Write-Host "Fast model:    $AdultFast" -ForegroundColor Green
-    Write-Host "Default model: $chosen"
+    Write-Host "Adult scene candidate: $AdultExplicit" -ForegroundColor Green
+    Write-Host "Prose challenger:      $AdultProse" -ForegroundColor Green
+    Write-Host "Fast model:            $AdultFast" -ForegroundColor Green
+    Write-Host "24B fallback:          $AdultHighHeat"
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
-    if ($AdultModelTier -eq "auto") {
-        Write-Host "Auto setup installs Quality 12B and Fast 8B so Studio can switch explicitly between prose quality and throughput."
-    }
 
-    foreach ($model in $modelsToInstall) {
+    foreach ($model in ($modelsToInstall | Select-Object -Unique)) {
         Write-Host "Downloading model if needed: $model"
         & ollama pull $model
         if ($LASTEXITCODE -ne 0) {
@@ -182,14 +198,48 @@ if (-not $SkipModelDownload) {
 
     $ConfigDir = Join-Path $Root ".ember"
     New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+
+    $canBakeoff = (Test-OllamaModelInstalled $AdultExplicit) -and (Test-OllamaModelInstalled $AdultProse)
+    if ($canBakeoff -and $AdultModelTier -in @("auto", "12b")) {
+        Write-Host ""
+        Write-Host "Testing Pygmalion 3 vs Magnum v4 against EmberWriter's adult-scene delivery contract..." -ForegroundColor Cyan
+        $oldProvision = $env:EMBER_AUTO_INSTALL_CREATIVE_MODEL
+        $oldAutoTest = $env:EMBER_AUTO_TEST_CREATIVE_MODEL
+        try {
+            $env:EMBER_AUTO_INSTALL_CREATIVE_MODEL = "0"
+            $env:EMBER_AUTO_TEST_CREATIVE_MODEL = "0"
+            & $Python -m app.model_acceptance --bakeoff --model $AdultExplicit --model $AdultProse --attempts 3
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Neither 12B candidate fully passed the adult-scene acceptance contract. EmberWriter will retain them for manual use and may escalate at runtime." -ForegroundColor Yellow
+            }
+        } finally {
+            $env:EMBER_AUTO_INSTALL_CREATIVE_MODEL = $oldProvision
+            $env:EMBER_AUTO_TEST_CREATIVE_MODEL = $oldAutoTest
+        }
+
+        $BakeoffPath = Join-Path $ConfigDir "writing-model-bakeoff.json"
+        if (Test-Path $BakeoffPath) {
+            try {
+                $bakeoff = Get-Content $BakeoffPath -Raw | ConvertFrom-Json
+                if ($bakeoff.passed -and $bakeoff.best_model) {
+                    $chosen = [string]$bakeoff.best_model
+                    Write-Host "Adult-scene bakeoff winner: $chosen" -ForegroundColor Green
+                }
+            } catch {
+                Write-Host "Could not read the adult-model bakeoff report; Pygmalion remains the fallback adult model." -ForegroundColor Yellow
+            }
+        }
+    }
+
     @{
         provider = "ollama"
         base_url = "http://localhost:11434"
         preferred_model = $chosen
         adult_model = $chosen
-        quality_model = $AdultBaseline
+        adult_candidates = @($AdultExplicit, $AdultProse)
+        quality_model = $AdultProse
         fast_model = $AdultFast
-        fallback_adult_model = $AdultBaseline
+        fallback_adult_model = $AdultExplicit
         high_heat_model = $AdultHighHeat
         ollama_flash_attention = $true
         ollama_kv_cache_type = "q8_0"
@@ -198,7 +248,12 @@ if (-not $SkipModelDownload) {
 
     Write-Host ""
     Write-Host "Local writing models installed and verified." -ForegroundColor Green
-    Write-Host "Studio Quality uses the 12B creative model; Studio Fast uses the 8B uncensored model when installed."
+    if ($canBakeoff) {
+        Write-Host "Studio can route adult intent to the measured Pygmalion/Magnum winner; manual model selection remains available."
+    } else {
+        Write-Host "Studio will use the installed adult model; install both 12B candidates later to enable measured routing."
+    }
+    Write-Host "Studio Fast uses the 8B model when installed."
 }
 
 if (-not $SkipImageEngineInstall) {
