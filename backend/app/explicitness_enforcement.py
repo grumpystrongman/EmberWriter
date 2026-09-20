@@ -52,6 +52,13 @@ _EXPLICIT_TOKEN = re.compile(
     r"masturbat\w*|stroke\w*|semen|ejaculat\w*|cum|cumming|orgasm\w*)\b",
     re.IGNORECASE,
 )
+_CORE_ACTION_TOKEN = re.compile(
+    r"\b(?:penetrat\w*|fuck\w*|thrust\w*|blow\s*job|oral\s+sex|suck\w*|lick\w*|"
+    r"hand\s*job|masturbat\w*|stroke\w*|ejaculat\w*|cum|cumming|orgasm\w*)\b",
+    re.IGNORECASE,
+)
+_CORE_ONLY_REQUEST = re.compile(r"\b(?:core[-\s]+only|sex\s+only|just\s+the\s+sex|action\s+only)\b", re.IGNORECASE)
+
 _EUPHEMISM_HEAVY = re.compile(
     r"\b(?:breached|joined|merged|union|center|length|release|completion|consummation|"
     r"bodies\s+moving|skin\s+met\s+skin|became\s+one)\b",
@@ -112,11 +119,35 @@ def explicitness_profile(draft: str) -> ExplicitnessProfile:
     )
 
 
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", text))
+
+
+def first_core_action_word(draft: str) -> int:
+    match = _CORE_ACTION_TOKEN.search(draft)
+    if not match:
+        return 10_000
+    return _word_count(draft[:match.start()])
+
+
 def strict_explicit_delivery_failure(prompt: str, draft: str) -> str:
     if not refinement.requires_direct_explicitness(prompt):
         return ""
 
     profile = explicitness_profile(draft)
+
+    if _CORE_ONLY_REQUEST.search(prompt):
+        onset = first_core_action_word(draft)
+        if onset > 180:
+            return (
+                f"core-only delivery failure: requested sexual action begins too late (first direct-action evidence at word {onset}); "
+                "discard the buildup and restart at the requested core action"
+            )
+        if profile.direct_action_sentences < 5:
+            return (
+                f"core-only delivery failure: only {profile.direct_action_sentences} direct-action sentences were delivered; "
+                "the author requested sustained description of the central encounter rather than setup plus a brief explicit beat"
+            )
 
     consent_loop_mentions = len(_CONSENT_LOOP_TERM.findall(draft))
     if (
