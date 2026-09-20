@@ -177,6 +177,13 @@ async def verify_studio_scene_delivery_fast(
     if role_failure:
         return _failed_verdict(role_failure)
 
+    request_context = streaming_generation._verifier_source_context(messages)
+    body_canon_failure = refinement.hard_body_canon_failure(request_context, draft)
+    if body_canon_failure:
+        verdict = _failed_verdict(body_canon_failure)
+        verdict["canon_respected"] = False
+        return verdict
+
     quality_failure = reliability._hard_quality_failure(draft)
     if quality_failure:
         return _failed_verdict(
