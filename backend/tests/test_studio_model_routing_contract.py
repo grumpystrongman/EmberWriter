@@ -58,6 +58,9 @@ def test_known_local_models_have_clear_usage_guidance() -> None:
     assert "qwen3-8b" in router
     assert "mistral-small3.1" in router
     assert "Rocinante" in router
+    assert "pygmalion-3" in router
+    assert "magnum-v4" in router
+    assert "Apache-2.0" in router
     assert "Installed model guide" in router
     assert "Best installed fallback" in router
 
