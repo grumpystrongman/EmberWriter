@@ -63,6 +63,9 @@ class ProviderConfig(BaseModel):
     base_url: str = "http://localhost:11434"
     model: str = ""
     api_key: str | None = None
+    # Internal/product routing contract. Acceptance tests set this so a requested candidate
+    # cannot be silently swapped for another installed creative model.
+    lock_model: bool = False
 
 
 class CraftControls(BaseModel):
