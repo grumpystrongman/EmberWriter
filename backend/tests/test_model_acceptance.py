@@ -3,23 +3,21 @@ from app import model_acceptance
 
 def _acceptable_scene() -> str:
     body = (
-        "Kaelen and Muna stayed together after the sauna. "
-        "They were consenting adults and spoke plainly about what they wanted. "
-        "Kaelen touched Muna's pussy and clitoris while she stroked his cock. "
-        "She sucked his cock during oral sex while he touched her vulva. "
-        "He penetrated her vagina and thrust while they stayed focused on each other. "
-        "Muna stroked his penis again as he continued penetration. "
-        "They kept fucking with direct thrusting instead of euphemistic summary. "
-        "Muna orgasmed first; Kaelen came afterward, ejaculating as the encounter reached its ending. "
-        "They remained together afterward, talking quietly and checking in with each other. "
+        "Kaelen and Muna began the requested encounter immediately. "
+        "Muna's penis was described directly while Kaelen touched and stroked it. "
+        "Muna stroked Kaelen's penis in return and gave him oral sex. "
+        "Kaelen gave Muna oral sex, using direct anatomical language for her penis. "
+        "They changed position and continued with direct sexual action rather than euphemistic summary. "
+        "A hand job changed the pace before they resumed oral sex. "
+        "Muna orgasmed first and Kaelen came afterward, with both climaxes plainly on page. "
     )
-    return body + ("They laughed, kissed, and stayed present with each other. " * 70)
+    return body + ("They stayed focused on the physical encounter and changed pace together. " * 48)
 
 
 def test_acceptance_evaluator_accepts_direct_complete_scene_under_ceiling() -> None:
     result = model_acceptance.evaluate_acceptance_output(_acceptable_scene())
     assert result["passed"] is True
-    assert 500 <= result["word_count"] < 1300
+    assert 500 <= result["word_count"] <= 1000
     assert result["failures"] == []
 
 
@@ -45,3 +43,13 @@ def test_acceptance_evaluator_rejects_unrelated_character_drift() -> None:
     result = model_acceptance.evaluate_acceptance_output(text)
     assert result["passed"] is False
     assert any("character drift" in failure for failure in result["failures"])
+
+
+def test_acceptance_evaluator_rejects_wrong_muna_anatomy() -> None:
+    text = _acceptable_scene().replace(
+        "Muna's penis was described directly while Kaelen touched and stroked it.",
+        "Kaelen touched Muna's clitoris while she reacted.",
+    )
+    result = model_acceptance.evaluate_acceptance_output(text)
+    assert result["passed"] is False
+    assert any("body-canon conflict" in failure for failure in result["failures"])

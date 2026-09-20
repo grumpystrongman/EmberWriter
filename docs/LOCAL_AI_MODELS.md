@@ -2,21 +2,21 @@
 
 EmberWriter is designed to work with local Ollama models and OpenAI-compatible local servers. Model choice is capability-based: adult/high-heat drafting, general prose, character/dialogue work, and planning can use different installed models.
 
-## Managed 12B candidates
+## Managed writing candidates
 
-Auto setup now provisions two 12B creative-writing candidates plus the Fast 8B fallback:
+Auto setup now provisions three candidates that participate in intent routing and adult-scene acceptance:
 
 - **Adult / roleplay candidate:** `hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M`
 - **Creative prose candidate:** `hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M`
-- **Fast fallback:** `R4C3R/qwen3-8b-heretic:q4_k_m`
+- **Fast / adult candidate:** `R4C3R/qwen3-8b-heretic:q4_k_m`
 
-Pygmalion-3 is a roleplay-focused Mistral-Nemo fine-tune and is the first candidate for explicit adult scene delivery. Magnum-v4 is kept as a separate prose/character candidate rather than assuming one model should be best at every writing task.
+Pygmalion-3 is a roleplay-focused Mistral-Nemo fine-tune. Magnum-v4 is a prose/character candidate. The fast Qwen variant participates in the same adult-scene bakeoff because parameter count is not a quality guarantee for a specific authoring task. EmberWriter trusts measured scene delivery over the model label.
 
 Both selected 12B upstream model releases are Apache-2.0 licensed. That makes them substantially cleaner candidates for a future commercial EmberWriter than models whose base or merge licensing is research-only, non-commercial, or ambiguous. Quantized redistributions should still be reviewed before shipping a bundled binary or hosted service.
 
 ## Real-model adult bakeoff
 
-Installation runs EmberWriter's existing real local-model acceptance contract against both 12B candidates. The bakeoff does not award a model merely because its name contains words such as "uncensored" or "roleplay."
+Installation and startup run EmberWriter's real local-model acceptance contract against every installed managed adult candidate. The bakeoff does not award a model merely because its name contains words such as "uncensored" or "roleplay."
 
 The winner must pass the adult-scene delivery gate on the author's machine. Results are written to:
 
@@ -32,13 +32,13 @@ You can rerun the bakeoff manually:
 backend\.venv\Scripts\python.exe -m app.model_bakeoff --attempts 3
 ```
 
-The current acceptance test measures direct scene delivery, length compliance, participant fidelity, completion, drift, and the deterministic explicit-delivery gate. It is intentionally a product acceptance test rather than a generic language-model benchmark.
+The current version-3 acceptance test measures direct scene delivery, action onset, sustained concrete action, a 500–1,000 word core-only window, participant fidelity, completion, drift, and hard body-canon compliance. Its synthetic Muna fixture explicitly establishes a penis and explicitly excludes vagina/vulva/clitoris anatomy, so a candidate that invents conflicting anatomy cannot win. It is intentionally a product acceptance test rather than a generic language-model benchmark.
 
 ## Intent-based routing
 
 Studio's **Auto-match my writing** mode routes by author intent:
 
-- **Adult / high heat:** prioritize Pygmalion-3, then other accepted adult-capable creative models.
+- **Adult / high heat:** prioritize the locally accepted bakeoff winner, which may be the 8B fast model or a larger creative/RP model.
 - **Character & dialogue:** prioritize Magnum-v4 and other roleplay/prose specialists.
 - **General fiction:** prioritize broad prose-capable models.
 - **Plotting & analysis:** prioritize instruction-following/reasoning models.
@@ -78,6 +78,15 @@ Do not equate "locally downloadable" with "commercially shippable." Before bundl
 
 ## Hardware notes
 
-Each Q4 12B candidate is roughly in the 7-8 GB weight range before context/KV-cache and application overhead. Installing both therefore uses materially more disk than the previous single-model default. Long context windows, the operating system, EmberWriter, and GPU offload also consume RAM/VRAM.
+The Q4 12B candidates are roughly in the 7–8 GB weight range each before context/KV-cache and application overhead; the 8B candidate is smaller. Installing all managed candidates therefore uses materially more disk than the previous single-model default. Long context windows, the operating system, EmberWriter, and GPU offload also consume RAM/VRAM.
 
 For best long-form results, use Voice Lock / Voice Fingerprint, Story Memory, Character Chemistry, Scene Architect, delivery-scope enforcement, and the real-model acceptance gate together rather than relying on the base model alone.
+
+
+## Character body canon
+
+EmberWriter never assumes intimate anatomy from gender identity. For characters whose anatomy matters on page, record the author's confirmed facts under the Character Studio dossier section:
+
+`## Embodiment & intimate canon`
+
+State relevant present and absent anatomy explicitly when needed. That block is promoted ahead of ordinary dossier prose during scene generation and is checked deterministically before a local Studio scene can pass verification.

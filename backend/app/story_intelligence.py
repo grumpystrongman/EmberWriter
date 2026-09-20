@@ -186,6 +186,19 @@ def relevant_character_names(slug: str, text: str, limit: int = 6) -> list[str]:
     return [name for _, name in matches[:limit]]
 
 
+
+def _embodiment_canon_excerpt(dossier: str) -> str:
+    """Extract author-owned embodiment canon and repeat it prominently for scene generation."""
+    match = re.search(
+        r"(?ims)^##\s+(?:Embodiment(?:\s*&|\s+and)?\s+intimate\s+canon|Body\s+canon|Intimate\s+anatomy)\s*$"
+        r"(.*?)(?=^##\s+|\Z)",
+        dossier,
+    )
+    if not match:
+        return ""
+    return match.group(1).strip()[:3500]
+
+
 def build_character_context(slug: str, names: list[str]) -> str:
     wanted = {name.casefold() for name in names if name.strip()}
     if not wanted:
@@ -208,6 +221,14 @@ def build_character_context(slug: str, names: list[str]) -> str:
             except (FileNotFoundError, OSError, ValueError):
                 dossier = ""
             if dossier:
+                embodiment = _embodiment_canon_excerpt(dossier)
+                if embodiment:
+                    lines.append("HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:")
+                    lines.append(embodiment)
+                    lines.append(
+                        "Do not substitute anatomy based on gender identity or generic training priors. "
+                        "If this block states that an organ is absent, prose assigning that organ to this character is a hard-canon error."
+                    )
                 lines.append("Dossier excerpt (high-priority character canon):")
                 lines.append(dossier[:9000])
         for label, key in (

@@ -66,6 +66,93 @@ _BOTH_CLIMAX_DRAFT = re.compile(
 )
 
 
+_ANATOMY_CANON_GROUPS = {
+    "penis": ("penis", "cock", "dick"),
+    "vagina": ("vagina", "vaginal"),
+    "vulva": ("vulva", "pussy", "cunt"),
+    "clitoris": ("clit", "clitoris"),
+    "anus": ("anus", "anal", "asshole"),
+    "breasts": ("breast", "breasts", "tits"),
+}
+
+
+def _character_context_sections(context: str) -> list[tuple[str, str]]:
+    matches = list(re.finditer(r"(?m)^###\s+([^\n]+)\s*$", context))
+    sections: list[tuple[str, str]] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(context)
+        name = match.group(1).strip()
+        body = context[match.end():end]
+        sections.append((name, body))
+    return sections
+
+
+def _body_canon_sets(section: str) -> tuple[set[str], set[str]]:
+    present: set[str] = set()
+    absent: set[str] = set()
+
+    absent_phrases = re.findall(
+        r"(?i)\b(?:does\s+not\s+have|doesn't\s+have|has\s+no|without)\s+([^.;\n]+)",
+        section,
+    )
+    present_phrases = re.findall(
+        r"(?i)\bhas\s+(?!no\b)([^.;\n]+)",
+        section,
+    )
+    label_phrases = re.findall(
+        r"(?im)^\s*(?:[-*]\s*)?(?:genitals?|intimate\s+anatomy|anatomy)\s*:\s*([^\n]+)",
+        section,
+    )
+
+    for group, terms in _ANATOMY_CANON_GROUPS.items():
+        term_pattern = re.compile(r"\b(?:" + "|".join(re.escape(term) for term in terms) + r")\b", re.IGNORECASE)
+        if any(term_pattern.search(phrase) for phrase in absent_phrases):
+            absent.add(group)
+        if any(term_pattern.search(phrase) for phrase in [*present_phrases, *label_phrases]):
+            present.add(group)
+    return present, absent
+
+
+def hard_body_canon_failure(context: str, draft: str) -> str:
+    """Reject direct contradictions to anatomy the author explicitly marked present/absent."""
+    sections = _character_context_sections(context)
+    if not sections:
+        return ""
+
+    parsed: dict[str, tuple[set[str], set[str]]] = {}
+    for name, section in sections:
+        present, absent = _body_canon_sets(section)
+        if present or absent:
+            parsed[name] = (present, absent)
+    if not parsed:
+        return ""
+
+    for name, (_present, absent) in parsed.items():
+        for group in absent:
+            terms = _ANATOMY_CANON_GROUPS[group]
+            term_pattern = r"(?:" + "|".join(re.escape(term) for term in terms) + r")"
+            if not re.search(rf"\b{term_pattern}\b", draft, flags=re.IGNORECASE):
+                continue
+
+            name_pattern = re.escape(name)
+            direct_assignment = re.search(
+                rf"(?i)(?:\b{name_pattern}(?:['’]s)?\b[^.!?\n]{{0,90}}\b{term_pattern}\b|"
+                rf"\b{term_pattern}\b[^.!?\n]{{0,90}}\b{name_pattern}\b)",
+                draft,
+            )
+            other_has_group = any(
+                group in present
+                for other_name, (present, _other_absent) in parsed.items()
+                if other_name != name
+            )
+            if direct_assignment or not other_has_group:
+                return (
+                    f"hard body-canon conflict: {name} is explicitly established as not having {group} anatomy, "
+                    "but the draft assigns or uses that anatomy in the scene"
+                )
+    return ""
+
+
 def _words(text: str) -> list[str]:
     return re.findall(r"[A-Za-z][A-Za-z'-]*", text.casefold())
 

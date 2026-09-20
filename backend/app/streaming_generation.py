@@ -15,6 +15,7 @@ from .generation import (
     looks_abrupt_ending,
     manuscript_role_failure,
     requires_scene_complete_marker,
+    strip_reasoning_blocks,
 )
 from .generation import generate as generate_text
 from .models import ProviderConfig
@@ -357,6 +358,7 @@ async def generate_streamed(
                 "model": effective_model,
                 "messages": messages,
                 "stream": True,
+                "think": False,
                 "keep_alive": "30m",
                 "options": options,
             }
@@ -461,6 +463,60 @@ async def generate_streamed(
         if not content.strip():
             raise RuntimeError("Model returned no streamed text")
         return content
+
+
+class _ReasoningStreamFilter:
+    """Suppress model-internal <think>/<reasoning> blocks even when a runtime leaks them into content."""
+
+    _OPENERS = (("<think>", "</think>"), ("<reasoning>", "</reasoning>"))
+    _TAIL = 24
+
+    def __init__(self, emit: DeltaCallback) -> None:
+        self._emit = emit
+        self._pending = ""
+        self._closing = ""
+
+    async def feed(self, piece: str) -> None:
+        self._pending += piece
+        while self._pending:
+            lowered = self._pending.casefold()
+            if self._closing:
+                end = lowered.find(self._closing)
+                if end < 0:
+                    self._pending = self._pending[-self._TAIL:]
+                    return
+                self._pending = self._pending[end + len(self._closing):]
+                self._closing = ""
+                continue
+
+            matches = [
+                (lowered.find(opening), opening, closing)
+                for opening, closing in self._OPENERS
+                if lowered.find(opening) >= 0
+            ]
+            if not matches:
+                if len(self._pending) <= self._TAIL:
+                    return
+                safe = self._pending[:-self._TAIL]
+                self._pending = self._pending[-self._TAIL:]
+                if safe:
+                    await self._emit(safe)
+                return
+
+            index, opening, closing = min(matches, key=lambda item: item[0])
+            safe = self._pending[:index]
+            self._pending = self._pending[index + len(opening):]
+            if safe:
+                await self._emit(safe)
+            self._closing = closing
+
+    async def finish(self) -> None:
+        if not self._closing:
+            safe = strip_reasoning_blocks(self._pending)
+            if safe:
+                await self._emit(safe)
+        self._pending = ""
+        self._closing = ""
 
 
 class _MarkerFilter:
@@ -571,6 +627,7 @@ async def generate_complete_prose_streamed(
     repetition_recoveries = 0
     verifier_reason = ""
     canon_restart_used = False
+    scope_restart_used = False
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
     role_restart_credit = 1
@@ -590,20 +647,23 @@ async def generate_complete_prose_streamed(
 
         novelty_filter = _NoveltyStreamFilter(on_delta, accumulated)
         marker_filter = _MarkerFilter(novelty_filter.feed)
+        reasoning_filter = _ReasoningStreamFilter(marker_filter.feed)
         loop_interrupted = False
         try:
             raw = await generate_streamed(
                 config,
                 working_messages,
-                on_delta=marker_filter.feed,
+                on_delta=reasoning_filter.feed,
                 max_output_tokens=max_output_tokens,
             )
+            await reasoning_filter.finish()
             await marker_filter.finish()
         except RepetitionLoopDetected:
             loop_interrupted = True
             raw = novelty_filter.raw_text
         await novelty_filter.finish()
 
+        raw = strip_reasoning_blocks(raw)
         _raw_cleaned, complete, wants_more = _strip_scene_markers(raw)
         cleaned = novelty_filter.text
         candidate_words = _word_count(cleaned)
@@ -680,6 +740,32 @@ async def generate_complete_prose_streamed(
                 complete = False
                 wants_more = True
                 canon_respected = verdict.get("canon_respected") is not False
+                if (
+                    core_only
+                    and verifier_reason.startswith("core-only delivery failure:")
+                    and not scope_restart_used
+                ):
+                    scope_restart_used = True
+                    accumulated = ""
+                    if on_status is not None:
+                        await on_status(
+                            "Core-only scope miss detected · discarding buildup and regenerating at the requested action…"
+                        )
+                    working_messages = [
+                        *messages,
+                        {
+                            "role": "user",
+                            "content": (
+                                "Restart from scratch. CORE ONLY means the central requested action, not its lead-up. "
+                                "The previous attempt spent too much of the response on setup or delivered too little direct action, "
+                                "so it has been discarded. Begin the requested sexual action immediately, use the supplied hard body "
+                                "canon exactly, sustain concrete action throughout the segment, and do not add travel, meals, scenery, "
+                                "pets, relationship analysis, or another buildup sequence."
+                            ),
+                        },
+                    ]
+                    pass_index += 1
+                    continue
                 if not canon_respected and not canon_restart_used:
                     canon_restart_used = True
                     accumulated = ""

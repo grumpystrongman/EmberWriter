@@ -166,3 +166,30 @@ def test_consent_analysis_loop_fails_before_more_buildup_is_accepted() -> None:
     )
     reason = app.explicitness_enforcement.strict_explicit_delivery_failure(_PROMPT, draft)
     assert "re-litigating consent/trust/boundaries" in reason
+
+
+def test_core_only_rejects_late_explicit_action() -> None:
+    prompt = _PROMPT + " CORE ONLY."
+    buildup = " ".join(f"setup{index}" for index in range(220))
+    draft = (
+        buildup
+        + " They began penetration and thrusting. "
+        + "One partner gave oral sex. A hand job followed. "
+        + "They continued fucking. One orgasmed and the other came."
+    )
+    reason = app.explicitness_enforcement.strict_explicit_delivery_failure(prompt, draft)
+    assert reason.startswith("core-only delivery failure:")
+    assert "begins too late" in reason
+
+
+def test_core_only_requires_sustained_direct_action_not_one_explicit_paragraph() -> None:
+    prompt = _PROMPT + " CORE ONLY."
+    draft = (
+        "Penetration began immediately. "
+        "They continued thrusting together. "
+        "The rest of the encounter was described in vague romantic terms without additional direct action. "
+        "Both eventually reached orgasm."
+    )
+    reason = app.explicitness_enforcement.strict_explicit_delivery_failure(prompt, draft)
+    assert reason.startswith("core-only delivery failure:")
+    assert "direct-action sentences" in reason

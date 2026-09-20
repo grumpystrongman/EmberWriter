@@ -54,6 +54,7 @@ export default function WriteWorkspacePro() {
         project={project}
         activePath={path}
         tabs={tabs}
+        splitOpen={split}
         onTabs={updateTabs}
         onSplit={() => setSplit((value) => !value)}
         onSearch={() => setSearch((value) => !value)}

@@ -19,6 +19,16 @@ export default function SplitEditorPane({ slug, primaryPath, onClose }: Props) {
   }, [slug])
 
   useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
     if (!dirty || !path) return
     const timer = window.setTimeout(() => {
       void saveProjectFile(slug, path, content)
@@ -48,7 +58,7 @@ export default function SplitEditorPane({ slug, primaryPath, onClose }: Props) {
   return <aside className="write-split-pane">
     <header>
       <div><small>SPLIT EDITOR</small><strong>{path || 'Reference / second document'}</strong></div>
-      <div><select value={path} onChange={(event) => void open(event.target.value)}><option value="">Choose document…</option>{choices.map((file) => <option key={file} value={file}>{file}</option>)}</select><button type="button" onClick={onClose}>×</button></div>
+      <div className="write-split-header-actions"><select value={path} onChange={(event) => void open(event.target.value)}><option value="">Choose document…</option>{choices.map((file) => <option key={file} value={file}>{file}</option>)}</select><button type="button" className="write-split-close" onClick={onClose} aria-label="Close split editor" title="Close split editor (Esc)">Close split ×</button></div>
     </header>
     {path ? <RichTextEditor markdown={content} documentKey={`${slug}:${path}`} onChange={(next) => { setContent(next); setDirty(true) }} /> : <div className="write-split-empty">Open another chapter, scene, character file, or note beside the manuscript.</div>}
     <footer>{dirty ? 'Unsaved changes' : status}</footer>
