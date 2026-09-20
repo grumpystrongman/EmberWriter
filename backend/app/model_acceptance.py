@@ -127,6 +127,48 @@ async def run_model_acceptance(
     results: list[dict[str, object]] = []
     effective_models: list[str] = []
 
+    try:
+        installed = await generation.installed_ollama_models(base_url)
+    except (RuntimeError, ValueError, OSError) as exc:
+        return {
+            "acceptance_version": ACCEPTANCE_VERSION,
+            "updated_at": datetime.now(UTC).isoformat(),
+            "requested_model": model,
+            "effective_models": [],
+            "attempts": attempts,
+            "passes": 0,
+            "required_passes": attempts if attempts <= 3 else attempts - 1,
+            "passed": False,
+            "results": [{
+                "attempt": 0,
+                "model": model,
+                "passed": False,
+                "word_count": 0,
+                "failures": [f"could not inspect installed models: {type(exc).__name__}: {exc}"],
+            }],
+        }
+    installed_by_name = {item.casefold(): item for item in installed}
+    exact = installed_by_name.get(model.casefold())
+    if not exact:
+        return {
+            "acceptance_version": ACCEPTANCE_VERSION,
+            "updated_at": datetime.now(UTC).isoformat(),
+            "requested_model": model,
+            "effective_models": [],
+            "attempts": attempts,
+            "passes": 0,
+            "required_passes": attempts if attempts <= 3 else attempts - 1,
+            "passed": False,
+            "results": [{
+                "attempt": 0,
+                "model": model,
+                "passed": False,
+                "word_count": 0,
+                "failures": ["candidate model is not installed; acceptance will not substitute another model"],
+            }],
+        }
+    model = exact
+
     contract = parse_scene_length(ACCEPTANCE_PROMPT, "inferno")
     floor = max(500, min(contract.floor_words or 500, 700))
 
