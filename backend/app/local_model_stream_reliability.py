@@ -12,15 +12,26 @@ from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 from .performance_telemetry import record_model_call
+from .writing_model_catalog import (
+    FAST_ADULT_8B,
+    HIGH_HEAT_CYDONIA_24B,
+    HERETIC_ROCINANTE_12B,
+    MAGNUM_V4_12B,
+    PYGMALION_3_12B,
+    STANDARD_ROCINANTE_12B,
+    preferred_adult_model,
+)
 
 _FIRST_TOKEN_TIMEOUT_SECONDS = 15 * 60
 _INTER_TOKEN_TIMEOUT_SECONDS = 5 * 60
 _LARGE_MODEL_CONTEXT_TOKENS = 16384
 _LARGE_MODEL_HINTS = ("cydonia", "24b", "24-b", "24_b")
-_HERETIC_ROCINANTE = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
-_STANDARD_ROCINANTE = "HammerAI/rocinante-v1.1:12b-q4_K_M"
-_HIGH_HEAT_CYDONIA = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
-_FAST_ADULT_MODEL = "R4C3R/qwen3-8b-heretic:q4_k_m"
+_PYGMALION_ADULT = PYGMALION_3_12B
+_MAGNUM_ADULT = MAGNUM_V4_12B
+_HERETIC_ROCINANTE = HERETIC_ROCINANTE_12B
+_STANDARD_ROCINANTE = STANDARD_ROCINANTE_12B
+_HIGH_HEAT_CYDONIA = HIGH_HEAT_CYDONIA_24B
+_FAST_ADULT_MODEL = FAST_ADULT_8B
 
 _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
 _INSTALLED = False
@@ -85,38 +96,33 @@ async def route_adult_model_stable(
 
     if config.provider != "ollama" or not reliability._is_intimacy_request(messages):
         return
+    if config.lock_model:
+        return
 
     installed = await installed_ollama_models(config.base_url)
     if not installed:
         return
 
+    measured_or_preferred = preferred_adult_model(installed)
     current = next(
         (item for item in installed if item.casefold() == config.model.casefold()),
         None,
     )
     if current and reliability.adult_model_score(current) > 0:
-        config.model = current
+        # Auto-routed requests may move to the measured adult winner. A manual author choice
+        # reaches this function with lock_model=True and is never replaced.
+        if (
+            measured_or_preferred
+            and reliability.adult_model_score(measured_or_preferred)
+            > reliability.adult_model_score(current)
+        ):
+            config.model = measured_or_preferred
+        else:
+            config.model = current
         return
 
-    # Repair toward the 12B managed baseline first. Fast 8B remains an explicit author choice and
-    # the 24B tier remains opt-in; neither should silently replace a valid quality configuration.
-    preferred = (
-        _HERETIC_ROCINANTE,
-        _STANDARD_ROCINANTE,
-        _FAST_ADULT_MODEL,
-        _HIGH_HEAT_CYDONIA,
-        "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
-    )
-    installed_by_name = {item.casefold(): item for item in installed}
-    for candidate in preferred:
-        resolved = installed_by_name.get(candidate.casefold())
-        if resolved:
-            config.model = resolved
-            return
-
-    ranked = sorted(installed, key=reliability.adult_model_score, reverse=True)
-    if ranked and reliability.adult_model_score(ranked[0]) > 0:
-        config.model = ranked[0]
+    if measured_or_preferred:
+        config.model = measured_or_preferred
 
 
 async def generate_streamed_reliable(
