@@ -10,7 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .writing_model_catalog import (
+    ADULT_EXPLICIT_CANDIDATES,
     HIGH_HEAT_CYDONIA_24B,
+    MAGNUM_V4_12B,
     PYGMALION_3_12B,
     adult_model_score,
 )
@@ -20,8 +22,10 @@ _RUNTIME_DIR = _REPO_ROOT / ".ember"
 _LOG_DIR = _RUNTIME_DIR / "logs"
 _STATUS_PATH = _RUNTIME_DIR / "writing-model-status.json"
 _ACCEPTANCE_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
+_BAKEOFF_PATH = _RUNTIME_DIR / "writing-model-bakeoff.json"
 _LOG_PATH = _LOG_DIR / "writing-model-install.log"
 _ACCEPTANCE_LOG_PATH = _LOG_DIR / "writing-model-acceptance.log"
+_BAKEOFF_LOG_PATH = _LOG_DIR / "writing-model-bakeoff.log"
 
 # Adult-fiction baseline. The model catalog keeps this replaceable so a future EmberWriter-owned
 # tune can take over the capability slot without changing Studio or project files.
@@ -29,6 +33,7 @@ BASELINE_CREATIVE_MODEL = PYGMALION_3_12B
 # Optional escalation tier for machines with substantially more local memory.
 HIGH_HEAT_CREATIVE_MODEL = HIGH_HEAT_CYDONIA_24B
 _MIN_HIGH_HEAT_FREE_BYTES = 22 * 1024**3
+_MIN_CHALLENGER_FREE_BYTES = 10 * 1024**3
 _CREATIVE_FAMILIES = (
     "cydonia",
     "rocinante",
@@ -211,6 +216,113 @@ def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> b
     return passed
 
 
+def _cached_bakeoff_winner(installed: list[str]) -> str | None:
+    try:
+        payload = json.loads(_BAKEOFF_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("acceptance_version") != _ACCEPTANCE_VERSION or payload.get("passed") is not True:
+        return None
+    requested = {str(value).casefold() for value in payload.get("models", []) if value}
+    required = {value.casefold() for value in ADULT_EXPLICIT_CANDIDATES}
+    if requested != required:
+        return None
+    winner = str(payload.get("best_model", "")).strip()
+    installed_by_name = {item.casefold(): item for item in installed}
+    return installed_by_name.get(winner.casefold()) if winner else None
+
+
+def _run_bakeoff(installed: list[str], auto_installed: bool) -> str | None:
+    installed_by_name = {item.casefold(): item for item in installed}
+    candidates = [
+        installed_by_name.get(candidate.casefold())
+        for candidate in ADULT_EXPLICIT_CANDIDATES
+    ]
+    if any(not candidate for candidate in candidates):
+        return None
+
+    cached = _cached_bakeoff_winner(installed)
+    if cached:
+        _write_status(
+            state="ready",
+            installed_models=installed,
+            auto_installed=auto_installed,
+            acceptance_state="passed",
+            bakeoff_state="passed",
+            adult_model=cached,
+            bakeoff_cached=True,
+        )
+        return cached
+
+    if not _acceptance_enabled():
+        return None
+
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    _write_status(
+        state="ready",
+        installed_models=installed,
+        auto_installed=auto_installed,
+        acceptance_state="testing",
+        bakeoff_state="testing",
+        bakeoff_models=candidates,
+    )
+
+    env = os.environ.copy()
+    env["EMBER_AUTO_INSTALL_CREATIVE_MODEL"] = "0"
+    env["EMBER_AUTO_TEST_CREATIVE_MODEL"] = "0"
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
+    command = [
+        sys.executable,
+        "-m",
+        "app.model_acceptance",
+        "--bakeoff",
+        "--attempts",
+        "3",
+    ]
+    for candidate in candidates:
+        command.extend(["--model", str(candidate)])
+
+    try:
+        with _BAKEOFF_LOG_PATH.open("ab") as log:
+            completed = subprocess.run(
+                command,
+                cwd=str(_REPO_ROOT),
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=log,
+                timeout=60 * 60 * 4,
+                check=False,
+                creationflags=flags,
+            )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _write_status(
+            state="ready",
+            installed_models=installed,
+            auto_installed=auto_installed,
+            acceptance_state="failed",
+            bakeoff_state="failed",
+            bakeoff_reason=f"{type(exc).__name__}: {exc}",
+        )
+        return None
+
+    winner = _cached_bakeoff_winner(installed) if completed.returncode == 0 else None
+    _write_status(
+        state="ready",
+        installed_models=installed,
+        auto_installed=auto_installed,
+        acceptance_state="passed" if winner else "failed",
+        bakeoff_state="passed" if winner else "failed",
+        adult_model=winner or "",
+        bakeoff_cached=False,
+        bakeoff_returncode=completed.returncode,
+    )
+    return winner
+
+
 def _pull_model(ollama: str, model: str) -> bool:
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
@@ -230,6 +342,13 @@ def _pull_model(ollama: str, model: str) -> bool:
     return completed.returncode == 0
 
 
+def _can_install_challenger() -> bool:
+    try:
+        return shutil.disk_usage(_REPO_ROOT).free >= _MIN_CHALLENGER_FREE_BYTES
+    except OSError:
+        return False
+
+
 def _can_install_high_heat() -> bool:
     if not _high_heat_escalation_enabled():
         return False
@@ -240,6 +359,31 @@ def _can_install_high_heat() -> bool:
 
 
 def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
+    installed_by_name = {item.casefold(): item for item in installed}
+    pygmalion = installed_by_name.get(PYGMALION_3_12B.casefold())
+    magnum = installed_by_name.get(MAGNUM_V4_12B.casefold())
+
+    # When disk permits, install both 12B candidates and compare them under the exact same
+    # EmberWriter delivery contract. This is the normal commercial/product path.
+    if pygmalion and not magnum and _can_install_challenger():
+        _write_status(
+            state="installing",
+            target_model=MAGNUM_V4_12B,
+            installed_models=installed,
+            auto_installed=True,
+            bakeoff_state="installing_challenger",
+        )
+        if _pull_model(ollama, MAGNUM_V4_12B):
+            installed = _installed_model_names(ollama)
+            installed_by_name = {item.casefold(): item for item in installed}
+            magnum = installed_by_name.get(MAGNUM_V4_12B.casefold())
+
+    if pygmalion and magnum:
+        winner = _run_bakeoff(installed, auto_installed=auto_installed)
+        if winner:
+            return
+
+    # Degrade gracefully on constrained machines: validate the best installed adult model.
     model = _best_creative_model(installed)
     if not model:
         _write_status(
@@ -253,6 +397,7 @@ def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
     if _run_acceptance(model, installed, auto_installed):
         return
 
+    # Only escalate to the much heavier 24B tier after the 12B capability slot has failed.
     high_heat_present = any(HIGH_HEAT_CREATIVE_MODEL.casefold() == item.casefold() for item in installed)
     if high_heat_present or model.casefold() == HIGH_HEAT_CREATIVE_MODEL.casefold():
         return
@@ -264,7 +409,7 @@ def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
             acceptance_state="failed",
             acceptance_model=model,
             escalation_state="not_available",
-            escalation_reason="high_heat_model_requires_at_least_22GB_free_or_escalation_is_disabled",
+            escalation_reason="12B adult candidates failed; 24B fallback requires at least 22GB free or escalation is disabled",
         )
         return
 
@@ -289,15 +434,7 @@ def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
         return
 
     upgraded = _installed_model_names(ollama)
-    upgraded_model = _best_creative_model(upgraded)
-    if not upgraded_model:
-        _write_status(
-            state="failed",
-            installed_models=upgraded,
-            reason="high_heat_model_installed_but_not_resolved",
-        )
-        return
-    _run_acceptance(upgraded_model, upgraded, auto_installed=True)
+    _run_acceptance(HIGH_HEAT_CREATIVE_MODEL, upgraded, auto_installed=True)
 
 
 def _worker() -> None:
