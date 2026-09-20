@@ -9,8 +9,8 @@ import httpx
 
 from . import streaming_generation
 from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
-from .models import ProviderConfig
 from .model_preferences import local_model_preferences
+from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 from .performance_telemetry import record_model_call
 
