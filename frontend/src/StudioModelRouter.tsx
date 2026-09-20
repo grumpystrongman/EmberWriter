@@ -108,6 +108,8 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   const qwen25Heretic14 = name.includes('qwen2.5-14b') && name.includes('heretic')
   const qwen3Heretic8 = name.includes('qwen3-8b') && name.includes('heretic')
   const rocinante = name.includes('rocinante')
+  const pygmalion3 = name.includes('pygmalion-3-12b')
+  const magnumV4 = name.includes('magnum-v4-12b')
   const uncensored = name.includes('heretic') || name.includes('uncensored') || name.includes('abliterat')
   const mainstreamQwen3 = name.includes('qwen3') && !uncensored
   const mainstreamQwen25 = name.includes('qwen2.5') && !uncensored
@@ -129,7 +131,9 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
 
   let score = 20 + Math.min(size || 0, 40) / 10
   if (purpose === 'adult') {
-    if (rocinante && uncensored) score += 115
+    if (pygmalion3) score += 140
+    else if (magnumV4) score += 132
+    else if (rocinante && uncensored) score += 115
     else if (qwen25Heretic14) score += 108
     else if (roleplay && uncensored) score += 104
     else if (uncensored && size >= 12) score += 98
@@ -138,7 +142,8 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
     else score += 25
   }
   if (purpose === 'general') {
-    if (mistralSmall) score += 100
+    if (magnumV4) score += 106
+    else if (mistralSmall) score += 100
     else if (mainstreamQwen25) score += 96
     else if (mainstreamQwen3) score += 94
     else if (qwen25Heretic14) score += 88
@@ -147,7 +152,9 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
     else score += 50
   }
   if (purpose === 'character') {
-    if (rocinante) score += 115
+    if (pygmalion3) score += 120
+    else if (magnumV4) score += 116
+    else if (rocinante) score += 115
     else if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) score += 105
     else if (name.includes('stheno') || name.includes('pygmalion')) score += 98
     else if (qwen25Heretic14) score += 90
@@ -177,6 +184,20 @@ function describeModel(model: string): ModelGuide {
       label: 'Fast uncensored 8B',
       bestFor: 'Quick Studio drafts, brainstorming, character play, and lower-VRAM machines.',
       why: 'This is EmberWriter’s Fast profile target. It uses less model memory and smaller Studio budgets, improving the chance of full-GPU inference.',
+    }
+  }
+  if (name.includes('pygmalion-3-12b')) {
+    return {
+      label: 'Adult / roleplay specialist 12B',
+      bestFor: 'Direct adult scenes, character interaction, relationship-heavy roleplay, and scene-forward writing.',
+      why: 'Pygmalion-3 is trained specifically for fictional roleplay and is EmberWriter’s primary adult-scene candidate when installed.',
+    }
+  }
+  if (name.includes('magnum-v4-12b')) {
+    return {
+      label: 'Creative prose specialist 12B',
+      bestFor: 'Polished scene prose, character chemistry, dialogue, and adult-scene drafting.',
+      why: 'Magnum v4 is EmberWriter’s adult-prose challenger and a strong general/character-writing option.',
     }
   }
   if (name.includes('rocinante')) {
@@ -243,17 +264,18 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
 
   useEffect(() => {
     if (!autoSwitch || !recommended || provider.model === recommended) return
-    onProviderChange({ ...provider, model: recommended })
+    onProviderChange({ ...provider, model: recommended, lock_model: false })
   }, [autoSwitch, recommended, provider, onProviderChange])
 
   function chooseManualModel(model: string) {
     setAutoSwitch(false)
-    onProviderChange({ ...provider, model })
+    onProviderChange({ ...provider, model, lock_model: true })
   }
 
   function choosePerformanceProfile(profile: PerformanceProfile) {
     setPerformanceProfile(profile)
     setAutoSwitch(true)
+    if (recommended) onProviderChange({ ...provider, model: recommended, lock_model: false })
   }
 
   const wrapperStyle = { minWidth: 360, maxWidth: 470, padding: 14, border: '1px solid var(--border, #2c3947)', borderRadius: 12, background: 'rgba(255,255,255,.025)' } as const
@@ -272,7 +294,7 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
       <p style={hintStyle}>
         {performanceProfile === 'fast'
           ? 'Fast favors an uncensored 8B model, a smaller adaptive context window, and a 3,072-token prose ceiling per pass.'
-          : 'Quality favors Rocinante 12B and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
+          : 'Quality uses the best installed 12B model for the author’s intent and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
       </p>
 
       <label style={{ ...labelStyle, marginTop: 12 }}>Writing type</label>
@@ -287,7 +309,7 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
           <input type="checkbox" checked={autoSwitch} onChange={(event) => setAutoSwitch(event.target.checked)} disabled={busy} style={{ width: 'auto', minHeight: 0, marginRight: 6 }} />
           Auto-switch within this profile
         </label>
-        <button type="button" onClick={() => { setAutoSwitch(true); if (recommended) onProviderChange({ ...provider, model: recommended }) }} disabled={busy || !recommended}>Best match</button>
+        <button type="button" onClick={() => { setAutoSwitch(true); if (recommended) onProviderChange({ ...provider, model: recommended, lock_model: false }) }} disabled={busy || !recommended}>Best match</button>
       </div>
 
       <div style={{ marginTop: 12 }}>
