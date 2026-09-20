@@ -44,10 +44,11 @@ def test_manual_model_choice_disables_auto_switching_until_reenabled() -> None:
 def test_studio_has_explicit_fast_and_quality_profiles() -> None:
     router = source("StudioModelRouter.tsx")
 
-    assert "Quality 12B" in router
-    assert "Fast 8B" in router
+    assert ">Quality</button>" in router
+    assert ">Fast</button>" in router
     assert "emberwriter.studioPerformanceProfile" in router
     assert "3,072-token" in router
+    assert "regardless of parameter count" in router
     assert "4,096" in router
 
 
@@ -88,3 +89,10 @@ def test_adult_router_uses_persisted_acceptance_winner() -> None:
     assert "preferences={modelPreferences}" in studio
     assert "accepted_adult_model" in router
     assert "Passed EmberWriter’s local adult-scene bakeoff on this machine." in router
+
+
+def test_quality_adult_routing_can_select_fast_model_when_it_wins_bakeoff() -> None:
+    router = source("StudioModelRouter.tsx")
+    assert "acceptedAdult && name === acceptedAdult" in router
+    assert "qwen3Heretic8" in router
+    assert "trusts the local bakeoff over the model label" in router
