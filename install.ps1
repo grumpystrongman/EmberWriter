@@ -184,10 +184,11 @@ if (-not $SkipModelDownload) {
 
     $ConfigDir = Join-Path $Root ".ember"
     New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+    $preferred = if ($modelsToInstall -contains $CreativeQuality) { $CreativeQuality } else { $chosen }
     @{
         provider = "ollama"
         base_url = "http://localhost:11434"
-        preferred_model = $CreativeQuality
+        preferred_model = $preferred
         adult_model = $AdultBaseline
         adult_candidate_model = $AdultBaseline
         quality_model = $CreativeQuality
