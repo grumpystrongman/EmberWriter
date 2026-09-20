@@ -4,6 +4,7 @@ import re
 
 from . import generation_reliability as reliability
 from . import streaming_generation as streaming
+from .writing_model_catalog import adult_model_score as catalog_adult_model_score
 
 # The bad production sample did not merely contain a long sentence. It collapsed into a
 # punctuation-starved association/thesaurus chain: connection -> soul -> destiny -> growth ->
@@ -148,29 +149,8 @@ def explicit_delivery_failure(prompt: str, draft: str) -> str:
 
 
 def refined_adult_model_score(model: str) -> int:
-    """Prefer adult-capable creative/RP models, not merely uncensored instruct models."""
-    name = model.casefold()
-    if "cydonia" in name and any(token in name for token in ("heretic", "abliter", "decensor")):
-        return 280
-    if "rocinante-x" in name:
-        return 270
-    if "rocinante" in name:
-        return 260
-    if any(token in name for token in ("magidonia", "magnum", "mag-mell", "mag_mell")):
-        return 245
-    # Standard Cydonia remains a strong prose model, but current non-decensored variants can
-    # refuse high-heat requests, so it ranks below a dedicated Rocinante-family option.
-    if "cydonia" in name:
-        return 235
-    if any(token in name for token in ("stheno", "pygmalion", "lunaris", "nemomix")):
-        return 220
-    if "qwen2.5-14b" in name and "heretic" in name:
-        return 150
-    if "qwen3-8b" in name and "heretic" in name:
-        return 140
-    if any(token in name for token in ("heretic", "uncensored", "abliterat")):
-        return 120
-    return 0
+    """Use the shared capability catalog so refinement cannot restore stale rankings."""
+    return catalog_adult_model_score(model)
 
 
 _base_verify_studio_scene_delivery = reliability.verify_studio_scene_delivery
