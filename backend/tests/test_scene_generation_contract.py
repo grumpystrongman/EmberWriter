@@ -487,3 +487,26 @@ def test_craft_pass_refuses_truncated_second_pass(monkeypatch) -> None:
         )
     )
     assert result == draft
+
+
+def test_reasoning_blocks_are_removed_from_author_facing_prose() -> None:
+    raw = "<think>internal reasoning that must never reach the manuscript</think>\n\nKaelen crossed the room."
+    assert generation.strip_reasoning_blocks(raw) == "Kaelen crossed the room."
+
+
+def test_reasoning_stream_filter_hides_split_tags() -> None:
+    emitted: list[str] = []
+
+    async def emit(text: str) -> None:
+        emitted.append(text)
+
+    async def run() -> None:
+        filt = streaming_generation._ReasoningStreamFilter(emit)
+        await filt.feed("<thi")
+        await filt.feed("nk>hidden chain")
+        await filt.feed(" of thought</think>Visible ")
+        await filt.feed("prose.")
+        await filt.finish()
+
+    asyncio.run(run())
+    assert "".join(emitted) == "Visible prose."
