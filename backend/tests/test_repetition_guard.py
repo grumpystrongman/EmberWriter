@@ -230,6 +230,91 @@ def test_studio_rejects_buildup_even_when_writer_claims_complete(monkeypatch) ->
 
 
 
+def test_core_only_buildup_failure_is_discarded_before_repair(monkeypatch) -> None:
+    visible: list[str] = []
+    statuses: list[str] = []
+    writer_calls = 0
+    verifier_calls = 0
+    second_messages: list[dict[str, str]] = []
+    chunks = [
+        _words("buildup", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("core", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls, second_messages
+        if writer_calls == 1:
+            second_messages = list(messages)
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls == 1:
+            return {
+                "verified": False,
+                "core_encounter_on_page": False,
+                "requested_explicitness_delivered": False,
+                "buildup_only": True,
+                "fade_or_skip": False,
+                "ending_complete": False,
+                "canon_respected": True,
+                "repetition_loop": False,
+                "reason": "only buildup was delivered",
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(text: str) -> None:
+        visible.append(text)
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite only the requested adult core encounter.",
+        "Character canon and relationship context.",
+        heat_level="inferno",
+        min_scene_words=150,
+        delivery_scope="core_only",
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            on_status=status,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 2
+    assert "buildup179" not in result
+    assert "core179" in result
+    assert second_messages
+    assert all("buildup179" not in message.get("content", "") for message in second_messages)
+    assert "Restart from scratch" in second_messages[-1]["content"]
+    assert any("Core-only delivery miss" in message for message in statuses)
+
+
 def test_studio_final_repair_is_verified_even_without_complete_marker(monkeypatch) -> None:
     writer_calls = 0
     verifier_calls = 0
