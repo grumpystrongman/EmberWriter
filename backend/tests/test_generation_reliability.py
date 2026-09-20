@@ -95,22 +95,21 @@ def test_range_word_request_has_floor_and_hard_ceiling() -> None:
     assert contract.max_words == 1200
 
 
-def test_adult_model_ranking_prefers_creative_rp_models_over_qwen_fallbacks() -> None:
-    assert generation_reliability.adult_model_score(
-        "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
-    ) > generation_reliability.adult_model_score(
-        "HammerAI/rocinante-v1.1:12b-q4_K_M"
+def test_adult_model_ranking_prefers_dedicated_candidates_over_generic_fallbacks() -> None:
+    pygmalion = generation_reliability.adult_model_score(
+        "hf.co/PygmalionAI/Pygmalion-3-12B-GGUF:Q4_K_S"
     )
-    assert generation_reliability.adult_model_score(
-        "HammerAI/rocinante-v1.1:12b-q4_K_M"
-    ) > generation_reliability.adult_model_score(
-        "TheDrummer/Cydonia-24B-v4.3:Q4_K_M"
+    magnum = generation_reliability.adult_model_score(
+        "hf.co/anthracite-org/magnum-v4-12b-gguf:Q4_K_M"
     )
-    assert generation_reliability.adult_model_score(
-        "HammerAI/rocinante-v1.1:12b-q4_K_M"
-    ) > generation_reliability.adult_model_score(
+    rocinante = generation_reliability.adult_model_score(
+        "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+    )
+    qwen = generation_reliability.adult_model_score(
         "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m"
     )
+
+    assert pygmalion > magnum > rocinante > qwen
 
 
 def test_long_synthetic_sentence_is_not_mistaken_for_semantic_degeneration() -> None:
