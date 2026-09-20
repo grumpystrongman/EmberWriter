@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .model_acceptance import run_model_acceptance
+from .model_acceptance import ACCEPTANCE_VERSION, run_model_acceptance
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
@@ -70,6 +70,7 @@ async def run_bakeoff(
 
     adult_model = choose_adult_model(reports)
     result = {
+        "acceptance_version": ACCEPTANCE_VERSION,
         "updated_at": datetime.now(UTC).isoformat(),
         "purpose": "adult",
         "candidates": list(candidates),
