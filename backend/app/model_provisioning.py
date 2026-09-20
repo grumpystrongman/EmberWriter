@@ -16,6 +16,8 @@ _STATUS_PATH = _RUNTIME_DIR / "writing-model-status.json"
 _ACCEPTANCE_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
 _LOG_PATH = _LOG_DIR / "writing-model-install.log"
 _ACCEPTANCE_LOG_PATH = _LOG_DIR / "writing-model-acceptance.log"
+_BAKEOFF_PATH = _RUNTIME_DIR / "model-bakeoff.json"
+_BAKEOFF_LOG_PATH = _LOG_DIR / "model-bakeoff.log"
 
 # Registry-native baseline: compact enough for machines that already run EmberWriter's
 # 8B/14B local models and purpose-built for creative/RP prose.
@@ -23,6 +25,11 @@ BASELINE_CREATIVE_MODEL = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
 # Escalation tier for authors whose direct-adult acceptance contract defeats the lighter model.
 # This Ollama package is a Q4_K_M Heretic/decensored Cydonia build (~15 GB download footprint).
 HIGH_HEAT_CREATIVE_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+_ADULT_BAKEOFF_MODELS = (
+    "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M",
+    "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M",
+    "R4C3R/qwen3-8b-heretic:q4_k_m",
+)
 _MIN_HIGH_HEAT_FREE_BYTES = 22 * 1024**3
 _CREATIVE_FAMILIES = (
     "cydonia",
@@ -36,7 +43,7 @@ _CREATIVE_FAMILIES = (
     "lunaris",
     "nemomix",
 )
-_ACCEPTANCE_VERSION = 2
+_ACCEPTANCE_VERSION = 3
 
 _STARTED = False
 _START_LOCK = threading.Lock()
@@ -134,6 +141,94 @@ def _cached_acceptance_passed(model: str) -> bool:
     effective = [str(value).casefold() for value in payload.get("effective_models", []) if value]
     target = model.casefold()
     return requested == target or target in effective
+
+
+
+def _cached_bakeoff_winner(installed: list[str]) -> str:
+    try:
+        payload = json.loads(_BAKEOFF_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if not isinstance(payload, dict) or payload.get("acceptance_version") != _ACCEPTANCE_VERSION:
+        return ""
+    winner = str(payload.get("winner") or "").strip()
+    if not winner:
+        return ""
+    by_name = {item.casefold(): item for item in installed}
+    return by_name.get(winner.casefold(), "")
+
+
+def _run_adult_bakeoff(installed: list[str], auto_installed: bool) -> str:
+    installed_names = {item.casefold() for item in installed}
+    available = [model for model in _ADULT_BAKEOFF_MODELS if model.casefold() in installed_names]
+    if not available or not _acceptance_enabled():
+        return ""
+
+    cached = _cached_bakeoff_winner(installed)
+    if cached:
+        _write_status(
+            state="ready",
+            installed_models=installed,
+            auto_installed=auto_installed,
+            acceptance_state="passed",
+            acceptance_model=cached,
+            bakeoff_state="cached",
+        )
+        return cached
+
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    _write_status(
+        state="ready",
+        installed_models=installed,
+        auto_installed=auto_installed,
+        acceptance_state="testing",
+        bakeoff_state="testing",
+        bakeoff_models=available,
+    )
+
+    env = os.environ.copy()
+    env["EMBER_AUTO_INSTALL_CREATIVE_MODEL"] = "0"
+    env["EMBER_AUTO_TEST_CREATIVE_MODEL"] = "0"
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    command = [sys.executable, "-m", "app.model_bakeoff", "--attempts", "3"]
+    for model in available:
+        command.extend(["--model", model])
+
+    try:
+        with _BAKEOFF_LOG_PATH.open("ab") as log:
+            completed = subprocess.run(
+                command,
+                cwd=str(_REPO_ROOT),
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=log,
+                timeout=60 * 60 * 4,
+                check=False,
+                creationflags=flags,
+            )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _write_status(
+            state="ready",
+            installed_models=installed,
+            auto_installed=auto_installed,
+            acceptance_state="failed",
+            bakeoff_state="failed",
+            acceptance_reason=f"{type(exc).__name__}: {exc}",
+        )
+        return ""
+
+    winner = _cached_bakeoff_winner(installed)
+    _write_status(
+        state="ready",
+        installed_models=installed,
+        auto_installed=auto_installed,
+        acceptance_state="passed" if winner else "failed",
+        acceptance_model=winner or None,
+        bakeoff_state="passed" if winner else "failed",
+        bakeoff_returncode=completed.returncode,
+    )
+    return winner
 
 
 def _run_acceptance(model: str, installed: list[str], auto_installed: bool) -> bool:
@@ -250,6 +345,9 @@ def _can_install_high_heat() -> bool:
 
 
 def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
+    if _run_adult_bakeoff(installed, auto_installed):
+        return
+
     model = _best_creative_model(installed)
     if not model:
         _write_status(
