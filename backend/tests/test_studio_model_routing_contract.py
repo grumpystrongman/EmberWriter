@@ -81,3 +81,14 @@ def test_studio_exposes_core_only_scope_without_removing_complete_scene_mode() -
     assert "CORE_ONLY_INTENT" in studio
     assert "I will write everything else" not in studio  # regex handles contractions/spacing generically
     assert "delivery_scope: scope" in studio
+
+
+def test_studio_uses_backend_measured_adult_model_recommendation() -> None:
+    studio = source("AIStudioWorkspace.tsx")
+    router = source("StudioModelRouter.tsx")
+
+    assert "adult_model?: string | null" in studio
+    assert "setAdultModelRecommendation(next.adult_model || '')" in studio
+    assert "adultModelRecommendation={adultModelRecommendation}" in studio
+    assert "adultModelRecommendation" in router
+    assert "models.includes(adultModelRecommendation)" in router
