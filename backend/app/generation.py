@@ -218,12 +218,14 @@ _REASONING_BLOCK_PATTERN = re.compile(
     r"<(?:think|reasoning)>.*?</(?:think|reasoning)>",
     re.IGNORECASE | re.DOTALL,
 )
+_UNFINISHED_REASONING_BLOCK_PATTERN = re.compile(r"<(?:think|reasoning)>.*\Z", re.IGNORECASE | re.DOTALL)
 _REASONING_TAG_PATTERN = re.compile(r"</?(?:think|reasoning)>", re.IGNORECASE)
 
 
 def strip_reasoning_blocks(text: str) -> str:
     """Remove model-internal reasoning markup from author-facing text."""
     cleaned = _REASONING_BLOCK_PATTERN.sub("", text)
+    cleaned = _UNFINISHED_REASONING_BLOCK_PATTERN.sub("", cleaned)
     cleaned = _REASONING_TAG_PATTERN.sub("", cleaned)
     return cleaned.strip()
 
