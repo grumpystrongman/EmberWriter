@@ -263,7 +263,8 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
   }, [purpose, autoSwitch, performanceProfile])
 
   useEffect(() => {
-    if (!autoSwitch || !recommended || provider.model === recommended) return
+    if (!autoSwitch || !recommended) return
+    if (provider.model === recommended && provider.lock_model === false) return
     onProviderChange({ ...provider, model: recommended, lock_model: false })
   }, [autoSwitch, recommended, provider, onProviderChange])
 
@@ -275,7 +276,14 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
   function choosePerformanceProfile(profile: PerformanceProfile) {
     setPerformanceProfile(profile)
     setAutoSwitch(true)
-    if (recommended) onProviderChange({ ...provider, model: recommended, lock_model: false })
+    onProviderChange({ ...provider, lock_model: false })
+  }
+
+  function chooseAutoSwitch(enabled: boolean) {
+    setAutoSwitch(enabled)
+    if (enabled) {
+      onProviderChange({ ...provider, model: recommended || provider.model, lock_model: false })
+    }
   }
 
   const wrapperStyle = { minWidth: 360, maxWidth: 470, padding: 14, border: '1px solid var(--border, #2c3947)', borderRadius: 12, background: 'rgba(255,255,255,.025)' } as const
@@ -306,7 +314,7 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
 
       <div style={{ ...rowStyle, marginTop: 11, justifyContent: 'space-between' }}>
         <label style={{ ...labelStyle, marginBottom: 0 }}>
-          <input type="checkbox" checked={autoSwitch} onChange={(event) => setAutoSwitch(event.target.checked)} disabled={busy} style={{ width: 'auto', minHeight: 0, marginRight: 6 }} />
+          <input type="checkbox" checked={autoSwitch} onChange={(event) => chooseAutoSwitch(event.target.checked)} disabled={busy} style={{ width: 'auto', minHeight: 0, marginRight: 6 }} />
           Auto-switch within this profile
         </label>
         <button type="button" onClick={() => { setAutoSwitch(true); if (recommended) onProviderChange({ ...provider, model: recommended, lock_model: false }) }} disabled={busy || !recommended}>Best match</button>
