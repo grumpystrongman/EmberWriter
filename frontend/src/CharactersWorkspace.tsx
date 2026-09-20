@@ -82,7 +82,7 @@ function dossierPath(name: string, profile?: CharacterProfile) {
 }
 
 function defaultDossier(name: string) {
-  return `# ${name}\n\n## Role in the story\n\n\n## Appearance & presence\n\n\n## Voice & speech\n\n\n## Personality\n\n\n## History\n\n\n## Wants, needs & fears\n\n\n## Relationships\n\n\n## Knowledge & secrets\n\n\n## Character arc\n\n\n## Continuity notes\n\n`
+  return `# ${name}\n\n## Role in the story\n\n\n## Appearance & presence\n\n\n## Embodiment & intimate canon\n\nRecord only author-confirmed body facts here. If intimate scenes may appear, explicitly state relevant anatomy and any anatomy the character does not have; do not rely on gender identity or generic assumptions.\n\n## Voice & speech\n\n\n## Personality\n\n\n## History\n\n\n## Wants, needs & fears\n\n\n## Relationships\n\n\n## Knowledge & secrets\n\n\n## Character arc\n\n\n## Continuity notes\n\n`
 }
 
 function depthInstruction(depth: Depth) {
