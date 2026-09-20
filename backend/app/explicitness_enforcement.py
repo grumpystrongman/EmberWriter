@@ -7,11 +7,18 @@ from dataclasses import dataclass
 from . import generation, model_provisioning, ollama_runtime, streaming_generation
 from . import generation_reliability_refinement as refinement
 from .models import ProviderConfig
-
-HERETIC_ROCINANTE_MODEL = (
-    "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+from .writing_model_catalog import (
+    FAST_ADULT_8B,
+    HIGH_HEAT_CYDONIA_24B,
+    HERETIC_ROCINANTE_12B,
+    MAGNUM_V4_12B,
+    PYGMALION_3_12B,
 )
-HIGH_HEAT_CYDONIA_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+
+PYGMALION_ADULT_MODEL = PYGMALION_3_12B
+MAGNUM_ADULT_MODEL = MAGNUM_V4_12B
+HERETIC_ROCINANTE_MODEL = HERETIC_ROCINANTE_12B
+HIGH_HEAT_CYDONIA_MODEL = HIGH_HEAT_CYDONIA_24B
 
 DeltaCallback = Callable[[str], Awaitable[None]]
 StatusCallback = Callable[[str], Awaitable[None]]
