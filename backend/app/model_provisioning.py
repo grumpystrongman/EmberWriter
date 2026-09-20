@@ -19,7 +19,7 @@ _ACCEPTANCE_LOG_PATH = _LOG_DIR / "writing-model-acceptance.log"
 
 # Registry-native baseline: compact enough for machines that already run EmberWriter's
 # 8B/14B local models and purpose-built for creative/RP prose.
-BASELINE_CREATIVE_MODEL = "HammerAI/rocinante-v1.1:12b-q4_K_M"
+BASELINE_CREATIVE_MODEL = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
 # Escalation tier for authors whose direct-adult acceptance contract defeats the lighter model.
 # This Ollama package is a Q4_K_M Heretic/decensored Cydonia build (~15 GB download footprint).
 HIGH_HEAT_CREATIVE_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
