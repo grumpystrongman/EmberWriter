@@ -77,10 +77,11 @@ def test_explicit_request_adds_direct_vocabulary_contract() -> None:
 
 
 def test_startup_policy_uses_same_explicit_creative_model_as_installer() -> None:
-    managed = app.explicitness_enforcement.HERETIC_ROCINANTE_MODEL
+    managed = app.explicitness_enforcement.PYGMALION_3_MODEL
     assert app.model_provisioning.BASELINE_CREATIVE_MODEL == managed
     assert managed in app.ollama_runtime._RECOMMENDED_MODELS
-    assert app.ollama_runtime._RECOMMENDED_MODELS[0] == app.explicitness_enforcement.HIGH_HEAT_CYDONIA_MODEL
+    assert app.explicitness_enforcement.MAGNUM_V4_MODEL in app.ollama_runtime._RECOMMENDED_MODELS
+    assert app.ollama_runtime._RECOMMENDED_MODELS[0] == managed
 
 
 @pytest.mark.asyncio
