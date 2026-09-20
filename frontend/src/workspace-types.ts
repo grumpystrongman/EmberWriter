@@ -12,4 +12,5 @@ export type ProviderConfig = {
   base_url: string
   model: string
   api_key?: string
+  lock_model?: boolean
 }
