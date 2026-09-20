@@ -61,6 +61,7 @@ jobs:
             -m "$RUNNER_TEMP/erotica.gguf" \
             --alias erotica-proof \
             --ctx-size 4096 \
+            --reasoning off \
             --threads 4 \
             --host 127.0.0.1 \
             --port 8080 \
