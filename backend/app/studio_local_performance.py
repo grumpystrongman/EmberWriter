@@ -129,6 +129,7 @@ async def _verify_local_studio_scene_delivery(
                 "model": effective_model,
                 "messages": verifier_messages,
                 "stream": False,
+                "think": False,
                 "format": "json",
                 "keep_alive": "30m",
                 "options": {
