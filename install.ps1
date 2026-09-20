@@ -15,7 +15,8 @@ $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 
-$AdultBaseline = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
+$AdultBaseline = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
+$CreativeQuality = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
 $AdultFast = "R4C3R/qwen3-8b-heretic:q4_k_m"
 $AdultHighHeat = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 $HighHeatMinimumFreeGb = 22
@@ -156,12 +157,13 @@ if (-not $SkipModelDownload) {
     } elseif ($AdultModelTier -eq "auto") {
         # Auto provisions both explicit choices. Quality remains the default; Fast is an author-visible
         # switch in Studio and is never selected silently merely because it is installed.
-        $modelsToInstall = @($AdultBaseline, $AdultFast)
+        $modelsToInstall = @($AdultBaseline, $CreativeQuality, $AdultFast)
     }
 
     Write-Host ""
-    Write-Host "Quality model: $AdultBaseline" -ForegroundColor Green
-    Write-Host "Fast model:    $AdultFast" -ForegroundColor Green
+    Write-Host "Adult candidate:   $AdultBaseline" -ForegroundColor Green
+    Write-Host "Creative candidate:$CreativeQuality" -ForegroundColor Green
+    Write-Host "Fast model:        $AdultFast" -ForegroundColor Green
     Write-Host "Default model: $chosen"
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
@@ -185,9 +187,11 @@ if (-not $SkipModelDownload) {
     @{
         provider = "ollama"
         base_url = "http://localhost:11434"
-        preferred_model = $chosen
-        adult_model = $chosen
-        quality_model = $AdultBaseline
+        preferred_model = $CreativeQuality
+        adult_model = $AdultBaseline
+        adult_candidate_model = $AdultBaseline
+        quality_model = $CreativeQuality
+        creative_candidate_model = $CreativeQuality
         fast_model = $AdultFast
         fallback_adult_model = $AdultBaseline
         high_heat_model = $AdultHighHeat
@@ -198,7 +202,14 @@ if (-not $SkipModelDownload) {
 
     Write-Host ""
     Write-Host "Local writing models installed and verified." -ForegroundColor Green
-    Write-Host "Studio Quality uses the 12B creative model; Studio Fast uses the 8B uncensored model when installed."
+    Write-Host "Running the local adult-scene bakeoff between the managed 12B candidates..." -ForegroundColor Cyan
+    & $Python -m app.model_bakeoff --attempts 3
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Adult-model bakeoff passed; the winning model was persisted for intent routing." -ForegroundColor Green
+    } else {
+        Write-Host "Neither managed 12B candidate passed the adult-scene acceptance contract. EmberWriter will keep them available for manual testing and fallbacks." -ForegroundColor Yellow
+    }
+    Write-Host "Studio Quality uses intent-aware 12B creative specialists; Studio Fast uses the 8B uncensored model when installed."
 }
 
 if (-not $SkipImageEngineInstall) {
