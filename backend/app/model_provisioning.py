@@ -9,6 +9,12 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .writing_model_catalog import (
+    HIGH_HEAT_CYDONIA_24B,
+    PYGMALION_3_12B,
+    adult_model_score,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 _LOG_DIR = _RUNTIME_DIR / "logs"
@@ -17,12 +23,11 @@ _ACCEPTANCE_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
 _LOG_PATH = _LOG_DIR / "writing-model-install.log"
 _ACCEPTANCE_LOG_PATH = _LOG_DIR / "writing-model-acceptance.log"
 
-# Registry-native baseline: compact enough for machines that already run EmberWriter's
-# 8B/14B local models and purpose-built for creative/RP prose.
-BASELINE_CREATIVE_MODEL = "HammerAI/rocinante-v1.1:12b-q4_K_M"
-# Escalation tier for authors whose direct-adult acceptance contract defeats the lighter model.
-# This Ollama package is a Q4_K_M Heretic/decensored Cydonia build (~15 GB download footprint).
-HIGH_HEAT_CREATIVE_MODEL = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+# Adult-fiction baseline. The model catalog keeps this replaceable so a future EmberWriter-owned
+# tune can take over the capability slot without changing Studio or project files.
+BASELINE_CREATIVE_MODEL = PYGMALION_3_12B
+# Optional escalation tier for machines with substantially more local memory.
+HIGH_HEAT_CREATIVE_MODEL = HIGH_HEAT_CYDONIA_24B
 _MIN_HIGH_HEAT_FREE_BYTES = 22 * 1024**3
 _CREATIVE_FAMILIES = (
     "cydonia",
@@ -36,7 +41,7 @@ _CREATIVE_FAMILIES = (
     "lunaris",
     "nemomix",
 )
-_ACCEPTANCE_VERSION = 2
+_ACCEPTANCE_VERSION = 3
 
 _STARTED = False
 _START_LOCK = threading.Lock()
@@ -94,22 +99,7 @@ def has_creative_model(models: list[str]) -> bool:
 
 
 def _creative_model_score(model: str) -> int:
-    name = model.casefold()
-    if "cydonia" in name and any(token in name for token in ("heretic", "abliter", "decensor")):
-        return 300
-    if "rocinante-x" in name and any(token in name for token in ("heretic", "abliter", "decensor")):
-        return 290
-    if "rocinante-x" in name:
-        return 270
-    if "rocinante" in name:
-        return 260
-    if any(token in name for token in ("magidonia", "magnum", "mag-mell", "mag_mell")):
-        return 245
-    if "cydonia" in name:
-        return 235
-    if any(token in name for token in ("stheno", "pygmalion", "lunaris", "nemomix")):
-        return 220
-    return 0
+    return adult_model_score(model)
 
 
 def _best_creative_model(models: list[str]) -> str | None:
@@ -317,10 +307,16 @@ def _worker() -> None:
         return
 
     installed = _installed_model_names(ollama)
-    if has_creative_model(installed):
+    baseline_present = any(
+        item.casefold() == BASELINE_CREATIVE_MODEL.casefold()
+        for item in installed
+    )
+    if baseline_present:
         _ready(ollama, installed, auto_installed=False)
         return
 
+    # Existing generic/RP models no longer suppress provisioning of the dedicated adult slot.
+    # This lets old EmberWriter installs migrate from Rocinante/Qwen without deleting them.
     _write_status(
         state="installing",
         target_model=BASELINE_CREATIVE_MODEL,
@@ -337,7 +333,7 @@ def _worker() -> None:
         return
 
     installed = _installed_model_names(ollama)
-    if has_creative_model(installed):
+    if any(item.casefold() == BASELINE_CREATIVE_MODEL.casefold() for item in installed):
         _ready(ollama, installed, auto_installed=True)
         return
 
