@@ -11,6 +11,7 @@ type PerformanceProfile = 'quality' | 'fast'
 type Props = {
   provider: ProviderConfig
   models: string[]
+  adultModelRecommendation?: string
   studioMode: StudioMode
   heatLevel: HeatLevel
   prompt: string
@@ -172,8 +173,21 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   return score
 }
 
-function recommendModel(models: string[], purpose: ResolvedPurpose, profile: PerformanceProfile) {
+function recommendModel(
+  models: string[],
+  purpose: ResolvedPurpose,
+  profile: PerformanceProfile,
+  adultModelRecommendation = '',
+) {
   if (!models.length) return ''
+  if (
+    purpose === 'adult'
+    && profile === 'quality'
+    && adultModelRecommendation
+    && models.includes(adultModelRecommendation)
+  ) {
+    return adultModelRecommendation
+  }
   return [...models].sort((left, right) => scoreModel(right, purpose, profile) - scoreModel(left, purpose, profile))[0]
 }
 
@@ -239,7 +253,7 @@ function fitLabel(model: string, purpose: ResolvedPurpose, profile: PerformanceP
   return 'Best installed fallback'
 }
 
-export default function StudioModelRouter({ provider, models, studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
+export default function StudioModelRouter({ provider, models, adultModelRecommendation = '', studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
   const [purpose, setPurpose] = useState<WritingPurpose>(readPurpose)
   const [autoSwitch, setAutoSwitch] = useState<boolean>(readAutoSwitch)
   const [performanceProfile, setPerformanceProfile] = useState<PerformanceProfile>(readPerformanceProfile)
@@ -247,8 +261,8 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
   const inferredPurpose = useMemo(() => inferPurpose(studioMode, heatLevel, prompt), [studioMode, heatLevel, prompt])
   const resolvedPurpose: ResolvedPurpose = purpose === 'auto' ? inferredPurpose : purpose
   const recommended = useMemo(
-    () => recommendModel(models, resolvedPurpose, performanceProfile),
-    [models, resolvedPurpose, performanceProfile],
+    () => recommendModel(models, resolvedPurpose, performanceProfile, adultModelRecommendation),
+    [models, resolvedPurpose, performanceProfile, adultModelRecommendation],
   )
   const activeGuide = provider.model ? describeModel(provider.model) : null
 
