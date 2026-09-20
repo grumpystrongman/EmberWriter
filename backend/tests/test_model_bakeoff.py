@@ -70,7 +70,9 @@ def test_catalog_honors_persisted_bakeoff_winner(tmp_path, monkeypatch) -> None:
     report_path.write_text(
         json.dumps(
             {
+                "acceptance_version": 3,
                 "passed": True,
+                "models": list(writing_model_catalog.ADULT_EXPLICIT_CANDIDATES),
                 "best_model": writing_model_catalog.MAGNUM_V4_12B,
             }
         ),
