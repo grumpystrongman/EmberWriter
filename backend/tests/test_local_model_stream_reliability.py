@@ -7,6 +7,7 @@ from app.models import ProviderConfig
 ROCI = reliability._HERETIC_ROCINANTE
 CYDONIA = reliability._HIGH_HEAT_CYDONIA
 FAST = reliability._FAST_ADULT_MODEL
+PYG = reliability._PYGMALION_ADULT_MODEL
 
 
 def _intimacy_messages() -> list[dict[str, str]]:
@@ -79,11 +80,12 @@ def test_adult_routing_respects_explicit_fast_model(monkeypatch) -> None:
     assert config.model == FAST
 
 
-def test_stale_adult_model_repairs_to_12b_before_fast_or_24b(monkeypatch) -> None:
+def test_stale_adult_model_repairs_to_locally_accepted_winner(monkeypatch) -> None:
     async def installed(_base_url: str) -> list[str]:
-        return [CYDONIA, FAST, ROCI]
+        return [CYDONIA, FAST, ROCI, PYG]
 
     monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability, "local_model_preferences", lambda: {"accepted_adult_model": FAST})
     config = ProviderConfig(
         provider="ollama",
         base_url="http://localhost:11434",
@@ -92,7 +94,7 @@ def test_stale_adult_model_repairs_to_12b_before_fast_or_24b(monkeypatch) -> Non
 
     asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
 
-    assert config.model == ROCI
+    assert config.model == FAST
 
 
 def test_reliability_layer_replaces_low_level_transport_not_public_wrapper() -> None:
