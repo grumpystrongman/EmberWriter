@@ -449,14 +449,12 @@ async def _generate_payload(
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
 
-    messages = build_messages(
-        payload.mode,
-        payload.prompt,
+    messages, adult_specialist = _generation_messages(
+        payload,
         context_text,
-        heat_level=heat,
-        finish_scene=payload.mode in PROSE_MODES,
-        min_scene_words=minimum_words,
+        heat=heat,
         delivery_scope=delivery_scope,
+        minimum_words=minimum_words,
     )
 
     if streamed:
@@ -585,14 +583,12 @@ async def _produce_generation_stream(
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
             heat, delivery_scope, minimum_words = _generation_contract(payload)
-            messages = build_messages(
-                payload.mode,
-                payload.prompt,
+            messages, adult_specialist = _generation_messages(
+                payload,
                 context_text,
-                heat_level=heat,
-                finish_scene=payload.mode in PROSE_MODES,
-                min_scene_words=minimum_words,
+                heat=heat,
                 delivery_scope=delivery_scope,
+                minimum_words=minimum_words,
             )
 
             if payload.mode in PROSE_MODES:
