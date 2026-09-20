@@ -108,21 +108,17 @@ async def route_adult_model_stable(
         (item for item in installed if item.casefold() == config.model.casefold()),
         None,
     )
-    if current and reliability.adult_model_score(current) > 0:
-        # Auto-routed requests may move to the measured adult winner. A manual author choice
-        # reaches this function with lock_model=True and is never replaced.
-        if (
-            measured_or_preferred
-            and reliability.adult_model_score(measured_or_preferred)
-            > reliability.adult_model_score(current)
-        ):
-            config.model = measured_or_preferred
-        else:
-            config.model = current
-        return
 
+    # Auto mode follows the capability-slot winner even when its static family score is lower
+    # than another installed model. Static scores bootstrap routing before a bakeoff exists;
+    # measured acceptance results are authoritative afterward. Manual author choices return
+    # above via lock_model=True.
     if measured_or_preferred:
         config.model = measured_or_preferred
+        return
+
+    if current and reliability.adult_model_score(current) > 0:
+        config.model = current
 
 
 async def generate_streamed_reliable(
