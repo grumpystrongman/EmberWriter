@@ -214,6 +214,21 @@ def manuscript_role_failure(text: str) -> str:
 MODEL_GATE = asyncio.Lock()
 
 
+_REASONING_BLOCK_PATTERN = re.compile(
+    r"<(?:think|reasoning)>.*?</(?:think|reasoning)>",
+    re.IGNORECASE | re.DOTALL,
+)
+_REASONING_TAG_PATTERN = re.compile(r"</?(?:think|reasoning)>", re.IGNORECASE)
+
+
+def strip_reasoning_blocks(text: str) -> str:
+    """Remove model-internal reasoning markup from author-facing text."""
+    cleaned = _REASONING_BLOCK_PATTERN.sub("", text)
+    cleaned = _REASONING_TAG_PATTERN.sub("", cleaned)
+    return cleaned.strip()
+
+
+
 def detect_scene_intent(prompt: str, heat_level: str | None = None) -> str:
     normalized = prompt.strip().lower()
     if any(re.search(pattern, normalized) for pattern in AFTERMATH_PATTERNS):
@@ -511,6 +526,7 @@ async def generate(
                 "model": effective_model,
                 "messages": messages,
                 "stream": False,
+                "think": False,
                 "keep_alive": "30m",
                 "options": options,
             }
@@ -540,7 +556,7 @@ async def generate(
                     f"Ollama could not generate with {effective_model}: {_ollama_error(response)}"
                 )
             payload = response.json()
-            content = str(payload.get("message", {}).get("content", "")).strip()
+            content = strip_reasoning_blocks(str(payload.get("message", {}).get("content", "")))
             if not content:
                 raise RuntimeError(f"Ollama returned an empty response from {effective_model}")
             return content
@@ -568,4 +584,4 @@ async def generate(
             choices = payload.get("choices", [])
             if not choices:
                 raise RuntimeError("Model returned no choices")
-            return choices[0].get("message", {}).get("content", "").strip()
+            return strip_reasoning_blocks(str(choices[0].get("message", {}).get("content", "")))
