@@ -16,6 +16,8 @@ _LOG_DIR = _REPO_ROOT / ".ember" / "logs"
 _START_LOCK = asyncio.Lock()
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 _RECOMMENDED_MODELS = (
+    "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M",
+    "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M",
     "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M",
     "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M",
     "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",

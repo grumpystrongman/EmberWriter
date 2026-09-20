@@ -64,6 +64,8 @@ type BinderState = {
   nodes: BinderNode[]
 }
 
+type ModelPreferences = Record<string, string>
+
 type Props = {
   apiBase: string
   project: WorkspaceProject
@@ -298,6 +300,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
   const [deliveryScope, setDeliveryScope] = useState<DeliveryScope>('full_scene')
   const [provider, setProvider] = useState<ProviderConfig>(readStoredProvider)
   const [models, setModels] = useState<string[]>([])
+  const [modelPreferences, setModelPreferences] = useState<ModelPreferences>({})
   const [craft, setCraft] = useState<CraftControls>(readStoredCraft)
   const [contextFiles, setContextFiles] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
@@ -502,11 +505,12 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
 
   async function refreshModels() {
     try {
-      const next = await jsonFetch<{ models: string[] }>(`${apiBase}/models`, {
+      const next = await jsonFetch<{ models: string[]; preferences?: ModelPreferences }>(`${apiBase}/models`, {
         method: 'POST',
         body: JSON.stringify(provider),
       })
       setModels(next.models)
+      setModelPreferences(next.preferences || {})
     } catch (error) {
       setStatus(`Model check failed: ${(error as Error).message}`)
     }
@@ -737,6 +741,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         <StudioModelRouter
           provider={provider}
           models={models}
+          preferences={modelPreferences}
           studioMode={studioMode}
           heatLevel={craft.heat_level}
           prompt={prompt}

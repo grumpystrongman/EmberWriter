@@ -58,6 +58,9 @@ def test_known_local_models_have_clear_usage_guidance() -> None:
     assert "qwen3-8b" in router
     assert "mistral-small3.1" in router
     assert "Rocinante" in router
+    assert "pygmalion-3" in router
+    assert "magnum-v4" in router
+    assert "Apache-2.0" in router
     assert "Installed model guide" in router
     assert "Best installed fallback" in router
 
@@ -76,3 +79,12 @@ def test_studio_exposes_core_only_scope_without_removing_complete_scene_mode() -
     assert "CORE_ONLY_INTENT" in studio
     assert "I will write everything else" not in studio  # regex handles contractions/spacing generically
     assert "delivery_scope: scope" in studio
+
+
+def test_adult_router_uses_persisted_acceptance_winner() -> None:
+    studio = source("AIStudioWorkspace.tsx")
+    router = source("StudioModelRouter.tsx")
+
+    assert "preferences={modelPreferences}" in studio
+    assert "accepted_adult_model" in router
+    assert "Passed EmberWriter’s local adult-scene bakeoff on this machine." in router

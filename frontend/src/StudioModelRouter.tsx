@@ -11,6 +11,7 @@ type PerformanceProfile = 'quality' | 'fast'
 type Props = {
   provider: ProviderConfig
   models: string[]
+  preferences: Record<string, string>
   studioMode: StudioMode
   heatLevel: HeatLevel
   prompt: string
@@ -102,17 +103,20 @@ function modelSize(model: string) {
   return match ? Number(match[1]) : 0
 }
 
-function scoreModel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile): number {
+function scoreModel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string> = {}): number {
   const name = normalized(model)
   const size = modelSize(model)
   const qwen25Heretic14 = name.includes('qwen2.5-14b') && name.includes('heretic')
   const qwen3Heretic8 = name.includes('qwen3-8b') && name.includes('heretic')
   const rocinante = name.includes('rocinante')
+  const pygmalion3 = name.includes('pygmalion-3') || name.includes('pygmalion3')
+  const magnumV4 = name.includes('magnum-v4') || name.includes('magnum_v4')
   const uncensored = name.includes('heretic') || name.includes('uncensored') || name.includes('abliterat')
   const mainstreamQwen3 = name.includes('qwen3') && !uncensored
   const mainstreamQwen25 = name.includes('qwen2.5') && !uncensored
   const mistralSmall = name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')
-  const roleplay = rocinante || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
+  const roleplay = rocinante || magnumV4 || pygmalion3 || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
+  const acceptedAdult = normalized(preferences.accepted_adult_model || preferences.adult_model || '')
 
   if (profile === 'fast') {
     let fastScore = 20
@@ -129,7 +133,10 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
 
   let score = 20 + Math.min(size || 0, 40) / 10
   if (purpose === 'adult') {
-    if (rocinante && uncensored) score += 115
+    if (acceptedAdult && name === acceptedAdult) score += 180
+    else if (pygmalion3) score += 132
+    else if (magnumV4) score += 122
+    else if (rocinante && uncensored) score += 115
     else if (qwen25Heretic14) score += 108
     else if (roleplay && uncensored) score += 104
     else if (uncensored && size >= 12) score += 98
@@ -147,7 +154,9 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
     else score += 50
   }
   if (purpose === 'character') {
-    if (rocinante) score += 115
+    if (magnumV4) score += 120
+    else if (pygmalion3) score += 116
+    else if (rocinante) score += 115
     else if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) score += 105
     else if (name.includes('stheno') || name.includes('pygmalion')) score += 98
     else if (qwen25Heretic14) score += 90
@@ -165,13 +174,27 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   return score
 }
 
-function recommendModel(models: string[], purpose: ResolvedPurpose, profile: PerformanceProfile) {
+function recommendModel(models: string[], purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string>) {
   if (!models.length) return ''
-  return [...models].sort((left, right) => scoreModel(right, purpose, profile) - scoreModel(left, purpose, profile))[0]
+  return [...models].sort((left, right) => scoreModel(right, purpose, profile, preferences) - scoreModel(left, purpose, profile, preferences))[0]
 }
 
 function describeModel(model: string): ModelGuide {
   const name = normalized(model)
+  if (name.includes('pygmalion-3') || name.includes('pygmalion3')) {
+    return {
+      label: 'Adult / roleplay specialist 12B',
+      bestFor: 'Direct adult scenes, roleplay-heavy intimacy, character interaction, and requests where scene delivery matters more than general reasoning.',
+      why: 'Pygmalion-3 is a dedicated roleplaying fine-tune with permissive Apache-2.0 licensing. EmberWriter treats it as the first adult-scene candidate, subject to the local acceptance bakeoff.',
+    }
+  }
+  if (name.includes('magnum-v4') || name.includes('magnum_v4')) {
+    return {
+      label: 'Creative prose specialist 12B',
+      bestFor: 'Polished scene prose, chemistry, dialogue, character voice, and adult fiction when it passes the local delivery acceptance test.',
+      why: 'Magnum-v4 emphasizes creative prose and conversation and is available under Apache-2.0 in the upstream 12B release. EmberWriter keeps it distinct from the adult-first roleplay candidate.',
+    }
+  }
   if (name.includes('qwen3-8b') && name.includes('heretic')) {
     return {
       label: 'Fast uncensored 8B',
@@ -211,14 +234,14 @@ function describeModel(model: string): ModelGuide {
   return { label: 'Custom installed model', bestFor: 'Manual selection or experimentation.', why: 'Studio does not recognize this model family yet, so it remains available as a manual override.' }
 }
 
-function fitLabel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile) {
-  const score = scoreModel(model, purpose, profile)
+function fitLabel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string>) {
+  const score = scoreModel(model, purpose, profile, preferences)
   if (score >= 120) return 'Strong match'
   if (score >= 90) return 'Good match'
   return 'Best installed fallback'
 }
 
-export default function StudioModelRouter({ provider, models, studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
+export default function StudioModelRouter({ provider, models, preferences, studioMode, heatLevel, prompt, busy, onProviderChange, onRefresh }: Props) {
   const [purpose, setPurpose] = useState<WritingPurpose>(readPurpose)
   const [autoSwitch, setAutoSwitch] = useState<boolean>(readAutoSwitch)
   const [performanceProfile, setPerformanceProfile] = useState<PerformanceProfile>(readPerformanceProfile)
@@ -226,8 +249,8 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
   const inferredPurpose = useMemo(() => inferPurpose(studioMode, heatLevel, prompt), [studioMode, heatLevel, prompt])
   const resolvedPurpose: ResolvedPurpose = purpose === 'auto' ? inferredPurpose : purpose
   const recommended = useMemo(
-    () => recommendModel(models, resolvedPurpose, performanceProfile),
-    [models, resolvedPurpose, performanceProfile],
+    () => recommendModel(models, resolvedPurpose, performanceProfile, preferences),
+    [models, resolvedPurpose, performanceProfile, preferences],
   )
   const activeGuide = provider.model ? describeModel(provider.model) : null
 
@@ -272,7 +295,7 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
       <p style={hintStyle}>
         {performanceProfile === 'fast'
           ? 'Fast favors an uncensored 8B model, a smaller adaptive context window, and a 3,072-token prose ceiling per pass.'
-          : 'Quality favors Rocinante 12B and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
+          : 'Quality favors accepted 12B creative specialists and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
       </p>
 
       <label style={{ ...labelStyle, marginTop: 12 }}>Writing type</label>
@@ -305,8 +328,9 @@ export default function StudioModelRouter({ provider, models, studioMode, heatLe
       {recommended && (
         <div style={{ marginTop: 10, padding: 10, border: '1px solid rgba(224,120,69,.22)', borderRadius: 9, background: 'rgba(224,120,69,.06)' }}>
           <strong style={{ display: 'block', fontSize: 12 }}>{performanceProfile === 'fast' ? 'Fast' : 'Quality'} recommendation: {recommended}</strong>
-          <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose, performanceProfile)}</span>
+          <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose, performanceProfile, preferences)}</span>
           <p style={hintStyle}>{describeModel(recommended).bestFor}</p>
+          {resolvedPurpose === 'adult' && normalized(preferences.accepted_adult_model || '') === normalized(recommended) && <p style={hintStyle}>Passed EmberWriter’s local adult-scene bakeoff on this machine.</p>}
         </div>
       )}
 
