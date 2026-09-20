@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from app import generation, storage, story_intelligence
+from app import generation, generation_reliability_refinement, storage, story_intelligence
 from app.models import ProviderConfig
 
 
@@ -42,13 +42,16 @@ def test_character_context_keeps_late_embodiment_canon_visible(tmp_path: Path) -
             "# Muna\n\n"
             + filler
             + "\n\n## Embodiment & intimate canon\n"
-            + "Muna is an adult trans woman. BODY_CANON_SENTINEL: do not invent anatomy that contradicts this dossier.\n"
+            + "Muna is an adult trans woman. Muna has a penis. Muna does not have a vagina, vulva, or clitoris. BODY_CANON_SENTINEL: do not invent anatomy that contradicts this dossier.\n"
         ),
     )
 
     context = story_intelligence.build_character_context(slug, ["Muna"])
 
     assert "BODY_CANON_SENTINEL" in context
+    assert "HARD BODY / EMBODIMENT CANON" in context
+    assert "Muna has a penis" in context
+    assert "Muna does not have a vagina, vulva, or clitoris" in context
     assert "hard canon" in context
     assert "do not infer intimate anatomy" in context.lower()
 
@@ -149,3 +152,29 @@ def test_non_intimacy_scene_can_still_accept_a_natural_multi_pass_ending(monkeyp
 
     assert calls == 2
     assert len(result.split()) >= 1200
+
+
+def test_body_canon_gate_rejects_explicitly_absent_anatomy() -> None:
+    context = """## Character intelligence
+### Muna
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Muna has a penis. Muna does not have a vagina, vulva, or clitoris.
+### Kaelen
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Kaelen has a penis.
+"""
+    bad = "Muna pulled Kaelen closer. He touched her clitoris while she held him."
+    reason = generation_reliability_refinement.hard_body_canon_failure(context, bad)
+    assert "hard body-canon conflict" in reason
+    assert "Muna" in reason
+
+
+def test_body_canon_gate_does_not_infer_absence_from_trans_identity() -> None:
+    context = """## Character intelligence
+### Muna
+Muna is an adult trans woman.
+"""
+    assert generation_reliability_refinement.hard_body_canon_failure(
+        context,
+        "Muna touched her body.",
+    ) == ""
