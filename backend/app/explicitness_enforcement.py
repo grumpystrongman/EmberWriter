@@ -233,13 +233,14 @@ def install_explicitness_enforcement() -> None:
         _BASE_STREAMED_COMPLETE = streaming_generation.generate_complete_prose_streamed
         streaming_generation.generate_complete_prose_streamed = generate_verified_studio_prose_streamed
 
-    # Keep installation, background provisioning, and stale-model repair on one managed model
-    # contract. This runs after the reliability layer, which otherwise restores the old Qwen /
-    # standard-Rocinante recommendation list.
-    model_provisioning.BASELINE_CREATIVE_MODEL = HERETIC_ROCINANTE_MODEL
+    # Keep installation, background provisioning, and stale-model repair on one capability-slot
+    # contract. Third-party model names remain replaceable behind the author-intent router.
+    model_provisioning.BASELINE_CREATIVE_MODEL = PYGMALION_ADULT_MODEL
     ollama_runtime._RECOMMENDED_MODELS = (
-        HIGH_HEAT_CYDONIA_MODEL,
+        PYGMALION_ADULT_MODEL,
+        MAGNUM_ADULT_MODEL,
         HERETIC_ROCINANTE_MODEL,
+        HIGH_HEAT_CYDONIA_MODEL,
         "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
-        "R4C3R/qwen3-8b-heretic:q4_k_m",
+        FAST_ADULT_8B,
     )
