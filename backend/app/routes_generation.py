@@ -29,6 +29,7 @@ from .generation_guard import (
 )
 from .memory import build_memory_context
 from .memory_integrity import reconcile_story_memory
+from .model_preferences import local_model_preferences
 from .models import (
     ContextRequest,
     ContextResponse,
@@ -343,7 +344,7 @@ def _generation_contract(payload: GenerateRequest) -> tuple[str | None, str, int
 @router.post("/models")
 async def models(payload: ProviderConfig) -> dict:
     try:
-        return {"models": await list_models(payload)}
+        return {"models": await list_models(payload), "preferences": local_model_preferences()}
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach model server: {exc}") from exc
 
