@@ -133,9 +133,10 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
 
   let score = 20 + Math.min(size || 0, 40) / 10
   if (purpose === 'adult') {
-    if (acceptedAdult && name === acceptedAdult) score += 180
-    else if (pygmalion3) score += 132
-    else if (magnumV4) score += 122
+    if (acceptedAdult && name === acceptedAdult) score += 220
+    else if (qwen3Heretic8) score += 135
+    else if (pygmalion3) score += 125
+    else if (magnumV4) score += 115
     else if (rocinante && uncensored) score += 115
     else if (qwen25Heretic14) score += 108
     else if (roleplay && uncensored) score += 104
@@ -185,7 +186,7 @@ function describeModel(model: string): ModelGuide {
     return {
       label: 'Adult / roleplay specialist 12B',
       bestFor: 'Direct adult scenes, roleplay-heavy intimacy, character interaction, and requests where scene delivery matters more than general reasoning.',
-      why: 'Pygmalion-3 is a dedicated roleplaying fine-tune with permissive Apache-2.0 licensing. EmberWriter treats it as the first adult-scene candidate, subject to the local acceptance bakeoff.',
+      why: 'Pygmalion-3 is a dedicated roleplaying fine-tune with permissive Apache-2.0 licensing. EmberWriter treats it as one adult-scene candidate and trusts the local bakeoff over the model label.',
     }
   }
   if (name.includes('magnum-v4') || name.includes('magnum_v4')) {
@@ -198,8 +199,8 @@ function describeModel(model: string): ModelGuide {
   if (name.includes('qwen3-8b') && name.includes('heretic')) {
     return {
       label: 'Fast uncensored 8B',
-      bestFor: 'Quick Studio drafts, brainstorming, character play, and lower-VRAM machines.',
-      why: 'This is EmberWriter’s Fast profile target. It uses less model memory and smaller Studio budgets, improving the chance of full-GPU inference.',
+      bestFor: 'Quick Studio drafts, direct adult scenes when it wins the local bakeoff, brainstorming, character play, and lower-VRAM machines.',
+      why: 'This is EmberWriter’s Fast profile target and now participates in the same adult-scene acceptance test as the 12B candidates.',
     }
   }
   if (name.includes('rocinante')) {
@@ -289,13 +290,13 @@ export default function StudioModelRouter({ provider, models, preferences, studi
     <div className="ai-studio-model" style={wrapperStyle}>
       <label style={labelStyle}>Performance profile</label>
       <div style={{ ...rowStyle, marginBottom: 8 }}>
-        <button type="button" className={performanceProfile === 'quality' ? 'active' : ''} onClick={() => choosePerformanceProfile('quality')} disabled={busy}>Quality 12B</button>
-        <button type="button" className={performanceProfile === 'fast' ? 'active' : ''} onClick={() => choosePerformanceProfile('fast')} disabled={busy}>Fast 8B</button>
+        <button type="button" className={performanceProfile === 'quality' ? 'active' : ''} onClick={() => choosePerformanceProfile('quality')} disabled={busy}>Quality</button>
+        <button type="button" className={performanceProfile === 'fast' ? 'active' : ''} onClick={() => choosePerformanceProfile('fast')} disabled={busy}>Fast</button>
       </div>
       <p style={hintStyle}>
         {performanceProfile === 'fast'
-          ? 'Fast favors an uncensored 8B model, a smaller adaptive context window, and a 3,072-token prose ceiling per pass.'
-          : 'Quality favors accepted 12B creative specialists and allows a larger adaptive context plus up to 4,096 prose tokens per pass.'}
+          ? 'Fast favors the lowest-latency suitable installed model and a 3,072-token prose ceiling per pass.'
+          : 'Quality favors the locally accepted model for the selected writing intent, regardless of parameter count, with up to 4,096 prose tokens per pass.'}
       </p>
 
       <label style={{ ...labelStyle, marginTop: 12 }}>Writing type</label>
@@ -335,7 +336,7 @@ export default function StudioModelRouter({ provider, models, preferences, studi
       )}
 
       {performanceProfile === 'fast' && !models.some((model) => normalized(model).includes('qwen3-8b') && normalized(model).includes('heretic')) && (
-        <p style={{ ...hintStyle, color: '#e8c986' }}>The managed Fast 8B model is not installed yet. Run install.ps1 after updating EmberWriter; Auto setup now installs both Fast 8B and Quality 12B.</p>
+        <p style={{ ...hintStyle, color: '#e8c986' }}>The managed fast model is not installed yet. Run install.ps1 after updating EmberWriter; Auto setup installs the managed adult/prose candidates plus the fast fallback.</p>
       )}
 
       {activeGuide && (
