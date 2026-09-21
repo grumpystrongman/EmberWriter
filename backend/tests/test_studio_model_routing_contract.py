@@ -59,6 +59,7 @@ def test_known_local_models_have_clear_usage_guidance() -> None:
     assert "qwen3-8b" in router
     assert "mistral-small3.1" in router
     assert "Rocinante" in router
+    assert "qwen3.5-4b-nsfw-ara-heretic-literotica" in router
     assert "pygmalion-3" in router
     assert "magnum-v4" in router
     assert "Apache-2.0" in router
@@ -87,12 +88,31 @@ def test_adult_router_uses_persisted_acceptance_winner() -> None:
     router = source("StudioModelRouter.tsx")
 
     assert "preferences={modelPreferences}" in studio
-    assert "accepted_adult_model" in router
-    assert "Passed EmberWriter’s local adult-scene bakeoff on this machine." in router
+    assert "adult_explicit_model" in router
+    assert "Dedicated adult-explicit capability model" in router
 
 
-def test_quality_adult_routing_can_select_fast_model_when_it_wins_bakeoff() -> None:
+def test_adult_routing_reserves_explicit_specialist_instead_of_fast_fallback() -> None:
     router = source("StudioModelRouter.tsx")
-    assert "acceptedAdult && name === acceptedAdult" in router
-    assert "qwen3Heretic8" in router
-    assert "trusts the local bakeoff over the model label" in router
+    assert "preferences.adult_explicit_model" in router
+    assert "literotica4" in router
+    assert "if (adultExplicit && name === adultExplicit) score += 360" in router
+    assert "else if (qwen3Heretic8) score += 115" in router
+
+
+def test_selector_has_dedicated_capability_preferences() -> None:
+    router = source("StudioModelRouter.tsx")
+    assert "preferences.adult_explicit_model" in router
+    assert "preferences.general_prose_model" in router
+    assert "preferences.character_model" in router
+    assert "preferences.planning_model" in router
+    assert "Proven adult-explicit specialist 4B" in router
+    assert "General prose specialist 12B" in router
+    assert "Character / roleplay specialist 12B" in router
+
+
+def test_erotica_specialist_is_penalized_for_non_adult_work() -> None:
+    router = source("StudioModelRouter.tsx")
+    assert "else if (literotica4) score -= 80" in router
+    assert "else if (literotica4) score -= 50" in router
+    assert "else if (literotica4) score -= 90" in router

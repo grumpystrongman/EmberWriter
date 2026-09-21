@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from .model_catalog import ADULT_EXPLICIT_MODEL, CHARACTER_MODEL, FAST_MODEL, GENERAL_PROSE_MODEL
 from .model_preferences import preferred_local_model
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -16,14 +17,14 @@ _LOG_DIR = _REPO_ROOT / ".ember" / "logs"
 _START_LOCK = asyncio.Lock()
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 _RECOMMENDED_MODELS = (
-    "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M",
-    "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M",
+    GENERAL_PROSE_MODEL,
+    CHARACTER_MODEL,
+    FAST_MODEL,
+    ADULT_EXPLICIT_MODEL,
     "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M",
     "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M",
     "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
-    "R4C3R/qwen3-8b-heretic:q4_k_m",
 )
-
 
 def _normalized_base_url(base_url: str) -> str:
     value = (base_url or "http://127.0.0.1:11434").strip().rstrip("/")

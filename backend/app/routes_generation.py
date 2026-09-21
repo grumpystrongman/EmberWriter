@@ -9,6 +9,11 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from .adult_specialist import (
+    build_adult_specialist_messages,
+    route_explicit_adult_specialist,
+    should_use_adult_explicit_specialist,
+)
 from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
@@ -341,6 +346,46 @@ def _generation_contract(payload: GenerateRequest) -> tuple[str | None, str, int
     return heat, delivery_scope, minimum_words
 
 
+def _generation_messages(
+    payload: GenerateRequest,
+    context_text: str,
+    *,
+    heat: str | None,
+    delivery_scope: str,
+    minimum_words: int,
+) -> tuple[list[dict[str, str]], bool]:
+    specialist = should_use_adult_explicit_specialist(
+        payload.provider.model,
+        payload.prompt,
+        heat,
+        payload.mode,
+    )
+    if specialist:
+        return (
+            build_adult_specialist_messages(
+                payload.mode,
+                payload.prompt,
+                context_text,
+                heat_level=heat,
+                delivery_scope=delivery_scope,
+                min_scene_words=minimum_words,
+            ),
+            True,
+        )
+    return (
+        build_messages(
+            payload.mode,
+            payload.prompt,
+            context_text,
+            heat_level=heat,
+            finish_scene=payload.mode in PROSE_MODES,
+            min_scene_words=minimum_words,
+            delivery_scope=delivery_scope,
+        ),
+        False,
+    )
+
+
 @router.post("/models")
 async def models(payload: ProviderConfig) -> dict:
     try:
@@ -404,15 +449,14 @@ async def _generate_payload(
 ) -> GenerateResponse:
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
+    await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
 
-    messages = build_messages(
-        payload.mode,
-        payload.prompt,
+    messages, adult_specialist = _generation_messages(
+        payload,
         context_text,
-        heat_level=heat,
-        finish_scene=payload.mode in PROSE_MODES,
-        min_scene_words=minimum_words,
+        heat=heat,
         delivery_scope=delivery_scope,
+        minimum_words=minimum_words,
     )
 
     if streamed:
@@ -446,7 +490,7 @@ async def _generate_payload(
         text = await generate(payload.provider, messages)
 
     refined = False
-    if payload.craft.quality_pass and payload.mode in PROSE_MODES:
+    if payload.craft.quality_pass and payload.mode in PROSE_MODES and not adult_specialist:
         if on_status is not None:
             await on_status("Applying Craft Pass…")
         targets = quality_guidance(text)
@@ -460,6 +504,9 @@ async def _generate_payload(
             craft_context=craft_text,
         )
         refined = True
+
+    if payload.craft.quality_pass and adult_specialist and on_status is not None:
+        await on_status("Adult explicit specialist owns final prose · Craft Pass skipped to preserve proven scene delivery…")
 
     event = record_assistance_event(
         slug,
@@ -541,14 +588,13 @@ async def _produce_generation_stream(
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
             heat, delivery_scope, minimum_words = _generation_contract(payload)
-            messages = build_messages(
-                payload.mode,
-                payload.prompt,
+            await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
+            messages, adult_specialist = _generation_messages(
+                payload,
                 context_text,
-                heat_level=heat,
-                finish_scene=payload.mode in PROSE_MODES,
-                min_scene_words=minimum_words,
+                heat=heat,
                 delivery_scope=delivery_scope,
+                minimum_words=minimum_words,
             )
 
             if payload.mode in PROSE_MODES:
@@ -570,7 +616,7 @@ async def _produce_generation_stream(
                 ).strip()
 
             refined = False
-            if payload.craft.quality_pass and payload.mode in PROSE_MODES:
+            if payload.craft.quality_pass and payload.mode in PROSE_MODES and not adult_specialist:
                 await emit_status("Applying Craft Pass…")
                 targets = quality_guidance(text)
                 text = await quality_pass(
@@ -583,6 +629,9 @@ async def _produce_generation_stream(
                     craft_context=craft_text,
                 )
                 refined = True
+
+            if payload.craft.quality_pass and adult_specialist:
+                await emit_status("Adult explicit specialist owns final prose · Craft Pass skipped to preserve proven scene delivery…")
 
             event = record_assistance_event(
                 slug,

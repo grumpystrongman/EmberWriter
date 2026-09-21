@@ -9,6 +9,7 @@ import httpx
 
 from . import streaming_generation
 from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
+from .model_catalog import ADULT_EXPLICIT_MODEL
 from .model_preferences import local_model_preferences
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
@@ -24,6 +25,7 @@ _HIGH_HEAT_CYDONIA = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 _PYGMALION_ADULT_MODEL = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
 _MAGNUM_ADULT_MODEL = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
 _FAST_ADULT_MODEL = "R4C3R/qwen3-8b-heretic:q4_k_m"
+_EXPLICIT_ADULT_MODEL = ADULT_EXPLICIT_MODEL
 
 _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
 _INSTALLED = False
@@ -31,7 +33,7 @@ _INSTALLED = False
 
 def _is_fast_model(model: str) -> bool:
     name = model.casefold()
-    return "8b" in name or "8-b" in name or "8_b" in name
+    return any(token in name for token in ("4b", "4-b", "4_b", "8b", "8-b", "8_b"))
 
 
 def _estimated_message_tokens(messages: list[dict[str, str]]) -> int:
@@ -93,6 +95,13 @@ async def route_adult_model_stable(
     if not installed:
         return
 
+    installed_by_name = {item.casefold(): item for item in installed}
+    if reliability._is_explicit_intimacy_request(messages):
+        specialist = installed_by_name.get(_EXPLICIT_ADULT_MODEL.casefold())
+        if specialist:
+            config.model = specialist
+            return
+
     current = next(
         (item for item in installed if item.casefold() == config.model.casefold()),
         None,
@@ -103,22 +112,30 @@ async def route_adult_model_stable(
 
     preferences = local_model_preferences()
     accepted = preferences.get("accepted_adult_model", "")
-    # Repair stale/invalid choices toward the locally accepted adult model first. If no bakeoff
-    # winner exists yet, prefer the managed candidates before legacy fallbacks.
-    preferred = tuple(
-        model for model in (
+    explicit = reliability._is_explicit_intimacy_request(messages)
+    candidates = (
+        (
+            preferences.get("adult_explicit_model", ""),
             accepted,
-            _FAST_ADULT_MODEL,
             _PYGMALION_ADULT_MODEL,
             _MAGNUM_ADULT_MODEL,
+            _FAST_ADULT_MODEL,
             _HERETIC_ROCINANTE,
             _STANDARD_ROCINANTE,
             _HIGH_HEAT_CYDONIA,
             "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
         )
-        if model
+        if explicit
+        else (
+            _PYGMALION_ADULT_MODEL,
+            _MAGNUM_ADULT_MODEL,
+            _HERETIC_ROCINANTE,
+            _STANDARD_ROCINANTE,
+            _FAST_ADULT_MODEL,
+            "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+        )
     )
-    installed_by_name = {item.casefold(): item for item in installed}
+    preferred = tuple(model for model in candidates if model)
     for candidate in preferred:
         resolved = installed_by_name.get(candidate.casefold())
         if resolved:

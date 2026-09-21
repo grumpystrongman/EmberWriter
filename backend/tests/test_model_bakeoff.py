@@ -43,3 +43,13 @@ def test_bakeoff_does_not_reward_bloated_passing_output() -> None:
     direct = _report(model_bakeoff.QWEN3_FAST_8B, passed=True, passes=3, failures=0, words=700, onset=35, direct=10)
     bloated = _report(model_bakeoff.MAGNUM_V4_12B, passed=True, passes=3, failures=0, words=990, onset=160, direct=6)
     assert model_bakeoff.choose_adult_model([bloated, direct]) == model_bakeoff.QWEN3_FAST_8B
+
+
+def test_proven_adult_specialist_wins_when_it_passes() -> None:
+    specialist = _report(model_bakeoff.PROVEN_ADULT_4B, passed=True, passes=3, failures=0, words=760, onset=29, direct=18)
+    other = _report(model_bakeoff.MAGNUM_V4_12B, passed=True, passes=3, failures=0, words=700, onset=20, direct=22)
+    assert model_bakeoff.choose_adult_model([other, specialist]) == model_bakeoff.PROVEN_ADULT_4B
+
+
+def test_default_bakeoff_includes_proven_specialist_first() -> None:
+    assert model_bakeoff.DEFAULT_CANDIDATES[0] == model_bakeoff.PROVEN_ADULT_4B

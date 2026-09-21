@@ -27,7 +27,11 @@ def local_model_preferences() -> dict[str, str]:
     keys = (
         "preferred_model",
         "adult_model",
+        "adult_explicit_model",
         "accepted_adult_model",
+        "general_prose_model",
+        "character_model",
+        "planning_model",
         "quality_model",
         "fast_model",
         "high_heat_model",

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import generation
+from .adult_specialist import build_adult_specialist_messages, is_adult_explicit_specialist
 from .generation_reliability import _hard_quality_failure, parse_scene_length
 from .generation_reliability_refinement import explicit_delivery_failure
 from .models import ProviderConfig
@@ -15,16 +16,17 @@ from .models import ProviderConfig
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
-ACCEPTANCE_VERSION = 3
+ACCEPTANCE_VERSION = 4
 
 ACCEPTANCE_PROMPT = (
     "CORE ONLY. Write a direct, detailed adult sex scene between Kaelen and Muna immediately after "
     "their gym workout and sauna. Both are consenting adults. Begin concrete sexual action within the "
-    "first 180 words; do not spend the response on flirting, walking home, dinner, scenery, consent "
+    "first 140 words; do not spend the response on flirting, walking home, dinner, scenery, consent "
     "discussion, or relationship analysis. Muna's HARD BODY CANON for this fixture: she is a trans "
     "woman with a penis; she does not have a vagina, vulva, or clitoris. Kaelen has a penis. Use the "
-    "correct anatomy directly and describe the physical acts clearly rather than euphemistically. "
-    "Both participants must climax on page. Keep the requested core encounter between 500 and 1000 words."
+    "correct anatomy directly and describe the physical acts clearly rather than euphemistically. Include "
+    "substantial manual stimulation, reciprocal oral sex, consensual anal penetration, position changes, "
+    "and on-page orgasm for both Muna and Kaelen. Keep the requested core encounter between 900 and 1600 words."
 )
 
 ACCEPTANCE_CONTEXT = """# Acceptance-test canon
@@ -71,9 +73,9 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
     words = _word_count(text)
     failures: list[str] = []
 
-    if words > 1000:
+    if words > 1600:
         failures.append(f"hard word ceiling violated: {words} words")
-    if words < 500:
+    if words < 900:
         failures.append(f"scene is too short to demonstrate reliable delivery: {words} words")
     if generation.looks_abrupt_ending(text):
         failures.append("draft ends abruptly")
@@ -88,9 +90,9 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
 
     first_action_word = _first_direct_action_word(text)
     direct_action_sentences = _direct_action_sentences(text)
-    if first_action_word > 180:
+    if first_action_word > 140:
         failures.append(f"core action begins too late: first direct-action evidence at word {first_action_word}")
-    if direct_action_sentences < 5:
+    if direct_action_sentences < 12:
         failures.append(f"not enough sustained direct-action description: {direct_action_sentences} direct sentences")
     if not _MUNA_PENIS.search(text):
         failures.append("Muna's established penis anatomy is not directly represented")
@@ -98,6 +100,26 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
         failures.append("hard body-canon conflict: draft gives Muna vagina/vulva/clitoris anatomy")
     if _DRIFT_TERMS.search(text):
         failures.append("core-only scene drifted into unrelated domestic/scenery material")
+
+    required_beats = {
+        "manual sexual action": re.compile(r"\b(?:hand\s*job|stroke\w*|masturbat\w*|grip\w*)\b", re.IGNORECASE),
+        "oral sexual action": re.compile(r"\b(?:oral\s+sex|blow\s*job|suck\w*|lick\w*)\b", re.IGNORECASE),
+        "penetrative action": re.compile(r"\b(?:anal|anus|asshole|penetrat\w*|thrust\w*|fuck\w*)\b", re.IGNORECASE),
+    }
+    for label, pattern in required_beats.items():
+        if not pattern.search(text):
+            failures.append(f"required acceptance beat missing: {label}")
+
+    muna_climax = re.search(
+        r"(?is)\bmuna\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
+        text,
+    )
+    kaelen_climax = re.search(
+        r"(?is)\bkaelen\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
+        text,
+    )
+    if not muna_climax or not kaelen_climax:
+        failures.append("both named participants must have supported on-page climaxes")
 
     lowered = text.casefold()
     for required in ("kaelen", "muna"):
@@ -170,17 +192,28 @@ async def run_model_acceptance(
     model = exact
 
     contract = parse_scene_length(ACCEPTANCE_PROMPT, "inferno")
-    floor = max(500, min(contract.floor_words or 500, 700))
+    floor = max(900, min(contract.floor_words or 900, 1200))
 
     for index in range(attempts):
         config = ProviderConfig(provider="ollama", base_url=base_url, model=model)
-        messages = generation.build_messages(
-            "write",
-            ACCEPTANCE_PROMPT,
-            ACCEPTANCE_CONTEXT,
-            heat_level="inferno",
-            min_scene_words=floor,
-            delivery_scope="core_only",
+        messages = (
+            build_adult_specialist_messages(
+                "write",
+                ACCEPTANCE_PROMPT,
+                ACCEPTANCE_CONTEXT,
+                heat_level="inferno",
+                delivery_scope="core_only",
+                min_scene_words=floor,
+            )
+            if is_adult_explicit_specialist(model)
+            else generation.build_messages(
+                "write",
+                ACCEPTANCE_PROMPT,
+                ACCEPTANCE_CONTEXT,
+                heat_level="inferno",
+                min_scene_words=floor,
+                delivery_scope="core_only",
+            )
         )
         try:
             text = await generation.generate_complete_prose(
