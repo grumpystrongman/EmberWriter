@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from app import adult_specialist
 from app.model_catalog import ADULT_EXPLICIT_MODEL
@@ -23,6 +24,7 @@ A long unrelated history of kingdoms and politics.
         heat_level="inferno",
         delivery_scope="core_only",
         min_scene_words=900,
+        scene_plan='{"opening_state":"Rowan stands; Avery sits.","beats":[{"objective":"advance"}]}',
     )
     system = messages[0]["content"]
     user = messages[1]["content"]
@@ -31,11 +33,65 @@ A long unrelated history of kingdoms and politics.
     assert "Begin the requested central sexual action in the first paragraph" in system
     assert "Do not stop to ask whether the characters are sure" in system
     assert "HARD BODY / EMBODIMENT CANON is literal author-owned fact" in system
-    assert "SILENT PHYSICAL STATE LEDGER" in system
-    assert "CONTINUITY FREEZE-FRAME" in system
-    assert "SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION" in system
+    assert "HIDDEN SCENE DIRECTOR PLAN" in system
+    assert "Rowan stands; Avery sits." in system
+    assert "SILENT PHYSICAL STATE LEDGER" not in system
+    assert "CONTINUITY FREEZE-FRAME" not in system
     assert "Avery has a penis" in user
     assert "Avery does not have a vagina, vulva, or clitoris" in user
+
+
+def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    async def fake_generate(_config, messages, **kwargs) -> str:
+        captured["messages"] = messages
+        captured["kwargs"] = kwargs
+        return json.dumps(
+            {
+                "opening_state": "Kaelen stands facing seated Muna.",
+                "central_intent": "continuous encounter",
+                "beats": [
+                    {
+                        "objective": "close distance",
+                        "start_state": "standing / seated",
+                        "transition": "Muna rises",
+                        "action": "affectionate contact",
+                        "end_state": "both standing",
+                    },
+                    {
+                        "objective": "progress",
+                        "start_state": "both standing",
+                        "transition": "NONE",
+                        "action": "continue encounter",
+                        "end_state": "stable",
+                    },
+                ],
+                "ending_goal": "resolution",
+                "continuity_watchouts": ["do not invent anatomy"],
+            }
+        )
+
+    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+    config = ProviderConfig(provider="ollama", model="director-model")
+    plan_text = asyncio.run(
+        adult_specialist.build_hidden_adult_scene_plan(
+            config,
+            "Kaelen and Muna in the changing room after the sauna. High heat. Communion deepens.",
+            "### Muna\nHARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:\nMuna has a penis.\n",
+            heat_level="inferno",
+            delivery_scope="full_scene",
+        )
+    )
+
+    plan = json.loads(plan_text)
+    assert plan["opening_state"] == "Kaelen stands facing seated Muna."
+    assert len(plan["beats"]) == 2
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    assert "author should not have to choreograph the scene" in messages[0]["content"].lower()
+    assert "Muna has a penis" in messages[1]["content"]
+    assert captured["kwargs"]["json_mode"] is True
 
 
 def test_adult_specialist_context_is_compact() -> None:
