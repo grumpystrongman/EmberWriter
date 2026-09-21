@@ -31,6 +31,9 @@ A long unrelated history of kingdoms and politics.
     assert "Begin the requested central sexual action in the first paragraph" in system
     assert "Do not stop to ask whether the characters are sure" in system
     assert "HARD BODY / EMBODIMENT CANON is literal author-owned fact" in system
+    assert "SILENT PHYSICAL STATE LEDGER" in system
+    assert "CONTINUITY FREEZE-FRAME" in system
+    assert "SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION" in system
     assert "Avery has a penis" in user
     assert "Avery does not have a vagina, vulva, or clitoris" in user
 
