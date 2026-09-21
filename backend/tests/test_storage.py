@@ -15,11 +15,11 @@ def test_project_round_trip_and_snapshot_restore(tmp_path: Path) -> None:
 
     assert "manuscript/chapter-001.md" in project["files"]
 
-    storage.save_text(slug, "manuscript/chapter-001.md", "# Chapter 1\n\nSera enters the archive.")
+    storage.save_text(slug, "manuscript/chapter-001.md", "# Chapter 1\n\nMira enters the archive.")
     second = storage.save_text(
         slug,
         "manuscript/chapter-001.md",
-        "# Chapter 1\n\nSera enters the archive and finds the sealed letter.",
+        "# Chapter 1\n\nMira enters the archive and finds the sealed letter.",
     )
 
     assert second["snapshot_id"] is not None
@@ -35,7 +35,7 @@ def test_search_and_context_compiler(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Memory Test")
     slug = project["slug"]
-    storage.save_text(slug, "characters/tamsin.md", "# Tamsin\n\nJax distrusts the silver council but protects Liora.")
+    storage.save_text(slug, "characters/tamsin.md", "# Tamsin\n\nTamsin distrusts the silver council but protects Liora.")
     storage.save_text(slug, "world/council.md", "# Silver Council\n\nThe council meets beneath the western tower.")
 
     hits = storage.search_story(slug, "What does Tamsin know about the silver council?")
