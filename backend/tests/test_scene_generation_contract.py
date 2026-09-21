@@ -368,12 +368,12 @@ def test_studio_context_excludes_unrelated_manuscript_prose(tmp_path: Path) -> N
     storage.save_text(
         slug,
         "manuscript/chapter-001.md",
-        "JAX_BATTLE_CONTAMINATION " + ("Rowan academy gym fight Tamsin " * 500),
+        "OLD_BATTLE_CONTAMINATION " + ("Rowan academy gym fight Tamsin " * 500),
     )
     storage.save_text(
         slug,
         "characters/rowan-thorne.md",
-        "# Rowan Thorne\n\nAdult Nexus. Calm, attentive, protective.\n",
+        "# Rowan Thorne\n\nAdult protagonist. Calm, attentive, protective.\n",
     )
     storage.save_text(
         slug,
@@ -382,23 +382,23 @@ def test_studio_context_excludes_unrelated_manuscript_prose(tmp_path: Path) -> N
     )
     storage.save_text(
         slug,
-        "world/aethelgard-academy.md",
-        "# Aethelgard Academy\n\nThe academy gym includes a sauna used after training.\n",
+        "world/northgate-academy.md",
+        "# Northgate Academy\n\nThe academy gym includes a sauna used after training.\n",
     )
 
-    prompt = "Write a scene between Rowan Thorne and Avery in the sauna at Aethelgard Academy after training."
+    prompt = "Write a scene between Rowan Thorne and Avery in the sauna at Northgate Academy after training."
     context, files, _, names = studio_context.build_studio_context(
         slug,
         prompt,
         CraftControls(heat_level="inferno"),
     )
 
-    assert "JAX_BATTLE_CONTAMINATION" not in context
+    assert "OLD_BATTLE_CONTAMINATION" not in context
     assert not any(path.startswith("manuscript/") for path in files)
     assert not any(path.startswith("import/") for path in files)
     assert "Rowan Thorne" in context
     assert "Avery" in context
-    assert "Aethelgard Academy" in context
+    assert "Northgate Academy" in context
     assert "Every paragraph should do something new" in context
     assert "Never pad to reach a target" in context
     assert "Higher heat means greater immediacy" in context
@@ -409,8 +409,8 @@ def test_studio_sentinel_routes_generation_through_isolated_context(tmp_path: Pa
     use_temp_data(tmp_path)
     project = storage.create_project("Studio Route")
     slug = project["slug"]
-    storage.save_text(slug, "manuscript/chapter-001.md", "WRONG_JAX_SCENE Rowan Tamsin fight " * 300)
-    storage.save_text(slug, "characters/rowan.md", "# Rowan\n\nAdult Nexus.\n")
+    storage.save_text(slug, "manuscript/chapter-001.md", "WRONG_OLD_SCENE Rowan Tamsin fight " * 300)
+    storage.save_text(slug, "characters/rowan.md", "# Rowan\n\nAdult protagonist.\n")
     storage.save_text(slug, "characters/avery.md", "# Avery\n\nAdult witch.\n")
 
     payload = GenerateRequest(
@@ -423,7 +423,7 @@ def test_studio_sentinel_routes_generation_through_isolated_context(tmp_path: Pa
     )
     context, files, _ = routes_generation._prepare_generation_context(slug, payload)
 
-    assert "WRONG_JAX_SCENE" not in context
+    assert "WRONG_OLD_SCENE" not in context
     assert not any(path.startswith("manuscript/") for path in files)
     assert "Rowan" in context
     assert "Avery" in context
@@ -490,7 +490,7 @@ def test_craft_pass_refuses_truncated_second_pass(monkeypatch) -> None:
 
 
 def test_reasoning_blocks_are_removed_from_author_facing_prose() -> None:
-    raw = "<think>internal reasoning that must never reach the manuscript</think>\n\nKaelen crossed the room."
+    raw = "<think>internal reasoning that must never reach the manuscript</think>\n\nRowan crossed the room."
     assert generation.strip_reasoning_blocks(raw) == "Rowan crossed the room."
 
 
