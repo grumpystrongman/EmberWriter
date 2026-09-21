@@ -106,6 +106,7 @@ function modelSize(model: string) {
 function scoreModel(model: string, purpose: ResolvedPurpose, profile: PerformanceProfile, preferences: Record<string, string> = {}): number {
   const name = normalized(model)
   const size = modelSize(model)
+  const literotica4 = name.includes('qwen3.5-4b-nsfw-ara-heretic-literotica')
   const qwen25Heretic14 = name.includes('qwen2.5-14b') && name.includes('heretic')
   const qwen3Heretic8 = name.includes('qwen3-8b') && name.includes('heretic')
   const rocinante = name.includes('rocinante')
@@ -116,60 +117,65 @@ function scoreModel(model: string, purpose: ResolvedPurpose, profile: Performanc
   const mainstreamQwen25 = name.includes('qwen2.5') && !uncensored
   const mistralSmall = name.includes('mistral-small3.1') || name.includes('mistral-small-3.1')
   const roleplay = rocinante || magnumV4 || pygmalion3 || name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell') || name.includes('stheno') || name.includes('pygmalion')
-  const acceptedAdult = normalized(preferences.accepted_adult_model || preferences.adult_model || '')
+  const adultExplicit = normalized(preferences.adult_explicit_model || preferences.adult_model || preferences.accepted_adult_model || '')
+  const generalProse = normalized(preferences.general_prose_model || preferences.quality_model || '')
+  const characterModel = normalized(preferences.character_model || '')
+  const planningModel = normalized(preferences.planning_model || preferences.fast_model || '')
 
   if (profile === 'fast') {
     let fastScore = 20
-    if (qwen3Heretic8) fastScore += 150
+    if (purpose === 'adult' && (literotica4 || (adultExplicit && name === adultExplicit))) fastScore += 320
+    else if (qwen3Heretic8) fastScore += 150
     else if (size > 0 && size <= 8 && uncensored) fastScore += 130
     else if (size > 0 && size <= 9) fastScore += 100
     else if (size > 12) fastScore -= 40
     else if (size > 0) fastScore += Math.max(0, 55 - size * 2)
     if (purpose === 'adult' && uncensored) fastScore += 35
     if (purpose === 'character' && roleplay) fastScore += 25
-    if (purpose === 'planning' && (mainstreamQwen3 || mainstreamQwen25)) fastScore += 20
+    if (purpose === 'planning' && (planningModel && name === planningModel)) fastScore += 80
     return fastScore
   }
 
   let score = 20 + Math.min(size || 0, 40) / 10
   if (purpose === 'adult') {
-    if (acceptedAdult && name === acceptedAdult) score += 220
-    else if (qwen3Heretic8) score += 135
-    else if (pygmalion3) score += 125
-    else if (magnumV4) score += 115
-    else if (rocinante && uncensored) score += 115
-    else if (qwen25Heretic14) score += 108
-    else if (roleplay && uncensored) score += 104
-    else if (uncensored && size >= 12) score += 98
-    else if (qwen3Heretic8) score += 78
-    else if (roleplay) score += 70
-    else score += 25
+    if (adultExplicit && name === adultExplicit) score += 360
+    else if (literotica4) score += 340
+    else if (qwen3Heretic8) score += 115
+    else if (pygmalion3) score += 100
+    else if (magnumV4) score += 90
+    else if (roleplay && uncensored) score += 85
+    else if (uncensored) score += 70
+    else score += 20
   }
   if (purpose === 'general') {
-    if (mistralSmall) score += 100
-    else if (mainstreamQwen25) score += 96
-    else if (mainstreamQwen3) score += 94
-    else if (qwen25Heretic14) score += 88
-    else if (rocinante) score += 84
-    else if (qwen3Heretic8) score += 72
+    if (generalProse && name === generalProse) score += 260
+    else if (magnumV4) score += 190
+    else if (mistralSmall) score += 120
+    else if (mainstreamQwen25) score += 112
+    else if (mainstreamQwen3) score += 108
+    else if (rocinante) score += 100
+    else if (qwen3Heretic8) score += 80
+    else if (literotica4) score -= 80
     else score += 50
   }
   if (purpose === 'character') {
-    if (magnumV4) score += 120
-    else if (pygmalion3) score += 116
-    else if (rocinante) score += 115
-    else if (name.includes('magnum') || name.includes('mag-mell') || name.includes('mag_mell')) score += 105
-    else if (name.includes('stheno') || name.includes('pygmalion')) score += 98
-    else if (qwen25Heretic14) score += 90
-    else if (qwen3Heretic8) score += 82
+    if (characterModel && name === characterModel) score += 260
+    else if (pygmalion3) score += 190
+    else if (magnumV4) score += 165
+    else if (rocinante) score += 145
+    else if (name.includes('stheno') || name.includes('pygmalion')) score += 130
+    else if (qwen3Heretic8) score += 90
+    else if (literotica4) score -= 50
     else score += 55
   }
   if (purpose === 'planning') {
-    if (mainstreamQwen3) score += 100
-    else if (mainstreamQwen25) score += 98
-    else if (qwen25Heretic14) score += 96
-    else if (mistralSmall) score += 94
-    else if (qwen3Heretic8) score += 86
+    if (planningModel && name === planningModel) score += 260
+    else if (mainstreamQwen3) score += 150
+    else if (mainstreamQwen25) score += 145
+    else if (qwen25Heretic14) score += 138
+    else if (qwen3Heretic8) score += 130
+    else if (mistralSmall) score += 120
+    else if (literotica4) score -= 90
     else score += 55
   }
   return score
@@ -182,6 +188,13 @@ function recommendModel(models: string[], purpose: ResolvedPurpose, profile: Per
 
 function describeModel(model: string): ModelGuide {
   const name = normalized(model)
+  if (name.includes('qwen3.5-4b-nsfw-ara-heretic-literotica')) {
+    return {
+      label: 'Proven adult-explicit specialist 4B',
+      bestFor: 'Complete explicit adult sex scenes with direct anatomy/action, correct body canon, and minimal setup drift.',
+      why: 'This exact Q4 model passed EmberWriter’s isolated full-scene proof. It is intentionally routed away from general fiction, planning, and ordinary dialogue work. Commercial redistribution/hosting still requires license review.',
+    }
+  }
   if (name.includes('pygmalion-3') || name.includes('pygmalion3')) {
     return {
       label: 'Adult / roleplay specialist 12B',
@@ -331,7 +344,7 @@ export default function StudioModelRouter({ provider, models, preferences, studi
           <strong style={{ display: 'block', fontSize: 12 }}>{performanceProfile === 'fast' ? 'Fast' : 'Quality'} recommendation: {recommended}</strong>
           <span style={badgeStyle}>{fitLabel(recommended, resolvedPurpose, performanceProfile, preferences)}</span>
           <p style={hintStyle}>{describeModel(recommended).bestFor}</p>
-          {resolvedPurpose === 'adult' && normalized(preferences.accepted_adult_model || '') === normalized(recommended) && <p style={hintStyle}>Passed EmberWriter’s local adult-scene bakeoff on this machine.</p>}
+          {resolvedPurpose === 'adult' && normalized(preferences.adult_explicit_model || '') === normalized(recommended) && <p style={hintStyle}>Dedicated adult-explicit capability model. The managed Q4 build passed EmberWriter’s isolated full-scene proof.</p>}
         </div>
       )}
 
