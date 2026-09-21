@@ -83,7 +83,7 @@ async def test_character_portrait_generation_uses_stable_diffusion_webui(
     result = await routes_media.generate_portrait(
         slug,
         CharacterPortraitGenerateRequest(
-            character="Jax",
+            character="Tamsin",
             prompt="adult woman, scarred fighter, cinematic dark fantasy portrait",
             base_url="http://127.0.0.1:7860",
             width=512,
@@ -98,4 +98,4 @@ async def test_character_portrait_generation_uses_stable_diffusion_webui(
     assert result["prompt"].startswith("adult woman")
     assert result["width"] == 384
     assert result["height"] == 512
-    assert (storage.project_root(slug) / "characters/assets/jax.png").exists()
+    assert (storage.project_root(slug) / "characters/assets/tamsin.png").exists()
