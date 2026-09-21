@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from .adult_specialist import (
     build_adult_specialist_messages,
+    build_hidden_adult_scene_plan,
     route_explicit_adult_specialist,
     should_use_adult_explicit_specialist,
 )
@@ -46,7 +47,11 @@ from .prose_quality import quality_guidance
 from .provenance_store import record_assistance_event
 from .storage import compile_context, read_text
 from .story_intelligence import build_character_context, relevant_character_names
-from .streaming_generation import generate_complete_prose_streamed, generate_streamed
+from .streaming_generation import (
+    generate_complete_prose_streamed,
+    generate_streamed,
+    verify_studio_scene_delivery,
+)
 from .studio_context import STUDIO_CONTEXT_SENTINEL, build_studio_context
 
 router = APIRouter(prefix="/api")
@@ -353,6 +358,7 @@ def _generation_messages(
     heat: str | None,
     delivery_scope: str,
     minimum_words: int,
+    scene_plan: str = "",
 ) -> tuple[list[dict[str, str]], bool]:
     specialist = should_use_adult_explicit_specialist(
         payload.provider.model,
@@ -369,6 +375,7 @@ def _generation_messages(
                 heat_level=heat,
                 delivery_scope=delivery_scope,
                 min_scene_words=minimum_words,
+                scene_plan=scene_plan,
             ),
             True,
         )
@@ -449,7 +456,23 @@ async def _generate_payload(
 ) -> GenerateResponse:
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
+    planner_provider = payload.provider.model_copy(deep=True)
     await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
+    adult_specialist = should_use_adult_explicit_specialist(
+        payload.provider.model,
+        payload.prompt,
+        heat,
+        payload.mode,
+    )
+    scene_plan = ""
+    if adult_specialist:
+        scene_plan = await build_hidden_adult_scene_plan(
+            planner_provider,
+            payload.prompt,
+            context_text,
+            heat_level=heat,
+            delivery_scope=delivery_scope,
+        )
 
     messages, adult_specialist = _generation_messages(
         payload,
@@ -457,6 +480,7 @@ async def _generate_payload(
         heat=heat,
         delivery_scope=delivery_scope,
         minimum_words=minimum_words,
+        scene_plan=scene_plan,
     )
 
     if streamed:
@@ -488,6 +512,35 @@ async def _generate_payload(
         )
     else:
         text = await generate(payload.provider, messages)
+
+    if adult_specialist and not streamed and _is_studio_request(payload) and payload.mode in PROSE_MODES:
+        verdict = await verify_studio_scene_delivery(payload.provider, messages, text)
+        hard_retry = (
+            verdict.get("physical_continuity") is False
+            or verdict.get("canon_respected") is False
+            or verdict.get("repetition_loop") is True
+            or verdict.get("buildup_only") is True
+            or verdict.get("fade_or_skip") is True
+        )
+        if hard_retry:
+            reason = str(verdict.get("reason", "scene delivery failed continuity validation")).strip()
+            repair_messages = [
+                *messages,
+                {
+                    "role": "user",
+                    "content": (
+                        "Restart the scene from scratch. The previous draft has been discarded because the hidden validator "
+                        f"found this problem: {reason[:260]}. Follow the HIDDEN SCENE DIRECTOR PLAN from its opening state. "
+                        "Do not add a new setup sequence. Preserve hard body canon, narrate every required repositioning before "
+                        "the dependent action, keep the central encounter moving forward, and do not repeat earlier foreplay."
+                    ),
+                },
+            ]
+            text = await generate_complete_prose(
+                payload.provider,
+                repair_messages,
+                min_words=minimum_words,
+            )
 
     refined = False
     if payload.craft.quality_pass and payload.mode in PROSE_MODES and not adult_specialist:
@@ -557,7 +610,7 @@ async def _produce_generation_stream(
         await queue.put({"type": "delta", "text": text})
 
     async def emit_status(message: str) -> None:
-        if message.startswith(("Hard-canon conflict detected", "Core-only scope miss detected", "Non-manuscript assistant response detected ·")):
+        if message.startswith(("Hard-canon conflict detected", "Physical continuity conflict detected", "Core-only scope miss detected", "Non-manuscript assistant response detected ·")):
             streamed_parts.clear()
             await queue.put({"type": "reset", "reason": message})
         await queue.put({"type": "status", "message": message})
@@ -588,13 +641,31 @@ async def _produce_generation_stream(
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
             heat, delivery_scope, minimum_words = _generation_contract(payload)
+            planner_provider = payload.provider.model_copy(deep=True)
             await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
+            adult_specialist = should_use_adult_explicit_specialist(
+                payload.provider.model,
+                payload.prompt,
+                heat,
+                payload.mode,
+            )
+            scene_plan = ""
+            if adult_specialist:
+                await emit_status("Directing scene progression…")
+                scene_plan = await build_hidden_adult_scene_plan(
+                    planner_provider,
+                    payload.prompt,
+                    context_text,
+                    heat_level=heat,
+                    delivery_scope=delivery_scope,
+                )
             messages, adult_specialist = _generation_messages(
                 payload,
                 context_text,
                 heat=heat,
                 delivery_scope=delivery_scope,
                 minimum_words=minimum_words,
+                scene_plan=scene_plan,
             )
 
             if payload.mode in PROSE_MODES:

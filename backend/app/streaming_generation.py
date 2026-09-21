@@ -630,6 +630,7 @@ async def generate_complete_prose_streamed(
     repetition_recoveries = 0
     verifier_reason = ""
     canon_restart_used = False
+    continuity_restart_used = False
     scope_restart_used = False
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
@@ -784,6 +785,27 @@ async def generate_complete_prose_streamed(
                                 "Restart the requested scene from scratch. The previous attempt contradicted hard character or "
                                 "embodiment canon and has been discarded. Re-read the supplied character canon before writing. "
                                 "Do not invent body facts. Deliver the requested scene directly rather than adding prolonged buildup."
+                            ),
+                        },
+                    ]
+                    pass_index += 1
+                    continue
+                if verdict.get("physical_continuity") is False and not continuity_restart_used:
+                    continuity_restart_used = True
+                    accumulated = ""
+                    if on_status is not None:
+                        await on_status(
+                            "Physical continuity conflict detected · discarding the invalid attempt and regenerating from the hidden plan…"
+                        )
+                    working_messages = [
+                        *messages,
+                        {
+                            "role": "user",
+                            "content": (
+                                "Restart the scene from scratch. The previous draft has been discarded because the physical "
+                                f"continuity verifier found this problem: {verifier_reason[:260]}. Follow the HIDDEN SCENE DIRECTOR "
+                                "PLAN from its opening state. Preserve hard body canon and body-part ownership. Narrate every required "
+                                "repositioning before the dependent action. Do not reset into another buildup loop or invent a new location."
                             ),
                         },
                     ]
