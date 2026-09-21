@@ -151,7 +151,7 @@ def test_runaway_semantic_chain_is_never_forwarded_to_visible_stream() -> None:
 
 
 def test_deterministic_quality_gate_rejects_observed_runaway_shape() -> None:
-    bad = "Muna smiled. " + _semantic_chain() + "."
+    bad = "Avery smiled. " + _semantic_chain() + "."
     reason = generation_reliability._hard_quality_failure(bad)
     assert "semantic-chain degeneration" in reason
 
