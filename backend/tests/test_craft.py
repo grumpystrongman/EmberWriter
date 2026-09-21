@@ -205,15 +205,15 @@ def test_relevant_character_gets_dossier_context(tmp_path: Path) -> None:
     slug = project["slug"]
     storage.save_text(
         slug,
-        "characters/sera.md",
-        "# Sera\n\nSera speaks with deliberate precision. She dislikes sentimental euphemism.",
+        "characters/mira.md",
+        "# Mira\n\nSera speaks with deliberate precision. She dislikes sentimental euphemism.",
     )
 
     names = story_intelligence.relevant_character_names(
         slug,
-        "Continue the scene with Sera after the council leaves.",
+        "Continue the scene with Mira after the council leaves.",
     )
-    assert names == ["Sera"]
+    assert names == ["Mira"]
 
     context = story_intelligence.build_character_context(slug, names)
     assert "Dossier excerpt" in context
