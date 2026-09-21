@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 
 from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER
+from .models import ProviderConfig
+from .ollama_runtime import installed_ollama_models
 
 # Empirically proven on 2026-09-20 in an isolated llama.cpp Q4_K_M run.
 # The proof generated 1,372 words, began direct action at word 29, contained
@@ -35,15 +37,46 @@ def is_adult_explicit_specialist(model: str) -> bool:
     return ADULT_EXPLICIT_SPECIALIST_FAMILY in model.casefold()
 
 
+def is_explicit_adult_request(
+    prompt: str,
+    heat_level: str | None,
+    mode: str,
+) -> bool:
+    if mode not in {"write", "continue", "rewrite"}:
+        return False
+    return heat_level in {"scorching", "inferno"} or bool(_DIRECT_ADULT_REQUEST.search(prompt))
+
+
 def should_use_adult_explicit_specialist(
     model: str,
     prompt: str,
     heat_level: str | None,
     mode: str,
 ) -> bool:
-    if not is_adult_explicit_specialist(model) or mode not in {"write", "continue", "rewrite"}:
+    return is_adult_explicit_specialist(model) and is_explicit_adult_request(
+        prompt,
+        heat_level,
+        mode,
+    )
+
+
+async def route_explicit_adult_specialist(
+    config: ProviderConfig,
+    prompt: str,
+    heat_level: str | None,
+    mode: str,
+) -> bool:
+    """Force explicit local adult work onto the empirically proven specialist when installed."""
+    if config.provider != "ollama" or not is_explicit_adult_request(prompt, heat_level, mode):
         return False
-    return heat_level in {"scorching", "inferno"} or bool(_DIRECT_ADULT_REQUEST.search(prompt))
+
+    installed = await installed_ollama_models(config.base_url)
+    by_name = {item.casefold(): item for item in installed}
+    resolved = by_name.get(ADULT_EXPLICIT_SPECIALIST_MODEL.casefold())
+    if resolved:
+        config.model = resolved
+        return True
+    return is_adult_explicit_specialist(config.model)
 
 
 def _participant_tokens(prompt: str) -> set[str]:
