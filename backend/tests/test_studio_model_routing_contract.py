@@ -92,11 +92,12 @@ def test_adult_router_uses_persisted_acceptance_winner() -> None:
     assert "Dedicated adult-explicit capability model" in router
 
 
-def test_quality_adult_routing_can_select_fast_model_when_it_wins_bakeoff() -> None:
+def test_adult_routing_reserves_explicit_specialist_instead_of_fast_fallback() -> None:
     router = source("StudioModelRouter.tsx")
-    assert "acceptedAdult && name === acceptedAdult" in router
-    assert "qwen3Heretic8" in router
-    assert "trusts the local bakeoff over the model label" in router
+    assert "preferences.adult_explicit_model" in router
+    assert "literotica4" in router
+    assert "if (adultExplicit && name === adultExplicit) score += 360" in router
+    assert "else if (qwen3Heretic8) score += 115" in router
 
 
 def test_selector_has_dedicated_capability_preferences() -> None:
