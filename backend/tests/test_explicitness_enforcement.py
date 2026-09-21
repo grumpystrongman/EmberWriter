@@ -76,12 +76,14 @@ def test_explicit_request_adds_direct_vocabulary_contract() -> None:
     assert "Do not downgrade it to romance-only, PG-13" in system
 
 
-def test_startup_policy_uses_same_explicit_creative_model_as_installer() -> None:
-    managed = app.explicitness_enforcement.PYGMALION_3_MODEL
-    assert app.model_provisioning.BASELINE_CREATIVE_MODEL == managed
-    assert managed in app.ollama_runtime._RECOMMENDED_MODELS
-    assert app.explicitness_enforcement.MAGNUM_V4_MODEL in app.ollama_runtime._RECOMMENDED_MODELS
-    assert app.ollama_runtime._RECOMMENDED_MODELS[0] == managed
+def test_startup_policy_separates_general_prose_from_adult_specialist() -> None:
+    general = app.explicitness_enforcement.MAGNUM_V4_MODEL
+    adult = app.explicitness_enforcement.ADULT_EXPLICIT_SPECIALIST_MODEL
+    assert app.model_provisioning.BASELINE_CREATIVE_MODEL == general
+    assert app.model_provisioning.ADULT_EXPLICIT_CREATIVE_MODEL == adult
+    assert app.ollama_runtime._RECOMMENDED_MODELS[0] == general
+    assert adult in app.ollama_runtime._RECOMMENDED_MODELS
+    assert app.explicitness_enforcement.PYGMALION_3_MODEL in app.ollama_runtime._RECOMMENDED_MODELS
 
 
 @pytest.mark.asyncio
