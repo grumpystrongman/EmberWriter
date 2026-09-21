@@ -20,7 +20,7 @@ def test_story_intelligence_builds_character_profiles_and_relationships(tmp_path
     storage.save_text(slug, "characters/mira.md", "# Mira\n\nCommanding, precise, and guarded.")
     storage.save_text(slug, "characters/tamsin.md", "# Tamsin\n\nBlunt, fierce, and protective.")
 
-    chapter = "# Chapter 4\n\nSera tells Tamsin the vault key is hidden beneath the archive."
+    chapter = "# Chapter 4\n\nMira tells Tamsin the vault key is hidden beneath the archive."
     storage.save_text(slug, "manuscript/chapter-004.md", chapter)
     store_analysis(
         slug,
@@ -76,7 +76,7 @@ def test_scene_architect_saves_valid_plan(tmp_path: Path, monkeypatch) -> None:
     project = storage.create_project("Scene Test")
     slug = project["slug"]
     storage.save_text(slug, "characters/mira.md", "# Mira\n\nA precise strategist.")
-    storage.save_text(slug, "manuscript/chapter-002.md", "# Chapter 2\n\nSera reaches the locked archive.")
+    storage.save_text(slug, "manuscript/chapter-002.md", "# Chapter 2\n\nMira reaches the locked archive.")
 
     async def fake_generate(*args, **kwargs):
         return json.dumps(
