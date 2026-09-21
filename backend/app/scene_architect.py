@@ -64,6 +64,9 @@ Return exactly this JSON shape:
   "next_scene_pressure": "pressure or question created for the next scene"
 }
 """
+SCENE_ARCHITECT_SYSTEM_PROMPT = SCENE_ARCHITECT_SYSTEM_PROMPT.replace(
+    "{PLANNING_CONTINUITY_RULES}", PLANNING_CONTINUITY_RULES
+)
 
 
 def _parse_json_object(text: str) -> dict[str, Any]:
