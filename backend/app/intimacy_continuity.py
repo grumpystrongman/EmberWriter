@@ -30,7 +30,7 @@ VERIFIER_CONTINUITY_INSTRUCTION = (
 )
 
 _INSIDE_PENIS = re.compile(
-    r"\b(?:inside|into)\s+(?:(?:his|her|their|the|a|an)\s+)?(?:penis|cock|dick)\b",
+    r"\b(?:inside|into)\s+(?:(?:his|her|their|the|a|an)\s+|(?:[A-Za-z][A-Za-z'’-]{1,30}['’]s)\s+)?(?:penis|cock|dick)\b",
     re.IGNORECASE,
 )
 _PENIS_TERMS = re.compile(r"\b(?:penis|cock|dick)\b", re.IGNORECASE)
