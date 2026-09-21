@@ -5,7 +5,13 @@ from dataclasses import dataclass
 
 from . import generation as generation
 from . import ollama_runtime
-from .adult_specialist import ADULT_EXPLICIT_SPECIALIST_FAMILY, ADULT_EXPLICIT_SPECIALIST_MODEL
+from .model_catalog import (
+    ADULT_EXPLICIT_FAMILY,
+    ADULT_EXPLICIT_MODEL,
+    CHARACTER_MODEL,
+    FAST_MODEL,
+    GENERAL_PROSE_MODEL,
+)
 from . import streaming_generation as streaming
 from .models import ProviderConfig
 from .prose_quality import diagnose_prose
@@ -35,7 +41,7 @@ _GENERIC_WORD_PATTERN = re.compile(r"\b(\d{3,5})\s*words?\b", re.IGNORECASE)
 def adult_model_score(model: str) -> int:
     name = model.casefold()
     score = 0
-    if ADULT_EXPLICIT_SPECIALIST_FAMILY in name:
+    if ADULT_EXPLICIT_FAMILY in name:
         score = 1000
     elif "cydonia" in name and ("heretic" in name or "abliter" in name or "decensor" in name):
         score = 260
@@ -195,7 +201,7 @@ async def _route_adult_model(config: ProviderConfig, messages: list[dict[str, st
 
     by_name = {item.casefold(): item for item in installed}
     if _is_explicit_intimacy_request(messages):
-        specialist = by_name.get(ADULT_EXPLICIT_SPECIALIST_MODEL.casefold())
+        specialist = by_name.get(ADULT_EXPLICIT_MODEL.casefold())
         if specialist:
             config.model = specialist
             return
@@ -216,7 +222,7 @@ def _sampling_for_model(model: str, temperature: float, top_p: float) -> tuple[f
     if temperature != 0.9 or top_p != 0.95:
         repeat_penalty = 1.10 if "rocinante" in name else 1.08 if "cydonia" in name else 1.18
         return temperature, top_p, repeat_penalty
-    if ADULT_EXPLICIT_SPECIALIST_FAMILY in name:
+    if ADULT_EXPLICIT_FAMILY in name:
         return 0.80, 0.90, 1.05
     if "cydonia" in name:
         return 0.72, 0.90, 1.05
@@ -537,10 +543,13 @@ def install_generation_reliability() -> None:
     streaming.verify_studio_scene_delivery = verify_studio_scene_delivery
     streaming._NoveltyStreamFilter = HardenedNoveltyStreamFilter
 
-    # For invalid/stale configured names, creative prose models are now preferred before Qwen fallbacks.
+    # Generic stale-model repair remains prose-first. Adult explicit routing has its own
+    # dedicated capability path and must not become the default for ordinary fiction.
     ollama_runtime._RECOMMENDED_MODELS = (
-        "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M",
+        GENERAL_PROSE_MODEL,
+        CHARACTER_MODEL,
+        FAST_MODEL,
+        ADULT_EXPLICIT_MODEL,
         "HammerAI/rocinante-v1.1:12b-q4_K_M",
         "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
-        "R4C3R/qwen3-8b-heretic:q4_k_m",
     )
