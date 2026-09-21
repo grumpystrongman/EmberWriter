@@ -6,19 +6,19 @@ from app.models import ProviderConfig
 
 
 def test_proven_specialist_contract_starts_at_explicit_scene_and_preserves_body_canon() -> None:
-    context = """### Muna
+    context = """### Avery
 HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
-Muna has a penis. Muna does not have a vagina, vulva, or clitoris.
+Avery has a penis. Avery does not have a vagina, vulva, or clitoris.
 
-### Kaelen
-Kaelen has a penis.
+### Rowan
+Rowan has a penis.
 
 ## Broad lore
 A long unrelated history of kingdoms and politics.
 """
     messages = adult_specialist.build_adult_specialist_messages(
         "write",
-        "Write the explicit sex scene between Kaelen and Muna.",
+        "Write the explicit sex scene between Rowan and Avery.",
         context,
         heat_level="inferno",
         delivery_scope="core_only",
@@ -31,23 +31,23 @@ A long unrelated history of kingdoms and politics.
     assert "Begin the requested central sexual action in the first paragraph" in system
     assert "Do not stop to ask whether the characters are sure" in system
     assert "HARD BODY / EMBODIMENT CANON is literal author-owned fact" in system
-    assert "Muna has a penis" in user
-    assert "Muna does not have a vagina, vulva, or clitoris" in user
+    assert "Avery has a penis" in user
+    assert "Avery does not have a vagina, vulva, or clitoris" in user
 
 
 def test_adult_specialist_context_is_compact() -> None:
     broad = "UNRELATED_LORE " * 10000
     context = (
-        "### Muna\nHARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:\n"
-        "Muna has a penis. Muna does not have a vagina, vulva, or clitoris.\n\n"
+        "### Avery\nHARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:\n"
+        "Avery has a penis. Avery does not have a vagina, vulva, or clitoris.\n\n"
         + broad
     )
     compact = adult_specialist.compact_adult_context(
         context,
-        "Write an explicit scene between Muna and Kaelen.",
+        "Write an explicit scene between Avery and Rowan.",
     )
     assert len(compact) <= 18000
-    assert "Muna has a penis" in compact
+    assert "Avery has a penis" in compact
 
 
 def test_explicit_request_detection_does_not_capture_ordinary_scene() -> None:

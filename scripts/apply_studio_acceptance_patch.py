@@ -197,14 +197,14 @@ def test_studio_continue_has_a_continuation_boundary_and_keeps_hard_canon_early(
     project = storage.create_project("Studio Acceptance")
     slug = project["slug"]
     storage.save_text(slug, "summaries/rolling-summary.md", "SUMMARY " * 7000)
-    storage.save_text(slug, "characters/kaelen.md", "# Kaelen\n\nAdult Nexus. Attentive and protective.\n")
+    storage.save_text(slug, "characters/rowan.md", "# Rowan\n\nAdult protagonist. Attentive and protective.\n")
     storage.save_text(
         slug,
-        "characters/muna.md",
-        "# Muna\n\nAdult trans woman. Warm, playful, musical.\n" + ("canon filler " * 500) + "\nBODY_CANON_SENTINEL: explicit author body canon lives here.\n",
+        "characters/avery.md",
+        "# Avery\n\nAdult trans woman. Warm, playful, musical.\n" + ("canon filler " * 500) + "\nBODY_CANON_SENTINEL: explicit author body canon lives here.\n",
     )
 
-    prompt = "Continue the Kaelen and Muna Studio scene in the academy sauna."
+    prompt = "Continue the Rowan and Avery Studio scene in the academy sauna."
     context, _, _, _ = studio_context.build_studio_context(
         slug,
         prompt,
@@ -225,10 +225,10 @@ def test_fresh_studio_write_still_starts_new(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Fresh Studio Acceptance")
     slug = project["slug"]
-    storage.save_text(slug, "characters/muna.md", "# Muna\n\nAdult character.\n")
+    storage.save_text(slug, "characters/avery.md", "# Avery\n\nAdult character.\n")
     context, _, _, _ = studio_context.build_studio_context(
         slug,
-        "Write a new scene with Muna.",
+        "Write a new scene with Avery.",
         CraftControls(heat_level="inferno"),
         continuation=False,
     )

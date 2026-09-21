@@ -22,12 +22,12 @@ def test_pg13_euphemistic_scene_fails_direct_explicitness_gate() -> None:
 
 def test_direct_lexical_fixture_passes_density_gate() -> None:
     draft = (
-        "Kaelen's penis pressed against Muna's vagina before penetration began. "
+        "Rowan's penis pressed against Avery's vagina before penetration began. "
         "He thrust his penis into her vagina while she touched her clitoris. "
-        "Muna stroked his penis with her hand and then gave him oral sex. "
+        "Avery stroked his penis with her hand and then gave him oral sex. "
         "He licked her vulva and clitoris while she guided him with her hand. "
         "They continued fucking, with direct penetration and thrusting described clearly. "
-        "Muna orgasmed first. Kaelen came afterward, ejaculating as they finished together."
+        "Avery orgasmed first. Rowan came afterward, ejaculating as they finished together."
     )
     profile = app.explicitness_enforcement.explicitness_profile(draft)
     assert profile.anatomy_groups >= 2

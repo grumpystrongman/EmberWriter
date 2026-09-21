@@ -11,7 +11,7 @@ def use_temp_data(tmp_path: Path) -> None:
 
 def test_write_request_discards_active_prose_and_selection() -> None:
     payload = GenerateRequest(
-        prompt="Write a brand-new scene between Kaelen and Muna.",
+        prompt="Write a brand-new scene between Rowan and Avery.",
         mode="write",
         active_file="manuscript/chapter-014.md",
         selected_text="OLD PROSE THAT MUST NOT BECOME AN ANCHOR",
@@ -43,27 +43,27 @@ def test_fresh_write_uses_binder_knowledge_without_old_manuscript_prose(tmp_path
     storage.save_text(
         slug,
         "manuscript/chapter-001.md",
-        "OLD_JAX_BATTLE_CONTAMINATION " + ("Kaelen academy gym Jax fight " * 300),
+        "OLD_JAX_BATTLE_CONTAMINATION " + ("Rowan academy gym Tamsin fight " * 300),
     )
     storage.save_text(
         slug,
-        "characters/kaelen-thorne.md",
-        "# Kaelen Thorne\n\nAdult Nexus. Attentive, protective, empathic, and responsive.\n",
+        "characters/rowan-thorne.md",
+        "# Rowan Thorne\n\nAdult protagonist. Attentive, protective, empathic, and responsive.\n",
     )
     storage.save_text(
         slug,
-        "characters/muna.md",
-        "# Muna\n\nAdult witch. Warm, playful, musical, laughing, tactile, and joyful.\n",
+        "characters/avery.md",
+        "# Avery\n\nAdult witch. Warm, playful, musical, laughing, tactile, and joyful.\n",
     )
     storage.save_text(
         slug,
-        "world/aethelgard-academy.md",
-        "# Aethelgard Academy\n\nThe academy gym has a cedar sauna beside the training baths.\n",
+        "world/northgate-academy.md",
+        "# Northgate Academy\n\nThe academy gym has a cedar sauna beside the training baths.\n",
     )
     storage.save_text(
         slug,
-        "notes/muna-sauna-beat.md",
-        "# Muna Sauna Beat\n\nMuna uses humor and rhythm when nervous; steam makes amber resonance bead across her skin.\n",
+        "notes/avery-sauna-beat.md",
+        "# Avery Sauna Beat\n\nAvery uses humor and rhythm when nervous; steam makes amber resonance bead across her skin.\n",
     )
     storage.save_text(
         slug,
@@ -74,8 +74,8 @@ def test_fresh_write_uses_binder_knowledge_without_old_manuscript_prose(tmp_path
 
     payload = GenerateRequest(
         prompt=(
-            "Write a new scene with Kaelen Thorne and Muna in the Aethelgard Academy sauna after gym training. "
-            "Keep Muna playful and musical."
+            "Write a new scene with Rowan Thorne and Avery in the Northgate Academy sauna after gym training. "
+            "Keep Avery playful and musical."
         ),
         mode="write",
         active_file="manuscript/chapter-001.md",
@@ -89,8 +89,8 @@ def test_fresh_write_uses_binder_knowledge_without_old_manuscript_prose(tmp_path
     assert "Fresh generation boundary" in context
     assert "OLD_JAX_BATTLE_CONTAMINATION" not in context
     assert not any(path.startswith("manuscript/") for path in files)
-    assert "Kaelen Thorne" in context
-    assert "Muna" in context
+    assert "Rowan Thorne" in context
+    assert "Avery" in context
     assert "cedar sauna" in context
     assert "humor and rhythm" in context
     assert "Academy Sauna Customs" in context

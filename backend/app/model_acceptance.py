@@ -11,6 +11,7 @@ from . import generation
 from .adult_specialist import build_adult_specialist_messages, is_adult_explicit_specialist
 from .generation_reliability import _hard_quality_failure, parse_scene_length
 from .generation_reliability_refinement import explicit_delivery_failure
+from .intimacy_continuity import hard_choreography_failure
 from .models import ProviderConfig
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -19,22 +20,22 @@ ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
 ACCEPTANCE_VERSION = 4
 
 ACCEPTANCE_PROMPT = (
-    "CORE ONLY. Write a direct, detailed adult sex scene between Kaelen and Muna immediately after "
+    "CORE ONLY. Write a direct, detailed adult sex scene between Rowan and Avery immediately after "
     "their gym workout and sauna. Both are consenting adults. Begin concrete sexual action within the "
     "first 140 words; do not spend the response on flirting, walking home, dinner, scenery, consent "
-    "discussion, or relationship analysis. Muna's HARD BODY CANON for this fixture: she is a trans "
-    "woman with a penis; she does not have a vagina, vulva, or clitoris. Kaelen has a penis. Use the "
+    "discussion, or relationship analysis. Avery's HARD BODY CANON for this fixture: she is a trans "
+    "woman with a penis; she does not have a vagina, vulva, or clitoris. Rowan has a penis. Use the "
     "correct anatomy directly and describe the physical acts clearly rather than euphemistically. Include "
     "substantial manual stimulation, reciprocal oral sex, consensual anal penetration, position changes, "
-    "and on-page orgasm for both Muna and Kaelen. Keep the requested core encounter between 900 and 1600 words."
+    "and on-page orgasm for both Avery and Rowan. Keep the requested core encounter between 900 and 1600 words."
 )
 
 ACCEPTANCE_CONTEXT = """# Acceptance-test canon
-Kaelen and Muna are consenting adults. Muna is an adult trans woman. HARD BODY CANON: Muna has a penis. Muna does not have a vagina, vulva, or clitoris. Kaelen has a penis. Do not infer any additional anatomy from gender identity. Kaelen is the Nexus: attentive, empathic, protective, and responsive rather than domineering. Muna's Joy/Ecstasy resonance is playful, warm, musical, tactile, spontaneous, and celebratory, with amber/rose/gold imagery. They have just finished a workout and sauna session. CORE ONLY: stay with the requested sexual encounter; do not add travel, meals, pets, unrelated locations, side plots, or unrelated characters. This is synthetic acceptance-test canon, not manuscript canon.
+Rowan and Avery are consenting adults. Avery is an adult trans woman. HARD BODY CANON: Avery has a penis. Avery does not have a vagina, vulva, or clitoris. Rowan has a penis. Do not infer any additional anatomy from gender identity. Rowan is attentive, empathic, protective, and responsive rather than domineering. Avery is playful, warm, tactile, spontaneous, and celebratory. They have just finished a workout and sauna session. CORE ONLY: stay with the requested sexual encounter; do not add travel, meals, pets, unrelated locations, side plots, or unrelated characters. This is synthetic acceptance-test canon, not manuscript canon.
 """
 
 
-_BANNED_DRIFT_NAMES = ("Sera", "Jax", "Elara", "Lyra")
+_BANNED_DRIFT_NAMES = ("Mira", "Tamsin", "Liora", "Nessa")
 
 
 def _word_count(text: str) -> int:
@@ -46,9 +47,9 @@ _DIRECT_ACTION = re.compile(
     r"suck\w*|lick\w*|hand\s*job|stroke\w*|masturbat\w*|ejaculat\w*|cum|cumming|orgasm\w*)\b",
     re.IGNORECASE,
 )
-_MUNA_PENIS = re.compile(r"\b(?:muna(?:['’]s)?|her)\s+(?:penis|cock|dick)\b", re.IGNORECASE)
-_WRONG_MUNA_ANATOMY = re.compile(
-    r"\b(?:muna(?:['’]s)?|her)\s+(?:vagina|vulva|pussy|cunt|clit|clitoris)\b",
+_PRIMARY_PENIS = re.compile(r"\b(?:avery(?:['’]s)?|her)\s+(?:penis|cock|dick)\b", re.IGNORECASE)
+_WRONG_PRIMARY_ANATOMY = re.compile(
+    r"\b(?:avery(?:['’]s)?|her)\s+(?:vagina|vulva|pussy|cunt|clit|clitoris)\b",
     re.IGNORECASE,
 )
 _DRIFT_TERMS = re.compile(
@@ -88,16 +89,20 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
     if delivery_failure:
         failures.append(delivery_failure)
 
+    choreography_failure = hard_choreography_failure(text)
+    if choreography_failure:
+        failures.append(choreography_failure)
+
     first_action_word = _first_direct_action_word(text)
     direct_action_sentences = _direct_action_sentences(text)
     if first_action_word > 140:
         failures.append(f"core action begins too late: first direct-action evidence at word {first_action_word}")
     if direct_action_sentences < 12:
         failures.append(f"not enough sustained direct-action description: {direct_action_sentences} direct sentences")
-    if not _MUNA_PENIS.search(text):
-        failures.append("Muna's established penis anatomy is not directly represented")
-    if _WRONG_MUNA_ANATOMY.search(text):
-        failures.append("hard body-canon conflict: draft gives Muna vagina/vulva/clitoris anatomy")
+    if not _PRIMARY_PENIS.search(text):
+        failures.append("Avery's established penis anatomy is not directly represented")
+    if _WRONG_PRIMARY_ANATOMY.search(text):
+        failures.append("hard body-canon conflict: draft gives Avery vagina/vulva/clitoris anatomy")
     if _DRIFT_TERMS.search(text):
         failures.append("core-only scene drifted into unrelated domestic/scenery material")
 
@@ -110,19 +115,19 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
         if not pattern.search(text):
             failures.append(f"required acceptance beat missing: {label}")
 
-    muna_climax = re.search(
-        r"(?is)\bmuna\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
+    avery_climax = re.search(
+        r"(?is)\bavery\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
         text,
     )
-    kaelen_climax = re.search(
-        r"(?is)\bkaelen\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
+    rowan_climax = re.search(
+        r"(?is)\browan\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
         text,
     )
-    if not muna_climax or not kaelen_climax:
+    if not avery_climax or not rowan_climax:
         failures.append("both named participants must have supported on-page climaxes")
 
     lowered = text.casefold()
-    for required in ("kaelen", "muna"):
+    for required in ("rowan", "avery"):
         if required not in lowered:
             failures.append(f"required participant missing from prose: {required}")
 

@@ -14,7 +14,7 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
     project = storage.create_project("Memory Novel")
     slug = project["slug"]
     path = "manuscript/chapter-001.md"
-    content = "# Chapter 1\n\nSera tells Jax the vault key is hidden beneath the chapel."
+    content = "# Chapter 1\n\nMira tells Tamsin the vault key is hidden beneath the chapel."
     storage.save_text(slug, path, content)
 
     result = memory.store_analysis(
@@ -22,11 +22,11 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
         path,
         content,
         {
-            "summary": "Sera trusts Jax with the location of the vault key.",
+            "summary": "Mira trusts Tamsin with the location of the vault key.",
             "facts": [
                 {
                     "kind": "character_knowledge",
-                    "subject": "Jax",
+                    "subject": "Tamsin",
                     "predicate": "knows",
                     "object": "the vault key is hidden beneath the chapel",
                     "confidence": 1.0,
@@ -34,9 +34,9 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
                 },
                 {
                     "kind": "relationship",
-                    "subject": "Sera",
+                    "subject": "Mira",
                     "predicate": "trusts",
-                    "object": "Jax with the vault-key secret",
+                    "object": "Tamsin with the vault-key secret",
                     "confidence": 0.95,
                     "importance": 4,
                 },
@@ -46,20 +46,20 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
 
     assert result["facts_written"] == 2
     assert memory.analysis_is_current(slug, path, content)
-    jax = memory.list_memory(slug, query="Jax vault key")
-    assert jax[0]["importance"] >= 4
-    assert any(item["kind"] == "character_knowledge" for item in jax)
+    tamsin = memory.list_memory(slug, query="Tamsin vault key")
+    assert tamsin[0]["importance"] >= 4
+    assert any(item["kind"] == "character_knowledge" for item in tamsin)
 
-    context = memory.build_memory_context(slug, query="Does Jax know about the key?")
+    context = memory.build_memory_context(slug, query="Does Tamsin know about the key?")
     assert "Structured narrative memory" in context
     assert "hidden beneath the chapel" in context
 
     export_path = storage.project_root(slug) / "summaries" / "narrative-memory.json"
     exported = json.loads(export_path.read_text(encoding="utf-8"))
     assert len(exported["facts"]) == 2
-    assert exported["documents"][0]["summary"].startswith("Sera trusts Jax")
+    assert exported["documents"][0]["summary"].startswith("Mira trusts Tamsin")
 
-    changed = content + "\n\nLater, Jax gives the key to Elara."
+    changed = content + "\n\nLater, Tamsin gives the key to Liora."
     storage.save_text(slug, path, changed)
     assert not memory.analysis_is_current(slug, path, changed)
 
@@ -68,13 +68,13 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
         path,
         changed,
         {
-            "summary": "Jax passes the vault key to Elara.",
+            "summary": "Tamsin passes the vault key to Liora.",
             "facts": [
                 {
                     "kind": "object",
                     "subject": "vault key",
                     "predicate": "held by",
-                    "object": "Elara",
+                    "object": "Liora",
                     "confidence": 1.0,
                     "importance": 5,
                 }
@@ -84,7 +84,7 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
 
     all_facts = memory.list_memory(slug)
     assert len(all_facts) == 1
-    assert all_facts[0]["object"] == "Elara"
+    assert all_facts[0]["object"] == "Liora"
     assert memory.memory_stats(slug) == {
         "facts": 1,
         "documents": 1,

@@ -75,7 +75,7 @@ def test_manuscript_role_guard_does_not_reject_normal_first_person_dialogue() ->
 def test_manuscript_role_guard_rejects_fabricated_minor_safety_preamble() -> None:
     draft = """I understand you want me to continue from the recovered state. However, I must clarify some ethical boundaries.
 
-1. Sexual content involving minors: Muna's age is not specified.
+1. Sexual content involving minors: Avery's age is not specified.
 2. Explicit sexual content with characters I cannot verify are adults.
 
 If you provide verification that all characters are verified adults, parent/guardian approval documentation,
@@ -83,7 +83,7 @@ and safety protocol adherence, I can consider a bounded continuation. What would
 
 # CONTINUATION BOUNDARY PASS
 
-Muna stepped into the room and shut the door behind her."""
+Avery stepped into the room and shut the door behind her."""
 
     reason = generation.manuscript_role_failure(draft)
 
@@ -119,7 +119,7 @@ Continue writing in character-specific third-person POV. Preserve the escalating
 
 Here is my continuation:
 
-Muna crossed the room and shut the door behind her."""
+Avery crossed the room and shut the door behind her."""
 
     reason = generation.manuscript_role_failure(draft)
 
@@ -368,53 +368,53 @@ def test_studio_context_excludes_unrelated_manuscript_prose(tmp_path: Path) -> N
     storage.save_text(
         slug,
         "manuscript/chapter-001.md",
-        "JAX_BATTLE_CONTAMINATION " + ("Kaelen academy gym fight Jax " * 500),
+        "OLD_BATTLE_CONTAMINATION " + ("Rowan academy gym fight Tamsin " * 500),
     )
     storage.save_text(
         slug,
-        "characters/kaelen-thorne.md",
-        "# Kaelen Thorne\n\nAdult Nexus. Calm, attentive, protective.\n",
+        "characters/rowan-thorne.md",
+        "# Rowan Thorne\n\nAdult protagonist. Calm, attentive, protective.\n",
     )
     storage.save_text(
         slug,
-        "characters/muna.md",
-        "# Muna\n\nAdult witch. Warm, playful, musical, joyful.\n",
+        "characters/avery.md",
+        "# Avery\n\nAdult witch. Warm, playful, musical, joyful.\n",
     )
     storage.save_text(
         slug,
-        "world/aethelgard-academy.md",
-        "# Aethelgard Academy\n\nThe academy gym includes a sauna used after training.\n",
+        "world/northgate-academy.md",
+        "# Northgate Academy\n\nThe academy gym includes a sauna used after training.\n",
     )
 
-    prompt = "Write a scene between Kaelen Thorne and Muna in the sauna at Aethelgard Academy after training."
+    prompt = "Write a scene between Rowan Thorne and Avery in the sauna at Northgate Academy after training."
     context, files, _, names = studio_context.build_studio_context(
         slug,
         prompt,
         CraftControls(heat_level="inferno"),
     )
 
-    assert "JAX_BATTLE_CONTAMINATION" not in context
+    assert "OLD_BATTLE_CONTAMINATION" not in context
     assert not any(path.startswith("manuscript/") for path in files)
     assert not any(path.startswith("import/") for path in files)
-    assert "Kaelen Thorne" in context
-    assert "Muna" in context
-    assert "Aethelgard Academy" in context
+    assert "Rowan Thorne" in context
+    assert "Avery" in context
+    assert "Northgate Academy" in context
     assert "Every paragraph should do something new" in context
     assert "Never pad to reach a target" in context
     assert "Higher heat means greater immediacy" in context
-    assert {name.casefold() for name in names} >= {"kaelen thorne", "muna"}
+    assert {name.casefold() for name in names} >= {"rowan thorne", "avery"}
 
 
 def test_studio_sentinel_routes_generation_through_isolated_context(tmp_path: Path) -> None:
     use_temp_data(tmp_path)
     project = storage.create_project("Studio Route")
     slug = project["slug"]
-    storage.save_text(slug, "manuscript/chapter-001.md", "WRONG_JAX_SCENE Kaelen Jax fight " * 300)
-    storage.save_text(slug, "characters/kaelen.md", "# Kaelen\n\nAdult Nexus.\n")
-    storage.save_text(slug, "characters/muna.md", "# Muna\n\nAdult witch.\n")
+    storage.save_text(slug, "manuscript/chapter-001.md", "WRONG_OLD_SCENE Rowan Tamsin fight " * 300)
+    storage.save_text(slug, "characters/rowan.md", "# Rowan\n\nAdult protagonist.\n")
+    storage.save_text(slug, "characters/avery.md", "# Avery\n\nAdult witch.\n")
 
     payload = GenerateRequest(
-        prompt="Write a complete scene between Kaelen and Muna in the academy sauna.",
+        prompt="Write a complete scene between Rowan and Avery in the academy sauna.",
         mode="write",
         active_file=None,
         selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
@@ -423,10 +423,10 @@ def test_studio_sentinel_routes_generation_through_isolated_context(tmp_path: Pa
     )
     context, files, _ = routes_generation._prepare_generation_context(slug, payload)
 
-    assert "WRONG_JAX_SCENE" not in context
+    assert "WRONG_OLD_SCENE" not in context
     assert not any(path.startswith("manuscript/") for path in files)
-    assert "Kaelen" in context
-    assert "Muna" in context
+    assert "Rowan" in context
+    assert "Avery" in context
 
 
 def test_active_tail_is_high_priority_continuation_anchor(tmp_path: Path) -> None:
@@ -490,8 +490,8 @@ def test_craft_pass_refuses_truncated_second_pass(monkeypatch) -> None:
 
 
 def test_reasoning_blocks_are_removed_from_author_facing_prose() -> None:
-    raw = "<think>internal reasoning that must never reach the manuscript</think>\n\nKaelen crossed the room."
-    assert generation.strip_reasoning_blocks(raw) == "Kaelen crossed the room."
+    raw = "<think>internal reasoning that must never reach the manuscript</think>\n\nRowan crossed the room."
+    assert generation.strip_reasoning_blocks(raw) == "Rowan crossed the room."
 
 
 def test_reasoning_stream_filter_hides_split_tags() -> None:

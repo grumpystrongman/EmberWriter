@@ -4,6 +4,7 @@ import re
 
 from . import generation_reliability as reliability
 from . import streaming_generation as streaming
+from .intimacy_continuity import hard_choreography_failure
 
 # The bad production sample did not merely contain a long sentence. It collapsed into a
 # punctuation-starved association/thesaurus chain: connection -> soul -> destiny -> growth ->
@@ -264,6 +265,25 @@ _base_verify_studio_scene_delivery = reliability.verify_studio_scene_delivery
 
 
 async def refined_verify_studio_scene_delivery(config, messages, draft: str) -> dict[str, object]:
+    request_context = streaming._verifier_source_context(messages)
+    body_failure = hard_body_canon_failure(request_context, draft)
+    if body_failure:
+        return {
+            "verified": False,
+            "canon_respected": False,
+            "physical_continuity": True,
+            "reason": body_failure,
+        }
+
+    choreography_failure = hard_choreography_failure(draft)
+    if choreography_failure:
+        return {
+            "verified": False,
+            "canon_respected": True,
+            "physical_continuity": False,
+            "reason": choreography_failure,
+        }
+
     verdict = await _base_verify_studio_scene_delivery(config, messages, draft)
     prompt = reliability._author_instruction(messages)
     delivery_failure = explicit_delivery_failure(prompt, draft)

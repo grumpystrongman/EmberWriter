@@ -69,7 +69,7 @@ def sample_atlas() -> StoryAtlas:
                 risk=2,
                 drama=2,
                 lore=4,
-                known_by=["Sera"],
+                known_by=["Mira"],
             ),
             AtlasConnection(
                 id="ridge-temple",
@@ -80,7 +80,7 @@ def sample_atlas() -> StoryAtlas:
                 risk=2,
                 drama=3,
                 lore=5,
-                known_by=["Sera"],
+                known_by=["Mira"],
             ),
         ],
     )
@@ -193,20 +193,20 @@ def test_character_knowledge_can_unlock_private_route() -> None:
                 origin_id="capital",
                 destination_id="temple",
                 chapter=10,
-                character="Jax",
+                character="Tamsin",
             ),
         )
-    sera = atlas.calculate_route(
+    mira = atlas.calculate_route(
         world,
         AtlasRouteRequest(
             origin_id="capital",
             destination_id="temple",
             chapter=10,
-            character="Sera",
+            character="Mira",
             preference="lore",
         ),
     )
-    assert [segment.connection_id for segment in sera.segments] == [
+    assert [segment.connection_id for segment in mira.segments] == [
         "ridge-road",
         "ridge-temple",
     ]
@@ -234,19 +234,19 @@ def test_compare_routes_returns_all_preferences_even_when_paths_overlap() -> Non
 def test_location_reveal_event_changes_character_route_knowledge() -> None:
     world = sample_atlas()
     secret = next(item for item in world.locations if item.id == "ridge")
-    secret.known_by = ["Sera"]
+    secret.known_by = ["Mira"]
     world.events.append(
         AtlasEvent(
-            id="sera-shares-ridge",
+            id="mira-shares-ridge",
             chapter=8,
             action="location_reveal",
             target_id="ridge",
-            value="Jax",
-            summary="Sera tells Jax about the old ridge route.",
+            value="Tamsin",
+            summary="Mira tells Tamsin about the old ridge route.",
         )
     )
-    state_before = atlas.atlas_state(world, chapter=7, character="Jax")
-    state_after = atlas.atlas_state(world, chapter=8, character="Jax")
+    state_before = atlas.atlas_state(world, chapter=7, character="Tamsin")
+    state_after = atlas.atlas_state(world, chapter=8, character="Tamsin")
     assert state_before["location_known"]["ridge"] is False
     assert state_before["connection_known"]["ridge-road"] is False
     assert state_after["location_known"]["ridge"] is True
@@ -256,10 +256,10 @@ def test_location_reveal_event_changes_character_route_knowledge() -> None:
 def test_connection_knowledge_never_reveals_a_hidden_endpoint() -> None:
     world = sample_atlas()
     ridge = next(item for item in world.locations if item.id == "ridge")
-    ridge.known_by = ["Sera"]
+    ridge.known_by = ["Mira"]
     ridge_road = next(item for item in world.connections if item.id == "ridge-road")
     ridge_road.known_by = []
-    state = atlas.atlas_state(world, chapter=1, character="Jax")
+    state = atlas.atlas_state(world, chapter=1, character="Tamsin")
     assert state["location_known"]["ridge"] is False
     assert state["connection_known"]["ridge-road"] is False
 
@@ -271,27 +271,27 @@ async def test_bootstrap_uses_verified_sources_and_is_idempotent(
     use_temp_data(tmp_path)
     slug = storage.create_project("Bootstrap Novel")["slug"]
     storage.save_text(
-        slug, "world/redwater.md", "# Redwater\nA river crossing east of Blackwood."
+        slug, "world/greywater.md", "# Greywater\nA river crossing east of Blackwood."
     )
 
     async def fake_generate(*_args, **_kwargs) -> str:
-        return '{"locations":[{"name":"Redwater","kind":"town","x":100,"y":20,"summary":"River crossing","source_paths":["world/redwater.md"]},{"name":"Blackwood","kind":"forest","x":0,"y":0},{"name":"Ghost Keep","kind":"ruin","x":220,"y":40,"source_paths":["world/redwater.md"]}],"connections":[{"name":"Forest Road","from":"Blackwood","to":"Redwater","distance":25,"risk":3,"drama":4,"lore":2,"relationship":2,"source_paths":["world/redwater.md"]}]}'
+        return '{"locations":[{"name":"Greywater","kind":"town","x":100,"y":20,"summary":"River crossing","source_paths":["world/greywater.md"]},{"name":"Blackwood","kind":"forest","x":0,"y":0},{"name":"Ghost Keep","kind":"ruin","x":220,"y":40,"source_paths":["world/greywater.md"]}],"connections":[{"name":"Forest Road","from":"Blackwood","to":"Greywater","distance":25,"risk":3,"drama":4,"lore":2,"relationship":2,"source_paths":["world/greywater.md"]}]}'
 
     monkeypatch.setattr(atlas, "generate", fake_generate)
     request = AtlasBootstrapRequest(provider=ProviderConfig(model="test"))
     result = await atlas.bootstrap_atlas(slug, request)
     assert result.added_locations == 3
     assert result.added_connections == 1
-    redwater = next(item for item in result.atlas.locations if item.name == "Redwater")
-    assert redwater.position_status == "inferred"
-    assert redwater.canon_status == "canon"
-    assert redwater.source_paths == ["world/redwater.md"]
+    greywater = next(item for item in result.atlas.locations if item.name == "Greywater")
+    assert greywater.position_status == "inferred"
+    assert greywater.canon_status == "canon"
+    assert greywater.source_paths == ["world/greywater.md"]
     ghost = next(item for item in result.atlas.locations if item.name == "Ghost Keep")
     assert ghost.canon_status == "inferred"
     assert ghost.source_paths == []
     connection = result.atlas.connections[0]
     assert connection.canon_status == "inferred"
-    assert connection.source_paths == ["world/redwater.md"]
+    assert connection.source_paths == ["world/greywater.md"]
 
     repeated = await atlas.bootstrap_atlas(slug, request)
     assert repeated.added_locations == 0

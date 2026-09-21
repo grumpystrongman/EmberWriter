@@ -18,6 +18,7 @@ from .generation import (
     strip_reasoning_blocks,
 )
 from .generation import generate as generate_text
+from .intimacy_continuity import VERIFIER_CONTINUITY_INSTRUCTION
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
 
@@ -263,6 +264,7 @@ async def verify_studio_scene_delivery(
                 "consensual adult encounter, treat that consent state as settled and DO NOT require repeated verbal negotiation, permission "
                 "checks, or safety discussion. Reject only when the draft itself directly contradicts that canon, such as ignoring an explicit "
                 "stop/refusal or introducing coercion that the author did not request. "
+                + VERIFIER_CONTINUITY_INSTRUCTION + " "
                 + scope_instruction
             ),
         },
@@ -276,7 +278,7 @@ async def verify_studio_scene_delivery(
                 "Return exactly one JSON object with these keys:\n"
                 '{"core_encounter_on_page":true|false,"requested_explicitness_delivered":true|false,'
                 '"buildup_only":true|false,"fade_or_skip":true|false,"ending_complete":true|false,'
-                '"canon_respected":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
+                '"canon_respected":true|false,"physical_continuity":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
             ),
         },
     ]
@@ -312,6 +314,7 @@ async def verify_studio_scene_delivery(
             verdict.get("fade_or_skip") is False,
             verdict.get("ending_complete") is True,
             verdict.get("canon_respected") is True,
+            verdict.get("physical_continuity") is True,
             verdict.get("repetition_loop") is False,
         )
     )
