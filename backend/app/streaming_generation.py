@@ -859,6 +859,13 @@ async def generate_complete_prose_streamed(
         remaining = max(min_words - words, 0)
         continuation_instruction = (
             "Continue from the exact final state below and advance immediately into a NEW beat. "
+            "Before generating new prose, silently reconstruct a physical freeze-frame from the handoff: "
+            "for every participant identify pose, facing direction, relative location, torso and pelvis orientation, "
+            "left-hand position, right-hand position, mouth activity, relevant genital position, clothing state, "
+            "contact points, and any active penetration as SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION. "
+            "Do not print this reconstruction. "
+            "The first new action must be physically reachable from that state. "
+            "If it requires a different pose, orientation, location, or free body part, narrate that transition first. "
             "Do not restart, recap, paraphrase, recycle prior sentences, or repeat the same action with different adjectives. "
             "Every paragraph must change the physical action or dialogue. "
             + (
