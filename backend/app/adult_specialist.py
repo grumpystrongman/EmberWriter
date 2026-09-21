@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 
+import httpx
+
 from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER, generate
 from .model_catalog import ADULT_EXPLICIT_FAMILY, ADULT_EXPLICIT_MODEL
 from .models import ProviderConfig
@@ -118,7 +120,7 @@ async def build_hidden_adult_scene_plan(
             json_mode=True,
             max_output_tokens=1600,
         )
-    except (RuntimeError, ValueError):
+    except (RuntimeError, ValueError, httpx.HTTPError):
         return ""
 
     plan = _parse_scene_plan_json(raw)
