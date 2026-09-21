@@ -512,6 +512,35 @@ async def _generate_payload(
     else:
         text = await generate(payload.provider, messages)
 
+    if adult_specialist and _is_studio_request(payload) and payload.mode in PROSE_MODES:
+        verdict = await verify_studio_scene_delivery(payload.provider, messages, text)
+        hard_retry = (
+            verdict.get("physical_continuity") is False
+            or verdict.get("canon_respected") is False
+            or verdict.get("repetition_loop") is True
+            or verdict.get("buildup_only") is True
+            or verdict.get("fade_or_skip") is True
+        )
+        if hard_retry:
+            reason = str(verdict.get("reason", "scene delivery failed continuity validation")).strip()
+            repair_messages = [
+                *messages,
+                {
+                    "role": "user",
+                    "content": (
+                        "Restart the scene from scratch. The previous draft has been discarded because the hidden validator "
+                        f"found this problem: {reason[:260]}. Follow the HIDDEN SCENE DIRECTOR PLAN from its opening state. "
+                        "Do not add a new setup sequence. Preserve hard body canon, narrate every required repositioning before "
+                        "the dependent action, keep the central encounter moving forward, and do not repeat earlier foreplay."
+                    ),
+                },
+            ]
+            text = await generate_complete_prose(
+                payload.provider,
+                repair_messages,
+                min_words=minimum_words,
+            )
+
     refined = False
     if payload.craft.quality_pass and payload.mode in PROSE_MODES and not adult_specialist:
         if on_status is not None:
