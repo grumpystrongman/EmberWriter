@@ -36,7 +36,7 @@ def test_chemistry_profile_round_trip_and_context(tmp_path: Path) -> None:
     context, files = chemistry.build_chemistry_context(slug, ["Mira", "Rowan"])
 
     assert saved.updated_at
-    assert path == "relationships/chemistry/rowan--mira.json"
+    assert path == "relationships/chemistry/mira--rowan.json"
     assert loaded is not None
     assert loaded.boundaries == ["Mira must choose any surrender explicitly."]
     assert "Precision meeting patient attention" in context
@@ -84,7 +84,7 @@ def test_apply_aftermath_preserves_author_boundaries(tmp_path: Path) -> None:
 
     profiles, paths = chemistry.apply_aftermath(slug, proposal)
 
-    assert paths == ["relationships/chemistry/tamsin--rowan.json"]
+    assert paths == ["relationships/chemistry/rowan--tamsin.json"]
     assert profiles[0].boundaries == [
         "Do not treat physical intensity as permission to override a verbal stop."
     ]
@@ -138,7 +138,7 @@ def test_infer_chemistry_uses_model_and_saves(tmp_path: Path, monkeypatch) -> No
 
     assert result["profile"].dynamic_summary.startswith("Control meeting")
     assert result["profile"].boundaries == []
-    assert result["saved_path"] == "relationships/chemistry/rowan--mira.json"
+    assert result["saved_path"] == "relationships/chemistry/mira--rowan.json"
 
 
 def test_reinfer_preserves_author_owned_fields(tmp_path: Path, monkeypatch) -> None:
