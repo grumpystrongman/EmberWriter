@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import generation
+from .adult_specialist import build_adult_specialist_messages, is_adult_explicit_specialist
 from .generation_reliability import _hard_quality_failure, parse_scene_length
 from .generation_reliability_refinement import explicit_delivery_failure
 from .models import ProviderConfig
@@ -15,7 +16,7 @@ from .models import ProviderConfig
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
-ACCEPTANCE_VERSION = 3
+ACCEPTANCE_VERSION = 4
 
 ACCEPTANCE_PROMPT = (
     "CORE ONLY. Write a direct, detailed adult sex scene between Kaelen and Muna immediately after "
@@ -174,13 +175,24 @@ async def run_model_acceptance(
 
     for index in range(attempts):
         config = ProviderConfig(provider="ollama", base_url=base_url, model=model)
-        messages = generation.build_messages(
-            "write",
-            ACCEPTANCE_PROMPT,
-            ACCEPTANCE_CONTEXT,
-            heat_level="inferno",
-            min_scene_words=floor,
-            delivery_scope="core_only",
+        messages = (
+            build_adult_specialist_messages(
+                "write",
+                ACCEPTANCE_PROMPT,
+                ACCEPTANCE_CONTEXT,
+                heat_level="inferno",
+                delivery_scope="core_only",
+                min_scene_words=floor,
+            )
+            if is_adult_explicit_specialist(model)
+            else generation.build_messages(
+                "write",
+                ACCEPTANCE_PROMPT,
+                ACCEPTANCE_CONTEXT,
+                heat_level="inferno",
+                min_scene_words=floor,
+                delivery_scope="core_only",
+            )
         )
         try:
             text = await generation.generate_complete_prose(
