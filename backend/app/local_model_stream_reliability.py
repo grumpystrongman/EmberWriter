@@ -8,7 +8,7 @@ from time import perf_counter
 import httpx
 
 from . import streaming_generation
-from .adult_specialist import ADULT_EXPLICIT_SPECIALIST_MODEL
+from .model_catalog import ADULT_EXPLICIT_MODEL
 from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
 from .model_preferences import local_model_preferences
 from .models import ProviderConfig
@@ -25,7 +25,7 @@ _HIGH_HEAT_CYDONIA = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 _PYGMALION_ADULT_MODEL = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
 _MAGNUM_ADULT_MODEL = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
 _FAST_ADULT_MODEL = "R4C3R/qwen3-8b-heretic:q4_k_m"
-_EXPLICIT_ADULT_MODEL = ADULT_EXPLICIT_SPECIALIST_MODEL
+_EXPLICIT_ADULT_MODEL = ADULT_EXPLICIT_MODEL
 
 _ORIGINAL_GENERATE_STREAMED = streaming_generation.generate_streamed
 _INSTALLED = False
@@ -112,8 +112,9 @@ async def route_adult_model_stable(
 
     preferences = local_model_preferences()
     accepted = preferences.get("accepted_adult_model", "")
-    preferred = tuple(
-        model for model in (
+    explicit = reliability._is_explicit_intimacy_request(messages)
+    candidates = (
+        (
             preferences.get("adult_explicit_model", ""),
             accepted,
             _PYGMALION_ADULT_MODEL,
@@ -124,8 +125,17 @@ async def route_adult_model_stable(
             _HIGH_HEAT_CYDONIA,
             "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
         )
-        if model
+        if explicit
+        else (
+            _PYGMALION_ADULT_MODEL,
+            _MAGNUM_ADULT_MODEL,
+            _HERETIC_ROCINANTE,
+            _STANDARD_ROCINANTE,
+            _FAST_ADULT_MODEL,
+            "R4C3R/qwen2.5-14b-instruct-heretic:q4_k_m",
+        )
     )
+    preferred = tuple(model for model in candidates if model)
     for candidate in preferred:
         resolved = installed_by_name.get(candidate.casefold())
         if resolved:
