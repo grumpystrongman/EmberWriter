@@ -33,6 +33,102 @@ _HARD_BODY_BLOCK = re.compile(
 _CHARACTER_SECTION = re.compile(r"(?ims)^###\s+([^\n]+)\s*$.*?(?=^###\s+|\Z)")
 
 
+ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT = """You are EmberWriter's hidden scene director.
+Return ONLY valid JSON. Do not write manuscript prose.
+
+Turn the short author brief plus project canon into a compact, physically coherent scene plan.
+
+Rules:
+- The author should not have to choreograph the scene. Infer an interesting progression from character personality, relationship state, location, requested heat, and desired outcome.
+- Preserve any explicit starting pose/location from the author exactly.
+- Use established anatomy only. Never infer intimate anatomy from gender, pronouns, presentation, trans/cis status, or sexual role.
+- If anatomy needed for a specific act is not established, keep that planned action non-specific rather than inventing a body part.
+- Use 3-6 meaningful beats and no more than four major physical configurations for the entire encounter.
+- Every major position change must include the transition that makes the next action reachable.
+- Do not reset to earlier foreplay once the central encounter has begun.
+- Do not repeat the same oral/manual/contact beat with stronger adjectives.
+- Keep lore, philosophy, magic explanation, declarations, and setting refreshers minimal.
+- Plan a continuous encounter, not a chapter around an encounter.
+
+Return exactly this JSON shape:
+{
+  "opening_state": "compact literal starting physical state",
+  "central_intent": "what the encounter is progressing toward",
+  "beats": [
+    {
+      "objective": "what changes in this beat",
+      "start_state": "pose/orientation/contact at beat start",
+      "transition": "physical repositioning required before the new action, or NONE",
+      "action": "the new physical/intimate beat in plain planning language",
+      "end_state": "pose/orientation/contact at beat end"
+    }
+  ],
+  "ending_goal": "physical resolution plus only the immediate requested emotional/magical consequence",
+  "continuity_watchouts": ["brief concrete risks to avoid"]
+}
+"""
+
+
+def _parse_scene_plan_json(raw: str) -> dict:
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        return {}
+    try:
+        parsed = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+async def build_hidden_adult_scene_plan(
+    config: ProviderConfig,
+    prompt: str,
+    context: str,
+    *,
+    heat_level: str | None,
+    delivery_scope: str,
+) -> str:
+    """Create hidden choreography so the author can provide a short brief instead of a body-state script."""
+    compact_context = compact_adult_context(context, prompt, limit=14000)
+    planner_messages = [
+        {"role": "system", "content": ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                "AUTHOR BRIEF\n"
+                f"{prompt}\n\n"
+                f"HEAT: {heat_level or 'adult-explicit'}\n"
+                f"DELIVERY SCOPE: {delivery_scope}\n\n"
+                "RELEVANT CHARACTER / BODY / RELATIONSHIP CANON\n"
+                f"{compact_context}\n"
+            ),
+        },
+    ]
+    try:
+        raw = await generate(
+            config,
+            planner_messages,
+            temperature=0.35,
+            top_p=0.9,
+            json_mode=True,
+            max_output_tokens=1600,
+        )
+    except (RuntimeError, ValueError):
+        return ""
+
+    plan = _parse_scene_plan_json(raw)
+    beats = plan.get("beats")
+    if not isinstance(beats, list) or len(beats) < 2:
+        return ""
+    plan["beats"] = beats[:6]
+    return json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+
+
 def is_adult_explicit_specialist(model: str) -> bool:
     return ADULT_EXPLICIT_SPECIALIST_FAMILY in model.casefold()
 
