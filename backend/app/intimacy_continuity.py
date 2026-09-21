@@ -3,30 +3,247 @@ from __future__ import annotations
 import re
 
 BODY_STATE_CONTRACT = """INTIMACY BODY-STATE / CHOREOGRAPHY CONTRACT:
-- Treat anatomy as immutable character metadata. Never infer anatomy from gender identity, pronouns, presentation, trans/cis status, or sexual role.
-- Treat sexual role as dynamic scene state. Penetrative/receptive, oral/manual, dominant/submissive, and position are actions, not genders.
-- Before writing each physical beat, silently track for every participant: body position, facing/orientation, left hand, right hand, mouth activity, relevant genital position, clothing state, current contact points, and whether penetration is occurring.
-- Represent penetration internally as SOURCE -> TARGET. SOURCE is the penetrating body part/object; TARGET is the receiving anatomical location. If both cannot be named from the current state, do not write penetration-dependent language.
-- Words such as inside, deeper, fill, filled, stretch, take, enter, and thrust into are state-dependent. Use them only when the current body state makes the source and target unambiguous.
-- A penis is not an open cavity. External touching, gripping, stroking, oral contact, or contact with the tip never becomes fingers/hand/tongue being inside the penis.
-- Do not teleport hands, mouths, hips, or bodies. If an action requires a new position or reach, write the physical transition first.
-- Before each paragraph, verify reachability, orientation, pronoun ownership, anatomy ownership, contact points, penetration source/target, and required position changes.
-- Do not repeat an earlier manual/oral/penetrative beat merely to increase intensity. Progress, deliberately change, pause, reverse, or return with a clear transition.
-- Physical clarity supports character. Keep voice, emotion, consent, relationship meaning, and story consequences primary while making the mechanics easy to follow."""
+
+ANATOMY IS IMMUTABLE CANON
+- Treat anatomy as immutable character metadata.
+- Never infer anatomy from gender identity, pronouns, presentation, trans/cis status, sexual role, dominance, submission, or genre convention.
+- A body part belongs permanently to its established owner unless author canon explicitly changes that fact.
+- Never silently substitute generic heterosexual or cisgender anatomy templates for established character anatomy.
+
+SEXUAL ROLE IS DYNAMIC STATE
+- Penetrative/receptive, oral/manual, dominant/submissive, active/passive, top/bottom, and position are current actions, not gender traits.
+- A participant may change role during a scene, but the physical repositioning required for that change must occur on page.
+
+MAINTAIN PHYSICAL STATE
+Before writing every physical beat, silently track each participant's:
+- body position: standing, seated, kneeling, crouched, lying, etc.
+- orientation: facing toward, away, above, below, beside, behind
+- torso orientation
+- hip/pelvis orientation
+- leg position
+- approximate distance from the other participant(s)
+- left-hand location
+- right-hand location
+- mouth activity and reachable area
+- established intimate anatomy
+- relevant genital position
+- clothing state
+- current contact points
+- penetration state
+- current physical action
+- intended next physical action
+
+CONTACT MUST HAVE OWNERSHIP
+Internally represent physical contact as:
+ACTOR.BODY_PART -> RECEIVER.BODY_LOCATION
+
+Every possessive pronoun must resolve to the correct body owner.
+Never accidentally transfer ownership of a tongue, hand, penis, breast, leg, anus, mouth, or other body part because the prose changed grammatical subject.
+
+PENETRATION MUST HAVE A SOURCE AND TARGET
+Represent penetration internally as:
+SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION
+
+Track:
+- source owner
+- exact penetrating body part or object
+- receiving participant
+- exact receiving anatomical location
+- whether penetration is occurring now
+- approximate depth only within realistic anatomical capability
+- orientation required to maintain it
+
+If source or receiving target cannot be determined from current body state, do not use penetration-dependent language.
+
+Words such as inside, deeper, fill, filled, stretch, take, enter, push into, and thrust into are STATE-DEPENDENT vocabulary.
+Use them only when the current physical state establishes exactly WHAT is entering WHAT.
+
+PHYSICAL CAPABILITY IS NOT METAPHORICAL
+Normal anatomy retains normal dimensions, flexibility, range of motion, and reach unless explicit story canon establishes supernatural alteration.
+
+Do not make a body part larger, longer, more flexible, hollow, penetrative, or mechanically capable simply to intensify prose.
+
+Examples:
+- A penis is not an open cavity.
+- Fingers, hands, or tongues cannot be placed inside a penis.
+- A person's head or face cannot enter an anal opening.
+- A tongue may contact an anal opening and may provide limited shallow penetration, but it cannot extend deeply through an anal canal, enter a rectum to implausible depth, or fill a receiving partner completely.
+- A mouth cannot simultaneously occupy anatomically incompatible locations.
+- A hand cannot touch two distant body regions simultaneously unless it moves between them.
+- A body part cannot reach through another solid body region.
+- Genitals do not automatically touch one another merely because they belong to the same person.
+
+REACHABILITY CHECK
+Before every new action, silently verify:
+1. Can the acting body part physically reach the target?
+2. Are the participants facing the correct direction?
+3. Is the actor in front, behind, beside, above, or below the receiver as required?
+4. Does the current leg/hip/torso position permit the action?
+5. Is another body part currently occupied elsewhere?
+6. Does this action require a position change?
+
+If a position change is required, write that transition BEFORE the new action.
+
+NO TELEPORTATION
+Do not teleport hands, mouths, heads, hips, legs, genitals, or entire bodies between incompatible positions.
+
+Examples such as facing away -> face-to-face, behind -> between the legs, standing -> lying, clothed -> naked, external contact -> penetration, or penetrating -> suddenly across the room require an observable transition when the transition matters physically.
+
+SCENE INTENT IS DISTINCT FROM CURRENT ACTION
+Track:
+- AGREED / REQUESTED ACT
+- CURRENT ACT
+- ESCALATION TARGET
+- PENETRATION STATE
+- REQUIRED TRANSITION
+
+Do not silently replace the requested central act with another act merely because both involve the same anatomical region.
+
+If the scene establishes one intended activity but performs preparatory or different activity first, preserve that distinction and continue progressing toward the intended activity unless the characters explicitly change course.
+
+CONTINUITY FREEZE-FRAME
+Before every paragraph containing significant physical action, silently reconstruct the scene as if drawing a still frame.
+
+Verify:
+- everyone can physically occupy the stated position
+- all limbs and body parts have consistent owners
+- all contact points are reachable
+- no body part has teleported
+- penetration source and target remain consistent
+- clothing state remains consistent
+- the next action can physically follow from the current one
+
+If the still frame cannot be drawn without contradiction, repair the physical setup before continuing.
+
+PROGRESSION
+Do not repeat an earlier manual, oral, penetrative, or positioning beat merely to increase intensity.
+
+Progress by changing action, changing position, changing participant response, changing rhythm/technique, pausing, reversing, escalating, de-escalating, or transitioning into the requested next act.
+
+Repeated adjectives are not physical progression.
+
+Physical clarity exists to support character, emotion, consent, relationship meaning, magical resonance, and story consequence. Do not turn the scene into an anatomical instruction manual, but never sacrifice physical coherence for heightened language."""
+
+BODY_STATE_LEDGER_INSTRUCTION = """SILENT PHYSICAL STATE LEDGER:
+
+For intimate physical scenes, maintain an internal state ledger while generating prose.
+
+Do NOT print this ledger into manuscript output.
+
+For each participant maintain:
+
+CHARACTER:
+  anatomy:
+    confirmed_body_parts:
+    explicitly_absent_body_parts:
+    unknown_body_parts:
+  pose:
+  torso_orientation:
+  pelvis_orientation:
+  facing:
+  location_relative_to_others:
+  legs:
+  left_hand:
+  right_hand:
+  mouth:
+  relevant_genital_position:
+  clothing_state:
+  current_contacts:
+
+SCENE:
+  requested_act:
+  current_act:
+  escalation_target:
+  penetration_active:
+  penetration_source:
+  penetration_target:
+  preparation_state:
+  required_transition:
+  completed_actions:
+  immediately_previous_position:
+
+Before writing a new physical action:
+1. Read the current ledger.
+2. Check whether the action is physically reachable.
+3. Check whether the acting body part is available.
+4. Check body-part ownership.
+5. Check anatomy capability.
+6. Check whether a transition is required.
+7. If required, narrate the transition first.
+8. Update the ledger after the action.
+
+Never infer unknown anatomy in order to make the next action possible.
+
+If prose intensity conflicts with physical possibility, physical possibility wins.
+
+If a phrase would require anatomy to behave unlike that anatomy normally behaves, replace the phrase rather than altering the body state.
+
+After every significant position change or penetration-state change, reconstruct the complete freeze-frame before continuing."""
 
 PLANNING_CONTINUITY_RULES = """For intimate scene planning:
-- Preserve author-owned anatomy exactly; never infer anatomy or sexual role from gender.
-- In intimacy_notes, record the intended physical progression in plain, non-prose terms when body mechanics matter: starting position/orientation, major contact change, any penetration as SOURCE -> TARGET, and the transition required before a position/role change.
-- A role change must include a physical repositioning beat.
-- Do not plan anatomically impossible actions or use penetration words without a receiving anatomical target."""
+- Preserve author-owned anatomy exactly.
+- Never infer anatomy or sexual role from gender.
+- Treat anatomy as immutable character metadata and sexual role as dynamic scene state.
+
+For intimacy_notes, plan the physical progression in plain, non-prose language.
+
+When relevant include entries using these prefixes:
+
+START_STATE:
+Describe each participant's starting pose, orientation, clothing state, and relative location.
+
+REQUESTED_ACT:
+The central intimate activity the author's scene is intended to deliver.
+
+CURRENT_ACT:
+What the participants are physically doing at the start of the relevant beat.
+
+ESCALATION_TARGET:
+What physical action the current activity is progressing toward.
+
+CONTACT_STATE:
+Important body-part contacts using ACTOR.BODY_PART -> RECEIVER.BODY_LOCATION.
+
+PENETRATION_STATE:
+NONE or SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION.
+
+REQUIRED_TRANSITION:
+Any repositioning necessary before the next major physical action.
+
+CAPABILITY_CONSTRAINTS:
+Any anatomy/reach limitations especially important to this choreography.
+
+END_STATE:
+Important final body/relationship/magical state produced by the encounter.
+
+Every major position change must include a transition beat.
+
+Every penetrative act must identify both source and receiving anatomical target.
+
+Do not plan actions requiring impossible reach, impossible anatomy, body-part teleportation, simultaneous incompatible positions, or anatomical capability beyond established canon.
+
+Preparatory stimulation and the requested central act are different scene states. Do not mark the requested act complete merely because preparation involving the same anatomical region occurred."""
 
 VERIFIER_CONTINUITY_INSTRUCTION = (
-    "For adult intimacy, also judge physical choreography. physical_continuity is true only when body positions, "
-    "reachability, anatomy ownership, hand/mouth placement, and major transitions are coherent, and every penetrative "
-    "action has an identifiable source and receiving anatomical target. Do not infer anatomy from gender. Treat a penis "
-    "as external anatomy, not an open cavity; language placing fingers, a hand, or a tongue inside a penis is a hard failure. "
-    "If the draft uses penetration-dependent language while the source/target or position is materially unclear, "
-    "physical_continuity must be false."
+    "For adult intimacy, independently verify physical choreography. "
+    "physical_continuity is true only when the scene can be reconstructed as a physically coherent sequence of body states. "
+    "Check anatomy ownership, pronoun ownership, body position, facing direction, relative location, hand placement, "
+    "mouth placement, hip/pelvis orientation, clothing state, contact points, reachability, and major position transitions. "
+    "Treat anatomy as immutable character metadata and sexual role as dynamic scene state. "
+    "Never infer anatomy from gender identity or sexual role. "
+    "For every penetrative action identify SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION. "
+    "If the source, target, orientation, or transition needed to establish penetration is materially unclear, "
+    "physical_continuity must be false. "
+    "Enforce normal anatomical capability unless explicit supernatural canon changes it. "
+    "A penis is external anatomy and not an open cavity. "
+    "A head or face cannot enter an anal opening. "
+    "A tongue cannot behave like a penis, extend implausibly deep into an anal canal or rectum, or fill another participant completely. "
+    "Hands, mouths, genitals, and bodies cannot teleport between incompatible locations. "
+    "Distinguish preparation from the requested central activity. Performing oral or manual stimulation near an anatomical region "
+    "does not automatically mean a requested penetration or other central act occurred. "
+    "When physical_continuity is false, the reason MUST identify the first concrete contradiction in brief non-graphic terms, "
+    "for example: 'A participant remains behind their partner but the next action requires access to the front of the pelvis without repositioning.' "
+    "This reason will be used by the repair pass, so identify the actual physical problem rather than merely saying the scene is confusing."
 )
 
 _INSIDE_PENIS = re.compile(
@@ -42,12 +259,47 @@ _RECEIVING_TARGET = re.compile(
     r"\b(?:anus|anal|asshole|rectum|mouth|throat|vagina|vaginal|vulva)\b",
     re.IGNORECASE,
 )
+_HEAD_IN_ANAL_OPENING = re.compile(
+    r"\b(?:head|face|skull)\b"
+    r"[^.!?\n]{0,100}"
+    r"\b(?:inside|into|through|past)\b"
+    r"[^.!?\n]{0,80}"
+    r"\b(?:anus|anal\s+sphincter|sphincter|rectum|anal\s+canal)\b",
+    re.IGNORECASE,
+)
+_ANAL_OPENING_AROUND_HEAD = re.compile(
+    r"\b(?:anus|anal\s+sphincter|sphincter|rectum|anal\s+canal)\b"
+    r"[^.!?\n]{0,100}"
+    r"\b(?:around|enclosing|engulfing)\b"
+    r"[^.!?\n]{0,60}"
+    r"\b(?:head|face|skull)\b",
+    re.IGNORECASE,
+)
+_TONGUE_DEEP_ANAL_CANAL = re.compile(
+    r"\btongue\b"
+    r"[^.!?\n]{0,180}"
+    r"\b(?:rectum|deep(?:ly)?\s+(?:inside|into)\s+(?:his|her|their|the)?\s*(?:anus|anal\s+canal)|"
+    r"depths?\s+of\s+(?:his|her|their|the)?\s*(?:anus|anal\s+canal))\b",
+    re.IGNORECASE,
+)
 
 
 def hard_choreography_failure(draft: str) -> str:
     """Reject only high-confidence anatomy/choreography failures before semantic verification."""
     if not draft.strip():
         return ""
+
+    if _HEAD_IN_ANAL_OPENING.search(draft) or _ANAL_OPENING_AROUND_HEAD.search(draft):
+        return (
+            "physical continuity failure: draft gives a head or face impossible penetrative "
+            "access to an anal opening"
+        )
+
+    if _TONGUE_DEEP_ANAL_CANAL.search(draft):
+        return (
+            "physical continuity failure: draft gives a tongue penetrative depth "
+            "beyond normal anatomical capability"
+        )
 
     if _INSIDE_PENIS.search(draft):
         return "physical continuity failure: draft treats a penis as an open cavity"
