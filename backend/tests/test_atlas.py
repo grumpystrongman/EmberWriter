@@ -271,27 +271,27 @@ async def test_bootstrap_uses_verified_sources_and_is_idempotent(
     use_temp_data(tmp_path)
     slug = storage.create_project("Bootstrap Novel")["slug"]
     storage.save_text(
-        slug, "world/redwater.md", "# Redwater\nA river crossing east of Blackwood."
+        slug, "world/greywater.md", "# Greywater\nA river crossing east of Blackwood."
     )
 
     async def fake_generate(*_args, **_kwargs) -> str:
-        return '{"locations":[{"name":"Redwater","kind":"town","x":100,"y":20,"summary":"River crossing","source_paths":["world/redwater.md"]},{"name":"Blackwood","kind":"forest","x":0,"y":0},{"name":"Ghost Keep","kind":"ruin","x":220,"y":40,"source_paths":["world/redwater.md"]}],"connections":[{"name":"Forest Road","from":"Blackwood","to":"Redwater","distance":25,"risk":3,"drama":4,"lore":2,"relationship":2,"source_paths":["world/redwater.md"]}]}'
+        return '{"locations":[{"name":"Greywater","kind":"town","x":100,"y":20,"summary":"River crossing","source_paths":["world/greywater.md"]},{"name":"Blackwood","kind":"forest","x":0,"y":0},{"name":"Ghost Keep","kind":"ruin","x":220,"y":40,"source_paths":["world/greywater.md"]}],"connections":[{"name":"Forest Road","from":"Blackwood","to":"Greywater","distance":25,"risk":3,"drama":4,"lore":2,"relationship":2,"source_paths":["world/greywater.md"]}]}'
 
     monkeypatch.setattr(atlas, "generate", fake_generate)
     request = AtlasBootstrapRequest(provider=ProviderConfig(model="test"))
     result = await atlas.bootstrap_atlas(slug, request)
     assert result.added_locations == 3
     assert result.added_connections == 1
-    redwater = next(item for item in result.atlas.locations if item.name == "Redwater")
-    assert redwater.position_status == "inferred"
-    assert redwater.canon_status == "canon"
-    assert redwater.source_paths == ["world/redwater.md"]
+    greywater = next(item for item in result.atlas.locations if item.name == "Greywater")
+    assert greywater.position_status == "inferred"
+    assert greywater.canon_status == "canon"
+    assert greywater.source_paths == ["world/greywater.md"]
     ghost = next(item for item in result.atlas.locations if item.name == "Ghost Keep")
     assert ghost.canon_status == "inferred"
     assert ghost.source_paths == []
     connection = result.atlas.connections[0]
     assert connection.canon_status == "inferred"
-    assert connection.source_paths == ["world/redwater.md"]
+    assert connection.source_paths == ["world/greywater.md"]
 
     repeated = await atlas.bootstrap_atlas(slug, request)
     assert repeated.added_locations == 0
