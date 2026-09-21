@@ -457,6 +457,21 @@ async def _generate_payload(
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
     await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
+    adult_specialist = should_use_adult_explicit_specialist(
+        payload.provider.model,
+        payload.prompt,
+        heat,
+        payload.mode,
+    )
+    scene_plan = ""
+    if adult_specialist:
+        scene_plan = await build_hidden_adult_scene_plan(
+            payload.provider,
+            payload.prompt,
+            context_text,
+            heat_level=heat,
+            delivery_scope=delivery_scope,
+        )
 
     messages, adult_specialist = _generation_messages(
         payload,
@@ -464,6 +479,7 @@ async def _generate_payload(
         heat=heat,
         delivery_scope=delivery_scope,
         minimum_words=minimum_words,
+        scene_plan=scene_plan,
     )
 
     if streamed:
