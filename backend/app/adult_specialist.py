@@ -272,6 +272,8 @@ Writer execution rules:
 - Once the central encounter begins, stay in it. Do not reset to introductory kissing, another readiness conversation, a new location, or repeated foreplay.
 - Keep dialogue sparse and character-specific. Do not explain lore, resonance theory, consent theory, relationship meaning, or the hidden plan.
 - Magic/resonance should appear as brief sensation inside the action, not as an explanatory detour.
+- Keep roughly 85-90% of the scene on immediate physical action and reaction. Emotion, dialogue, magic, and relationship meaning combined should stay brief unless the author explicitly asks otherwise.
+- Every paragraph should escalate, vary, react to, or resolve the encounter. If it does none of those, omit it.
 - When the author asks for explicit sex, use direct anatomical language and concrete physical action. Do not replace genital or sexual action with euphemism, fade-to-black, abstraction, or romance-only prose.
 - Sustain the central encounter across multiple distinct physical beats. Describe what the bodies are actually doing, changing position/technique only when compatible with the author's request and canon.
 - For a full requested sex scene, carry the encounter through physical completion and clear on-page climax/resolution unless the author explicitly requests a different stopping point.
