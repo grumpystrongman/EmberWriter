@@ -48,7 +48,7 @@ def test_fresh_write_uses_binder_knowledge_without_old_manuscript_prose(tmp_path
     storage.save_text(
         slug,
         "characters/rowan-thorne.md",
-        "# Rowan Thorne\n\nAdult Nexus. Attentive, protective, empathic, and responsive.\n",
+        "# Rowan Thorne\n\nAdult protagonist. Attentive, protective, empathic, and responsive.\n",
     )
     storage.save_text(
         slug,
@@ -57,13 +57,13 @@ def test_fresh_write_uses_binder_knowledge_without_old_manuscript_prose(tmp_path
     )
     storage.save_text(
         slug,
-        "world/aethelgard-academy.md",
-        "# Aethelgard Academy\n\nThe academy gym has a cedar sauna beside the training baths.\n",
+        "world/northgate-academy.md",
+        "# Northgate Academy\n\nThe academy gym has a cedar sauna beside the training baths.\n",
     )
     storage.save_text(
         slug,
         "notes/avery-sauna-beat.md",
-        "# Avery Sauna Beat\n\nMuna uses humor and rhythm when nervous; steam makes amber resonance bead across her skin.\n",
+        "# Avery Sauna Beat\n\nAvery uses humor and rhythm when nervous; steam makes amber resonance bead across her skin.\n",
     )
     storage.save_text(
         slug,
@@ -74,7 +74,7 @@ def test_fresh_write_uses_binder_knowledge_without_old_manuscript_prose(tmp_path
 
     payload = GenerateRequest(
         prompt=(
-            "Write a new scene with Rowan Thorne and Avery in the Aethelgard Academy sauna after gym training. "
+            "Write a new scene with Rowan Thorne and Avery in the Northgate Academy sauna after gym training. "
             "Keep Avery playful and musical."
         ),
         mode="write",
