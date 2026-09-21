@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from .adult_specialist import (
     build_adult_specialist_messages,
+    build_hidden_adult_scene_plan,
     route_explicit_adult_specialist,
     should_use_adult_explicit_specialist,
 )
@@ -46,7 +47,11 @@ from .prose_quality import quality_guidance
 from .provenance_store import record_assistance_event
 from .storage import compile_context, read_text
 from .story_intelligence import build_character_context, relevant_character_names
-from .streaming_generation import generate_complete_prose_streamed, generate_streamed
+from .streaming_generation import (
+    generate_complete_prose_streamed,
+    generate_streamed,
+    verify_studio_scene_delivery,
+)
 from .studio_context import STUDIO_CONTEXT_SENTINEL, build_studio_context
 
 router = APIRouter(prefix="/api")
