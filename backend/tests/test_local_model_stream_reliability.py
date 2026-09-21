@@ -8,12 +8,20 @@ ROCI = reliability._HERETIC_ROCINANTE
 CYDONIA = reliability._HIGH_HEAT_CYDONIA
 FAST = reliability._FAST_ADULT_MODEL
 PYG = reliability._PYGMALION_ADULT_MODEL
+EXPLICIT = reliability._EXPLICIT_ADULT_MODEL
 
 
 def _intimacy_messages() -> list[dict[str, str]]:
     return [
         {"role": "system", "content": "Scene intent: intimacy"},
         {"role": "user", "content": "Write the requested scene."},
+    ]
+
+
+def _explicit_messages() -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": "Scene intent: intimacy\nRequested heat: inferno."},
+        {"role": "user", "content": "AUTHOR INSTRUCTION\nWrite the explicit sex scene."},
     ]
 
 
@@ -80,21 +88,41 @@ def test_adult_routing_respects_explicit_fast_model(monkeypatch) -> None:
     assert config.model == FAST
 
 
-def test_stale_adult_model_repairs_to_locally_accepted_winner(monkeypatch) -> None:
+def test_explicit_adult_routing_forces_proven_specialist(monkeypatch) -> None:
     async def installed(_base_url: str) -> list[str]:
-        return [CYDONIA, FAST, ROCI, PYG]
+        return [CYDONIA, FAST, ROCI, PYG, EXPLICIT]
 
     monkeypatch.setattr(reliability, "installed_ollama_models", installed)
-    monkeypatch.setattr(reliability, "local_model_preferences", lambda: {"accepted_adult_model": FAST})
+    config = ProviderConfig(
+        provider="ollama",
+        base_url="http://localhost:11434",
+        model=ROCI,
+    )
+
+    asyncio.run(reliability.route_adult_model_stable(config, _explicit_messages()))
+
+    assert config.model == EXPLICIT
+
+
+def test_stale_explicit_model_repairs_to_proven_specialist(monkeypatch) -> None:
+    async def installed(_base_url: str) -> list[str]:
+        return [FAST, PYG, EXPLICIT]
+
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(
+        reliability,
+        "local_model_preferences",
+        lambda: {"adult_explicit_model": EXPLICIT},
+    )
     config = ProviderConfig(
         provider="ollama",
         base_url="http://localhost:11434",
         model="missing-writing-model:latest",
     )
 
-    asyncio.run(reliability.route_adult_model_stable(config, _intimacy_messages()))
+    asyncio.run(reliability.route_adult_model_stable(config, _explicit_messages()))
 
-    assert config.model == FAST
+    assert config.model == EXPLICIT
 
 
 def test_reliability_layer_replaces_low_level_transport_not_public_wrapper() -> None:
