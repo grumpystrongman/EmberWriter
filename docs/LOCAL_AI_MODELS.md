@@ -24,7 +24,7 @@ On September 20, 2026, the exact Q4_K_M model was run under llama.cpp in an isol
 - 1,372 words
 - first direct sexual action at word 29
 - 34 direct-action sentences
-- Muna's penis canon represented directly
+- Avery's penis canon represented directly
 - no conflicting vagina/vulva/clitoris anatomy
 - manual, oral, and penetrative sexual action present
 - both named climaxes supported
