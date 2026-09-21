@@ -72,9 +72,9 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
     words = _word_count(text)
     failures: list[str] = []
 
-    if words > 1000:
+    if words > 1600:
         failures.append(f"hard word ceiling violated: {words} words")
-    if words < 500:
+    if words < 900:
         failures.append(f"scene is too short to demonstrate reliable delivery: {words} words")
     if generation.looks_abrupt_ending(text):
         failures.append("draft ends abruptly")
@@ -89,9 +89,9 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
 
     first_action_word = _first_direct_action_word(text)
     direct_action_sentences = _direct_action_sentences(text)
-    if first_action_word > 180:
+    if first_action_word > 140:
         failures.append(f"core action begins too late: first direct-action evidence at word {first_action_word}")
-    if direct_action_sentences < 5:
+    if direct_action_sentences < 12:
         failures.append(f"not enough sustained direct-action description: {direct_action_sentences} direct sentences")
     if not _MUNA_PENIS.search(text):
         failures.append("Muna's established penis anatomy is not directly represented")
@@ -99,6 +99,26 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
         failures.append("hard body-canon conflict: draft gives Muna vagina/vulva/clitoris anatomy")
     if _DRIFT_TERMS.search(text):
         failures.append("core-only scene drifted into unrelated domestic/scenery material")
+
+    required_beats = {
+        "manual sexual action": re.compile(r"\b(?:hand\s*job|stroke\w*|masturbat\w*|grip\w*)\b", re.IGNORECASE),
+        "oral sexual action": re.compile(r"\b(?:oral\s+sex|blow\s*job|suck\w*|lick\w*)\b", re.IGNORECASE),
+        "penetrative action": re.compile(r"\b(?:anal|anus|asshole|penetrat\w*|thrust\w*|fuck\w*)\b", re.IGNORECASE),
+    }
+    for label, pattern in required_beats.items():
+        if not pattern.search(text):
+            failures.append(f"required acceptance beat missing: {label}")
+
+    muna_climax = re.search(
+        r"(?is)\bmuna\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
+        text,
+    )
+    kaelen_climax = re.search(
+        r"(?is)\bkaelen\b.{0,180}\b(?:orgasm\w*|came|cum|cumming|ejaculat\w*)\b",
+        text,
+    )
+    if not muna_climax or not kaelen_climax:
+        failures.append("both named participants must have supported on-page climaxes")
 
     lowered = text.casefold()
     for required in ("kaelen", "muna"):
@@ -171,7 +191,7 @@ async def run_model_acceptance(
     model = exact
 
     contract = parse_scene_length(ACCEPTANCE_PROMPT, "inferno")
-    floor = max(500, min(contract.floor_words or 500, 700))
+    floor = max(900, min(contract.floor_words or 900, 1200))
 
     for index in range(attempts):
         config = ProviderConfig(provider="ollama", base_url=base_url, model=model)
