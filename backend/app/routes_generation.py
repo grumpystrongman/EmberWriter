@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from .adult_specialist import (
     build_adult_specialist_messages,
+    route_explicit_adult_specialist,
     should_use_adult_explicit_specialist,
 )
 from .character_voice import build_character_voice_context
@@ -448,6 +449,7 @@ async def _generate_payload(
 ) -> GenerateResponse:
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
+    await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
 
     messages, adult_specialist = _generation_messages(
         payload,
@@ -586,6 +588,7 @@ async def _produce_generation_stream(
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
             heat, delivery_scope, minimum_words = _generation_contract(payload)
+            await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
             messages, adult_specialist = _generation_messages(
                 payload,
                 context_text,
