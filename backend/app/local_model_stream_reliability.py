@@ -8,8 +8,8 @@ from time import perf_counter
 import httpx
 
 from . import streaming_generation
-from .model_catalog import ADULT_EXPLICIT_MODEL
 from .generation import MODEL_GATE, OLLAMA_CONTEXT_TOKENS
+from .model_catalog import ADULT_EXPLICIT_MODEL
 from .model_preferences import local_model_preferences
 from .models import ProviderConfig
 from .ollama_runtime import choose_installed_model, installed_ollama_models
