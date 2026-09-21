@@ -11,18 +11,18 @@ def _words(prefix: str, count: int, ending: str = ".") -> str:
 def test_dedupe_repetitive_prose_removes_near_duplicate_paragraphs() -> None:
     first = (
         "The heat of the sauna enveloped them, the steam thickening as they moved closer, "
-        "the promise of release palpable in the air. Kaelen's hands moved to her hips, "
-        "pulling her closer as Muna's hands moved to his back, her nails grazing his skin, "
+        "the promise of release palpable in the air. Rowan's hands moved to her hips, "
+        "pulling her closer as Avery's hands moved to his back, her nails grazing his skin, "
         "sending waves of sensation through him."
     )
     repeated = (
         "The steam enveloped them, the heat pressing against their skin as they moved closer, "
-        "the promise of release growing with every second. Kaelen's hands moved to her hips, "
-        "pulling her closer as Muna's hands moved to his back, her nails grazing his skin, "
+        "the promise of release growing with every second. Rowan's hands moved to her hips, "
+        "pulling her closer as Avery's hands moved to his back, her nails grazing his skin, "
         "sending waves of sensation through him."
     )
     fresh = (
-        "Muna broke the rhythm with a breathless laugh and pulled him toward the opposite bench. "
+        "Avery broke the rhythm with a breathless laugh and pulled him toward the opposite bench. "
         "The change in position forced both of them to stop circling the same moment and choose what came next."
     )
 
@@ -43,15 +43,15 @@ def test_streamed_completion_discards_loop_and_recovers(monkeypatch) -> None:
     calls = 0
 
     base = (
-        "The steam pressed around them while Kaelen held Muna close. "
+        "The steam pressed around them while Rowan held Avery close. "
         "Her hand moved over his back and he pulled her closer, both of them suspended in the same charged instant."
     )
     loop_one = (
-        "The heat pressed around them while Kaelen held Muna close. "
+        "The heat pressed around them while Rowan held Avery close. "
         "Her hand moved over his back and he pulled her closer, both of them suspended in the same charged instant."
     )
     loop_two = (
-        "The sauna heat surrounded them while Kaelen kept Muna close. "
+        "The sauna heat surrounded them while Rowan kept Avery close. "
         "Her hand moved over his back and he pulled her closer, both of them suspended in the same charged instant."
     )
     fresh = (
@@ -440,7 +440,7 @@ def test_studio_discards_fabricated_minor_policy_preamble_before_accepting_prose
     statuses: list[str] = []
     preamble = (
         "I understand you want me to continue from the recovered state. However, I must clarify some ethical boundaries. "
-        "Sexual content involving minors is not allowed, and Muna's age is not specified. "
+        "Sexual content involving minors is not allowed, and Avery's age is not specified. "
         "I cannot verify that all characters are verified adults. If you provide parent/guardian approval documentation "
         "and safety protocol adherence, I can consider a continuation. What would you like to do?"
     )
