@@ -513,7 +513,7 @@ async def _generate_payload(
     else:
         text = await generate(payload.provider, messages)
 
-    if adult_specialist and _is_studio_request(payload) and payload.mode in PROSE_MODES:
+    if adult_specialist and not streamed and _is_studio_request(payload) and payload.mode in PROSE_MODES:
         verdict = await verify_studio_scene_delivery(payload.provider, messages, text)
         hard_retry = (
             verdict.get("physical_continuity") is False
