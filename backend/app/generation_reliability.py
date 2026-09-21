@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from . import generation as generation
 from . import ollama_runtime
+from .adult_specialist import ADULT_EXPLICIT_SPECIALIST_FAMILY, ADULT_EXPLICIT_SPECIALIST_MODEL
 from . import streaming_generation as streaming
 from .models import ProviderConfig
 from .prose_quality import diagnose_prose
@@ -34,7 +35,9 @@ _GENERIC_WORD_PATTERN = re.compile(r"\b(\d{3,5})\s*words?\b", re.IGNORECASE)
 def adult_model_score(model: str) -> int:
     name = model.casefold()
     score = 0
-    if "cydonia" in name and ("heretic" in name or "abliter" in name or "decensor" in name):
+    if ADULT_EXPLICIT_SPECIALIST_FAMILY in name:
+        score = 1000
+    elif "cydonia" in name and ("heretic" in name or "abliter" in name or "decensor" in name):
         score = 260
     elif "rocinante-x" in name:
         score = 250
@@ -146,6 +149,29 @@ def _is_intimacy_request(messages: list[dict[str, str]]) -> bool:
     )
 
 
+def _is_explicit_intimacy_request(messages: list[dict[str, str]]) -> bool:
+    if not _is_intimacy_request(messages):
+        return False
+    system = "\n".join(
+        message.get("content", "")
+        for message in messages
+        if message.get("role") == "system"
+    ).casefold()
+    if "adult-fiction scene specialist" in system:
+        return True
+    if "requested heat: scorching" in system or "requested heat: inferno" in system:
+        return True
+    prompt = _author_instruction(messages)
+    return bool(
+        re.search(
+            r"\b(?:sex|sexual|erotic|explicit|penetrat\w*|oral\s+sex|blow\s*job|"
+            r"hand\s*job|orgasm\w*|fuck\w*|cumm?\w*)\b",
+            prompt,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
 def _remaining_output_tokens(
     messages: list[dict[str, str]],
     requested_tokens: int | None,
@@ -166,6 +192,14 @@ async def _route_adult_model(config: ProviderConfig, messages: list[dict[str, st
     installed = await ollama_runtime.installed_ollama_models(config.base_url)
     if not installed:
         return
+
+    by_name = {item.casefold(): item for item in installed}
+    if _is_explicit_intimacy_request(messages):
+        specialist = by_name.get(ADULT_EXPLICIT_SPECIALIST_MODEL.casefold())
+        if specialist:
+            config.model = specialist
+            return
+
     ranked = sorted(installed, key=adult_model_score, reverse=True)
     best = ranked[0]
     if adult_model_score(best) <= 0:
@@ -182,6 +216,8 @@ def _sampling_for_model(model: str, temperature: float, top_p: float) -> tuple[f
     if temperature != 0.9 or top_p != 0.95:
         repeat_penalty = 1.10 if "rocinante" in name else 1.08 if "cydonia" in name else 1.18
         return temperature, top_p, repeat_penalty
+    if ADULT_EXPLICIT_SPECIALIST_FAMILY in name:
+        return 0.80, 0.90, 1.05
     if "cydonia" in name:
         return 0.72, 0.90, 1.05
     if "rocinante" in name:
