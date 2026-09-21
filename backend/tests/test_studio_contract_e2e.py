@@ -77,7 +77,8 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
                 "buildup_only": not delivered,
                 "fade_or_skip": False,
                 "ending_complete": delivered,
-                "canon_respected": "CANON_VIOLATION" not in draft,\n                "physical_continuity": "PHYSICAL_CONTINUITY_VIOLATION" not in draft,
+                "canon_respected": "CANON_VIOLATION" not in draft,
+                "physical_continuity": "PHYSICAL_CONTINUITY_VIOLATION" not in draft,
                 "repetition_loop": False,
                 "reason": (
                     "forced verifier rejection for E2E safety test"
