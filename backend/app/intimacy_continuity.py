@@ -278,8 +278,9 @@ _ANAL_OPENING_AROUND_HEAD = re.compile(
 _TONGUE_DEEP_ANAL_CANAL = re.compile(
     r"\btongue\b"
     r"[^.!?\n]{0,180}"
-    r"\b(?:rectum|deep(?:ly)?\s+(?:inside|into)\s+(?:his|her|their|the)?\s*(?:anus|anal\s+canal)|"
-    r"depths?\s+of\s+(?:his|her|their|the)?\s*(?:anus|anal\s+canal))\b",
+    r"\b(?:rectum|"
+    r"deep(?:ly)?\s+(?:inside|into)\s+(?:(?:his|her|their|the)\s+|(?:[A-Za-z][A-Za-z'’-]{1,30}['’]s)\s+)?(?:anus|anal\s+canal)|"
+    r"depths?\s+of\s+(?:(?:his|her|their|the)\s+|(?:[A-Za-z][A-Za-z'’-]{1,30}['’]s)\s+)?(?:anus|anal\s+canal))\b",
     re.IGNORECASE,
 )
 
