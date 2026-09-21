@@ -197,7 +197,7 @@ def test_studio_continue_has_a_continuation_boundary_and_keeps_hard_canon_early(
     project = storage.create_project("Studio Acceptance")
     slug = project["slug"]
     storage.save_text(slug, "summaries/rolling-summary.md", "SUMMARY " * 7000)
-    storage.save_text(slug, "characters/rowan.md", "# Rowan\n\nAdult Nexus. Attentive and protective.\n")
+    storage.save_text(slug, "characters/rowan.md", "# Rowan\n\nAdult protagonist. Attentive and protective.\n")
     storage.save_text(
         slug,
         "characters/avery.md",
