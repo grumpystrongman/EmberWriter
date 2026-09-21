@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("auto", "8b", "12b", "14b", "24b")]
+    [ValidateSet("auto", "4b", "8b", "12b", "14b", "24b")]
     [string]$AdultModelTier = "auto",
     [switch]$SkipModelDownload,
     [ValidateSet("forge", "automatic1111")]
@@ -15,8 +15,9 @@ $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $FrontendViteCmd = Join-Path $Frontend "node_modules\.bin\vite.cmd"
 
-$AdultBaseline = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
-$CreativeQuality = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
+$AdultExplicit = "hf.co/mradermacher/Qwen3.5-4B-NSFW-ARA-Heretic-Literotica-i1-GGUF:Q4_K_M"
+$GeneralProse = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
+$CharacterModel = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
 $AdultFast = "R4C3R/qwen3-8b-heretic:q4_k_m"
 $AdultHighHeat = "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
 $HighHeatMinimumFreeGb = 22
@@ -142,12 +143,15 @@ Write-Host "Ollama tuning: Flash Attention=on, KV cache=q8_0, parallel generatio
 if (-not $SkipModelDownload) {
     $totalRamGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
     $freeDiskGb = Get-FreeDiskGb $Root
-    $chosen = $AdultBaseline
-    $modelsToInstall = @($AdultBaseline)
+    $chosen = $GeneralProse
+    $modelsToInstall = @($AdultExplicit, $GeneralProse)
 
-    if ($AdultModelTier -eq "8b") {
+    if ($AdultModelTier -eq "4b") {
+        $chosen = $AdultExplicit
+        $modelsToInstall = @($AdultExplicit)
+    } elseif ($AdultModelTier -eq "8b") {
         $chosen = $AdultFast
-        $modelsToInstall = @($AdultFast)
+        $modelsToInstall = @($AdultFast, $AdultExplicit)
     } elseif ($AdultModelTier -eq "24b") {
         if ($freeDiskGb -lt $HighHeatMinimumFreeGb) {
             throw "The 24B high-heat model needs at least ${HighHeatMinimumFreeGb} GB free. Only ${freeDiskGb} GB is available."
@@ -155,15 +159,16 @@ if (-not $SkipModelDownload) {
         $chosen = $AdultHighHeat
         $modelsToInstall = @($AdultHighHeat)
     } elseif ($AdultModelTier -eq "auto") {
-        # Auto provisions both explicit choices. Quality remains the default; Fast is an author-visible
-        # switch in Studio and is never selected silently merely because it is installed.
-        $modelsToInstall = @($AdultBaseline, $CreativeQuality, $AdultFast)
+        # Auto provisions one specialist per major writing capability. Explicit adult scenes are
+        # isolated to the proven 4B model; ordinary prose and character work stay on broader models.
+        $modelsToInstall = @($AdultExplicit, $GeneralProse, $CharacterModel, $AdultFast)
     }
 
     Write-Host ""
-    Write-Host "Adult candidate:   $AdultBaseline" -ForegroundColor Green
-    Write-Host "Creative candidate:$CreativeQuality" -ForegroundColor Green
-    Write-Host "Fast model:        $AdultFast" -ForegroundColor Green
+    Write-Host "Adult explicit:    $AdultExplicit" -ForegroundColor Green
+    Write-Host "General prose:     $GeneralProse" -ForegroundColor Green
+    Write-Host "Character/dialogue:$CharacterModel" -ForegroundColor Green
+    Write-Host "Planning / fast:   $AdultFast" -ForegroundColor Green
     Write-Host "Default model: $chosen"
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
@@ -184,17 +189,21 @@ if (-not $SkipModelDownload) {
 
     $ConfigDir = Join-Path $Root ".ember"
     New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
-    $preferred = if ($modelsToInstall -contains $CreativeQuality) { $CreativeQuality } else { $chosen }
+    $preferred = if ($modelsToInstall -contains $GeneralProse) { $GeneralProse } else { $chosen }
     @{
         provider = "ollama"
         base_url = "http://localhost:11434"
         preferred_model = $preferred
-        adult_model = $AdultBaseline
-        adult_candidate_model = $AdultBaseline
-        quality_model = $CreativeQuality
-        creative_candidate_model = $CreativeQuality
+        adult_model = $AdultExplicit
+        adult_explicit_model = $AdultExplicit
+        adult_candidate_model = $AdultExplicit
+        general_prose_model = $GeneralProse
+        quality_model = $GeneralProse
+        creative_candidate_model = $GeneralProse
+        character_model = $CharacterModel
+        planning_model = $AdultFast
         fast_model = $AdultFast
-        fallback_adult_model = $AdultBaseline
+        fallback_adult_model = $AdultExplicit
         high_heat_model = $AdultHighHeat
         ollama_flash_attention = $true
         ollama_kv_cache_type = "q8_0"
@@ -203,14 +212,14 @@ if (-not $SkipModelDownload) {
 
     Write-Host ""
     Write-Host "Local writing models installed and verified." -ForegroundColor Green
-    Write-Host "Running the local adult-scene bakeoff across the installed managed candidates..." -ForegroundColor Cyan
-    & $Python -m app.model_bakeoff --attempts 3
+    Write-Host "Validating the proven adult-explicit specialist on this local runtime..." -ForegroundColor Cyan
+    & $Python -m app.model_bakeoff --attempts 3 --model $AdultExplicit
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "Adult-model bakeoff passed; the winning model was persisted for intent routing." -ForegroundColor Green
+        Write-Host "Adult-explicit specialist passed local validation and was persisted for intent routing." -ForegroundColor Green
     } else {
-        Write-Host "No installed managed candidate passed the adult-scene acceptance contract. EmberWriter will keep the models available for manual testing and non-adult routing." -ForegroundColor Yellow
+        Write-Host "The adult-explicit specialist did not clear local validation. EmberWriter will keep the model installed and record the failure instead of silently substituting a different adult model." -ForegroundColor Yellow
     }
-    Write-Host "Studio Quality uses the locally accepted model for the selected intent; Studio Fast prioritizes low-latency models."
+    Write-Host "Studio Auto routes explicit adult scenes to the proven specialist, general fiction to Magnum, character/dialogue work to Pygmalion, and planning/fast work to Qwen."
 }
 
 if (-not $SkipImageEngineInstall) {
