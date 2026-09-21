@@ -142,17 +142,17 @@ def _setup_project(tmp_path: Path) -> str:
     storage.save_text(
         slug,
         "manuscript/chapter-001.md",
-        "WRONG_JAX_CHAPTER " + ("Kaelen academy gym battle Jax " * 800),
+        "WRONG_JAX_CHAPTER " + ("Rowan academy gym battle Tamsin " * 800),
     )
     storage.save_text(
         slug,
-        "characters/kaelen.md",
-        "# Kaelen\n\nAdult Nexus. Attentive, protective, emotionally responsive.\n",
+        "characters/rowan.md",
+        "# Rowan\n\nAdult Nexus. Attentive, protective, emotionally responsive.\n",
     )
     storage.save_text(
         slug,
-        "characters/muna.md",
-        "# Muna\n\nAdult trans woman. Warm, playful, musical, joyful.\n\n"
+        "characters/avery.md",
+        "# Avery\n\nAdult trans woman. Warm, playful, musical, joyful.\n\n"
         + ("Character history and voice detail. " * 210)
         + "\n\nHARD EMBODIMENT CANON: MUNA_BODY_CANON_OK. Do not invent conflicting anatomy.\n",
     )
@@ -213,7 +213,7 @@ def test_studio_inferno_is_verified_end_to_end_on_clean_api_path(tmp_path: Path)
         payload = _payload(
             base_url,
             (
-                "Write a 900 word complete adult intimacy scene between Kaelen and Muna in the academy sauna. "
+                "Write a 900 word complete adult intimacy scene between Rowan and Avery in the academy sauna. "
                 "STUDIO SCENE DELIVERY CONTRACT: deliver the requested core event and aftermath, not just buildup."
             ),
         )
@@ -296,7 +296,7 @@ def test_unverified_studio_scene_remains_visible_as_partial_draft(tmp_path: Path
         payload = _payload(
             base_url,
             (
-                "NEVER_VERIFY. Write a 900 word complete adult intimacy scene between Kaelen and Muna. "
+                "NEVER_VERIFY. Write a 900 word complete adult intimacy scene between Rowan and Avery. "
                 "STUDIO SCENE DELIVERY CONTRACT: do not report success unless the independent verifier approves."
             ),
         )
