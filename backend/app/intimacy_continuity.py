@@ -11,6 +11,7 @@ ANATOMY IS IMMUTABLE CANON
 - Never silently substitute generic heterosexual or cisgender anatomy templates for established character anatomy.
 
 SEXUAL ROLE IS DYNAMIC STATE
+- Treat sexual role as dynamic scene state.
 - Penetrative/receptive, oral/manual, dominant/submissive, active/passive, top/bottom, and position are current actions, not gender traits.
 - A participant may change role during a scene, but the physical repositioning required for that change must occur on page.
 
