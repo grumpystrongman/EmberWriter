@@ -122,7 +122,7 @@ def test_studio_delivery_verifier_requires_every_delivery_dimension(monkeypatch)
         return (
             '{"core_encounter_on_page":true,"requested_explicitness_delivered":true,'
             '"buildup_only":false,"fade_or_skip":false,"ending_complete":true,'
-            '"canon_respected":true,"repetition_loop":false,"reason":"delivered"}'
+            '"canon_respected":true,"physical_continuity":true,"repetition_loop":false,"reason":"delivered"}'
         )
 
     monkeypatch.setattr(streaming_generation, "generate_text", fake_generate)
