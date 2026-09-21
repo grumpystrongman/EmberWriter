@@ -59,7 +59,9 @@ Return exactly this JSON shape:
   "reveals": ["information legitimately revealed in this scene"],
   "continuity_requirements": ["fact, injury, knowledge boundary, promise, object, world rule, author plan, or relationship boundary to preserve"],
   "unresolved_threads": ["relevant setup/payoff carried into or out of the scene"],
-  "intimacy_notes": ["relationship-specific intimacy/romance notes when relevant; otherwise empty"],
+  "intimacy_notes": [
+    "For intimate scenes use structured entries when relevant: START_STATE:, REQUESTED_ACT:, CURRENT_ACT:, ESCALATION_TARGET:, CONTACT_STATE:, PENETRATION_STATE:, REQUIRED_TRANSITION:, CAPABILITY_CONSTRAINTS:, END_STATE:. Otherwise empty."
+  ],
   "ending_state": "how the story/characters are different at scene end",
   "next_scene_pressure": "pressure or question created for the next scene"
 }
