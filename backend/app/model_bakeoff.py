@@ -27,9 +27,9 @@ def _score(report: dict[str, object]) -> tuple[int, int, int, int, int]:
     failure_count = sum(len(item.get("failures") or []) for item in results)
     onset_total = sum(min(int(item.get("first_direct_action_word") or 10_000), 10_000) for item in results)
     direct_sentences = sum(int(item.get("direct_action_sentences") or 0) for item in results)
-    # 700 words is intentionally near the middle of the acceptance window. Do not reward
-    # verbosity: among otherwise equal passing models, prefer concise sustained delivery.
-    length_penalty = sum(abs(int(item.get("word_count") or 0) - 700) for item in results)
+    # 1,250 words sits near the middle of the v4 full-scene acceptance window. Do not reward
+    # verbosity: among otherwise equal passing models, prefer focused sustained delivery.
+    length_penalty = sum(abs(int(item.get("word_count") or 0) - 1250) for item in results)
     return (passes, -failure_count, -onset_total, direct_sentences, -length_penalty)
 
 
