@@ -26,7 +26,7 @@ def test_craft_profile_and_voice_lock_round_trip(tmp_path: Path) -> None:
     craft.save_voice_profile(
         slug,
         VoiceProfile(
-            name="Nexus voice",
+            name="Field voice",
             prose_directive="Tight third-person with tactile imagery and dry humor.",
             sentence_rhythm="Long pressure-building lines broken by short decisive sentences.",
             diction="Concrete and contemporary.",
@@ -67,7 +67,7 @@ def test_craft_profile_and_voice_lock_round_trip(tmp_path: Path) -> None:
         ),
     )
     assert "maximum on-page explicitness" in context
-    assert "Nexus voice" in context
+    assert "Field voice" in context
     assert "physicalized emotion" in context
     assert "Do not restate the emotion" in context
     assert "Rough edges are intentional" in context
@@ -206,7 +206,7 @@ def test_relevant_character_gets_dossier_context(tmp_path: Path) -> None:
     storage.save_text(
         slug,
         "characters/mira.md",
-        "# Mira\n\nSera speaks with deliberate precision. She dislikes sentimental euphemism.",
+        "# Mira\n\nMira speaks with deliberate precision. She dislikes sentimental euphemism.",
     )
 
     names = story_intelligence.relevant_character_names(
