@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from . import generation as generation
 from . import ollama_runtime
+from . import streaming_generation as streaming
 from .model_catalog import (
     ADULT_EXPLICIT_FAMILY,
     ADULT_EXPLICIT_MODEL,
@@ -12,7 +13,6 @@ from .model_catalog import (
     FAST_MODEL,
     GENERAL_PROSE_MODEL,
 )
-from . import streaming_generation as streaming
 from .models import ProviderConfig
 from .prose_quality import diagnose_prose
 
