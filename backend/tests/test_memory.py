@@ -14,7 +14,7 @@ def test_memory_store_search_export_and_replace(tmp_path: Path) -> None:
     project = storage.create_project("Memory Novel")
     slug = project["slug"]
     path = "manuscript/chapter-001.md"
-    content = "# Chapter 1\n\nSera tells Tamsin the vault key is hidden beneath the chapel."
+    content = "# Chapter 1\n\nMira tells Tamsin the vault key is hidden beneath the chapel."
     storage.save_text(slug, path, content)
 
     result = memory.store_analysis(
