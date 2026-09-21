@@ -25,20 +25,20 @@ async def test_spatial_hierarchy_builds_granular_parent_tree_with_provenance(
     storage.save_text(
         slug,
         "world/kaelens-home.md",
-        "# Kaelen's Home\n"
-        "Kaelen's Bedroom is upstairs in Kaelen's Home. "
+        "# Rowan's Home\n"
+        "Rowan's Bedroom is upstairs in Rowan's Home. "
         "The Kitchen opens toward the Garden.\n",
     )
 
     async def fake_generate(*_args, **_kwargs) -> str:
         return """{
           "locations": [
-            {"name":"Kaelen's Home","kind":"house","scale":"building","parent":"","x":0,"y":0,"summary":"Home base","canon_status":"canon","confidence":0.96,"source_paths":["world/kaelens-home.md"]},
-            {"name":"Upper Floor","kind":"floor","scale":"floor","parent":"Kaelen's Home","x":0,"y":-40,"summary":"Upper level","canon_status":"inferred","confidence":0.72,"inference_reason":"The bedroom is explicitly upstairs."},
-            {"name":"Kaelen's Bedroom","kind":"bedroom","scale":"room","parent":"Upper Floor","x":-40,"y":0,"summary":"Kaelen's room","canon_status":"canon","confidence":0.95,"source_paths":["world/kaelens-home.md"]},
-            {"name":"Kitchen","kind":"kitchen","scale":"room","parent":"Kaelen's Home","x":35,"y":30,"summary":"Kitchen","canon_status":"canon","confidence":0.94,"source_paths":["world/kaelens-home.md"]},
-            {"name":"Garden","kind":"garden","scale":"area","parent":"Kaelen's Home","x":90,"y":30,"summary":"Garden","canon_status":"canon","confidence":0.93,"source_paths":["world/kaelens-home.md"]},
-            {"name":"Possible Cellar","kind":"cellar","scale":"room","parent":"Kaelen's Home","x":0,"y":70,"summary":"Optional author idea","canon_status":"suggested","confidence":0.4,"inference_reason":"A cellar could fit the house, but the manuscript does not establish one."}
+            {"name":"Rowan's Home","kind":"house","scale":"building","parent":"","x":0,"y":0,"summary":"Home base","canon_status":"canon","confidence":0.96,"source_paths":["world/kaelens-home.md"]},
+            {"name":"Upper Floor","kind":"floor","scale":"floor","parent":"Rowan's Home","x":0,"y":-40,"summary":"Upper level","canon_status":"inferred","confidence":0.72,"inference_reason":"The bedroom is explicitly upstairs."},
+            {"name":"Rowan's Bedroom","kind":"bedroom","scale":"room","parent":"Upper Floor","x":-40,"y":0,"summary":"Rowan's room","canon_status":"canon","confidence":0.95,"source_paths":["world/kaelens-home.md"]},
+            {"name":"Kitchen","kind":"kitchen","scale":"room","parent":"Rowan's Home","x":35,"y":30,"summary":"Kitchen","canon_status":"canon","confidence":0.94,"source_paths":["world/kaelens-home.md"]},
+            {"name":"Garden","kind":"garden","scale":"area","parent":"Rowan's Home","x":90,"y":30,"summary":"Garden","canon_status":"canon","confidence":0.93,"source_paths":["world/kaelens-home.md"]},
+            {"name":"Possible Cellar","kind":"cellar","scale":"room","parent":"Rowan's Home","x":0,"y":70,"summary":"Optional author idea","canon_status":"suggested","confidence":0.4,"inference_reason":"A cellar could fit the house, but the manuscript does not establish one."}
           ],
           "connections": []
         }"""
@@ -49,9 +49,9 @@ async def test_spatial_hierarchy_builds_granular_parent_tree_with_provenance(
     )
 
     by_name = {item.name: item for item in result.atlas.locations}
-    home = by_name["Kaelen's Home"]
+    home = by_name["Rowan's Home"]
     upper = by_name["Upper Floor"]
-    bedroom = by_name["Kaelen's Bedroom"]
+    bedroom = by_name["Rowan's Bedroom"]
     kitchen = by_name["Kitchen"]
     garden = by_name["Garden"]
     cellar = by_name["Possible Cellar"]
