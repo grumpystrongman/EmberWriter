@@ -47,7 +47,7 @@ _CREATIVE_FAMILIES = (
     "lunaris",
     "nemomix",
 )
-_ACCEPTANCE_VERSION = 3
+_ACCEPTANCE_VERSION = 4
 
 _STARTED = False
 _START_LOCK = threading.Lock()
@@ -380,67 +380,25 @@ def _can_install_high_heat() -> bool:
 
 
 def _ready(ollama: str, installed: list[str], auto_installed: bool) -> None:
-    if _run_adult_bakeoff(installed, auto_installed):
+    """Validate the dedicated adult specialist without silently substituting another model."""
+    winner = _run_adult_bakeoff(installed, auto_installed)
+    if winner:
+        _persist_capability_preferences(installed)
         return
 
-    model = _best_creative_model(installed)
-    if not model:
-        _write_status(
-            state="failed",
-            installed_models=installed,
-            auto_installed=auto_installed,
-            reason="creative_model_not_resolved",
-        )
-        return
-
-    if _run_acceptance(model, installed, auto_installed):
-        return
-
-    high_heat_present = any(HIGH_HEAT_CREATIVE_MODEL.casefold() == item.casefold() for item in installed)
-    if high_heat_present or model.casefold() == HIGH_HEAT_CREATIVE_MODEL.casefold():
-        return
-    if not _can_install_high_heat():
-        _write_status(
-            state="ready",
-            installed_models=installed,
-            auto_installed=auto_installed,
-            acceptance_state="failed",
-            acceptance_model=model,
-            escalation_state="not_available",
-            escalation_reason="high_heat_model_requires_at_least_22GB_free_or_escalation_is_disabled",
-        )
-        return
-
+    # Validation failure is diagnostic, not permission to route explicit sex scenes to a
+    # different general-purpose model. Keep the installed specialist in its capability slot
+    # and surface the failure through writing-model-status.json.
+    _persist_capability_preferences(installed)
     _write_status(
-        state="installing",
-        target_model=HIGH_HEAT_CREATIVE_MODEL,
+        state="ready",
         installed_models=installed,
-        auto_installed=True,
+        auto_installed=auto_installed,
         acceptance_state="failed",
-        acceptance_model=model,
-        escalation_state="installing_high_heat_model",
+        acceptance_model=ADULT_EXPLICIT_CREATIVE_MODEL,
+        bakeoff_state="failed",
+        fallback_substitution=False,
     )
-    if not _pull_model(ollama, HIGH_HEAT_CREATIVE_MODEL):
-        _write_status(
-            state="ready",
-            installed_models=_installed_model_names(ollama),
-            auto_installed=auto_installed,
-            acceptance_state="failed",
-            acceptance_model=model,
-            escalation_state="install_failed",
-        )
-        return
-
-    upgraded = _installed_model_names(ollama)
-    upgraded_model = _best_creative_model(upgraded)
-    if not upgraded_model:
-        _write_status(
-            state="failed",
-            installed_models=upgraded,
-            reason="high_heat_model_installed_but_not_resolved",
-        )
-        return
-    _run_acceptance(upgraded_model, upgraded, auto_installed=True)
 
 
 def _worker() -> None:
