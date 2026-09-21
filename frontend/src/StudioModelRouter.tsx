@@ -34,12 +34,12 @@ const PURPOSES: Record<WritingPurpose, { label: string; short: string; why: stri
   auto: {
     label: 'Auto-match my writing',
     short: 'Studio decides from mode, heat, and your prompt.',
-    why: 'General scenes stay on a strong general model; high-heat work moves to an uncensored model; planning favors instruction-following.',
+    why: 'General scenes stay on the managed prose model; explicit adult scenes move to the proven specialist; character work uses the roleplay specialist; planning favors the fast instruction-following model.',
   },
   adult: {
     label: 'Adult / high heat',
     short: 'Explicit adult intimacy and other on-page mature material.',
-    why: 'Prioritizes uncensored creative-writing models so the requested scene is less likely to soften, refuse, or drift away from the brief.',
+    why: 'Routes explicit adult scenes to EmberWriter’s proven erotica specialist instead of asking general-purpose prose models to do a job they repeatedly failed.',
   },
   general: {
     label: 'General fiction',
@@ -197,16 +197,16 @@ function describeModel(model: string): ModelGuide {
   }
   if (name.includes('pygmalion-3') || name.includes('pygmalion3')) {
     return {
-      label: 'Adult / roleplay specialist 12B',
-      bestFor: 'Direct adult scenes, roleplay-heavy intimacy, character interaction, and requests where scene delivery matters more than general reasoning.',
-      why: 'Pygmalion-3 is a dedicated roleplaying fine-tune with permissive Apache-2.0 licensing. EmberWriter treats it as one adult-scene candidate and trusts the local bakeoff over the model label.',
+      label: 'Character / roleplay specialist 12B',
+      bestFor: 'Dialogue, banter, relationship scenes, character voice, chemistry, and roleplay-heavy non-explicit passages.',
+      why: 'Pygmalion-3 is a dedicated roleplaying fine-tune with permissive Apache-2.0 licensing. EmberWriter now reserves it primarily for character-centered work rather than explicit-scene delivery.',
     }
   }
   if (name.includes('magnum-v4') || name.includes('magnum_v4')) {
     return {
-      label: 'Creative prose specialist 12B',
-      bestFor: 'Polished scene prose, chemistry, dialogue, character voice, and adult fiction when it passes the local delivery acceptance test.',
-      why: 'Magnum-v4 emphasizes creative prose and conversation and is available under Apache-2.0 in the upstream 12B release. EmberWriter keeps it distinct from the adult-first roleplay candidate.',
+      label: 'General prose specialist 12B',
+      bestFor: 'Long-form fiction, action, description, scene construction, revision, and polished non-explicit manuscript prose.',
+      why: 'Magnum-v4 emphasizes creative prose and conversation and is available under Apache-2.0 in the upstream 12B release. EmberWriter uses it as the managed general-fiction model.',
     }
   }
   if (name.includes('qwen3-8b') && name.includes('heretic')) {
