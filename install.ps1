@@ -157,7 +157,7 @@ if (-not $SkipModelDownload) {
             throw "The 24B high-heat model needs at least ${HighHeatMinimumFreeGb} GB free. Only ${freeDiskGb} GB is available."
         }
         $chosen = $AdultHighHeat
-        $modelsToInstall = @($AdultHighHeat)
+        $modelsToInstall = @($AdultExplicit, $AdultHighHeat)
     } elseif ($AdultModelTier -eq "auto") {
         # Auto provisions one specialist per major writing capability. Explicit adult scenes are
         # isolated to the proven 4B model; ordinary prose and character work stay on broader models.
@@ -173,7 +173,7 @@ if (-not $SkipModelDownload) {
     Write-Host "System RAM detected: ${totalRamGb} GB"
     Write-Host "Free disk detected: ${freeDiskGb} GB"
     if ($AdultModelTier -eq "auto") {
-        Write-Host "Auto setup installs the managed adult/prose candidates so Studio can route by author intent and local acceptance results."
+        Write-Host "Auto setup installs dedicated models for adult-explicit scenes, general prose, character/dialogue work, and fast planning."
     }
 
     foreach ($model in $modelsToInstall) {
@@ -205,6 +205,8 @@ if (-not $SkipModelDownload) {
         fast_model = $AdultFast
         fallback_adult_model = $AdultExplicit
         high_heat_model = $AdultHighHeat
+        adult_specialist_proof_sha256 = "95c9b55b72965adc59da1b026e8d771c5c9a9538385478d98fc0760edd234d51"
+        adult_specialist_commercial_license_review_required = $true
         ollama_flash_attention = $true
         ollama_kv_cache_type = "q8_0"
         ollama_num_parallel = 1
