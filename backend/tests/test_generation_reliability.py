@@ -95,6 +95,16 @@ def test_range_word_request_has_floor_and_hard_ceiling() -> None:
     assert contract.max_words == 1200
 
 
+def test_between_word_range_beats_incidental_first_word_count() -> None:
+    contract = generation_reliability.parse_scene_length(
+        "Begin direct action within the first 140 words. Keep the complete scene between 900 and 1600 words.",
+        "inferno",
+    )
+    assert contract.floor_words == 900
+    assert contract.target_words == 1250
+    assert contract.max_words == 1600
+
+
 def test_adult_model_ranking_prefers_creative_rp_models_over_qwen_fallbacks() -> None:
     assert generation_reliability.adult_model_score(
         "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
