@@ -69,7 +69,7 @@ def sample_atlas() -> StoryAtlas:
                 risk=2,
                 drama=2,
                 lore=4,
-                known_by=["Sera"],
+                known_by=["Mira"],
             ),
             AtlasConnection(
                 id="ridge-temple",
@@ -80,7 +80,7 @@ def sample_atlas() -> StoryAtlas:
                 risk=2,
                 drama=3,
                 lore=5,
-                known_by=["Sera"],
+                known_by=["Mira"],
             ),
         ],
     )
@@ -193,20 +193,20 @@ def test_character_knowledge_can_unlock_private_route() -> None:
                 origin_id="capital",
                 destination_id="temple",
                 chapter=10,
-                character="Jax",
+                character="Tamsin",
             ),
         )
-    sera = atlas.calculate_route(
+    mira = atlas.calculate_route(
         world,
         AtlasRouteRequest(
             origin_id="capital",
             destination_id="temple",
             chapter=10,
-            character="Sera",
+            character="Mira",
             preference="lore",
         ),
     )
-    assert [segment.connection_id for segment in sera.segments] == [
+    assert [segment.connection_id for segment in mira.segments] == [
         "ridge-road",
         "ridge-temple",
     ]
@@ -234,19 +234,19 @@ def test_compare_routes_returns_all_preferences_even_when_paths_overlap() -> Non
 def test_location_reveal_event_changes_character_route_knowledge() -> None:
     world = sample_atlas()
     secret = next(item for item in world.locations if item.id == "ridge")
-    secret.known_by = ["Sera"]
+    secret.known_by = ["Mira"]
     world.events.append(
         AtlasEvent(
-            id="sera-shares-ridge",
+            id="mira-shares-ridge",
             chapter=8,
             action="location_reveal",
             target_id="ridge",
-            value="Jax",
-            summary="Sera tells Jax about the old ridge route.",
+            value="Tamsin",
+            summary="Mira tells Tamsin about the old ridge route.",
         )
     )
-    state_before = atlas.atlas_state(world, chapter=7, character="Jax")
-    state_after = atlas.atlas_state(world, chapter=8, character="Jax")
+    state_before = atlas.atlas_state(world, chapter=7, character="Tamsin")
+    state_after = atlas.atlas_state(world, chapter=8, character="Tamsin")
     assert state_before["location_known"]["ridge"] is False
     assert state_before["connection_known"]["ridge-road"] is False
     assert state_after["location_known"]["ridge"] is True
@@ -256,10 +256,10 @@ def test_location_reveal_event_changes_character_route_knowledge() -> None:
 def test_connection_knowledge_never_reveals_a_hidden_endpoint() -> None:
     world = sample_atlas()
     ridge = next(item for item in world.locations if item.id == "ridge")
-    ridge.known_by = ["Sera"]
+    ridge.known_by = ["Mira"]
     ridge_road = next(item for item in world.connections if item.id == "ridge-road")
     ridge_road.known_by = []
-    state = atlas.atlas_state(world, chapter=1, character="Jax")
+    state = atlas.atlas_state(world, chapter=1, character="Tamsin")
     assert state["location_known"]["ridge"] is False
     assert state["connection_known"]["ridge-road"] is False
 
