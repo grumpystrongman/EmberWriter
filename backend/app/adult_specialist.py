@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER
+from .model_catalog import ADULT_EXPLICIT_FAMILY, ADULT_EXPLICIT_MODEL
 from .models import ProviderConfig
 from .ollama_runtime import installed_ollama_models
 
@@ -11,10 +12,8 @@ from .ollama_runtime import installed_ollama_models
 # 34 direct-action sentences, preserved the supplied trans-woman body canon,
 # delivered manual/oral/penetrative beats and both climaxes, and had zero
 # consent-relitigation or domestic-scene drift.
-ADULT_EXPLICIT_SPECIALIST_MODEL = (
-    "hf.co/mradermacher/Qwen3.5-4B-NSFW-ARA-Heretic-Literotica-i1-GGUF:Q4_K_M"
-)
-ADULT_EXPLICIT_SPECIALIST_FAMILY = "qwen3.5-4b-nsfw-ara-heretic-literotica"
+ADULT_EXPLICIT_SPECIALIST_MODEL = ADULT_EXPLICIT_MODEL
+ADULT_EXPLICIT_SPECIALIST_FAMILY = ADULT_EXPLICIT_FAMILY
 PROOF_OUTPUT_SHA256 = "95c9b55b72965adc59da1b026e8d771c5c9a9538385478d98fc0760edd234d51"
 PROOF_WORD_COUNT = 1372
 PROOF_FIRST_DIRECT_ACTION_WORD = 29
