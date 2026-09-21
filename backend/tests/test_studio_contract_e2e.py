@@ -68,7 +68,7 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
                 for marker in (
                     "CORE_EVENT_DELIVERED",
                     "AFTERMATH_LANDED",
-                    "MUNA_BODY_CANON_OK",
+                    "BODY_CANON_OK",
                 )
             )
             verdict = {
@@ -77,7 +77,7 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
                 "buildup_only": not delivered,
                 "fade_or_skip": False,
                 "ending_complete": delivered,
-                "canon_respected": "CANON_VIOLATION" not in draft,
+                "canon_respected": "CANON_VIOLATION" not in draft,\n                "physical_continuity": "PHYSICAL_CONTINUITY_VIOLATION" not in draft,
                 "repetition_loop": False,
                 "reason": (
                     "forced verifier rejection for E2E safety test"
@@ -104,7 +104,7 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
         else:
             prose = (
                 _words("NEW_BEAT", 420)
-                + " CORE_EVENT_DELIVERED MUNA_BODY_CANON_OK AFTERMATH_LANDED.\n"
+                + " CORE_EVENT_DELIVERED BODY_CANON_OK AFTERMATH_LANDED.\n"
                 + COMPLETE
             )
 
@@ -142,24 +142,24 @@ def _setup_project(tmp_path: Path) -> str:
     storage.save_text(
         slug,
         "manuscript/chapter-001.md",
-        "WRONG_JAX_CHAPTER " + ("Rowan academy gym battle Tamsin " * 800),
+        "WRONG_OLD_CHAPTER " + ("Rowan academy gym battle Tamsin " * 800),
     )
     storage.save_text(
         slug,
         "characters/rowan.md",
-        "# Rowan\n\nAdult Nexus. Attentive, protective, emotionally responsive.\n",
+        "# Rowan\n\nAdult protagonist. Attentive, protective, emotionally responsive.\n",
     )
     storage.save_text(
         slug,
         "characters/avery.md",
         "# Avery\n\nAdult trans woman. Warm, playful, musical, joyful.\n\n"
         + ("Character history and voice detail. " * 210)
-        + "\n\nHARD EMBODIMENT CANON: MUNA_BODY_CANON_OK. Do not invent conflicting anatomy.\n",
+        + "\n\nHARD EMBODIMENT CANON: BODY_CANON_OK. Do not invent conflicting anatomy.\n",
     )
     storage.save_text(
         slug,
-        "world/aethelgard-academy.md",
-        "# Aethelgard Academy\n\nThe academy gym includes a private sauna used after training.\n",
+        "world/northgate-academy.md",
+        "# Northgate Academy\n\nThe academy gym includes a private sauna used after training.\n",
     )
     return slug
 
@@ -225,8 +225,8 @@ def test_studio_inferno_is_verified_end_to_end_on_clean_api_path(tmp_path: Path)
         assert final.get("partial") is False
         assert "CORE_EVENT_DELIVERED" in text
         assert "AFTERMATH_LANDED" in text
-        assert "MUNA_BODY_CANON_OK" in text
-        assert "WRONG_JAX_CHAPTER" not in text
+        assert "BODY_CANON_OK" in text
+        assert "WRONG_OLD_CHAPTER" not in text
         assert len(state.writer_calls) >= 2, "buildup-only first pass must be rejected and continued"
         assert len(state.verifier_calls) >= 2, "delivery verifier must reject buildup then approve delivered scene"
         assert any(event.get("message") == "Verifying requested scene delivery…" for event in events)
@@ -247,8 +247,8 @@ def test_studio_inferno_is_verified_end_to_end_on_clean_api_path(tmp_path: Path)
         first_writer_context = "\n".join(
             str(message.get("content", "")) for message in state.writer_calls[0].get("messages", [])
         )
-        assert "MUNA_BODY_CANON_OK" in first_writer_context
-        assert "WRONG_JAX_CHAPTER" not in first_writer_context
+        assert "BODY_CANON_OK" in first_writer_context
+        assert "WRONG_OLD_CHAPTER" not in first_writer_context
         assert "Requested heat: inferno." in first_writer_context
     finally:
         server.shutdown()
@@ -282,7 +282,7 @@ def test_studio_continue_context_never_tells_model_to_start_over(tmp_path: Path)
         assert "CURRENT_STUDIO_ENDING_SENTENCE" in sent
         assert "## Studio continuation boundary" in sent
         assert "Start the requested prose from a NEW first line" not in sent
-        assert "WRONG_JAX_CHAPTER" not in sent
+        assert "WRONG_OLD_CHAPTER" not in sent
         assert state.verifier_calls, "explicit Studio continuation must still pass the delivery verifier"
     finally:
         server.shutdown()
