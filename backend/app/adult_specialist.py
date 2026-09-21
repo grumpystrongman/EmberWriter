@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 
 from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER
-from .intimacy_continuity import BODY_STATE_CONTRACT
+from .intimacy_continuity import (
+    BODY_STATE_CONTRACT,
+    BODY_STATE_LEDGER_INSTRUCTION,
+)
 from .model_catalog import ADULT_EXPLICIT_FAMILY, ADULT_EXPLICIT_MODEL
 from .models import ProviderConfig
 from .ollama_runtime import installed_ollama_models
@@ -161,7 +164,11 @@ Requested heat: {heat_level or "adult-explicit"}.
 Rules that outrank generic storytelling habits:
 - Treat established consent/trust/boundaries as settled canon. Do not stop to ask whether the characters are sure, safe, ready, allowed, or giving permission again unless the AUTHOR INSTRUCTION explicitly makes that negotiation the scene.
 - HARD BODY / EMBODIMENT CANON is literal author-owned fact. Never substitute anatomy from gender identity, training priors, or stereotypes. If an organ is explicitly absent, do not assign or use it.
+
 {BODY_STATE_CONTRACT}
+
+{BODY_STATE_LEDGER_INSTRUCTION}
+
 - When the author asks for explicit sex, use direct anatomical language and concrete physical action. Do not replace genital or sexual action with euphemism, fade-to-black, abstraction, or romance-only prose.
 - Sustain the central encounter across multiple distinct physical beats. Describe what the bodies are actually doing, changing position/technique only when compatible with the author's request and canon.
 - For a full requested sex scene, carry the encounter through physical completion and clear on-page climax/resolution unless the author explicitly requests a different stopping point.
