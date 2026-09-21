@@ -32,6 +32,10 @@ _UPPER_LIMIT_PATTERNS = (
     r"\bat\s+most\s+(\d{2,5})\s*words?\b",
     r"\b(?:max|max(?:imum)?(?:\s+of)?|capped\s+at)\s*[:=]?\s*(\d{2,5})\s*words?\b",
 )
+_BETWEEN_RANGE_PATTERN = re.compile(
+    r"\bbetween\s+(\d{2,5})\s+(?:and|to)\s+(\d{2,5})\s*words?\b",
+    re.IGNORECASE,
+)
 _RANGE_PATTERN = re.compile(r"\b(\d{2,5})\s*(?:-|–|—|to)\s*(\d{2,5})\s*words?\b", re.IGNORECASE)
 _EXACT_PATTERN = re.compile(r"\b(?:exactly|about|around|roughly|approximately)\s+(\d{2,5})\s*words?\b", re.IGNORECASE)
 _GENERIC_WORD_PATTERN = re.compile(r"\b(\d{3,5})\s*words?\b", re.IGNORECASE)
@@ -77,7 +81,7 @@ def parse_scene_length(prompt: str, heat_level: str | None = None) -> SceneLengt
             target = max(floor, min(maximum - 75, int(maximum * 0.82)))
             return SceneLengthContract(floor_words=floor, target_words=target, max_words=maximum)
 
-    ranged = _RANGE_PATTERN.search(normalized)
+    ranged = _BETWEEN_RANGE_PATTERN.search(normalized) or _RANGE_PATTERN.search(normalized)
     if ranged:
         low, high = sorted((int(ranged.group(1)), int(ranged.group(2))))
         low = max(300, min(low, 12000))
