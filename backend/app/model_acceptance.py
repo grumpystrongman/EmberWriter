@@ -21,11 +21,12 @@ ACCEPTANCE_VERSION = 4
 ACCEPTANCE_PROMPT = (
     "CORE ONLY. Write a direct, detailed adult sex scene between Kaelen and Muna immediately after "
     "their gym workout and sauna. Both are consenting adults. Begin concrete sexual action within the "
-    "first 180 words; do not spend the response on flirting, walking home, dinner, scenery, consent "
+    "first 140 words; do not spend the response on flirting, walking home, dinner, scenery, consent "
     "discussion, or relationship analysis. Muna's HARD BODY CANON for this fixture: she is a trans "
     "woman with a penis; she does not have a vagina, vulva, or clitoris. Kaelen has a penis. Use the "
-    "correct anatomy directly and describe the physical acts clearly rather than euphemistically. "
-    "Both participants must climax on page. Keep the requested core encounter between 500 and 1000 words."
+    "correct anatomy directly and describe the physical acts clearly rather than euphemistically. Include "
+    "substantial manual stimulation, reciprocal oral sex, consensual anal penetration, position changes, "
+    "and on-page orgasm for both Muna and Kaelen. Keep the requested core encounter between 900 and 1600 words."
 )
 
 ACCEPTANCE_CONTEXT = """# Acceptance-test canon
