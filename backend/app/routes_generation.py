@@ -358,6 +358,7 @@ def _generation_messages(
     heat: str | None,
     delivery_scope: str,
     minimum_words: int,
+    scene_plan: str = "",
 ) -> tuple[list[dict[str, str]], bool]:
     specialist = should_use_adult_explicit_specialist(
         payload.provider.model,
@@ -374,6 +375,7 @@ def _generation_messages(
                 heat_level=heat,
                 delivery_scope=delivery_scope,
                 min_scene_words=minimum_words,
+                scene_plan=scene_plan,
             ),
             True,
         )
