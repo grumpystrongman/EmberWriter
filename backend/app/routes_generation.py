@@ -456,6 +456,7 @@ async def _generate_payload(
 ) -> GenerateResponse:
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
+    planner_provider = payload.provider.model_copy(deep=True)
     await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
     adult_specialist = should_use_adult_explicit_specialist(
         payload.provider.model,
@@ -466,7 +467,7 @@ async def _generate_payload(
     scene_plan = ""
     if adult_specialist:
         scene_plan = await build_hidden_adult_scene_plan(
-            payload.provider,
+            planner_provider,
             payload.prompt,
             context_text,
             heat_level=heat,
@@ -640,6 +641,7 @@ async def _produce_generation_stream(
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
             heat, delivery_scope, minimum_words = _generation_contract(payload)
+            planner_provider = payload.provider.model_copy(deep=True)
             await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
             adult_specialist = should_use_adult_explicit_specialist(
                 payload.provider.model,
@@ -651,7 +653,7 @@ async def _produce_generation_stream(
             if adult_specialist:
                 await emit_status("Directing scene progression…")
                 scene_plan = await build_hidden_adult_scene_plan(
-                    payload.provider,
+                    planner_provider,
                     payload.prompt,
                     context_text,
                     heat_level=heat,
