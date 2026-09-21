@@ -1,12 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 
-from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER
-from .intimacy_continuity import (
-    BODY_STATE_CONTRACT,
-    BODY_STATE_LEDGER_INSTRUCTION,
-)
+from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER, generate
 from .model_catalog import ADULT_EXPLICIT_FAMILY, ADULT_EXPLICIT_MODEL
 from .models import ProviderConfig
 from .ollama_runtime import installed_ollama_models
