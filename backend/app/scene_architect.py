@@ -10,6 +10,7 @@ from .chemistry import build_chemistry_context
 from .craft import build_craft_context
 from .development import DEVELOPMENT_PATH, build_development_context
 from .generation import generate
+from .intimacy_continuity import PLANNING_CONTINUITY_RULES
 from .models import CraftControls, ScenePlan, ScenePlanRequest
 from .storage import compile_context, save_text, utc_now
 from .story_intelligence import build_character_context, build_story_intelligence
@@ -28,6 +29,7 @@ Planning rules:
 - Relationship movement should be specific to the participants and earned by the scene.
 - Preserve each participant's distinct speech rhythm, humor, subtext, mannerisms, and emotional-expression habits from their voice card.
 - If intimacy is requested, treat it as character/relationship development with consequences and preserve established adult/consent constraints.
+{PLANNING_CONTINUITY_RULES}
 - Pairing chemistry is relationship-specific. Preserve its verbal rhythm, attraction language, trust state, vulnerabilities, boundaries, milestones, signature elements, and lore resonance where relevant.
 - Never treat a past intimate milestone as blanket permission for a future scene. Consent and choice remain scene-specific.
 - For high-heat adult scenes, design escalation rather than a flat sequence: anticipation, choice, vulnerability, pressure shifts, release, and aftermath should have shape appropriate to the requested curve.
