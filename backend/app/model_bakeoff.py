@@ -7,16 +7,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .model_acceptance import ACCEPTANCE_VERSION, run_model_acceptance
+from .model_catalog import ADULT_EXPLICIT_MODEL, CHARACTER_MODEL, FAST_MODEL, GENERAL_PROSE_MODEL
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 REPORT_PATH = _RUNTIME_DIR / "model-bakeoff.json"
 LOCAL_MODELS_PATH = _RUNTIME_DIR / "local-models.json"
 
-PYGMALION_3_12B = "hf.co/mradermacher/Pygmalion-3-12B-GGUF:Q4_K_M"
-MAGNUM_V4_12B = "hf.co/mradermacher/magnum-v4-12b-GGUF:Q4_K_M"
-QWEN3_FAST_8B = "R4C3R/qwen3-8b-heretic:q4_k_m"
-DEFAULT_CANDIDATES = (PYGMALION_3_12B, MAGNUM_V4_12B, QWEN3_FAST_8B)
+PROVEN_ADULT_4B = ADULT_EXPLICIT_MODEL
+PYGMALION_3_12B = CHARACTER_MODEL
+MAGNUM_V4_12B = GENERAL_PROSE_MODEL
+QWEN3_FAST_8B = FAST_MODEL
+DEFAULT_CANDIDATES = (PROVEN_ADULT_4B, PYGMALION_3_12B, MAGNUM_V4_12B, QWEN3_FAST_8B)
 
 
 def _score(report: dict[str, object]) -> tuple[int, int, int, int, int]:
@@ -35,6 +37,14 @@ def choose_adult_model(reports: list[dict[str, object]]) -> str:
     eligible = [report for report in reports if report.get("passed") is True]
     if not eligible:
         return ""
+
+    # The Literotica specialist already passed an isolated full-scene proof. When it also
+    # clears the local acceptance contract, keep it in the adult-explicit capability slot
+    # rather than allowing a more verbose general/RP model to displace it.
+    for report in eligible:
+        if str(report.get("requested_model") or "").casefold() == PROVEN_ADULT_4B.casefold():
+            return PROVEN_ADULT_4B
+
     eligible.sort(key=_score, reverse=True)
     return str(eligible[0].get("requested_model") or "")
 
@@ -84,6 +94,7 @@ async def run_bakeoff(
     if adult_model:
         config = _load_local_models()
         config["adult_model"] = adult_model
+        config["adult_explicit_model"] = adult_model
         config["accepted_adult_model"] = adult_model
         config["adult_model_acceptance_report"] = str(REPORT_PATH.relative_to(_REPO_ROOT))
         _save_local_models(config)
