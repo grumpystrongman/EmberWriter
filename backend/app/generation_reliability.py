@@ -206,11 +206,21 @@ async def _route_adult_model(config: ProviderConfig, messages: list[dict[str, st
             config.model = specialist
             return
 
-    ranked = sorted(installed, key=adult_model_score, reverse=True)
+    non_explicit = [
+        model for model in installed
+        if ADULT_EXPLICIT_FAMILY not in model.casefold()
+    ]
+    ranked = sorted(non_explicit, key=adult_model_score, reverse=True)
+    if not ranked:
+        return
     best = ranked[0]
     if adult_model_score(best) <= 0:
         return
-    current_score = adult_model_score(config.model)
+    current_score = (
+        0
+        if ADULT_EXPLICIT_FAMILY in config.model.casefold()
+        else adult_model_score(config.model)
+    )
     if current_score < adult_model_score(best):
         config.model = best
 
