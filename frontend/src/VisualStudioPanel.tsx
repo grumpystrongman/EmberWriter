@@ -238,7 +238,7 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
         <section className="visual-composer atlas-panel">
           <div className="atlas-panel-heading"><div><strong>AI Visual Director</strong><small>Compose from canon first, then generate. The model receives relevant Story Memory, World Bible, Atlas geography, and approved canonical visual prompts.</small></div><button type="button" className="primary" onClick={() => void composePrompt()} disabled={busy}>✦ Compose from canon</button></div>
           <div className="visual-form-grid">
-            <label className="visual-span-2">Subject <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Redwater Bridge, Mira, the ritual chamber…" /></label>
+            <label className="visual-span-2">Subject <input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Greywater Bridge, Mira, the ritual chamber…" /></label>
             <label>Type <select value={kind} onChange={(event) => setKind(event.target.value)}><option value="location">Location</option><option value="character">Character</option><option value="scene">Scene</option><option value="object">Object / relic</option><option value="faction">Faction</option><option value="map">Map / diagram</option><option value="reference">Reference</option></select></label>
             <label>Chapter <input type="number" min="0" value={chapter} onChange={(event) => setChapter(event.target.value)} /></label>
             <label className="visual-span-2">Direction <textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} /></label>
