@@ -19,22 +19,22 @@ ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
 ACCEPTANCE_VERSION = 4
 
 ACCEPTANCE_PROMPT = (
-    "CORE ONLY. Write a direct, detailed adult sex scene between Kaelen and Muna immediately after "
+    "CORE ONLY. Write a direct, detailed adult sex scene between Rowan and Avery immediately after "
     "their gym workout and sauna. Both are consenting adults. Begin concrete sexual action within the "
     "first 140 words; do not spend the response on flirting, walking home, dinner, scenery, consent "
-    "discussion, or relationship analysis. Muna's HARD BODY CANON for this fixture: she is a trans "
-    "woman with a penis; she does not have a vagina, vulva, or clitoris. Kaelen has a penis. Use the "
+    "discussion, or relationship analysis. Avery's HARD BODY CANON for this fixture: she is a trans "
+    "woman with a penis; she does not have a vagina, vulva, or clitoris. Rowan has a penis. Use the "
     "correct anatomy directly and describe the physical acts clearly rather than euphemistically. Include "
     "substantial manual stimulation, reciprocal oral sex, consensual anal penetration, position changes, "
-    "and on-page orgasm for both Muna and Kaelen. Keep the requested core encounter between 900 and 1600 words."
+    "and on-page orgasm for both Avery and Rowan. Keep the requested core encounter between 900 and 1600 words."
 )
 
 ACCEPTANCE_CONTEXT = """# Acceptance-test canon
-Kaelen and Muna are consenting adults. Muna is an adult trans woman. HARD BODY CANON: Muna has a penis. Muna does not have a vagina, vulva, or clitoris. Kaelen has a penis. Do not infer any additional anatomy from gender identity. Kaelen is the Nexus: attentive, empathic, protective, and responsive rather than domineering. Muna's Joy/Ecstasy resonance is playful, warm, musical, tactile, spontaneous, and celebratory, with amber/rose/gold imagery. They have just finished a workout and sauna session. CORE ONLY: stay with the requested sexual encounter; do not add travel, meals, pets, unrelated locations, side plots, or unrelated characters. This is synthetic acceptance-test canon, not manuscript canon.
+Rowan and Avery are consenting adults. Avery is an adult trans woman. HARD BODY CANON: Avery has a penis. Avery does not have a vagina, vulva, or clitoris. Rowan has a penis. Do not infer any additional anatomy from gender identity. Rowan is the Nexus: attentive, empathic, protective, and responsive rather than domineering. Avery's Joy/Ecstasy resonance is playful, warm, musical, tactile, spontaneous, and celebratory, with amber/rose/gold imagery. They have just finished a workout and sauna session. CORE ONLY: stay with the requested sexual encounter; do not add travel, meals, pets, unrelated locations, side plots, or unrelated characters. This is synthetic acceptance-test canon, not manuscript canon.
 """
 
 
-_BANNED_DRIFT_NAMES = ("Sera", "Jax", "Elara", "Lyra")
+_BANNED_DRIFT_NAMES = ("Mira", "Tamsin", "Liora", "Nessa")
 
 
 def _word_count(text: str) -> int:
@@ -46,9 +46,9 @@ _DIRECT_ACTION = re.compile(
     r"suck\w*|lick\w*|hand\s*job|stroke\w*|masturbat\w*|ejaculat\w*|cum|cumming|orgasm\w*)\b",
     re.IGNORECASE,
 )
-_MUNA_PENIS = re.compile(r"\b(?:muna(?:['’]s)?|her)\s+(?:penis|cock|dick)\b", re.IGNORECASE)
+_MUNA_PENIS = re.compile(r"\b(?:avery(?:['’]s)?|her)\s+(?:penis|cock|dick)\b", re.IGNORECASE)
 _WRONG_MUNA_ANATOMY = re.compile(
-    r"\b(?:muna(?:['’]s)?|her)\s+(?:vagina|vulva|pussy|cunt|clit|clitoris)\b",
+    r"\b(?:avery(?:['’]s)?|her)\s+(?:vagina|vulva|pussy|cunt|clit|clitoris)\b",
     re.IGNORECASE,
 )
 _DRIFT_TERMS = re.compile(
@@ -95,9 +95,9 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
     if direct_action_sentences < 12:
         failures.append(f"not enough sustained direct-action description: {direct_action_sentences} direct sentences")
     if not _MUNA_PENIS.search(text):
-        failures.append("Muna's established penis anatomy is not directly represented")
+        failures.append("Avery's established penis anatomy is not directly represented")
     if _WRONG_MUNA_ANATOMY.search(text):
-        failures.append("hard body-canon conflict: draft gives Muna vagina/vulva/clitoris anatomy")
+        failures.append("hard body-canon conflict: draft gives Avery vagina/vulva/clitoris anatomy")
     if _DRIFT_TERMS.search(text):
         failures.append("core-only scene drifted into unrelated domestic/scenery material")
 
@@ -122,7 +122,7 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
         failures.append("both named participants must have supported on-page climaxes")
 
     lowered = text.casefold()
-    for required in ("kaelen", "muna"):
+    for required in ("rowan", "avery"):
         if required not in lowered:
             failures.append(f"required participant missing from prose: {required}")
 
