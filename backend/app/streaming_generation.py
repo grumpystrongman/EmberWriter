@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Awaitable, Callable
+from difflib import SequenceMatcher
 
 import httpx
 
@@ -27,8 +28,8 @@ StatusCallback = Callable[[str], Awaitable[None]]
 _MARKER_HOLDBACK = max(len(SCENE_COMPLETE_MARKER), len(SCENE_CONTINUE_MARKER)) + 24
 _REPEAT_PARAGRAPH_MIN_CHARS = 90
 _REPEAT_SENTENCE_MIN_CHARS = 55
-_REPEAT_PARAGRAPH_SIMILARITY = 0.60
-_REPEAT_SENTENCE_SIMILARITY = 0.86
+_REPEAT_PARAGRAPH_SIMILARITY = 0.56
+_REPEAT_SENTENCE_SIMILARITY = 0.78
 _REPEAT_RECENT_PARAGRAPHS = 18
 _REPEAT_RECENT_SENTENCES = 48
 _OLLAMA_REPEAT_PENALTY = 1.18
@@ -89,7 +90,7 @@ def _word_shingles(text: str, size: int = 4) -> set[tuple[str, ...]]:
 
 
 def _similar(left: str, right: str) -> float:
-    """Fast containment-style similarity for prose repetition detection."""
+    """Catch both copied prose and lightly rewritten versions of the same beat."""
     if not left or not right:
         return 0.0
     if left == right:
@@ -100,12 +101,22 @@ def _similar(left: str, right: str) -> float:
     longer = max(len(left_words), len(right_words))
     if shorter == 0 or shorter / longer < 0.45:
         return 0.0
+
     left_grams = _word_shingles(left)
     right_grams = _word_shingles(right)
     denominator = min(len(left_grams), len(right_grams))
-    if denominator == 0:
-        return 0.0
-    return len(left_grams & right_grams) / denominator
+    shingle_score = (
+        len(left_grams & right_grams) / denominator
+        if denominator
+        else 0.0
+    )
+    sequence_score = SequenceMatcher(
+        None,
+        left_words,
+        right_words,
+        autojunk=False,
+    ).ratio()
+    return max(shingle_score, sequence_score)
 
 
 def _sentence_parts(text: str) -> list[str]:
@@ -547,14 +558,19 @@ class _MarkerFilter:
 
 
 class _NoveltyStreamFilter:
-    """Stream prose immediately while watching completed paragraphs for degeneration."""
+    """Publish only prose that has already cleared repetition checks.
+
+    Model tokens are provisional until a paragraph closes. Holding one paragraph prevents
+    rejected loops from ever entering Studio's Working Draft while still preserving live,
+    paragraph-by-paragraph generation.
+    """
 
     def __init__(self, emit: DeltaCallback, prior_text: str = "") -> None:
         self._emit = emit
         self._prior_text = prior_text
         self._raw = ""
         self._scan_buffer = ""
-        self._paragraph_memory = _recent_normalized_paragraphs(prior_text)
+        self._accepted: list[str] = []
         self.removed_units = 0
         self.raw_words = 0
 
@@ -564,8 +580,7 @@ class _NoveltyStreamFilter:
 
     @property
     def text(self) -> str:
-        cleaned, _removed, _novelty = dedupe_repetitive_prose(self._raw, self._prior_text)
-        return cleaned
+        return "\n\n".join(self._accepted).strip()
 
     @property
     def novelty_ratio(self) -> float:
@@ -573,42 +588,49 @@ class _NoveltyStreamFilter:
             return 0.0
         return _word_count(self.text) / self.raw_words
 
+    def _accepted_context(self) -> str:
+        accepted = "\n\n".join(self._accepted).strip()
+        if self._prior_text and accepted:
+            return f"{self._prior_text}\n\n{accepted}"
+        return accepted or self._prior_text
+
+    async def _accept_paragraph(self, paragraph: str) -> None:
+        paragraph = paragraph.strip()
+        if not paragraph:
+            return
+
+        self.raw_words += _word_count(paragraph)
+        cleaned, removed, _novelty = dedupe_repetitive_prose(
+            paragraph,
+            self._accepted_context(),
+        )
+        self.removed_units += removed
+        if self.removed_units >= 2:
+            raise RepetitionLoopDetected("model entered a paragraph repetition loop")
+        if not cleaned:
+            return
+
+        prefix = "\n\n" if self._accepted else ""
+        self._accepted.append(cleaned)
+        await self._emit(f"{prefix}{cleaned}")
+
     async def feed(self, piece: str) -> None:
         self._raw += piece
         self._scan_buffer += piece
-        await self._emit(piece)
 
         while True:
             match = re.search(r"\n\s*\n", self._scan_buffer)
             if not match:
                 break
-            paragraph = self._scan_buffer[: match.start()].strip()
+            paragraph = self._scan_buffer[: match.start()]
             self._scan_buffer = self._scan_buffer[match.end() :]
-            if not paragraph:
-                continue
-            self.raw_words += _word_count(paragraph)
-            normalized = _normalize_prose(paragraph)
-            duplicate = (
-                len(paragraph) >= _REPEAT_PARAGRAPH_MIN_CHARS
-                and any(
-                    _similar(normalized, previous) >= _REPEAT_PARAGRAPH_SIMILARITY
-                    for previous in self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
-                )
-            )
-            if duplicate:
-                self.removed_units += 1
-                if self.removed_units >= 2:
-                    raise RepetitionLoopDetected("model entered a paragraph repetition loop")
-                continue
-            if normalized:
-                self._paragraph_memory.append(normalized)
-                self._paragraph_memory = self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
+            await self._accept_paragraph(paragraph)
 
     async def finish(self) -> None:
-        tail = self._scan_buffer.strip()
-        if tail:
-            self.raw_words += _word_count(tail)
+        tail = self._scan_buffer
         self._scan_buffer = ""
+        if tail.strip():
+            await self._accept_paragraph(tail)
 
 
 async def generate_complete_prose_streamed(
