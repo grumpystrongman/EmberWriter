@@ -297,6 +297,10 @@ async def refined_verify_studio_scene_delivery(config, messages, draft: str) -> 
 class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
     """Reject semantic-chain collapse before any rejected paragraph reaches Studio."""
 
+    def __init__(self, emit, prior_text: str = "") -> None:
+        super().__init__(emit, prior_text)
+        self._semantic_chain_rejected = False
+
     def _unfinished_sentence(self, candidate: str) -> str:
         sentence_boundaries = list(re.finditer(r"(?<=[.!?…])\s+", candidate))
         start = sentence_boundaries[-1].end() if sentence_boundaries else 0
@@ -310,6 +314,7 @@ class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
         unfinished = self._unfinished_sentence(candidate)
         if looks_like_semantic_chain(unfinished):
             self._raw += piece
+            self._semantic_chain_rejected = True
             self.removed_units += 2
             raise streaming.RepetitionLoopDetected(
                 "model entered a runaway semantic-chain degeneration loop"
@@ -317,6 +322,10 @@ class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
         await super().feed(piece)
 
     async def finish(self) -> None:
+        if self._semantic_chain_rejected:
+            # The current uncommitted paragraph is the rejected chain. Never resurrect it.
+            self._scan_buffer = ""
+            return
         # The base filter validates and emits the final paragraph transactionally.
         await super().finish()
 
