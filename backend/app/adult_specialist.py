@@ -49,6 +49,11 @@ Rules:
 - Every major position change must include the transition that makes the next action reachable.
 - Do not reset to earlier foreplay once the central encounter has begun.
 - Do not repeat the same oral/manual/contact beat with stronger adjectives.
+- Make the encounter unmistakably specific to THESE characters. Convert personality, voice, relationship history, and Resonant/magic traits into choices, teasing style, initiative, responsiveness, vulnerability, rhythm, and control shifts. A trait label such as joyful, fierce, commanding, or curious is not enough by itself.
+- Identify one behavior that each participant should actively contribute and one generic shortcut that would make them feel interchangeable.
+- Every beat must introduce a new physical, emotional, relational, or magical state. Name what is new so the prose model cannot circle an earlier beat.
+- If the author requests a magical/emotional outcome, reserve its decisive realization for the latter half of the encounter unless the author explicitly requests an early reveal. The outcome must grow out of intimacy rather than replace it.
+- Do not let the scene reach an emotional/magical climax, aftermath, or realization and then restart the sexual encounter.
 - Keep lore, philosophy, magic explanation, declarations, and setting refreshers minimal.
 - Plan a continuous encounter, not a chapter around an encounter.
 
@@ -56,12 +61,24 @@ Return exactly this JSON shape:
 {
   "opening_state": "compact literal starting physical state",
   "central_intent": "what the encounter is progressing toward",
+  "character_engines": [
+    {
+      "character": "name",
+      "active_behavior": "specific behavior this person contributes during intimacy",
+      "generic_shortcut_to_avoid": "interchangeable trope or repeated mannerism to avoid"
+    }
+  ],
+  "relationship_turn": "one earned change in how they understand or trust each other, expressed through action rather than a speech",
+  "magic_timing": "when the requested magical/emotional outcome may become decisive; normally latter half",
   "beats": [
     {
       "objective": "what changes in this beat",
       "start_state": "pose/orientation/contact at beat start",
       "transition": "physical repositioning required before the new action, or NONE",
       "action": "the new physical/intimate beat in plain planning language",
+      "character_expression": "how personality changes the way this beat happens",
+      "novelty": "what this beat introduces that has not happened earlier",
+      "do_not_repeat": "specific earlier action/state this beat must not return to",
       "end_state": "pose/orientation/contact at beat end"
     }
   ],
@@ -266,14 +283,18 @@ HIDDEN SCENE DIRECTOR PLAN — IMPLEMENT, DO NOT ECHO OR EXPLAIN:
 {director_plan}
 
 Writer execution rules:
-- The hidden plan owns broad choreography. Write fluid manuscript prose rather than narrating a state ledger.
+- The hidden plan owns broad choreography. Treat its beats as an ordered progression contract: execute each meaningful beat once, in order, and never restart a completed beat. Write fluid manuscript prose rather than narrating a state ledger.
 - Preserve established anatomy and body-part ownership exactly. Never invent anatomy to make an action convenient.
 - Before any major pose/orientation change or any change from external contact to penetration, physically narrate the repositioning first.
-- Once the central encounter begins, stay in it. Do not reset to introductory kissing, another readiness conversation, a new location, or repeated foreplay.
+- Once the central encounter begins, stay in it. Do not reset to introductory kissing, another readiness conversation, a new location, repeated foreplay, or a second "first" escalation.
+- Once an established sexual state has begun, later prose cannot claim a participant is "not ready yet" for that same state or re-stage its initiation unless the author explicitly requested an interruption/reset.
+- Character specificity must be visible in behavior, not labels. Use choices, initiative, teasing style, speech rhythm, responsiveness, vulnerability, humor, control shifts, and reactions from the director's character engines. Do not reduce a character to one repeated tic such as laughing, humming, growling, glowing, hair-grabbing, or forehead-touching.
+- Avoid generic dominance/claiming language unless that behavior is established for the participant in project canon.
 - Keep dialogue sparse and character-specific. Do not explain lore, resonance theory, consent theory, relationship meaning, or the hidden plan.
-- Magic/resonance should appear as brief sensation inside the action, not as an explanatory detour.
-- Keep roughly 85-90% of the scene on immediate physical action and reaction. Emotion, dialogue, magic, and relationship meaning combined should stay brief unless the author explicitly asks otherwise.
+- Magic/resonance should appear as sensation inside the action. If the author requested a magical or emotional outcome, do not resolve or explain it before the director's planned timing; let intimacy cause the discovery.
+- Keep roughly 80-90% of the scene on immediate physical action and reaction. Emotion, dialogue, magic, and relationship meaning should deepen the action rather than pause it for exposition.
 - Every paragraph should escalate, vary, react to, or resolve the encounter. If it does none of those, omit it.
+- Before writing a paragraph, silently ask: "What is different at the end of this paragraph?" If the answer is nothing, skip forward to the next planned beat.
 - When the author asks for explicit sex, use direct anatomical language and concrete physical action. Do not replace genital or sexual action with euphemism, fade-to-black, abstraction, or romance-only prose.
 - Sustain the central encounter across multiple distinct physical beats. Describe what the bodies are actually doing, changing position/technique only when compatible with the author's request and canon.
 - For a full requested sex scene, carry the encounter through physical completion and clear on-page climax/resolution unless the author explicitly requests a different stopping point.
