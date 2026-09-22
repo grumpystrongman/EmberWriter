@@ -295,100 +295,39 @@ async def refined_verify_studio_scene_delivery(config, messages, draft: str) -> 
 
 
 class RefinedNoveltyStreamFilter(reliability._original_novelty_filter):
-    """Buffer the unfinished sentence so lexical collapse never becomes a saved live delta."""
+    """Reject semantic-chain collapse before any rejected paragraph reaches Studio."""
 
     def __init__(self, emit, prior_text: str = "") -> None:
         super().__init__(emit, prior_text)
-        self._discard_tail_from: int | None = None
-        self._emit_pending = ""
+        self._semantic_chain_rejected = False
 
-    def _unfinished_sentence_start(self) -> int:
-        boundaries = list(re.finditer(r"(?<=[.!?…])\s+", self._emit_pending))
-        return boundaries[-1].end() if boundaries else 0
-
-    def _safe_emit_boundary(self) -> int:
-        sentence_boundaries = list(re.finditer(r"(?<=[.!?…])\s+", self._emit_pending))
-        paragraph_boundaries = list(re.finditer(r"\n\s*\n", self._emit_pending))
-        sentence_end = sentence_boundaries[-1].end() if sentence_boundaries else 0
-        paragraph_end = paragraph_boundaries[-1].end() if paragraph_boundaries else 0
-        return max(sentence_end, paragraph_end)
-
-    @property
-    def text(self) -> str:
-        raw = self._raw
-        if self._discard_tail_from is not None:
-            raw = raw[: self._discard_tail_from]
-        cleaned, _removed, _novelty = streaming.dedupe_repetitive_prose(raw, self._prior_text)
-        return cleaned
+    def _unfinished_sentence(self, candidate: str) -> str:
+        sentence_boundaries = list(re.finditer(r"(?<=[.!?…])\s+", candidate))
+        start = sentence_boundaries[-1].end() if sentence_boundaries else 0
+        return candidate[start:].strip()
 
     async def feed(self, piece: str) -> None:
-        self._raw += piece
-        self._scan_buffer += piece
-        self._emit_pending += piece
-
-        unfinished_start = self._unfinished_sentence_start()
-        unfinished = self._emit_pending[unfinished_start:].strip()
+        # Inspect the still-uncommitted paragraph before the transactional base filter
+        # is allowed to accept or emit it. This preserves live paragraph streaming while
+        # guaranteeing a rejected semantic chain never becomes author-visible prose.
+        candidate = f"{self._scan_buffer}{piece}"
+        unfinished = self._unfinished_sentence(candidate)
         if looks_like_semantic_chain(unfinished):
-            # Emit only complete prose that preceded the bad unfinished sentence. The pathological
-            # tail is never forwarded to the Studio delta buffer, so it cannot become the final
-            # partial if recovery later fails.
-            safe_prefix = self._emit_pending[:unfinished_start]
-            if safe_prefix:
-                await self._emit(safe_prefix)
-            self._discard_tail_from = len(self._raw) - len(self._emit_pending) + unfinished_start
-            self._emit_pending = ""
+            self._raw += piece
+            self._semantic_chain_rejected = True
             self.removed_units += 2
             raise streaming.RepetitionLoopDetected(
                 "model entered a runaway semantic-chain degeneration loop"
             )
-
-        safe_boundary = self._safe_emit_boundary()
-        if safe_boundary:
-            safe = self._emit_pending[:safe_boundary]
-            self._emit_pending = self._emit_pending[safe_boundary:]
-            if safe:
-                await self._emit(safe)
-
-        # Preserve the repository's proven paragraph-level repetition behavior exactly.
-        while True:
-            match = re.search(r"\n\s*\n", self._scan_buffer)
-            if not match:
-                break
-            paragraph = self._scan_buffer[: match.start()].strip()
-            self._scan_buffer = self._scan_buffer[match.end() :]
-            if not paragraph:
-                continue
-            self.raw_words += reliability._word_count(paragraph)
-            normalized = streaming._normalize_prose(paragraph)
-            duplicate = (
-                len(paragraph) >= streaming._REPEAT_PARAGRAPH_MIN_CHARS
-                and any(
-                    streaming._similar(normalized, previous)
-                    >= streaming._REPEAT_PARAGRAPH_SIMILARITY
-                    for previous in self._paragraph_memory[-streaming._REPEAT_RECENT_PARAGRAPHS :]
-                )
-            )
-            if duplicate:
-                self.removed_units += 1
-                if self.removed_units >= 2:
-                    raise streaming.RepetitionLoopDetected("model entered a paragraph repetition loop")
-                continue
-            if normalized:
-                self._paragraph_memory.append(normalized)
-                self._paragraph_memory = self._paragraph_memory[-streaming._REPEAT_RECENT_PARAGRAPHS :]
+        await super().feed(piece)
 
     async def finish(self) -> None:
-        tail = self._scan_buffer.strip()
-        if tail:
-            self.raw_words += reliability._word_count(tail)
-        self._scan_buffer = ""
-
-        if self._discard_tail_from is None and self._emit_pending:
-            pending = self._emit_pending
-            self._emit_pending = ""
-            await self._emit(pending)
-        else:
-            self._emit_pending = ""
+        if self._semantic_chain_rejected:
+            # The current uncommitted paragraph is the rejected chain. Never resurrect it.
+            self._scan_buffer = ""
+            return
+        # The base filter validates and emits the final paragraph transactionally.
+        await super().finish()
 
 
 def install_refinement() -> None:

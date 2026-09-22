@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Awaitable, Callable
+from difflib import SequenceMatcher
 
 import httpx
 
@@ -27,8 +28,8 @@ StatusCallback = Callable[[str], Awaitable[None]]
 _MARKER_HOLDBACK = max(len(SCENE_COMPLETE_MARKER), len(SCENE_CONTINUE_MARKER)) + 24
 _REPEAT_PARAGRAPH_MIN_CHARS = 90
 _REPEAT_SENTENCE_MIN_CHARS = 55
-_REPEAT_PARAGRAPH_SIMILARITY = 0.60
-_REPEAT_SENTENCE_SIMILARITY = 0.86
+_REPEAT_PARAGRAPH_SIMILARITY = 0.56
+_REPEAT_SENTENCE_SIMILARITY = 0.78
 _REPEAT_RECENT_PARAGRAPHS = 18
 _REPEAT_RECENT_SENTENCES = 48
 _OLLAMA_REPEAT_PENALTY = 1.18
@@ -89,7 +90,7 @@ def _word_shingles(text: str, size: int = 4) -> set[tuple[str, ...]]:
 
 
 def _similar(left: str, right: str) -> float:
-    """Fast containment-style similarity for prose repetition detection."""
+    """Catch both copied prose and lightly rewritten versions of the same beat."""
     if not left or not right:
         return 0.0
     if left == right:
@@ -100,12 +101,22 @@ def _similar(left: str, right: str) -> float:
     longer = max(len(left_words), len(right_words))
     if shorter == 0 or shorter / longer < 0.45:
         return 0.0
+
     left_grams = _word_shingles(left)
     right_grams = _word_shingles(right)
     denominator = min(len(left_grams), len(right_grams))
-    if denominator == 0:
-        return 0.0
-    return len(left_grams & right_grams) / denominator
+    shingle_score = (
+        len(left_grams & right_grams) / denominator
+        if denominator
+        else 0.0
+    )
+    sequence_score = SequenceMatcher(
+        None,
+        left_words,
+        right_words,
+        autojunk=False,
+    ).ratio()
+    return max(shingle_score, sequence_score)
 
 
 def _sentence_parts(text: str) -> list[str]:
@@ -256,7 +267,13 @@ async def verify_studio_scene_delivery(
                 "You are EmberWriter's strict scene-delivery verifier. Do not rewrite, extend, sanitize, quote, or summarize "
                 "the prose. Judge only whether the supplied draft actually fulfills the author's request. Return JSON only. "
                 "For an adult intimacy request, distinguish an on-page sexual encounter from attraction, kissing, foreplay, "
-                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Mentions of requested acts inside assistant "
+                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Treat semantic beat recycling as repetition even "
+                "when the model paraphrases it: repeated first kisses, repeated hair/forehead/hip sequences, repeated lifting/straddling, "
+                "or returning to the same physical configuration without a new consequence count as a repetition loop. "
+                "Set progression_regression=true if the draft establishes a later sexual state and then jumps backward into an earlier "
+                "readiness/first-escalation state, reaches an aftermath or realization and then restarts the encounter, or re-stages the "
+                "same initiation as though it had not already happened. "
+                "Mentions of requested acts inside assistant "
                 "commentary, refusals, prompt echo, negative statements about what the draft lacks, or writing instructions DO NOT "
                 "count as on-page scene delivery. Judge only actions that actually occur in manuscript narrative. Treat character "
                 "identity, embodiment, body facts, participants, and relationship facts in the supplied request/context as hard canon. "
@@ -278,7 +295,7 @@ async def verify_studio_scene_delivery(
                 "Return exactly one JSON object with these keys:\n"
                 '{"core_encounter_on_page":true|false,"requested_explicitness_delivered":true|false,'
                 '"buildup_only":true|false,"fade_or_skip":true|false,"ending_complete":true|false,'
-                '"canon_respected":true|false,"physical_continuity":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
+                '"canon_respected":true|false,"physical_continuity":true|false,"progression_regression":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
             ),
         },
     ]
@@ -315,6 +332,7 @@ async def verify_studio_scene_delivery(
             verdict.get("ending_complete") is True,
             verdict.get("canon_respected") is True,
             verdict.get("physical_continuity") is True,
+            verdict.get("progression_regression") is not True,
             verdict.get("repetition_loop") is False,
         )
     )
@@ -547,13 +565,21 @@ class _MarkerFilter:
 
 
 class _NoveltyStreamFilter:
-    """Stream prose immediately while watching completed paragraphs for degeneration."""
+    """Publish only prose that has already cleared repetition checks.
+
+    Model tokens are provisional until a paragraph closes. Holding one paragraph prevents
+    rejected loops from ever entering Studio's Working Draft while still preserving live,
+    paragraph-by-paragraph generation.
+    """
 
     def __init__(self, emit: DeltaCallback, prior_text: str = "") -> None:
         self._emit = emit
         self._prior_text = prior_text
         self._raw = ""
         self._scan_buffer = ""
+        self._accepted: list[str] = []
+        # Compatibility memory for reliability wrappers that inspect accepted paragraphs.
+        # Author-visible emission is still governed by _accept_paragraph below.
         self._paragraph_memory = _recent_normalized_paragraphs(prior_text)
         self.removed_units = 0
         self.raw_words = 0
@@ -564,8 +590,7 @@ class _NoveltyStreamFilter:
 
     @property
     def text(self) -> str:
-        cleaned, _removed, _novelty = dedupe_repetitive_prose(self._raw, self._prior_text)
-        return cleaned
+        return "\n\n".join(self._accepted).strip()
 
     @property
     def novelty_ratio(self) -> float:
@@ -573,42 +598,58 @@ class _NoveltyStreamFilter:
             return 0.0
         return _word_count(self.text) / self.raw_words
 
+    def _accepted_context(self) -> str:
+        accepted = "\n\n".join(self._accepted).strip()
+        if self._prior_text and accepted:
+            return f"{self._prior_text}\n\n{accepted}"
+        return accepted or self._prior_text
+
+    async def _accept_paragraph(self, paragraph: str) -> None:
+        paragraph = paragraph.strip()
+        if not paragraph:
+            return
+
+        self.raw_words += _word_count(paragraph)
+        cleaned, removed, _novelty = dedupe_repetitive_prose(
+            paragraph,
+            self._accepted_context(),
+        )
+        self.removed_units += removed
+        if self.removed_units >= 2:
+            raise RepetitionLoopDetected("model entered a paragraph repetition loop")
+        if not cleaned:
+            return
+
+        prefix = "\n\n" if self._accepted else ""
+        self._accepted.append(cleaned)
+        normalized = _normalize_prose(cleaned)
+        if normalized:
+            self._paragraph_memory.append(normalized)
+            self._paragraph_memory = self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
+        await self._emit(f"{prefix}{cleaned}")
+
     async def feed(self, piece: str) -> None:
         self._raw += piece
         self._scan_buffer += piece
-        await self._emit(piece)
 
         while True:
             match = re.search(r"\n\s*\n", self._scan_buffer)
             if not match:
                 break
-            paragraph = self._scan_buffer[: match.start()].strip()
+            paragraph = self._scan_buffer[: match.start()]
             self._scan_buffer = self._scan_buffer[match.end() :]
-            if not paragraph:
-                continue
-            self.raw_words += _word_count(paragraph)
-            normalized = _normalize_prose(paragraph)
-            duplicate = (
-                len(paragraph) >= _REPEAT_PARAGRAPH_MIN_CHARS
-                and any(
-                    _similar(normalized, previous) >= _REPEAT_PARAGRAPH_SIMILARITY
-                    for previous in self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
-                )
-            )
-            if duplicate:
-                self.removed_units += 1
-                if self.removed_units >= 2:
-                    raise RepetitionLoopDetected("model entered a paragraph repetition loop")
-                continue
-            if normalized:
-                self._paragraph_memory.append(normalized)
-                self._paragraph_memory = self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
+            await self._accept_paragraph(paragraph)
 
     async def finish(self) -> None:
-        tail = self._scan_buffer.strip()
-        if tail:
-            self.raw_words += _word_count(tail)
+        tail = self._scan_buffer
         self._scan_buffer = ""
+        if tail.strip():
+            try:
+                await self._accept_paragraph(tail)
+            except RepetitionLoopDetected:
+                # A terminal repeated paragraph is already counted and intentionally discarded.
+                # The outer completion loop sees removed_units/novelty and advances to a fresh beat.
+                return
 
 
 async def generate_complete_prose_streamed(
@@ -790,7 +831,10 @@ async def generate_complete_prose_streamed(
                     ]
                     pass_index += 1
                     continue
-                if verdict.get("physical_continuity") is False and not continuity_restart_used:
+                if (
+                    verdict.get("physical_continuity") is False
+                    or verdict.get("progression_regression") is True
+                ) and not continuity_restart_used:
                     continuity_restart_used = True
                     accumulated = ""
                     if on_status is not None:
@@ -802,10 +846,12 @@ async def generate_complete_prose_streamed(
                         {
                             "role": "user",
                             "content": (
-                                "Restart the scene from scratch. The previous draft has been discarded because the physical "
-                                f"continuity verifier found this problem: {verifier_reason[:260]}. Follow the HIDDEN SCENE DIRECTOR "
-                                "PLAN from its opening state. Preserve hard body canon and body-part ownership. Narrate every required "
-                                "repositioning before the dependent action. Do not reset into another buildup loop or invent a new location."
+                                "Restart the scene from scratch. The previous draft has been discarded because the physical/progression "
+                                f"verifier found this problem: {verifier_reason[:260]}. Follow the HIDDEN SCENE DIRECTOR "
+                                "PLAN from its opening state and execute its beats once, in order. Preserve hard body canon and "
+                                "body-part ownership. Narrate every required repositioning before the dependent action. Do not return "
+                                "to readiness, first-contact, introductory kissing, or any completed beat after a later sexual state "
+                                "has already been established. Do not resolve the emotional/magical outcome and then restart the encounter."
                             ),
                         },
                     ]

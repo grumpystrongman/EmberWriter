@@ -266,7 +266,7 @@ def test_complete_scene_continues_across_generation_boundaries(monkeypatch) -> N
 
 def test_streamed_scene_becomes_visible_before_model_finishes(monkeypatch) -> None:
     visible: list[str] = []
-    prose = " ".join(
+    prose = "\n\n".join(
         (
             _words("livea", 20),
             _words("liveb", 20),

@@ -102,6 +102,9 @@ def test_streamed_completion_discards_loop_and_recovers(monkeypatch) -> None:
     assert any("Repetition loop detected" in message for message in statuses)
     streamed = "".join(visible)
     assert "advance149" in streamed
+    # Rejected loop prose must never reach the author-facing stream.
+    assert streamed.count("suspended in the same charged instant") == 1
+    assert "The sauna heat surrounded them while Rowan kept Avery close" not in streamed
 
 
 def test_repeat_guard_does_not_remove_short_dialogue_refrain() -> None:
@@ -146,6 +149,11 @@ def test_studio_delivery_verifier_requires_every_delivery_dimension(monkeypatch)
     )
 
     assert verdict["verified"] is True
+    verifier_prompt = captured["messages"][0]["content"]
+    verifier_user = captured["messages"][1]["content"]
+    assert "progression_regression=true" in verifier_prompt
+    assert "semantic beat recycling" in verifier_prompt
+    assert '"progression_regression":true|false' in verifier_user
     kwargs = captured["kwargs"]
     assert isinstance(kwargs, dict)
     assert kwargs["json_mode"] is True
