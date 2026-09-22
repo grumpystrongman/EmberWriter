@@ -644,7 +644,12 @@ class _NoveltyStreamFilter:
         tail = self._scan_buffer
         self._scan_buffer = ""
         if tail.strip():
-            await self._accept_paragraph(tail)
+            try:
+                await self._accept_paragraph(tail)
+            except RepetitionLoopDetected:
+                # A terminal repeated paragraph is already counted and intentionally discarded.
+                # The outer completion loop sees removed_units/novelty and advances to a fresh beat.
+                return
 
 
 async def generate_complete_prose_streamed(
