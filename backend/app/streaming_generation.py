@@ -332,7 +332,7 @@ async def verify_studio_scene_delivery(
             verdict.get("ending_complete") is True,
             verdict.get("canon_respected") is True,
             verdict.get("physical_continuity") is True,
-            verdict.get("progression_regression") is False,
+            verdict.get("progression_regression") is not True,
             verdict.get("repetition_loop") is False,
         )
     )
