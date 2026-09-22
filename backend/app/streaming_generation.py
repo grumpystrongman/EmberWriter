@@ -578,6 +578,9 @@ class _NoveltyStreamFilter:
         self._raw = ""
         self._scan_buffer = ""
         self._accepted: list[str] = []
+        # Compatibility memory for reliability wrappers that inspect accepted paragraphs.
+        # Author-visible emission is still governed by _accept_paragraph below.
+        self._paragraph_memory = _recent_normalized_paragraphs(prior_text)
         self.removed_units = 0
         self.raw_words = 0
 
@@ -619,6 +622,10 @@ class _NoveltyStreamFilter:
 
         prefix = "\n\n" if self._accepted else ""
         self._accepted.append(cleaned)
+        normalized = _normalize_prose(cleaned)
+        if normalized:
+            self._paragraph_memory.append(normalized)
+            self._paragraph_memory = self._paragraph_memory[-_REPEAT_RECENT_PARAGRAPHS:]
         await self._emit(f"{prefix}{cleaned}")
 
     async def feed(self, piece: str) -> None:
