@@ -35,6 +35,9 @@ A long unrelated history of kingdoms and politics.
     assert "HARD BODY / EMBODIMENT CANON is literal author-owned fact" in system
     assert "HIDDEN SCENE DIRECTOR PLAN" in system
     assert "Rowan stands; Avery sits." in system
+    assert "execute each meaningful beat once, in order" in system
+    assert "do not reduce a character to one repeated tic" in system.lower()
+    assert "do not resolve or explain it before the director's planned timing" in system.lower()
     assert "SILENT PHYSICAL STATE LEDGER" not in system
     assert "CONTINUITY FREEZE-FRAME" not in system
     assert "Avery has a penis" in user
@@ -51,6 +54,15 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
             {
                 "opening_state": "Kaelen stands facing seated Muna.",
                 "central_intent": "continuous encounter",
+                "character_engines": [
+                    {
+                        "character": "Muna",
+                        "active_behavior": "turns play into initiative and rhythm",
+                        "generic_shortcut_to_avoid": "constant giggling as a substitute for personality",
+                    }
+                ],
+                "relationship_turn": "trust deepens through action rather than explanation",
+                "magic_timing": "latter half",
                 "beats": [
                     {
                         "objective": "close distance",
@@ -87,9 +99,13 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
     plan = json.loads(plan_text)
     assert plan["opening_state"] == "Kaelen stands facing seated Muna."
     assert len(plan["beats"]) == 2
+    assert plan["character_engines"][0]["character"] == "Muna"
+    assert plan["magic_timing"] == "latter half"
     messages = captured["messages"]
     assert isinstance(messages, list)
     assert "author should not have to choreograph the scene" in messages[0]["content"].lower()
+    assert "make the encounter unmistakably specific to these characters" in messages[0]["content"].lower()
+    assert "reserve its decisive realization for the latter half" in messages[0]["content"].lower()
     assert "Muna has a penis" in messages[1]["content"]
     assert captured["kwargs"]["json_mode"] is True
 
