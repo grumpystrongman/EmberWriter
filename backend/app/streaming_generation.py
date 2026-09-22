@@ -267,7 +267,13 @@ async def verify_studio_scene_delivery(
                 "You are EmberWriter's strict scene-delivery verifier. Do not rewrite, extend, sanitize, quote, or summarize "
                 "the prose. Judge only whether the supplied draft actually fulfills the author's request. Return JSON only. "
                 "For an adult intimacy request, distinguish an on-page sexual encounter from attraction, kissing, foreplay, "
-                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Mentions of requested acts inside assistant "
+                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Treat semantic beat recycling as repetition even "
+                "when the model paraphrases it: repeated first kisses, repeated hair/forehead/hip sequences, repeated lifting/straddling, "
+                "or returning to the same physical configuration without a new consequence count as a repetition loop. "
+                "Set progression_regression=true if the draft establishes a later sexual state and then jumps backward into an earlier "
+                "readiness/first-escalation state, reaches an aftermath or realization and then restarts the encounter, or re-stages the "
+                "same initiation as though it had not already happened. "
+                "Mentions of requested acts inside assistant "
                 "commentary, refusals, prompt echo, negative statements about what the draft lacks, or writing instructions DO NOT "
                 "count as on-page scene delivery. Judge only actions that actually occur in manuscript narrative. Treat character "
                 "identity, embodiment, body facts, participants, and relationship facts in the supplied request/context as hard canon. "
@@ -289,7 +295,7 @@ async def verify_studio_scene_delivery(
                 "Return exactly one JSON object with these keys:\n"
                 '{"core_encounter_on_page":true|false,"requested_explicitness_delivered":true|false,'
                 '"buildup_only":true|false,"fade_or_skip":true|false,"ending_complete":true|false,'
-                '"canon_respected":true|false,"physical_continuity":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
+                '"canon_respected":true|false,"physical_continuity":true|false,"progression_regression":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
             ),
         },
     ]
@@ -326,6 +332,7 @@ async def verify_studio_scene_delivery(
             verdict.get("ending_complete") is True,
             verdict.get("canon_respected") is True,
             verdict.get("physical_continuity") is True,
+            verdict.get("progression_regression") is False,
             verdict.get("repetition_loop") is False,
         )
     )
@@ -812,7 +819,10 @@ async def generate_complete_prose_streamed(
                     ]
                     pass_index += 1
                     continue
-                if verdict.get("physical_continuity") is False and not continuity_restart_used:
+                if (
+                    verdict.get("physical_continuity") is False
+                    or verdict.get("progression_regression") is True
+                ) and not continuity_restart_used:
                     continuity_restart_used = True
                     accumulated = ""
                     if on_status is not None:
@@ -824,10 +834,12 @@ async def generate_complete_prose_streamed(
                         {
                             "role": "user",
                             "content": (
-                                "Restart the scene from scratch. The previous draft has been discarded because the physical "
-                                f"continuity verifier found this problem: {verifier_reason[:260]}. Follow the HIDDEN SCENE DIRECTOR "
-                                "PLAN from its opening state. Preserve hard body canon and body-part ownership. Narrate every required "
-                                "repositioning before the dependent action. Do not reset into another buildup loop or invent a new location."
+                                "Restart the scene from scratch. The previous draft has been discarded because the physical/progression "
+                                f"verifier found this problem: {verifier_reason[:260]}. Follow the HIDDEN SCENE DIRECTOR "
+                                "PLAN from its opening state and execute its beats once, in order. Preserve hard body canon and "
+                                "body-part ownership. Narrate every required repositioning before the dependent action. Do not return "
+                                "to readiness, first-contact, introductory kissing, or any completed beat after a later sexual state "
+                                "has already been established. Do not resolve the emotional/magical outcome and then restart the encounter."
                             ),
                         },
                     ]
