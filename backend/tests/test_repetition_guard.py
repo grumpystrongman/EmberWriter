@@ -843,3 +843,131 @@ def test_core_only_late_start_can_restart_twice_before_success(monkeypatch) -> N
     assert len(restart_prompts) == 2
     assert all("FIRST PARAGRAPH" in prompt for prompt in restart_prompts)
     assert all("HIDDEN SCENE DIRECTOR PLAN" in prompt for prompt in restart_prompts)
+
+
+def test_final_pass_with_zero_new_words_still_verifies_accumulated_draft(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    first = _words("scene", 180)
+    chunks = [
+        first,
+        first,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        assert "scene179" in draft
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=150,
+        delivery_scope="core_only",
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            max_passes=2,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 1
+    assert "scene179" in result
+
+
+def test_final_failure_reports_stream_filter_diagnostics(monkeypatch) -> None:
+    writer_calls = 0
+    first = _words("draft", 180)
+    chunks = [first, first]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        return {
+            "verified": False,
+            "core_encounter_on_page": False,
+            "requested_explicitness_delivered": False,
+            "buildup_only": True,
+            "fade_or_skip": False,
+            "ending_complete": False,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": False,
+            "repetition_loop": True,
+            "reason": "requested encounter still not delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=150,
+        delivery_scope="core_only",
+    )
+
+    with pytest.raises(streaming_generation.SceneDeliveryIncomplete) as exc_info:
+        asyncio.run(
+            streaming_generation.generate_complete_prose_streamed(
+                ProviderConfig(model="test-model"),
+                messages,
+                min_words=150,
+                on_delta=emit,
+                max_passes=2,
+            )
+        )
+
+    reason = exc_info.value.reason
+    assert "requested encounter still not delivered" in reason
+    assert "stream diagnostics:" in reason
+    assert "accumulated_words=180" in reason
+    assert "final_candidate_words=0" in reason
+    assert "p1:raw=180,accepted=180" in reason
+    assert "p2:raw=180,accepted=0" in reason
+    assert "removed=" in reason
+    assert "novelty=" in reason
