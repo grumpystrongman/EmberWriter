@@ -894,7 +894,7 @@ def test_final_pass_with_zero_new_words_still_verifies_accumulated_draft(monkeyp
         "Trusted project canon.",
         heat_level="inferno",
         min_scene_words=150,
-        delivery_scope="core_only",
+        delivery_scope="full_scene",
     )
 
     result = asyncio.run(
@@ -1021,3 +1021,149 @@ def test_novelty_filter_reports_removed_short_sentences_without_declaring_loop()
     assert "That feels amazing and I can feel you" not in guard.text
     assert "completely new physical beat" in guard.text
     assert "That feels amazing and I can feel you" not in "".join(visible)
+
+
+def test_core_only_verifies_natural_stop_without_complete_marker_and_repairs_continuity(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    repair_prompts: list[str] = []
+    chunks = [
+        _words("firstdraft", 180),
+        _words("repaired", 180),
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        if writer_calls > 0:
+            repair_prompts.append(messages[-1]["content"])
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls == 1:
+            return {
+                "verified": False,
+                "core_encounter_on_page": True,
+                "requested_explicitness_delivered": True,
+                "buildup_only": False,
+                "fade_or_skip": False,
+                "ending_complete": True,
+                "canon_respected": True,
+                "physical_continuity": False,
+                "progression_regression": False,
+                "repetition_loop": False,
+                "reason": (
+                    "physical continuity failure: a new penetration state begins without "
+                    "identifying the exact receiving anatomy at sentence 12: 'He entered her.'"
+                ),
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=150,
+        delivery_scope="core_only",
+    )
+    messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            max_passes=3,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 2
+    assert "repaired179" in result
+    assert len(repair_prompts) == 1
+    assert "sentence 12" in repair_prompts[0]
+    assert "exact receiving anatomy" in repair_prompts[0]
+
+
+def test_core_only_final_failure_reports_continuity_restart_count(monkeypatch) -> None:
+    writer_calls = 0
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        writer_calls += 1
+        raw = _words(f"draft{writer_calls}", 180)
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        return {
+            "verified": False,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": False,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": (
+                "physical continuity failure: a new penetration state begins without "
+                "identifying the exact receiving anatomy at sentence 7: 'He entered her.'"
+            ),
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=150,
+        delivery_scope="core_only",
+    )
+    messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
+
+    with pytest.raises(streaming_generation.SceneDeliveryIncomplete) as exc_info:
+        asyncio.run(
+            streaming_generation.generate_complete_prose_streamed(
+                ProviderConfig(model="test-model"),
+                messages,
+                min_words=150,
+                on_delta=emit,
+                max_passes=3,
+            )
+        )
+
+    reason = exc_info.value.reason
+    assert writer_calls == 3
+    assert "scope_restarts=0" in reason
+    assert "continuity_restarts=2" in reason
+    assert "canon_restart=false" in reason

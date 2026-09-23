@@ -178,3 +178,18 @@ def test_target_setup_expires_before_late_ambiguous_penetration() -> None:
     )
     reason = intimacy_continuity.hard_choreography_failure(draft)
     assert "exact receiving anatomy" in reason
+
+
+def test_ambiguous_penetration_failure_reports_sentence_and_prior_context() -> None:
+    draft = (
+        "Kaelen moved behind Muna as she leaned forward. "
+        "He rested one hand at her hip. "
+        "He entered her from behind and began to move."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+
+    assert "exact receiving anatomy" in reason
+    assert "sentence 3" in reason
+    assert "He entered her from behind" in reason
+    assert "previous sentence" in reason
+    assert "He rested one hand at her hip" in reason
