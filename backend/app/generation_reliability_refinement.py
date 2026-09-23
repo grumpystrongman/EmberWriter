@@ -112,8 +112,18 @@ def _paragraphs(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
 
 
+def _beat_windows(draft: str) -> list[str]:
+    paragraphs = _paragraphs(draft)
+    windows = list(paragraphs)
+    windows.extend(
+        f"{paragraphs[index]}\n\n{paragraphs[index + 1]}"
+        for index in range(len(paragraphs) - 1)
+    )
+    return windows
+
+
 def _same_beat(draft: str, *patterns: re.Pattern[str]) -> bool:
-    return any(all(pattern.search(paragraph) for pattern in patterns) for paragraph in _paragraphs(draft))
+    return any(all(pattern.search(window) for pattern in patterns) for window in _beat_windows(draft))
 
 
 def requested_act_delivery_failure(prompt: str, draft: str) -> str:
@@ -125,7 +135,7 @@ def requested_act_delivery_failure(prompt: str, draft: str) -> str:
         _POSITION_PENETRATION,
     ):
         return (
-            "author requested missionary/face-to-face sex, but no single beat establishes "
+            "author requested missionary/face-to-face sex, but no local beat window establishes "
             "receiver-on-back + partner-in-front/between-legs + penetrative action"
         )
     if _positively_requested(prompt, _DOGGY_REQUEST) and not _same_beat(
@@ -134,7 +144,7 @@ def requested_act_delivery_failure(prompt: str, draft: str) -> str:
         _POSITION_PENETRATION,
     ):
         return (
-            "author requested doggy/rear sex, but no single beat establishes "
+            "author requested doggy/rear sex, but no local beat window establishes "
             "receiver-facing-away/hips-accessible + partner-behind + penetrative action"
         )
     if _positively_requested(prompt, _BLOWJOB_REQUEST) and not _BLOWJOB_DELIVERY.search(draft):
@@ -145,7 +155,7 @@ def requested_act_delivery_failure(prompt: str, draft: str) -> str:
         _POSITION_PENETRATION,
     ):
         return (
-            "author requested anal sex, but no single beat identifies anal receiving anatomy "
+            "author requested anal sex, but no local beat window identifies anal receiving anatomy "
             "together with penetrative action"
         )
     return ""
