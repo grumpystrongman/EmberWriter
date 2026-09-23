@@ -6,7 +6,7 @@ import re
 import httpx
 
 from .generation import SCENE_COMPLETE_MARKER, SCENE_CONTINUE_MARKER, generate
-from .model_catalog import ADULT_EXPLICIT_FAMILY, ADULT_EXPLICIT_MODEL
+from .model_catalog import ADULT_EXPLICIT_FAMILY, ADULT_EXPLICIT_MODEL, PLANNING_MODEL
 from .models import ProviderConfig
 from .ollama_runtime import installed_ollama_models
 
@@ -178,53 +178,94 @@ def _plan_act_label(value: object) -> str:
     return ""
 
 
+def _labels_in_text(text: str) -> set[str]:
+    return {
+        label
+        for label, pattern in _PLAN_ACT_PATTERNS.items()
+        if pattern.search(text)
+    }
+
+
+def _requested_item_text(item: dict) -> str:
+    return " ".join(
+        str(item.get(field, ""))
+        for field in ("request", "canon_safe_interpretation", "required_geometry")
+    )
+
+
+def _beat_delivery_text(beat: dict) -> str:
+    return " ".join(
+        str(beat.get(field, ""))
+        for field in ("objective", "action", "act_state", "penetration_state", "mouth_state")
+    )
+
+
 def _scene_plan_failure(plan: dict, prompt: str) -> str:
     beats = plan.get("beats")
     if not isinstance(beats, list) or len(beats) < 2:
         return "plan must contain at least two ordered beats"
+    if any(not isinstance(beat, dict) for beat in beats):
+        return "every beat must be an object"
 
     required = _requested_plan_labels(prompt)
     requested = plan.get("requested_acts")
     if required and not isinstance(requested, list):
         return "plan omitted requested_acts"
+    requested_items = [item for item in (requested or []) if isinstance(item, dict)]
 
-    planned: dict[str, dict] = {}
-    for item in requested or []:
-        if not isinstance(item, dict):
+    metadata_coverage: set[str] = set()
+    for item in requested_items:
+        covered = _labels_in_text(_requested_item_text(item))
+        metadata_coverage.update(covered)
+        if covered & set(required):
+            for field in ("actor", "receiver", "required_geometry"):
+                if not str(item.get(field, "")).strip():
+                    return (
+                        f"plan left {field} undefined for requested act/position: "
+                        + ", ".join(sorted(covered & set(required)))
+                    )
+
+    missing_metadata = [label for label in required if label not in metadata_coverage]
+    if missing_metadata:
+        return (
+            "plan omitted author-requested acts/positions from requested_acts coverage: "
+            + ", ".join(missing_metadata)
+        )
+
+    beat_coverage: set[str] = set()
+    required_set = set(required)
+    for index, beat in enumerate(beats, start=1):
+        covered = _labels_in_text(_beat_delivery_text(beat))
+        beat_coverage.update(covered)
+        if not (covered & required_set):
             continue
-        label = _plan_act_label(item.get("request"))
-        if label:
-            planned[label] = item
 
-    missing = [label for label in required if label not in planned]
-    if missing:
-        return "plan omitted author-requested acts/positions: " + ", ".join(missing)
+        if not str(beat.get("actor", "")).strip() or not str(beat.get("receiver", "")).strip():
+            return f"beat {index} lacks actor/receiver ownership for a requested act"
 
-    for label in required:
-        item = planned[label]
-        for field in ("actor", "receiver", "required_geometry"):
-            if not str(item.get(field, "")).strip():
-                return f"plan left {field} undefined for requested act/position: {label}"
+        geometry = beat.get("pose_geometry")
+        if not isinstance(geometry, dict) or not str(geometry.get("relative_position", "")).strip():
+            return f"beat {index} lacks concrete pose_geometry for a requested act"
 
-    beat_text = " ".join(
-        str(beat.get("act_state", "")) + " " + str(beat.get("action", ""))
-        for beat in beats
-        if isinstance(beat, dict)
-    )
-    uncovered = [label for label in required if not _PLAN_ACT_PATTERNS[label].search(beat_text)]
+    uncovered = [label for label in required if label not in beat_coverage]
     if uncovered:
         return "plan metadata listed but beats did not schedule: " + ", ".join(uncovered)
 
-    for index, beat in enumerate(beats, start=1):
-        if not isinstance(beat, dict):
-            return f"beat {index} is not an object"
-        geometry = beat.get("pose_geometry")
-        if not isinstance(geometry, dict) or not str(geometry.get("relative_position", "")).strip():
-            return f"beat {index} lacks concrete pose_geometry"
-        if not str(beat.get("actor", "")).strip() or not str(beat.get("receiver", "")).strip():
-            return f"beat {index} lacks actor/receiver ownership"
-
     return ""
+
+
+async def _route_scene_director_model(config: ProviderConfig) -> None:
+    """Prefer EmberWriter's structured planning model for hidden JSON scene direction."""
+    if config.provider != "ollama":
+        return
+    try:
+        installed = await installed_ollama_models(config.base_url)
+    except (RuntimeError, ValueError, httpx.HTTPError):
+        return
+    by_name = {item.casefold(): item for item in installed}
+    resolved = by_name.get(PLANNING_MODEL.casefold())
+    if resolved:
+        config.model = resolved
 
 
 async def build_hidden_adult_scene_plan(
@@ -236,6 +277,7 @@ async def build_hidden_adult_scene_plan(
     delivery_scope: str,
 ) -> str:
     """Create and validate hidden choreography so a short author brief is enough."""
+    await _route_scene_director_model(config)
     compact_context = compact_adult_context(context, prompt, limit=14000)
     required_labels = _requested_plan_labels(prompt)
     repair_note = ""
@@ -262,7 +304,8 @@ async def build_hidden_adult_scene_plan(
                     f"HEAT: {heat_level or 'adult-explicit'}\n"
                     f"DELIVERY SCOPE: {delivery_scope}\n"
                     f"DETECTED REQUIRED ACTS / POSITIONS: {requirements}\n"
-                    "Every detected requirement must appear once in requested_acts and be scheduled in beats.\n"
+                    "Every detected requirement must be explicitly covered by requested_acts and scheduled in beats. "
+                    "Compatible requirements may share one requested_acts entry (for example, missionary anal).\n"
                     f"{repair}\n"
                     "RELEVANT CHARACTER / BODY / RELATIONSHIP CANON\n"
                     f"{compact_context}\n"
@@ -276,7 +319,7 @@ async def build_hidden_adult_scene_plan(
                 temperature=0.25 if attempt else 0.35,
                 top_p=0.9,
                 json_mode=True,
-                max_output_tokens=1900,
+                max_output_tokens=2600,
             )
         except (RuntimeError, ValueError, httpx.HTTPError):
             repair_note = "planner model call failed"
