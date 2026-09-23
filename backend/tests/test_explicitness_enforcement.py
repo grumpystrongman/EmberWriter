@@ -194,4 +194,43 @@ def test_core_only_requires_sustained_direct_action_not_one_explicit_paragraph()
     )
     reason = app.explicitness_enforcement.strict_explicit_delivery_failure(prompt, draft)
     assert reason.startswith("core-only delivery failure:")
-    assert "direct-action sentences" in reason
+    assert "sustained central-action description is too brief" in reason
+
+
+def test_core_only_counts_contextual_action_after_anatomy_is_established() -> None:
+    prompt = _PROMPT + " CORE ONLY."
+    draft = (
+        "Penetration began immediately as his penis entered the receiving anatomy named in canon. "
+        "He kept the same position and thrust slowly. "
+        "She changed the rhythm with her hips and pulled him closer. "
+        "He matched the faster pace without changing the established position. "
+        "They slowed together, then built the rhythm again. "
+        "She rocked back toward him while he maintained the same penetration state. "
+        "He thrust again as she adjusted the angle. "
+        "They stayed in the encounter until the physical beat resolved. "
+        "One partner orgasmed, and the other came afterward."
+    )
+
+    profile = app.explicitness_enforcement.explicitness_profile(draft)
+
+    assert profile.direct_action_sentences < 5
+    assert profile.sustained_action_sentences >= 5
+    assert app.explicitness_enforcement.strict_explicit_delivery_failure(prompt, draft) == ""
+
+
+def test_action_context_expires_before_unrelated_motion() -> None:
+    prompt = _PROMPT + " CORE ONLY."
+    draft = (
+        "Penetration began immediately as his penis entered the receiving anatomy named in canon. "
+        "He thrust twice and then stopped. "
+        "Afterward they talked about the weather. "
+        "She moved across the room and pulled open a locker. "
+        "He rocked back on his heels and adjusted his shirt."
+    )
+
+    profile = app.explicitness_enforcement.explicitness_profile(draft)
+    reason = app.explicitness_enforcement.strict_explicit_delivery_failure(prompt, draft)
+
+    assert profile.sustained_action_sentences < 5
+    assert "sustained central-action description is too brief" in reason
+    assert "state_aware_action=" in reason
