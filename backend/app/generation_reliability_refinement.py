@@ -67,6 +67,66 @@ _BOTH_CLIMAX_DRAFT = re.compile(
 )
 
 
+_MISSIONARY_REQUEST = re.compile(r"\bmissionary\b", re.IGNORECASE)
+_DOGGY_REQUEST = re.compile(r"\bdoggy(?:\s+style)?\b", re.IGNORECASE)
+_BLOWJOB_REQUEST = re.compile(r"\bblow\s*job\b", re.IGNORECASE)
+_ANAL_REQUEST = re.compile(r"\banal\b", re.IGNORECASE)
+_NEGATED_REQUEST = re.compile(r"\b(?:no|not|avoid|without|exclude|skip)\b[^.!?\n]{0,24}$", re.IGNORECASE)
+
+_MISSIONARY_GEOMETRY = re.compile(
+    r"\b(?:on\s+(?:her|his|their)\s+back|lay\s+back|lying\s+on\s+(?:her|his|their)\s+back|"
+    r"rolled?\s+onto\s+(?:her|his|their)\s+back)\b",
+    re.IGNORECASE,
+)
+_MISSIONARY_PARTNER_FRONT = re.compile(
+    r"\b(?:between\s+(?:her|his|their)\s+legs|facing\s+(?:her|him|them)|"
+    r"over\s+(?:her|him|them)|legs?\s+(?:raised|apart|around))\b",
+    re.IGNORECASE,
+)
+_DOGGY_GEOMETRY = re.compile(
+    r"\b(?:hands?\s+and\s+knees?|all\s+fours|facing\s+away|from\s+behind|"
+    r"kneeling\s+behind|chest[-\s]down[^.!?\n]{0,80}hips?\s+raised)\b",
+    re.IGNORECASE,
+)
+_BLOWJOB_DELIVERY = re.compile(
+    r"\b(?:mouth|lips|suck\w*|oral\s+sex|blow\s*job)\b[^.!?\n]{0,120}\b(?:penis|cock|dick)\b|"
+    r"\b(?:penis|cock|dick)\b[^.!?\n]{0,120}\b(?:mouth|lips|suck\w*|oral\s+sex|blow\s*job)\b",
+    re.IGNORECASE,
+)
+_ANAL_DELIVERY = re.compile(r"\b(?:anus|anal\s+opening|asshole|anal\s+penetration)\b", re.IGNORECASE)
+
+
+def _positively_requested(prompt: str, pattern: re.Pattern[str]) -> bool:
+    for match in pattern.finditer(prompt):
+        prefix = prompt[max(0, match.start() - 32):match.start()]
+        if not _NEGATED_REQUEST.search(prefix):
+            return True
+    return False
+
+
+def requested_act_delivery_failure(prompt: str, draft: str) -> str:
+    """Require named acts/positions to appear as recognizable geometry, not keyword soup."""
+    if _positively_requested(prompt, _MISSIONARY_REQUEST):
+        if not (_MISSIONARY_GEOMETRY.search(draft) and _MISSIONARY_PARTNER_FRONT.search(draft)):
+            return (
+                "author requested missionary/face-to-face sex, but the draft never establishes "
+                "a receiver-on-back, partner-in-front/between-legs configuration"
+            )
+    if _positively_requested(prompt, _DOGGY_REQUEST):
+        if not _DOGGY_GEOMETRY.search(draft):
+            return (
+                "author requested doggy/rear sex, but the draft never establishes a recognizable "
+                "receiver-facing-away, partner-behind configuration"
+            )
+    if _positively_requested(prompt, _BLOWJOB_REQUEST):
+        if not _BLOWJOB_DELIVERY.search(draft):
+            return "author requested a blowjob/oral-on-penis beat, but no clear oral-to-penis action occurs"
+    if _positively_requested(prompt, _ANAL_REQUEST):
+        if not _ANAL_DELIVERY.search(draft):
+            return "author requested anal sex, but the draft never identifies anal receiving anatomy"
+    return ""
+
+
 _ANATOMY_CANON_GROUPS = {
     "penis": ("penis", "cock", "dick"),
     "vagina": ("vagina", "vaginal"),
@@ -314,6 +374,14 @@ async def refined_verify_studio_scene_delivery(config, messages, draft: str) -> 
         verdict["verified"] = False
         verdict["requested_explicitness_delivered"] = False
         verdict["reason"] = delivery_failure
+        return verdict
+
+    act_failure = requested_act_delivery_failure(prompt, draft)
+    if act_failure:
+        verdict["verified"] = False
+        verdict["requested_explicitness_delivered"] = False
+        verdict["physical_continuity"] = False
+        verdict["reason"] = act_failure
     return verdict
 
 
