@@ -26,6 +26,7 @@ class ExplicitnessProfile:
     anatomy_groups: int
     action_groups: int
     direct_action_sentences: int
+    sustained_action_sentences: int
     explicit_sentences: int
     climax_mentions: int
     fluid_mentions: int
@@ -60,6 +61,23 @@ _CORE_ACTION_TOKEN = re.compile(
     re.IGNORECASE,
 )
 _CORE_ONLY_REQUEST = re.compile(r"\b(?:core[-\s]+only|sex\s+only|just\s+the\s+sex|action\s+only)\b", re.IGNORECASE)
+_ACTION_STATE_START = re.compile(
+    r"\b(?:penetrat\w*|fuck\w*|thrust\w*|blow\s*job|oral\s+sex|hand\s*job|"
+    r"masturbat\w*|ejaculat\w*|cum|cumming|orgasm\w*)\b",
+    re.IGNORECASE,
+)
+_ACTION_STATE_CONTINUATION = re.compile(
+    r"\b(?:penetrat\w*|fuck\w*|thrust\w*|suck\w*|lick\w*|stroke\w*|grind\w*|"
+    r"rock\w*|pump\w*|ride|rode|riding|bounce\w*|press\w*|push\w*|pull\w*|"
+    r"hips?|pelvis|mouth|tongue|hand|fingers?|inside|deeper|harder|faster|slower|"
+    r"pace|rhythm)\b",
+    re.IGNORECASE,
+)
+_ACTION_STATE_BREAK = re.compile(
+    r"\b(?:afterward|afterwards|later|finished|stopped|withdrew|pulled\s+away|"
+    r"dressed|showered|left\s+the\s+room|conversation|talked\s+about)\b",
+    re.IGNORECASE,
+)
 
 _EUPHEMISM_HEAVY = re.compile(
     r"\b(?:breached|joined|merged|union|center|length|release|completion|consummation|"
@@ -105,16 +123,44 @@ def explicitness_profile(draft: str) -> ExplicitnessProfile:
     action_groups = sum(bool(pattern.search(draft)) for pattern in _ACTION_GROUPS)
     explicit_sentences = sum(bool(_EXPLICIT_TOKEN.search(sentence)) for sentence in sentences)
     direct_action_sentences = 0
+    sustained_action_sentences = 0
+    active_action_context = 0
+
     for sentence in sentences:
         anatomy = any(pattern.search(sentence) for pattern in _ANATOMY_GROUPS)
         action = any(pattern.search(sentence) for pattern in _ACTION_GROUPS)
-        named_act = bool(re.search(r"\b(?:blow\s*job|hand\s*job|oral\s+sex|anal\s+sex)\b", sentence, re.IGNORECASE))
-        if (anatomy and action) or named_act:
+        named_act = bool(
+            re.search(
+                r"\b(?:blow\s*job|hand\s*job|oral\s+sex|anal\s+sex)\b",
+                sentence,
+                re.IGNORECASE,
+            )
+        )
+        lexical_direct = (anatomy and action) or named_act
+        state_start = lexical_direct or bool(_ACTION_STATE_START.search(sentence))
+
+        if _ACTION_STATE_BREAK.search(sentence) and not state_start:
+            active_action_context = 0
+
+        if lexical_direct:
             direct_action_sentences += 1
+
+        if state_start:
+            sustained_action_sentences += 1
+            active_action_context = 3
+            continue
+
+        if active_action_context > 0 and _ACTION_STATE_CONTINUATION.search(sentence):
+            sustained_action_sentences += 1
+            active_action_context = 3
+        elif active_action_context > 0:
+            active_action_context -= 1
+
     return ExplicitnessProfile(
         anatomy_groups=anatomy_groups,
         action_groups=action_groups,
         direct_action_sentences=direct_action_sentences,
+        sustained_action_sentences=sustained_action_sentences,
         explicit_sentences=explicit_sentences,
         climax_mentions=len(_CLIMAX.findall(draft)),
         fluid_mentions=len(_FLUID.findall(draft)),
@@ -145,9 +191,12 @@ def strict_explicit_delivery_failure(prompt: str, draft: str) -> str:
                 f"core-only delivery failure: requested sexual action begins too late (first direct-action evidence at word {onset}); "
                 "discard the buildup and restart at the requested core action"
             )
-        if profile.direct_action_sentences < 5:
+        if profile.sustained_action_sentences < 5:
             return (
-                f"core-only delivery failure: only {profile.direct_action_sentences} direct-action sentences were delivered; "
+                "core-only delivery failure: sustained central-action description is too brief "
+                f"(lexical_direct={profile.direct_action_sentences}, "
+                f"state_aware_action={profile.sustained_action_sentences}, "
+                f"explicit_sentences={profile.explicit_sentences}); "
                 "the author requested sustained description of the central encounter rather than setup plus a brief explicit beat"
             )
 
