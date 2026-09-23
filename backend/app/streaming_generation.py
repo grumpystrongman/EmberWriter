@@ -922,6 +922,11 @@ async def generate_complete_prose_streamed(
                 reason = verifier_reason or (
                     "final Studio draft did not pass independent delivery verification"
                 )
+                if core_only:
+                    reason += (
+                        f"; delivery diagnostics: scope=core_only, full_restarts={scope_restart_count}, "
+                        f"pass={pass_index + 1}/{max_passes}"
+                    )
                 if on_status is not None:
                     await on_status(
                         f"Scene preserved as partial · delivery verification failed: {reason[:180]}"
