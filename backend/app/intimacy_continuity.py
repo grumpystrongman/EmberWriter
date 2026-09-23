@@ -387,7 +387,7 @@ def hard_choreography_failure(draft: str) -> str:
         for part in re.split(r"(?<=[.!?…])\s+|\n+", draft)
         if part.strip()
     ]
-    for sentence in sentences:
+    for sentence_index, sentence in enumerate(sentences, start=1):
         if (
             _TONGUE_UNTARGETED_INSIDE.search(sentence)
             and _PENIS_TERMS.search(previous_sentence)
@@ -428,9 +428,17 @@ def hard_choreography_failure(draft: str) -> str:
             and not penetration_target_established
             and pending_target_sentences <= 0
         ):
+            excerpt = re.sub(r"\s+", " ", sentence).strip()
+            previous_excerpt = re.sub(r"\s+", " ", previous_sentence).strip()
             return (
                 "physical continuity failure: a new penetration state begins without identifying "
-                "the exact receiving anatomy"
+                f"the exact receiving anatomy at sentence {sentence_index}: "
+                f"'{excerpt[:180]}'"
+                + (
+                    f"; previous sentence: '{previous_excerpt[:140]}'"
+                    if previous_excerpt
+                    else ""
+                )
             )
 
         if (bare_start or slid_in) and pending_target_sentences > 0:
