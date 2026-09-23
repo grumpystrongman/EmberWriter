@@ -673,6 +673,7 @@ async def generate_complete_prose_streamed(
     canon_restart_used = False
     continuity_restart_count = 0
     scope_restart_count = 0
+    pass_diagnostics: list[str] = []
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
     role_restart_credit = 1
@@ -722,6 +723,13 @@ async def generate_complete_prose_streamed(
                     or novelty_filter.novelty_ratio < 0.62
                 )
             )
+        )
+
+        pass_diagnostics.append(
+            f"p{pass_index + 1}:raw={novelty_filter.raw_words},accepted={candidate_words},"
+            f"removed={novelty_filter.removed_units},novelty={novelty_filter.novelty_ratio:.2f},"
+            f"complete={str(complete).lower()},continue={str(wants_more).lower()},"
+            f"loop={str(loop_interrupted).lower()}"
         )
 
         role_failure = manuscript_role_failure(cleaned) if studio_delivery_verifier and cleaned else ""
@@ -888,7 +896,6 @@ async def generate_complete_prose_streamed(
                     not verifier_ran_this_pass
                     and accumulated.strip()
                     and words >= min_words
-                    and candidate_words > 0
                 ):
                     if on_status is not None:
                         await on_status("Final Studio delivery verification…")
@@ -909,7 +916,9 @@ async def generate_complete_prose_streamed(
                             f"final draft ended at {words} words before the requested minimum of {min_words}"
                         )
                     elif candidate_words <= 0:
-                        final_state_reason = "final pass produced no usable new prose to verify"
+                        final_state_reason = (
+                            "final pass produced no usable new prose and the accumulated draft could not be accepted"
+                        )
                     elif abrupt:
                         final_state_reason = "final draft ended abruptly before it could be verified as complete"
                     if final_state_reason:
@@ -922,11 +931,16 @@ async def generate_complete_prose_streamed(
                 reason = verifier_reason or (
                     "final Studio draft did not pass independent delivery verification"
                 )
+                filter_diagnostics = " | ".join(pass_diagnostics[-max_passes:])
                 if core_only:
                     reason += (
                         f"; delivery diagnostics: scope=core_only, full_restarts={scope_restart_count}, "
                         f"pass={pass_index + 1}/{max_passes}"
                     )
+                reason += (
+                    f"; stream diagnostics: accumulated_words={words}, final_candidate_words={candidate_words}, "
+                    f"passes=[{filter_diagnostics}]"
+                )
                 if on_status is not None:
                     await on_status(
                         f"Scene preserved as partial · delivery verification failed: {reason[:180]}"
