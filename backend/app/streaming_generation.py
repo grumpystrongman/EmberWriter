@@ -28,6 +28,8 @@ StatusCallback = Callable[[str], Awaitable[None]]
 _MARKER_HOLDBACK = max(len(SCENE_COMPLETE_MARKER), len(SCENE_CONTINUE_MARKER)) + 24
 _REPEAT_PARAGRAPH_MIN_CHARS = 90
 _REPEAT_SENTENCE_MIN_CHARS = 55
+_REPEAT_EXACT_SENTENCE_MIN_CHARS = 20
+_REPEAT_EXACT_SENTENCE_MIN_WORDS = 4
 _REPEAT_PARAGRAPH_SIMILARITY = 0.56
 _REPEAT_SENTENCE_SIMILARITY = 0.78
 _REPEAT_RECENT_PARAGRAPHS = 18
@@ -166,15 +168,23 @@ def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, 
         kept_sentences: list[str] = []
         for sentence in _sentence_parts(paragraph):
             normalized_sentence = _normalize_prose(sentence)
-            is_duplicate_sentence = (
+            exact_short_duplicate = (
+                len(normalized_sentence) >= _REPEAT_EXACT_SENTENCE_MIN_CHARS
+                and _word_count(normalized_sentence) >= _REPEAT_EXACT_SENTENCE_MIN_WORDS
+                and normalized_sentence in sentence_memory[-_REPEAT_RECENT_SENTENCES:]
+            )
+            fuzzy_duplicate = (
                 len(sentence) >= _REPEAT_SENTENCE_MIN_CHARS
                 and any(
                     _similar(normalized_sentence, previous) >= _REPEAT_SENTENCE_SIMILARITY
                     for previous in sentence_memory[-_REPEAT_RECENT_SENTENCES:]
                 )
             )
-            if is_duplicate_sentence:
-                removed += 1
+            if exact_short_duplicate or fuzzy_duplicate:
+                # Short exact stock-sentence repeats are quietly removed rather than treated as
+                # a whole-model loop. Long/fuzzy repetition still increments the hard loop counter.
+                if fuzzy_duplicate:
+                    removed += 1
                 continue
             kept_sentences.append(sentence)
             if normalized_sentence:
@@ -582,6 +592,7 @@ class _NoveltyStreamFilter:
         # Author-visible emission is still governed by _accept_paragraph below.
         self._paragraph_memory = _recent_normalized_paragraphs(prior_text)
         self.removed_units = 0
+        self.removed_sentences = 0
         self.raw_words = 0
 
     @property
@@ -610,10 +621,13 @@ class _NoveltyStreamFilter:
             return
 
         self.raw_words += _word_count(paragraph)
+        raw_sentence_count = len(_sentence_parts(paragraph))
         cleaned, removed, _novelty = dedupe_repetitive_prose(
             paragraph,
             self._accepted_context(),
         )
+        cleaned_sentence_count = len(_sentence_parts(cleaned))
+        self.removed_sentences += max(0, raw_sentence_count - cleaned_sentence_count)
         self.removed_units += removed
         if self.removed_units >= 2:
             raise RepetitionLoopDetected("model entered a paragraph repetition loop")
@@ -727,7 +741,8 @@ async def generate_complete_prose_streamed(
 
         pass_diagnostics.append(
             f"p{pass_index + 1}:raw={novelty_filter.raw_words},accepted={candidate_words},"
-            f"removed={novelty_filter.removed_units},novelty={novelty_filter.novelty_ratio:.2f},"
+            f"removed={novelty_filter.removed_units},sentences_removed={novelty_filter.removed_sentences},"
+            f"novelty={novelty_filter.novelty_ratio:.2f},"
             f"complete={str(complete).lower()},continue={str(wants_more).lower()},"
             f"loop={str(loop_interrupted).lower()}"
         )
