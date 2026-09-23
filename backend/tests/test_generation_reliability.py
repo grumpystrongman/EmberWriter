@@ -197,3 +197,21 @@ def test_streamed_hard_ceiling_uses_compression_only_when_needed(monkeypatch) ->
 
     assert compress_calls == 1
     assert len(result.split()) == 1050
+
+
+def test_hard_quality_gate_rejects_runaway_repeated_word() -> None:
+    reason = generation_reliability_refinement.hard_quality_failure(
+        "The contact was electric, electric, electric. They kept moving."
+    )
+    assert "runaway repeated word" in reason
+
+
+def test_hard_quality_gate_rejects_multiple_recycled_short_sentences() -> None:
+    draft = (
+        "This is amazing and I can feel you. The room seemed to disappear. "
+        "This is beautiful and I feel every bit of you. They shifted position. "
+        "This is amazing and I can feel you. The rhythm changed. "
+        "This is beautiful and I feel every bit of you."
+    )
+    reason = generation_reliability_refinement.hard_quality_failure(draft)
+    assert "short sentences are being recycled" in reason

@@ -296,7 +296,7 @@ _TONGUE_DEEP_ANAL_CANAL = re.compile(
 )
 
 _BARE_PENETRATION_PRONOUN = re.compile(
-    r"\b(?:enter(?:ed|ing)?|penetrat(?:ed|ing)?|filled?|fill(?:ed|ing)?)\s+(?:her|him|them)\b",
+    r"\b(?:enter(?:ed|ing)?|penetrat(?:ed|ing)?|filled?|fill(?:ed|ing)?)\s+(?:her|him|them|me|you)\b",
     re.IGNORECASE,
 )
 _BARE_SLID_IN = re.compile(r"\bslid\s+in\b", re.IGNORECASE)
@@ -317,7 +317,7 @@ _PENETRATION_SETUP = re.compile(
 _WITHDRAWAL = re.compile(r"\b(?:withdrew|pulled\s+out|slid\s+out|disengaged)\b", re.IGNORECASE)
 
 _PENIS_INSIDE_PRONOUN = re.compile(
-    r"\b(?:penis|cock|dick)\b[^.!?\n]{0,100}\b(?:inside|within|deep\s+in)\s+(?:her|him|them)\b",
+    r"\b(?:penis|cock|dick)\b[^.!?\n]{0,100}\b(?:inside|within|deep\s+in)\s+(?:her|him|them|me|you)\b",
     re.IGNORECASE,
 )
 _ORAL_ON_POSSESSIVE_PENIS = re.compile(

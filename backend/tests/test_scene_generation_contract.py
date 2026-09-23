@@ -510,3 +510,118 @@ def test_reasoning_stream_filter_hides_split_tags() -> None:
 
     asyncio.run(run())
     assert "".join(emitted) == "Visible prose."
+
+
+def test_stream_rejected_studio_scene_is_reset_not_returned_as_partial(monkeypatch) -> None:
+    payload = GenerateRequest(
+        prompt="Write the requested explicit adult scene.",
+        mode="write",
+        selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
+        provider=ProviderConfig(provider="ollama", model="test-model"),
+        craft=CraftControls(heat_level="inferno"),
+    )
+    queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
+
+    monkeypatch.setattr(
+        routes_generation,
+        "_prepare_generation_context",
+        lambda _slug, _payload: ("context", [], ""),
+    )
+    monkeypatch.setattr(
+        routes_generation,
+        "_generation_contract",
+        lambda _payload: ("inferno", "full_scene", 300),
+    )
+
+    async def fake_route(*_args, **_kwargs) -> bool:
+        return True
+
+    async def fake_plan(*_args, **_kwargs) -> str:
+        return '{"opening_state":"valid","requested_acts":[],"beats":[{"objective":"a"},{"objective":"b"}]}'
+
+    def fake_messages(*_args, **_kwargs):
+        return (
+            [
+                {"role": "system", "content": "STUDIO SCENE DELIVERY CONTRACT:"},
+                {"role": "user", "content": "AUTHOR INSTRUCTION\nWrite scene."},
+            ],
+            True,
+        )
+
+    async def fake_complete(*_args, **kwargs) -> str:
+        await kwargs["on_delta"]("REJECTED DRAFT")
+        raise streaming_generation.SceneDeliveryIncomplete(
+            "REJECTED DRAFT",
+            "requested positions were not delivered",
+        )
+
+    monkeypatch.setattr(routes_generation, "route_explicit_adult_specialist", fake_route)
+    monkeypatch.setattr(routes_generation, "should_use_adult_explicit_specialist", lambda *_args: True)
+    monkeypatch.setattr(routes_generation, "build_hidden_adult_scene_plan", fake_plan)
+    monkeypatch.setattr(routes_generation, "_generation_messages", fake_messages)
+    monkeypatch.setattr(routes_generation, "generate_complete_prose_streamed", fake_complete)
+
+    asyncio.run(routes_generation._produce_generation_stream("demo", payload, queue))
+
+    events: list[dict[str, object]] = []
+    while True:
+        event = queue.get_nowait()
+        if event is None:
+            break
+        events.append(event)
+
+    assert any(event.get("type") == "reset" for event in events)
+    assert any(event.get("type") == "error" for event in events)
+    assert not any(event.get("type") == "final" for event in events)
+
+
+def test_stream_invalid_hidden_plan_fails_before_prose_generation(monkeypatch) -> None:
+    payload = GenerateRequest(
+        prompt="Write the requested explicit adult scene.",
+        mode="write",
+        selected_text=studio_context.STUDIO_CONTEXT_SENTINEL,
+        provider=ProviderConfig(provider="ollama", model="test-model"),
+        craft=CraftControls(heat_level="inferno"),
+    )
+    queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
+    generated = False
+
+    monkeypatch.setattr(
+        routes_generation,
+        "_prepare_generation_context",
+        lambda _slug, _payload: ("context", [], ""),
+    )
+    monkeypatch.setattr(
+        routes_generation,
+        "_generation_contract",
+        lambda _payload: ("inferno", "full_scene", 300),
+    )
+
+    async def fake_route(*_args, **_kwargs) -> bool:
+        return True
+
+    async def bad_plan(*_args, **_kwargs) -> str:
+        return ""
+
+    async def should_not_generate(*_args, **_kwargs) -> str:
+        nonlocal generated
+        generated = True
+        return "bad"
+
+    monkeypatch.setattr(routes_generation, "route_explicit_adult_specialist", fake_route)
+    monkeypatch.setattr(routes_generation, "should_use_adult_explicit_specialist", lambda *_args: True)
+    monkeypatch.setattr(routes_generation, "build_hidden_adult_scene_plan", bad_plan)
+    monkeypatch.setattr(routes_generation, "generate_complete_prose_streamed", should_not_generate)
+
+    asyncio.run(routes_generation._produce_generation_stream("demo", payload, queue))
+
+    events: list[dict[str, object]] = []
+    while True:
+        event = queue.get_nowait()
+        if event is None:
+            break
+        events.append(event)
+
+    assert generated is False
+    assert any(event.get("type") == "error" for event in events)
+    assert not any(event.get("type") == "final" for event in events)

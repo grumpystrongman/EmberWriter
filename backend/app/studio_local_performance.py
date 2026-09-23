@@ -39,6 +39,14 @@ def _is_local_studio(config: ProviderConfig, messages: list[dict[str, str]]) -> 
     return config.provider == "ollama" and streaming_generation._is_studio_scene(messages)
 
 
+def _is_adult_specialist_messages(messages: list[dict[str, str]]) -> bool:
+    return any(
+        message.get("role") == "system"
+        and "adult-fiction scene specialist" in message.get("content", "")
+        for message in messages
+    )
+
+
 def _failed_verdict(reason: str, *, explicitness: bool = False) -> dict[str, object]:
     verdict: dict[str, object] = {
         "verified": False,
@@ -61,6 +69,7 @@ def _verified_from_payload(verdict: dict[str, object]) -> dict[str, object]:
             verdict.get("ending_complete") is True,
             verdict.get("canon_respected") is True,
             verdict.get("physical_continuity") is True,
+            verdict.get("progression_regression") is False,
             verdict.get("repetition_loop") is False,
         )
     )
@@ -90,7 +99,9 @@ async def _verify_local_studio_scene_delivery(
                 "You are EmberWriter's strict scene-delivery verifier. Do not rewrite, extend, sanitize, quote, or summarize "
                 "the prose. Judge only whether the supplied draft actually fulfills the author's request. Return JSON only. "
                 "For an adult intimacy request, distinguish an on-page sexual encounter from attraction, kissing, foreplay, "
-                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Mentions of requested acts inside assistant "
+                "buildup, euphemistic implication, fade-to-black, or skipping ahead. Treat semantic beat recycling as repetition even "
+                "when wording changes. Set progression_regression=true if a later physical/sexual state jumps backward into readiness, "
+                "first-contact, setup, or an already-completed position/act. Mentions of requested acts inside assistant "
                 "commentary, refusals, prompt echo, negative statements about what the draft lacks, or writing instructions DO NOT "
                 "count as on-page scene delivery. Judge only actions that actually occur in manuscript narrative. Treat character "
                 "identity, embodiment, body facts, participants, and relationship facts in the supplied request/context as hard canon. "
@@ -112,7 +123,7 @@ async def _verify_local_studio_scene_delivery(
                 "Return exactly one JSON object with these keys:\n"
                 '{"core_encounter_on_page":true|false,"requested_explicitness_delivered":true|false,'
                 '"buildup_only":true|false,"fade_or_skip":true|false,"ending_complete":true|false,'
-                '"canon_respected":true|false,"physical_continuity":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
+                '"canon_respected":true|false,"physical_continuity":true|false,"progression_regression":true|false,"repetition_loop":true|false,"reason":"brief non-graphic explanation"}'
             ),
         },
     ]
@@ -204,6 +215,12 @@ async def verify_studio_scene_delivery_fast(
     if delivery_failure:
         return _failed_verdict(delivery_failure, explicitness=True)
 
+    act_failure = refinement.requested_act_delivery_failure(prompt, draft)
+    if act_failure:
+        verdict = _failed_verdict(act_failure, explicitness=True)
+        verdict["physical_continuity"] = False
+        return verdict
+
     if _is_local_studio(config, messages):
         return await _verify_local_studio_scene_delivery(config, messages, draft)
     return await _BASE_VERIFY(config, messages, draft)
@@ -223,7 +240,8 @@ async def generate_complete_prose_streamed_budgeted(
     effective_passes = max_passes
     effective_output_tokens = max_output_tokens
     if _is_local_studio(config, messages):
-        effective_passes = min(max_passes, _LOCAL_STUDIO_MAX_PASSES)
+        repair_cap = 3 if _is_adult_specialist_messages(messages) else _LOCAL_STUDIO_MAX_PASSES
+        effective_passes = min(max_passes, repair_cap)
         profile = "Fast 8B" if _is_fast_model(config.model) else "Quality 12B"
         profile_cap = (
             _LOCAL_STUDIO_FAST_OUTPUT_TOKENS
@@ -233,7 +251,9 @@ async def generate_complete_prose_streamed_budgeted(
         effective_output_tokens = min(max_output_tokens, profile_cap)
         if on_status is not None:
             await on_status(
-                f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
+                f"Local Studio · {profile} · primary draft + two repair passes maximum · compact semantic verifier"
+                if _is_adult_specialist_messages(messages)
+                else f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
             )
 
     return await _BASE_STREAMED_COMPLETE(

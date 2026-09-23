@@ -62,6 +62,7 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
             {
                 "opening_state": "Kaelen stands facing seated Muna.",
                 "central_intent": "continuous encounter",
+                "requested_acts": [],
                 "character_engines": [
                     {
                         "character": "Muna",
@@ -75,15 +76,35 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
                     {
                         "objective": "close distance",
                         "start_state": "standing / seated",
+                        "pose_geometry": {
+                            "participant_a": "Kaelen standing facing Muna",
+                            "participant_b": "Muna seated facing Kaelen",
+                            "relative_position": "front",
+                        },
                         "transition": "Muna rises",
                         "action": "affectionate contact",
+                        "act_state": "NONE",
+                        "actor": "Muna",
+                        "receiver": "Kaelen",
+                        "penetration_state": "NONE",
+                        "mouth_state": "NONE",
                         "end_state": "both standing",
                     },
                     {
                         "objective": "progress",
                         "start_state": "both standing",
+                        "pose_geometry": {
+                            "participant_a": "Kaelen standing",
+                            "participant_b": "Muna standing",
+                            "relative_position": "front",
+                        },
                         "transition": "NONE",
                         "action": "continue encounter",
+                        "act_state": "NONE",
+                        "actor": "Kaelen",
+                        "receiver": "Muna",
+                        "penetration_state": "NONE",
+                        "mouth_state": "NONE",
                         "end_state": "stable",
                     },
                 ],
@@ -111,6 +132,8 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
     assert plan["magic_timing"] == "latter half"
     messages = captured["messages"]
     assert isinstance(messages, list)
+    assert "{POSITION_GEOMETRY_REFERENCE}" not in messages[0]["content"]
+    assert "MISSIONARY / FACE-TO-FACE ANAL" in messages[0]["content"]
     assert "author should not have to choreograph the scene" in messages[0]["content"].lower()
     assert "make the encounter unmistakably specific to these characters" in messages[0]["content"].lower()
     assert "reserve its decisive realization for the latter half" in messages[0]["content"].lower()
@@ -202,3 +225,133 @@ def test_non_explicit_request_does_not_force_erotica_model(monkeypatch) -> None:
 
     assert routed is False
     assert config.model == "general-model"
+
+
+def test_hidden_scene_director_retries_when_named_acts_are_missing(monkeypatch) -> None:
+    calls = 0
+    captured: list[list[dict[str, str]]] = []
+
+    def valid_plan() -> dict:
+        return {
+            "opening_state": "Kaelen stands facing seated Muna.",
+            "central_intent": "continuous encounter",
+            "requested_acts": [
+                {
+                    "request": "missionary",
+                    "actor": "Kaelen",
+                    "receiver": "Muna",
+                    "canon_safe_interpretation": "face-to-face anal using established anatomy",
+                    "required_geometry": "Muna on back; Kaelen in front between her legs",
+                    "sequence_index": 1,
+                },
+                {
+                    "request": "doggy style",
+                    "actor": "Kaelen",
+                    "receiver": "Muna",
+                    "canon_safe_interpretation": "rear anal using established anatomy",
+                    "required_geometry": "Muna facing away with hips raised; Kaelen behind",
+                    "sequence_index": 2,
+                },
+                {
+                    "request": "anal",
+                    "actor": "Kaelen",
+                    "receiver": "Muna",
+                    "canon_safe_interpretation": "penis to anus",
+                    "required_geometry": "pelvis aligned to anus",
+                    "sequence_index": 3,
+                },
+                {
+                    "request": "blowjob",
+                    "actor": "Muna",
+                    "receiver": "Kaelen",
+                    "canon_safe_interpretation": "Muna mouth to Kaelen penis",
+                    "required_geometry": "Muna mouth reachable to Kaelen penis",
+                    "sequence_index": 4,
+                },
+            ],
+            "character_engines": [],
+            "relationship_turn": "trust deepens",
+            "magic_timing": "latter half",
+            "beats": [
+                {
+                    "objective": "missionary",
+                    "start_state": "Muna seated",
+                    "pose_geometry": {
+                        "participant_a": "Muna on back",
+                        "participant_b": "Kaelen in front",
+                        "relative_position": "front between legs",
+                    },
+                    "transition": "Muna lies back",
+                    "action": "missionary anal penetration",
+                    "act_state": "missionary anal",
+                    "actor": "Kaelen",
+                    "receiver": "Muna",
+                    "penetration_state": "Kaelen.penis -> Muna.anus",
+                    "mouth_state": "NONE",
+                    "end_state": "face-to-face",
+                },
+                {
+                    "objective": "doggy",
+                    "start_state": "face-to-face",
+                    "pose_geometry": {
+                        "participant_a": "Muna facing away hips raised",
+                        "participant_b": "Kaelen kneeling behind",
+                        "relative_position": "behind",
+                    },
+                    "transition": "withdraw and turn Muna onto hands and knees",
+                    "action": "doggy style anal penetration",
+                    "act_state": "doggy style anal",
+                    "actor": "Kaelen",
+                    "receiver": "Muna",
+                    "penetration_state": "Kaelen.penis -> Muna.anus",
+                    "mouth_state": "NONE",
+                    "end_state": "rear",
+                },
+                {
+                    "objective": "oral",
+                    "start_state": "rear",
+                    "pose_geometry": {
+                        "participant_a": "Muna kneeling in front",
+                        "participant_b": "Kaelen standing",
+                        "relative_position": "front",
+                    },
+                    "transition": "Kaelen withdraws and Muna turns to face him",
+                    "action": "blowjob oral sex",
+                    "act_state": "blowjob",
+                    "actor": "Muna",
+                    "receiver": "Kaelen",
+                    "penetration_state": "NONE",
+                    "mouth_state": "Muna.mouth -> Kaelen.penis",
+                    "end_state": "oral",
+                },
+            ],
+            "ending_goal": "resolution",
+            "continuity_watchouts": [],
+        }
+
+    async def fake_generate(_config, messages, **_kwargs) -> str:
+        nonlocal calls
+        captured.append(messages)
+        calls += 1
+        if calls == 1:
+            bad = valid_plan()
+            bad["requested_acts"] = []
+            return json.dumps(bad)
+        return json.dumps(valid_plan())
+
+    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+    plan_text = asyncio.run(
+        adult_specialist.build_hidden_adult_scene_plan(
+            ProviderConfig(provider="ollama", model="director-model"),
+            "Kaelen and Muna. missionary sex, doggy style sex, anal, blowjob.",
+            "### Muna\nMuna has a penis.\n### Kaelen\nKaelen has a penis.",
+            heat_level="inferno",
+            delivery_scope="full_scene",
+        )
+    )
+
+    assert calls == 2
+    assert plan_text
+    assert "PLANNER REPAIR REQUIREMENT" in captured[1][1]["content"]
+    assert "plan omitted author-requested acts/positions" in captured[1][1]["content"]
+    assert "DETECTED REQUIRED ACTS / POSITIONS: missionary, doggy, anal, blowjob" in captured[0][1]["content"]
