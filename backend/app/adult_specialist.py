@@ -45,7 +45,9 @@ Rules:
 - Preserve any explicit starting pose/location from the author exactly.
 - Use established anatomy only. Never infer intimate anatomy from gender, pronouns, presentation, trans/cis status, or sexual role.
 - If anatomy needed for a specific act is not established, keep that planned action non-specific rather than inventing a body part.
-- Use 3-6 meaningful beats and no more than four major physical configurations for the entire encounter.
+- Treat every named sexual act or position in the AUTHOR BRIEF as a delivery requirement, not a mood keyword. Convert the requested set into a canon-safe ordered sequence. Positions such as missionary or doggy style describe body configuration; they do not imply vaginal anatomy.
+- Do not merge incompatible requested acts into one simultaneous action merely to satisfy more keywords. Oral sex, penetration, and major position changes must each have a physically reachable state and a transition when needed.
+- Use 3-7 meaningful beats and no more than five major physical configurations for the entire encounter.
 - Every major position change must include the transition that makes the next action reachable.
 - Do not reset to earlier foreplay once the central encounter has begun.
 - Do not repeat the same oral/manual/contact beat with stronger adjectives.
@@ -61,6 +63,13 @@ Return exactly this JSON shape:
 {
   "opening_state": "compact literal starting physical state",
   "central_intent": "what the encounter is progressing toward",
+  "requested_acts": [
+    {
+      "request": "named act or position from the author brief",
+      "canon_safe_interpretation": "how this request can occur using only established anatomy",
+      "sequence_index": 1
+    }
+  ],
   "character_engines": [
     {
       "character": "name",
@@ -76,6 +85,9 @@ Return exactly this JSON shape:
       "start_state": "pose/orientation/contact at beat start",
       "transition": "physical repositioning required before the new action, or NONE",
       "action": "the new physical/intimate beat in plain planning language",
+      "act_state": "which requested act/position is active in this beat, or NONE",
+      "penetration_state": "NONE or SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION",
+      "mouth_state": "whose mouth is doing what and what it can physically reach, or NONE",
       "character_expression": "how personality changes the way this beat happens",
       "novelty": "what this beat introduces that has not happened earlier",
       "do_not_repeat": "specific earlier action/state this beat must not return to",
@@ -284,7 +296,10 @@ HIDDEN SCENE DIRECTOR PLAN — IMPLEMENT, DO NOT ECHO OR EXPLAIN:
 
 Writer execution rules:
 - The hidden plan owns broad choreography. Treat its beats as an ordered progression contract: execute each meaningful beat once, in order, and never restart a completed beat. Write fluid manuscript prose rather than narrating a state ledger.
-- Preserve established anatomy and body-part ownership exactly. Never invent anatomy to make an action convenient.
+- Preserve established anatomy and body-part ownership exactly. Never invent anatomy to make an action convenient. Do not use vague cis-female-template euphemisms such as "slick entrance", "folds", or "inner walls" when project canon has not established that anatomy.
+- Treat the director's requested_acts as an ordered delivery checklist. Deliver each requested act/position in a physically coherent sequence. A position name is not a new organ and must be realized using established anatomy only.
+- One occupied body part cannot perform two incompatible jobs at once. In particular, do not make one participant perform oral stimulation on a body region they cannot reach while simultaneously maintaining a penetration/position that puts their mouth elsewhere.
+- Do not describe "double" or "twice over" filling/stimulation unless the prose has established two physically compatible sources and targets.
 - Before any major pose/orientation change or any change from external contact to penetration, physically narrate the repositioning first.
 - Once the central encounter begins, stay in it. Do not reset to introductory kissing, another readiness conversation, a new location, repeated foreplay, or a second "first" escalation.
 - Once an established sexual state has begun, later prose cannot claim a participant is "not ready yet" for that same state or re-stage its initiation unless the author explicitly requested an interruption/reset.
@@ -297,6 +312,7 @@ Writer execution rules:
 - Before writing a paragraph, silently ask: "What is different at the end of this paragraph?" If the answer is nothing, skip forward to the next planned beat.
 - When the author asks for explicit sex, use direct anatomical language and concrete physical action. Do not replace genital or sexual action with euphemism, fade-to-black, abstraction, or romance-only prose.
 - Sustain the central encounter across multiple distinct physical beats. Describe what the bodies are actually doing, changing position/technique only when compatible with the author's request and canon.
+- Never write bare penetration phrases such as "he slid in", "entered her/him", "filled her/him", or "pushed deeper" until the current scene state has already identified the exact receiving anatomy. For every new penetration state, establish SOURCE_OWNER.SOURCE -> RECEIVER.RECEIVING_LOCATION first in the prose.
 - For a full requested sex scene, carry the encounter through physical completion and clear on-page climax/resolution unless the author explicitly requests a different stopping point.
 - Preserve character voice and the requested POV, but do not let lore, symbolism, magic, emotional processing, or atmosphere displace the physical scene.
 - Aim for at least {min_scene_words} useful words when that is compatible with the author's requested length. Never pad with renewed buildup or philosophy.

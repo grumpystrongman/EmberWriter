@@ -96,3 +96,29 @@ def test_verifier_requires_physical_continuity() -> None:
     assert "normal anatomical capability" in instruction
     assert "facing direction" in instruction
     assert "relative location" in instruction
+
+
+def test_rejects_bare_penetration_target_after_setup() -> None:
+    draft = (
+        "Kaelen moved between Muna's legs and aligned himself for penetration. "
+        "He slid in slowly while she adjusted to him."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "exact receiving anatomy" in reason
+
+
+def test_rejects_entered_pronoun_without_receiving_anatomy() -> None:
+    draft = (
+        "Kaelen moved behind Muna as she leaned forward. "
+        "He entered her from behind and began to move."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "exact receiving anatomy" in reason
+
+
+def test_allows_named_receiving_anatomy_for_new_penetration_state() -> None:
+    draft = (
+        "Kaelen moved behind Muna as she leaned forward. "
+        "He entered Muna's anus slowly and held still for a moment."
+    )
+    assert intimacy_continuity.hard_choreography_failure(draft) == ""

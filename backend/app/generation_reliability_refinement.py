@@ -76,6 +76,13 @@ _ANATOMY_CANON_GROUPS = {
     "breasts": ("breast", "breasts", "tits"),
 }
 
+_VAGINAL_TEMPLATE_EUPHEMISM = re.compile(
+    r"\b(?:slick|wet)\s+entrance\b|"
+    r"\b(?:her|his|their|the|[A-Za-z][A-Za-z'’-]{1,30}['’]s)\s+folds\b|"
+    r"\b(?:vaginal\s+)?inner\s+walls\b",
+    re.IGNORECASE,
+)
+
 
 def _character_context_sections(context: str) -> list[tuple[str, str]]:
     matches = list(re.finditer(r"(?m)^###\s+([^\n]+)\s*$", context))
@@ -127,6 +134,22 @@ def hard_body_canon_failure(context: str, draft: str) -> str:
             parsed[name] = (present, absent)
     if not parsed:
         return ""
+
+    explicitly_present_receptive = set().union(
+        *(present & {"vagina", "vulva", "clitoris"} for present, _absent in parsed.values())
+    )
+    explicitly_absent_receptive = set().union(
+        *(absent & {"vagina", "vulva", "clitoris"} for _present, absent in parsed.values())
+    )
+    if (
+        explicitly_absent_receptive
+        and not explicitly_present_receptive
+        and _VAGINAL_TEMPLATE_EUPHEMISM.search(draft)
+    ):
+        return (
+            "hard body-canon conflict: draft uses vague cis-female-template receptive anatomy "
+            "even though no participant has that anatomy established in canon"
+        )
 
     for name, (_present, absent) in parsed.items():
         for group in absent:
