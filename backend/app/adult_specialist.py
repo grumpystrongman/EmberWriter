@@ -125,6 +125,11 @@ Return exactly this JSON shape:
 }
 """
 
+ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT = ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT.replace(
+    "{POSITION_GEOMETRY_REFERENCE}",
+    POSITION_GEOMETRY_REFERENCE,
+)
+
 
 def _parse_scene_plan_json(raw: str) -> dict:
     text = raw.strip()
@@ -142,6 +147,75 @@ def _parse_scene_plan_json(raw: str) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _requested_plan_labels(prompt: str) -> list[str]:
+    labels: list[str] = []
+    for label, pattern in _PLAN_ACT_PATTERNS.items():
+        for match in pattern.finditer(prompt):
+            prefix = prompt[max(0, match.start() - 32):match.start()]
+            if _PLAN_NEGATION.search(prefix):
+                continue
+            labels.append(label)
+            break
+    return labels
+
+
+def _plan_act_label(value: object) -> str:
+    text = str(value or "").casefold()
+    for label, pattern in _PLAN_ACT_PATTERNS.items():
+        if pattern.search(text):
+            return label
+    return ""
+
+
+def _scene_plan_failure(plan: dict, prompt: str) -> str:
+    beats = plan.get("beats")
+    if not isinstance(beats, list) or len(beats) < 2:
+        return "plan must contain at least two ordered beats"
+
+    required = _requested_plan_labels(prompt)
+    requested = plan.get("requested_acts")
+    if required and not isinstance(requested, list):
+        return "plan omitted requested_acts"
+
+    planned: dict[str, dict] = {}
+    for item in requested or []:
+        if not isinstance(item, dict):
+            continue
+        label = _plan_act_label(item.get("request"))
+        if label:
+            planned[label] = item
+
+    missing = [label for label in required if label not in planned]
+    if missing:
+        return "plan omitted author-requested acts/positions: " + ", ".join(missing)
+
+    for label in required:
+        item = planned[label]
+        for field in ("actor", "receiver", "required_geometry"):
+            if not str(item.get(field, "")).strip():
+                return f"plan left {field} undefined for requested act/position: {label}"
+
+    beat_text = " ".join(
+        str(beat.get("act_state", "")) + " " + str(beat.get("action", ""))
+        for beat in beats
+        if isinstance(beat, dict)
+    )
+    uncovered = [label for label in required if not _PLAN_ACT_PATTERNS[label].search(beat_text)]
+    if uncovered:
+        return "plan metadata listed but beats did not schedule: " + ", ".join(uncovered)
+
+    for index, beat in enumerate(beats, start=1):
+        if not isinstance(beat, dict):
+            return f"beat {index} is not an object"
+        geometry = beat.get("pose_geometry")
+        if not isinstance(geometry, dict) or not str(geometry.get("relative_position", "")).strip():
+            return f"beat {index} lacks concrete pose_geometry"
+        if not str(beat.get("actor", "")).strip() or not str(beat.get("receiver", "")).strip():
+            return f"beat {index} lacks actor/receiver ownership"
+
+    return ""
+
+
 async def build_hidden_adult_scene_plan(
     config: ProviderConfig,
     prompt: str,
@@ -150,40 +224,63 @@ async def build_hidden_adult_scene_plan(
     heat_level: str | None,
     delivery_scope: str,
 ) -> str:
-    """Create hidden choreography so the author can provide a short brief instead of a body-state script."""
+    """Create and validate hidden choreography so a short author brief is enough."""
     compact_context = compact_adult_context(context, prompt, limit=14000)
-    planner_messages = [
-        {"role": "system", "content": ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": (
-                "AUTHOR BRIEF\n"
-                f"{prompt}\n\n"
-                f"HEAT: {heat_level or 'adult-explicit'}\n"
-                f"DELIVERY SCOPE: {delivery_scope}\n\n"
-                "RELEVANT CHARACTER / BODY / RELATIONSHIP CANON\n"
-                f"{compact_context}\n"
-            ),
-        },
-    ]
-    try:
-        raw = await generate(
-            config,
-            planner_messages,
-            temperature=0.35,
-            top_p=0.9,
-            json_mode=True,
-            max_output_tokens=1600,
-        )
-    except (RuntimeError, ValueError, httpx.HTTPError):
-        return ""
+    required_labels = _requested_plan_labels(prompt)
+    repair_note = ""
 
-    plan = _parse_scene_plan_json(raw)
-    beats = plan.get("beats")
-    if not isinstance(beats, list) or len(beats) < 2:
-        return ""
-    plan["beats"] = beats[:6]
-    return json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+    for attempt in range(2):
+        requirements = (
+            ", ".join(required_labels)
+            if required_labels
+            else "(no named position/act keywords detected; infer a coherent progression)"
+        )
+        repair = (
+            "\nPLANNER REPAIR REQUIREMENT\n"
+            f"The prior plan was invalid: {repair_note}. Rebuild the entire JSON plan; do not merely explain the problem.\n"
+            if repair_note
+            else ""
+        )
+        planner_messages = [
+            {"role": "system", "content": ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    "AUTHOR BRIEF\n"
+                    f"{prompt}\n\n"
+                    f"HEAT: {heat_level or 'adult-explicit'}\n"
+                    f"DELIVERY SCOPE: {delivery_scope}\n"
+                    f"DETECTED REQUIRED ACTS / POSITIONS: {requirements}\n"
+                    "Every detected requirement must appear once in requested_acts and be scheduled in beats.\n"
+                    f"{repair}\n"
+                    "RELEVANT CHARACTER / BODY / RELATIONSHIP CANON\n"
+                    f"{compact_context}\n"
+                ),
+            },
+        ]
+        try:
+            raw = await generate(
+                config,
+                planner_messages,
+                temperature=0.25 if attempt else 0.35,
+                top_p=0.9,
+                json_mode=True,
+                max_output_tokens=1900,
+            )
+        except (RuntimeError, ValueError, httpx.HTTPError):
+            repair_note = "planner model call failed"
+            continue
+
+        plan = _parse_scene_plan_json(raw)
+        failure = _scene_plan_failure(plan, prompt)
+        if failure:
+            repair_note = failure
+            continue
+
+        plan["beats"] = plan["beats"][:7]
+        return json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+
+    return ""
 
 
 def is_adult_explicit_specialist(model: str) -> bool:
