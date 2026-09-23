@@ -671,7 +671,7 @@ async def generate_complete_prose_streamed(
     repetition_recoveries = 0
     verifier_reason = ""
     canon_restart_used = False
-    continuity_restart_used = False
+    continuity_restart_count = 0
     scope_restart_used = False
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
@@ -834,8 +834,8 @@ async def generate_complete_prose_streamed(
                 if (
                     verdict.get("physical_continuity") is False
                     or verdict.get("progression_regression") is True
-                ) and not continuity_restart_used:
-                    continuity_restart_used = True
+                ) and continuity_restart_count < 2:
+                    continuity_restart_count += 1
                     accumulated = ""
                     if on_status is not None:
                         await on_status(
@@ -849,8 +849,11 @@ async def generate_complete_prose_streamed(
                                 "Restart the scene from scratch. The previous draft has been discarded because the physical/progression "
                                 f"verifier found this problem: {verifier_reason[:260]}. Follow the HIDDEN SCENE DIRECTOR "
                                 "PLAN from its opening state and execute its beats once, in order. Preserve hard body canon and "
-                                "body-part ownership. Narrate every required repositioning before the dependent action. Do not return "
-                                "to readiness, first-contact, introductory kissing, or any completed beat after a later sexual state "
+                                "body-part ownership. Narrate every required repositioning before the dependent action. "
+                                "For the FIRST sentence of every new penetration state, explicitly name both the penetrating anatomy "
+                                "and the exact receiving anatomy in the prose; do not begin that state with bare phrases such as "
+                                "'entered her', 'slid in', 'filled me', or 'pushed deeper'. "
+                                "Do not return to readiness, first-contact, introductory kissing, or any completed beat after a later sexual state "
                                 "has already been established. Do not resolve the emotional/magical outcome and then restart the encounter."
                             ),
                         },
