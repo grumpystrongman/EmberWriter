@@ -34,6 +34,17 @@ _HARD_BODY_BLOCK = re.compile(
 )
 _CHARACTER_SECTION = re.compile(r"(?ims)^###\s+([^\n]+)\s*$.*?(?=^###\s+|\Z)")
 
+_PLAN_ACT_PATTERNS = {
+    "missionary": re.compile(r"\bmissionary\b", re.IGNORECASE),
+    "doggy": re.compile(r"\bdoggy(?:\s+style)?\b", re.IGNORECASE),
+    "anal": re.compile(r"\banal\b", re.IGNORECASE),
+    "blowjob": re.compile(r"\bblow\s*job\b|\boral\s+sex\b", re.IGNORECASE),
+}
+_PLAN_NEGATION = re.compile(
+    r"\b(?:no|not|avoid|without|exclude|skip)\b[^.!?\n]{0,24}$",
+    re.IGNORECASE,
+)
+
 
 POSITION_GEOMETRY_REFERENCE = """POSITION GEOMETRY REFERENCE — USE AS PHYSICAL CONSTRAINTS, NOT PROSE:
 - MISSIONARY / FACE-TO-FACE ANAL: receiver lies on back facing the penetrating partner; hips/pelvis are accessible from the front, usually with legs apart/raised/bent as needed. Penetrator is in front/between the receiver's legs. If penetration occurs, explicitly identify the anus as the receiving target. The receiver's penis remains external/front anatomy and is not the penetration target.
