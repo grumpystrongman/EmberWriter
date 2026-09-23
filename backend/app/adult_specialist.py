@@ -339,6 +339,440 @@ def _planner_failure_message(
     )
 
 
+_SCENE_ENRICHER_SYSTEM_PROMPT = """You are EmberWriter's hidden character-and-emotion scene enricher.
+Return ONLY valid compact JSON. Do not rewrite physical choreography and do not write manuscript prose.
+The application has already built the required sexual acts, actor/receiver ownership, geometry, transitions, and beat order.
+Your only job is to make those fixed beats specific to the characters and relationship.
+
+Return:
+{
+  "character_engines": [
+    {
+      "character": "name",
+      "active_behavior": "specific behavior this character contributes",
+      "generic_shortcut_to_avoid": "one interchangeable trope/mannerism to avoid"
+    }
+  ],
+  "relationship_turn": "one concise earned relational change",
+  "magic_timing": "concise timing note; normally latter half",
+  "ending_goal": "concise immediate physical/emotional resolution",
+  "beat_notes": [
+    {
+      "beat_index": 1,
+      "character_expression": "how character personality changes this fixed beat",
+      "novelty": "what becomes new in this beat",
+      "do_not_repeat": "what earlier action/state must not recur"
+    }
+  ]
+}
+"""
+
+
+def _participant_names(prompt: str, context: str) -> tuple[str, str]:
+    between = re.search(
+        r"\bbetween\s+([A-Z][A-Za-z'’-]{1,40})\s+and\s+([A-Z][A-Za-z'’-]{1,40})\b",
+        prompt,
+    )
+    if between:
+        return between.group(1), between.group(2)
+
+    headings = [match.group(1).strip() for match in _CHARACTER_SECTION.finditer(context)]
+    mentioned = [
+        heading
+        for heading in headings
+        if re.search(rf"\b{re.escape(heading)}\b", prompt, re.IGNORECASE)
+    ]
+    if len(mentioned) >= 2:
+        return mentioned[0], mentioned[1]
+
+    stop = {
+        "write", "location", "starting", "situation", "tone", "outcome", "let",
+        "missionary", "doggy", "anal", "blowjob", "private", "gym", "sauna",
+    }
+    tokens = [
+        token
+        for token in re.findall(r"\b[A-Z][A-Za-z'’-]{1,40}\b", prompt)
+        if token.casefold() not in stop
+    ]
+    deduped: list[str] = []
+    for token in tokens:
+        if token not in deduped:
+            deduped.append(token)
+    if len(deduped) >= 2:
+        return deduped[0], deduped[1]
+    return "Participant A", "Participant B"
+
+
+def _starting_state(prompt: str) -> str:
+    match = re.search(r"(?im)^\s*Starting situation:\s*(.+?)\s*$", prompt)
+    if match:
+        return match.group(1).strip()
+    return "Use the author's stated opening state exactly."
+
+
+def _blowjob_first_from_opening(prompt: str, first: str, second: str) -> bool:
+    lowered = prompt.casefold()
+    return (
+        "blowjob" in _requested_plan_labels(prompt)
+        and (
+            (first.casefold() in lowered and second.casefold() in lowered)
+            and (
+                (
+                    re.search(rf"\b{re.escape(second.casefold())}\b[^.\n]{{0,50}}\bseated\b", lowered)
+                    and re.search(rf"\b{re.escape(first.casefold())}\b[^.\n]{{0,50}}\bstanding\b", lowered)
+                )
+                or (
+                    re.search(rf"\b{re.escape(second.casefold())}\b[^.\n]{{0,50}}\bkneeling\b", lowered)
+                    and re.search(rf"\b{re.escape(first.casefold())}\b[^.\n]{{0,50}}\bstanding\b", lowered)
+                )
+            )
+        )
+    )
+
+
+def _requested_act_item(
+    label: str,
+    *,
+    penetrator: str,
+    receiver: str,
+    oral_actor: str,
+    oral_receiver: str,
+    index: int,
+    anal_requested: bool,
+) -> dict:
+    if label == "missionary":
+        interpretation = (
+            f"missionary face-to-face anal sex: {penetrator} penetrates {receiver}'s anus"
+            if anal_requested
+            else "missionary face-to-face sex using only receiving anatomy established in canon"
+        )
+        return {
+            "request": "missionary",
+            "actor": penetrator,
+            "receiver": receiver,
+            "canon_safe_interpretation": interpretation,
+            "required_geometry": (
+                f"{receiver} lies on back facing {penetrator}; {penetrator} is in front/between "
+                f"{receiver}'s legs with pelvis aligned to the receiving anatomy"
+            ),
+            "sequence_index": index,
+        }
+    if label == "doggy":
+        interpretation = (
+            f"doggy style rear anal sex: {penetrator} penetrates {receiver}'s anus"
+            if anal_requested
+            else "doggy/rear sex using only receiving anatomy established in canon"
+        )
+        return {
+            "request": "doggy style",
+            "actor": penetrator,
+            "receiver": receiver,
+            "canon_safe_interpretation": interpretation,
+            "required_geometry": (
+                f"{receiver} faces away with hips raised; {penetrator} is behind with pelvis aligned "
+                "to the receiving anatomy"
+            ),
+            "sequence_index": index,
+        }
+    if label == "anal":
+        return {
+            "request": "anal",
+            "actor": penetrator,
+            "receiver": receiver,
+            "canon_safe_interpretation": (
+                f"anal penetration of {receiver}'s anus using only penetrating anatomy established for {penetrator}"
+            ),
+            "required_geometry": (
+                f"{penetrator}'s pelvis must align to {receiver}'s anus in an explicitly described reachable position"
+            ),
+            "sequence_index": index,
+        }
+    return {
+        "request": "blowjob",
+        "actor": oral_actor,
+        "receiver": oral_receiver,
+        "canon_safe_interpretation": f"{oral_actor}'s mouth performs oral sex on {oral_receiver}'s penis",
+        "required_geometry": f"{oral_actor}'s mouth is physically reachable to {oral_receiver}'s penis",
+        "sequence_index": index,
+    }
+
+
+def _position_beat(
+    label: str,
+    *,
+    penetrator: str,
+    receiver: str,
+    anal_requested: bool,
+    start_state: str,
+    previous_label: str,
+) -> dict:
+    if label == "missionary":
+        transition = (
+            f"{receiver} lies on their back facing {penetrator}; {penetrator} moves in front between "
+            f"{receiver}'s legs before sexual contact continues"
+        )
+        action = (
+            f"missionary anal penetration: {penetrator}'s penis -> {receiver}'s anus"
+            if anal_requested
+            else "missionary sex using only canon-established penetration anatomy"
+        )
+        penetration = (
+            f"{penetrator}.penis -> {receiver}.anus"
+            if anal_requested
+            else "CANON_SOURCE -> CANON_RECEIVING_LOCATION"
+        )
+        return {
+            "objective": "missionary anal" if anal_requested else "missionary",
+            "start_state": start_state,
+            "pose_geometry": {
+                "participant_a": f"{receiver} on back facing {penetrator}",
+                "participant_b": f"{penetrator} in front/between {receiver}'s legs",
+                "relative_position": "front / face-to-face / pelvis aligned",
+            },
+            "transition": transition,
+            "action": action,
+            "act_state": "missionary anal" if anal_requested else "missionary",
+            "actor": penetrator,
+            "receiver": receiver,
+            "penetration_state": penetration,
+            "mouth_state": "NONE",
+            "character_expression": "Use character engines; do not change the fixed geometry.",
+            "novelty": "First face-to-face penetrative configuration." if previous_label != "missionary" else "Advance this configuration without restarting it.",
+            "do_not_repeat": previous_label or "NONE",
+            "end_state": f"{receiver} on back; {penetrator} in front; face-to-face configuration established",
+        }
+
+    transition = (
+        f"{penetrator} fully disengages before {receiver} turns to face away and raises their hips; "
+        f"{penetrator} then kneels/moves behind"
+    )
+    action = (
+        f"doggy style rear anal penetration: {penetrator}'s penis -> {receiver}'s anus"
+        if anal_requested
+        else "doggy/rear sex using only canon-established penetration anatomy"
+    )
+    penetration = (
+        f"{penetrator}.penis -> {receiver}.anus"
+        if anal_requested
+        else "CANON_SOURCE -> CANON_RECEIVING_LOCATION"
+    )
+    return {
+        "objective": "doggy style anal" if anal_requested else "doggy style",
+        "start_state": start_state,
+        "pose_geometry": {
+            "participant_a": f"{receiver} facing away with hips raised",
+            "participant_b": f"{penetrator} behind {receiver}",
+            "relative_position": "behind / rear-facing / pelvis aligned",
+        },
+        "transition": transition,
+        "action": action,
+        "act_state": "doggy style anal" if anal_requested else "doggy style",
+        "actor": penetrator,
+        "receiver": receiver,
+        "penetration_state": penetration,
+        "mouth_state": "NONE",
+        "character_expression": "Use character engines; do not change the fixed geometry.",
+        "novelty": "Change to a rear-facing penetrative configuration.",
+        "do_not_repeat": previous_label or "missionary",
+        "end_state": f"{receiver} facing away with hips raised; {penetrator} behind",
+    }
+
+
+def _oral_beat(
+    *,
+    actor: str,
+    receiver: str,
+    start_state: str,
+    opening_reachable: bool,
+    previous_label: str,
+) -> dict:
+    transition = (
+        "NONE — the author-specified opening already makes oral contact reachable"
+        if opening_reachable
+        else f"Any active penetration stops; {actor} moves in front of {receiver} until their mouth can reach {receiver}'s penis"
+    )
+    return {
+        "objective": "blowjob / oral sex",
+        "start_state": start_state,
+        "pose_geometry": {
+            "participant_a": f"{actor} positioned with mouth at {receiver}'s penis",
+            "participant_b": f"{receiver} positioned in front of {actor}",
+            "relative_position": "front / mouth-to-penis reach",
+        },
+        "transition": transition,
+        "action": f"blowjob: {actor}'s mouth -> {receiver}'s penis",
+        "act_state": "blowjob",
+        "actor": actor,
+        "receiver": receiver,
+        "penetration_state": "NONE",
+        "mouth_state": f"{actor}.mouth -> {receiver}.penis",
+        "character_expression": "Use character engines; preserve oral actor/receiver ownership.",
+        "novelty": "Oral-on-penis beat with fixed ownership.",
+        "do_not_repeat": previous_label or "NONE",
+        "end_state": f"{actor} at {receiver}'s front; oral beat completed before any incompatible position change",
+    }
+
+
+def _deterministic_physical_plan(prompt: str, context: str, delivery_scope: str) -> dict:
+    required = _requested_plan_labels(prompt)
+    first, second = _participant_names(prompt, context)
+    opening = _starting_state(prompt)
+    penetrator, receiver = first, second
+    oral_actor, oral_receiver = second, first
+    anal_requested = "anal" in required
+    oral_first = "blowjob" in required and _blowjob_first_from_opening(prompt, first, second)
+
+    requested_acts = [
+        _requested_act_item(
+            label,
+            penetrator=penetrator,
+            receiver=receiver,
+            oral_actor=oral_actor,
+            oral_receiver=oral_receiver,
+            index=index,
+            anal_requested=anal_requested,
+        )
+        for index, label in enumerate(required, start=1)
+    ]
+
+    beat_labels: list[str] = []
+    if oral_first:
+        beat_labels.append("blowjob")
+    beat_labels.extend(label for label in ("missionary", "doggy") if label in required)
+    if anal_requested and not any(label in required for label in ("missionary", "doggy")):
+        beat_labels.append("anal")
+    if "blowjob" in required and "blowjob" not in beat_labels:
+        beat_labels.append("blowjob")
+
+    if not beat_labels:
+        beat_labels = ["character", "resolution"]
+
+    beats: list[dict] = []
+    state = opening
+    previous = ""
+    for label in beat_labels:
+        if label == "blowjob":
+            beat = _oral_beat(
+                actor=oral_actor,
+                receiver=oral_receiver,
+                start_state=state,
+                opening_reachable=oral_first and not beats,
+                previous_label=previous,
+            )
+        elif label in {"missionary", "doggy"}:
+            beat = _position_beat(
+                label,
+                penetrator=penetrator,
+                receiver=receiver,
+                anal_requested=anal_requested,
+                start_state=state,
+                previous_label=previous,
+            )
+        else:
+            beat = {
+                "objective": "anal",
+                "start_state": state,
+                "pose_geometry": {
+                    "participant_a": f"{receiver} in a stable receiving position",
+                    "participant_b": f"{penetrator} aligned to {receiver}'s anus",
+                    "relative_position": "pelvis aligned to anus",
+                },
+                "transition": f"{receiver} and {penetrator} reposition until the anus is clearly reachable",
+                "action": f"anal penetration: {penetrator}'s penis -> {receiver}'s anus",
+                "act_state": "anal",
+                "actor": penetrator,
+                "receiver": receiver,
+                "penetration_state": f"{penetrator}.penis -> {receiver}.anus",
+                "mouth_state": "NONE",
+                "character_expression": "Use character engines without changing ownership.",
+                "novelty": "Explicit anal configuration using fixed source and target.",
+                "do_not_repeat": previous or "NONE",
+                "end_state": f"{penetrator} and {receiver} remain in the established anal configuration",
+            }
+        beats.append(beat)
+        state = str(beat["end_state"])
+        previous = label
+
+    if len(beats) == 1:
+        only = beats[0]
+        beats.append(
+            {
+                "objective": "physical resolution",
+                "start_state": str(only["end_state"]),
+                "pose_geometry": dict(only["pose_geometry"]),
+                "transition": "NONE",
+                "action": "Bring the already-established requested act to a natural physical resolution without restarting it.",
+                "act_state": str(only["act_state"]),
+                "actor": str(only["actor"]),
+                "receiver": str(only["receiver"]),
+                "penetration_state": str(only["penetration_state"]),
+                "mouth_state": str(only["mouth_state"]),
+                "character_expression": "Use character engines; no new setup.",
+                "novelty": "Resolution rather than a repeated initiation.",
+                "do_not_repeat": "the act's initiation",
+                "end_state": "requested core action resolved",
+            }
+        )
+
+    return {
+        "opening_state": opening,
+        "central_intent": "Deliver every author-requested act in one continuous, physically reachable progression.",
+        "requested_acts": requested_acts,
+        "character_engines": [
+            {
+                "character": first,
+                "active_behavior": "Use project canon to make choices and responses specific to this character.",
+                "generic_shortcut_to_avoid": "generic dominant/romance behavior not established in canon",
+            },
+            {
+                "character": second,
+                "active_behavior": "Use project canon to make initiative, humor, vulnerability, and rhythm specific to this character.",
+                "generic_shortcut_to_avoid": "reducing the character to one repeated mannerism",
+            },
+        ],
+        "relationship_turn": "Deepen intimacy through what the characters do and notice, not through a speech.",
+        "magic_timing": "Keep decisive emotional/magical realization in the latter half unless the author requested otherwise.",
+        "beats": beats,
+        "ending_goal": "Resolve the requested physical sequence and land only its immediate relational/magical consequence.",
+        "continuity_watchouts": [
+            "Never reverse oral actor/receiver ownership without an explicit new transition.",
+            "Never combine rear penetration with unreachable oral contact.",
+            "Every penetration state must name source anatomy and receiving anatomy.",
+            "Never restart a completed requested act.",
+        ],
+        "planning_source": "deterministic_physical_skeleton",
+        "delivery_scope": delivery_scope,
+    }
+
+
+def _merge_scene_enrichment(plan: dict, enrichment: dict) -> dict:
+    engines = enrichment.get("character_engines")
+    if isinstance(engines, list) and engines:
+        plan["character_engines"] = [item for item in engines if isinstance(item, dict)][:4]
+    for field in ("relationship_turn", "magic_timing", "ending_goal"):
+        value = enrichment.get(field)
+        if isinstance(value, str) and value.strip():
+            plan[field] = value.strip()
+
+    beat_notes = enrichment.get("beat_notes")
+    if isinstance(beat_notes, list):
+        for note in beat_notes:
+            if not isinstance(note, dict):
+                continue
+            try:
+                index = int(note.get("beat_index", 0)) - 1
+            except (TypeError, ValueError):
+                continue
+            if index < 0 or index >= len(plan.get("beats", [])):
+                continue
+            beat = plan["beats"][index]
+            for field in ("character_expression", "novelty", "do_not_repeat"):
+                value = note.get(field)
+                if isinstance(value, str) and value.strip():
+                    beat[field] = value.strip()
+    return plan
+
+
 async def _route_scene_director_model(config: ProviderConfig) -> None:
     """Prefer EmberWriter's structured planning model for hidden JSON scene direction."""
     if config.provider != "ollama":
@@ -361,97 +795,61 @@ async def build_hidden_adult_scene_plan(
     heat_level: str | None,
     delivery_scope: str,
 ) -> str:
-    """Create and validate hidden choreography so a short author brief is enough."""
+    """Build required choreography in code; use the planning model only for optional enrichment."""
+    plan = _deterministic_physical_plan(prompt, context, delivery_scope)
+    failure = _scene_plan_failure(plan, prompt, delivery_scope)
+    if failure:
+        raise RuntimeError(
+            "Deterministic scene skeleton failed validation: "
+            f"{failure}; {_scene_plan_debug_summary(plan, prompt)}"
+        )
+
     await _route_scene_director_model(config)
-    compact_context = compact_adult_context(context, prompt, limit=14000)
-    required_labels = _requested_plan_labels(prompt)
-    repair_note = ""
-    diagnostics: list[str] = []
-
-    for attempt in range(2):
-        requirements = (
-            ", ".join(required_labels)
-            if required_labels
-            else "(no named position/act keywords detected; infer a coherent progression)"
+    compact_context = compact_adult_context(context, prompt, limit=7000)
+    enrichment_messages = [
+        {"role": "system", "content": _SCENE_ENRICHER_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                "AUTHOR BRIEF\n"
+                f"{prompt}\n\n"
+                "FIXED PHYSICAL PLAN — DO NOT CHANGE ACT ORDER, OWNERSHIP, ANATOMY, OR GEOMETRY\n"
+                f"{json.dumps(plan, ensure_ascii=False, separators=(',', ':'))}\n\n"
+                "RELEVANT CHARACTER / RELATIONSHIP CANON\n"
+                f"{compact_context}\n"
+            ),
+        },
+    ]
+    try:
+        raw = await generate(
+            config,
+            enrichment_messages,
+            temperature=0.35,
+            top_p=0.9,
+            json_mode=True,
+            max_output_tokens=800,
         )
-        repair = (
-            "\nPLANNER REPAIR REQUIREMENT\n"
-            f"The prior plan was invalid: {repair_note}. Rebuild the entire JSON plan; do not merely explain the problem.\n"
-            if repair_note
-            else ""
+        enrichment = _parse_scene_plan_json(raw)
+        if enrichment:
+            plan = _merge_scene_enrichment(plan, enrichment)
+            plan["planning_source"] = "deterministic_physical_skeleton+model_enrichment"
+        else:
+            plan["enrichment_status"] = "planner returned unreadable enrichment JSON; deterministic skeleton retained"
+    except (RuntimeError, ValueError, httpx.HTTPError) as exc:
+        plan["enrichment_status"] = (
+            "planner enrichment unavailable; deterministic skeleton retained: "
+            + _safe_debug_excerpt(str(exc), 180)
         )
-        planner_messages = [
-            {"role": "system", "content": ADULT_SCENE_DIRECTOR_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    "AUTHOR BRIEF\n"
-                    f"{prompt}\n\n"
-                    f"HEAT: {heat_level or 'adult-explicit'}\n"
-                    f"DELIVERY SCOPE: {delivery_scope}\n"
-                    + (
-                        "CORE-ONLY PLANNING RULE: beat 1 must immediately execute one detected requested act/position. "
-                        "Do not spend beat 1 on kissing, teasing, readiness, atmosphere, relationship discussion, or generic buildup. "
-                        "Any transition needed to make beat 1 physically possible must be embedded in that same beat and kept minimal.\n"
-                        if delivery_scope == "core_only"
-                        else ""
-                    )
-                    + f"DETECTED REQUIRED ACTS / POSITIONS: {requirements}\n"
-                    "Every detected requirement must be explicitly covered by requested_acts and scheduled in beats. "
-                    "Compatible requirements may share one requested_acts entry (for example, missionary anal).\n"
-                    f"{repair}\n"
-                    "RELEVANT CHARACTER / BODY / RELATIONSHIP CANON\n"
-                    f"{compact_context}\n"
-                ),
-            },
-        ]
-        try:
-            raw = await generate(
-                config,
-                planner_messages,
-                temperature=0.25 if attempt else 0.35,
-                top_p=0.9,
-                json_mode=True,
-                max_output_tokens=2600,
-            )
-        except (RuntimeError, ValueError, httpx.HTTPError) as exc:
-            repair_note = "planner model call failed"
-            diagnostics.append(
-                f"attempt {attempt + 1}=model_call_failed"
-                f"({type(exc).__name__}: {_safe_debug_excerpt(str(exc), 220)})"
-            )
-            continue
 
-        plan = _parse_scene_plan_json(raw)
-        if not plan:
-            excerpt = _safe_debug_excerpt(raw, 320) or "(empty response)"
-            repair_note = "planner returned unreadable or non-object JSON"
-            diagnostics.append(
-                f"attempt {attempt + 1}=json_parse_failed(response={excerpt})"
-            )
-            continue
-
-        failure = _scene_plan_failure(plan, prompt, delivery_scope)
-        summary = _scene_plan_debug_summary(plan, prompt)
-        if failure:
-            repair_note = failure
-            diagnostics.append(
-                f"attempt {attempt + 1}=validation_failed({failure}; {summary})"
-            )
-            continue
-
-        plan["beats"] = plan["beats"][:7]
-        return json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
-
-    raise RuntimeError(
-        _planner_failure_message(
-            model=config.model,
-            preferred_model=PLANNING_MODEL,
-            required_labels=required_labels,
-            context_chars=len(compact_context),
-            attempts=diagnostics,
+    failure = _scene_plan_failure(plan, prompt, delivery_scope)
+    if failure:
+        raise RuntimeError(
+            "Enriched scene plan violated deterministic physical skeleton: "
+            f"{failure}; {_scene_plan_debug_summary(plan, prompt)}"
         )
-    )
+
+    plan["beats"] = plan["beats"][:7]
+    return json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
 
 
 def is_adult_explicit_specialist(model: str) -> bool:
