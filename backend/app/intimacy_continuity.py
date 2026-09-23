@@ -331,6 +331,10 @@ _TONGUE_PROBING_INSIDE_NEAR_PENIS = re.compile(
     r"\btongue\b[^.!?\n]{0,100}\b(?:prob(?:e|ed|ing)?\s+inside|inside)\b[^.!?\n]{0,150}\b(?:penis|cock|dick)\b",
     re.IGNORECASE,
 )
+_TONGUE_UNTARGETED_INSIDE = re.compile(
+    r"\btongue\b[^.!?\n]{0,120}\b(?:prob(?:e|ed|ing)?\s+inside|inside)\b",
+    re.IGNORECASE,
+)
 _REAR_GEOMETRY = re.compile(
     r"\b(?:from\s+behind|behind\s+(?:her|him|them)|facing\s+away|on\s+(?:her|his|their)\s+stomach|"
     r"hands?\s+and\s+knees?|all\s+fours|kneeling\s+behind)\b",
@@ -383,6 +387,15 @@ def hard_choreography_failure(draft: str) -> str:
         if part.strip()
     ]
     for sentence in sentences:
+        if (
+            _TONGUE_UNTARGETED_INSIDE.search(sentence)
+            and _PENIS_TERMS.search(previous_sentence)
+            and not _EXACT_PENETRATION_TARGET.search(sentence)
+        ):
+            return (
+                "physical continuity failure: tongue/inside language near penis anatomy leaves the "
+                "contact target physically impossible or undefined"
+            )
         if _WITHDRAWAL.search(sentence):
             penetration_target_established = False
         has_action = bool(_PENETRATION_ACTION.search(sentence))
