@@ -1008,7 +1008,7 @@ def test_novelty_filter_reports_removed_short_sentences_without_declaring_loop()
     async def exercise():
         guard = streaming_generation._NoveltyStreamFilter(emit, prior)
         await guard.feed(
-            "That feels amazing and I can feel you. "
+            "That feels amazing and I can feel you.\n\n"
             "A completely new physical beat followed from the changed position."
         )
         await guard.finish()
