@@ -726,12 +726,10 @@ async def generate_complete_prose_streamed(
         )
 
         pass_diagnostics.append(
-            (
-                f"p{pass_index + 1}:raw={novelty_filter.raw_words},accepted={candidate_words},"
-                f"removed={novelty_filter.removed_units},novelty={novelty_filter.novelty_ratio:.2f},"
-                f"complete={str(complete).lower()},continue={str(wants_more).lower()},"
-                f"loop={str(loop_interrupted).lower()}"
-            )
+            f"p{pass_index + 1}:raw={novelty_filter.raw_words},accepted={candidate_words},"
+            f"removed={novelty_filter.removed_units},novelty={novelty_filter.novelty_ratio:.2f},"
+            f"complete={str(complete).lower()},continue={str(wants_more).lower()},"
+            f"loop={str(loop_interrupted).lower()}"
         )
 
         role_failure = manuscript_role_failure(cleaned) if studio_delivery_verifier and cleaned else ""
