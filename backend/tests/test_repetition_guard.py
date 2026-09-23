@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 
 from app import generation, streaming_generation
 from app.models import ProviderConfig
@@ -364,7 +365,8 @@ def test_studio_final_repair_reports_actual_verifier_reason_without_marker(monke
             )
         )
     except streaming_generation.SceneDeliveryIncomplete as exc:
-        assert exc.reason == "immediate aftermath is still missing"
+        assert exc.reason.startswith("immediate aftermath is still missing")
+        assert "stream diagnostics:" in exc.reason
     else:
         raise AssertionError("Expected final Studio delivery verification to reject the incomplete repair")
 
