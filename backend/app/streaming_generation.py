@@ -1168,8 +1168,19 @@ async def generate_complete_prose_streamed(
         pass_index += 1
 
     if studio_delivery_verifier:
-        raise SceneDeliveryIncomplete(
-            accumulated,
-            verifier_reason or "requested scene never passed independent delivery verification",
-        )
+        reason = verifier_reason or "requested scene never passed independent delivery verification"
+        if core_only:
+            reason += (
+                f"; delivery diagnostics: scope=core_only, scope_restarts={scope_restart_count}, "
+                f"continuity_restarts={continuity_restart_count}, "
+                f"length_topup={str(length_topup_used).lower()}, "
+                f"canon_restart={str(canon_restart_used).lower()}, "
+                f"pass={min(pass_index + 1, max_passes)}/{max_passes}"
+            )
+        if pass_diagnostics:
+            reason += (
+                f"; stream diagnostics: accumulated_words={_word_count(accumulated)}, "
+                "passes=[" + " | ".join(pass_diagnostics[-max_passes:]) + "]"
+            )
+        raise SceneDeliveryIncomplete(accumulated, reason)
     return accumulated
