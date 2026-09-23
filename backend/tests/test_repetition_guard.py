@@ -1383,3 +1383,111 @@ def test_core_only_pass_diagnostics_report_action_onset(monkeypatch) -> None:
         )
 
     assert "onset=10000" in exc_info.value.reason
+
+
+def test_failure_forensics_preserve_verifier_restart_causal_chain(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    chunks = [
+        _words("setup", 40)
+        + " Oral sex began immediately and continued. "
+        + _words("passone", 404)
+        + ".",
+        _words("passtwo", 300) + ".",
+        _words("latebuildup", 405)
+        + " Oral sex finally began here. "
+        + _words("passthree", 295)
+        + ".",
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        return {
+            "verified": False,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": False,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": (
+                "physical continuity failure: a new penetration state begins without "
+                "identifying exact receiving anatomy at sentence 9"
+            ),
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+
+    messages = generation.build_messages(
+        "write",
+        "CORE ONLY. STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=600,
+        delivery_scope="core_only",
+    )
+    messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
+
+    with pytest.raises(streaming_generation.SceneDeliveryIncomplete) as exc_info:
+        asyncio.run(
+            streaming_generation.generate_complete_prose_streamed(
+                ProviderConfig(model="test-model"),
+                messages,
+                min_words=600,
+                on_delta=emit,
+                max_passes=3,
+            )
+        )
+
+    reason = exc_info.value.reason
+    assert writer_calls == 3
+    assert verifier_calls == 1
+    assert "verify@p2" in reason
+    assert "continuity=False" in reason
+    assert "restart@p2=continuity" in reason
+    assert "discarded_words=" in reason
+    assert "restart@p3=core_onset" in reason
+    assert "onset=405" in reason
+    assert "action='Oral sex'" in reason
+    assert "action_excerpt=" in reason
+    assert "head=" in reason
+    assert "tail=" in reason
+    assert "model=test-model" in reason
+    assert "initial_max_passes=3" in reason
+
+
+def test_novelty_filter_records_examples_of_removed_sentences() -> None:
+    prior = "That feels amazing and I can feel you. They changed position decisively."
+    visible: list[str] = []
+
+    async def emit(text: str) -> None:
+        visible.append(text)
+
+    async def exercise():
+        guard = streaming_generation._NoveltyStreamFilter(emit, prior)
+        await guard.feed(
+            "That feels amazing and I can feel you.\n\n"
+            "A completely new sentence follows."
+        )
+        await guard.finish()
+        return guard
+
+    guard = asyncio.run(exercise())
+
+    assert guard.removed_sentences == 1
+    assert any("That feels amazing and I can feel you" in item for item in guard.removed_examples)
