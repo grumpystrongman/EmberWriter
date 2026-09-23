@@ -208,3 +208,36 @@ Kaelen has a penis.
 """
     draft = "Kaelen moved behind Muna and touched her anus before they changed position."
     assert generation_reliability_refinement.hard_body_canon_failure(context, draft) == ""
+
+
+def test_requested_position_gate_requires_missionary_geometry() -> None:
+    prompt = "explicit missionary sex, doggy style sex, anal, blowjob"
+    draft = (
+        "Avery went onto hands and knees facing away while Rowan knelt behind her. "
+        "Rowan touched Avery's anus and they later had oral sex with her penis. "
+        "They reached a clear orgasm together."
+    )
+    reason = generation_reliability_refinement.requested_act_delivery_failure(prompt, draft)
+    assert "missionary" in reason
+    assert "receiver-on-back" in reason
+
+
+def test_requested_position_gate_accepts_recognizable_requested_sequence() -> None:
+    prompt = "explicit missionary sex, doggy style sex, anal, blowjob"
+    draft = (
+        "Avery lay on her back with her legs apart while Rowan moved between her legs facing her. "
+        "Later Avery moved onto hands and knees facing away and Rowan knelt behind her. "
+        "He identified her anus before anal penetration. "
+        "After they changed position, Avery used her mouth on Rowan's cock for oral sex."
+    )
+    assert generation_reliability_refinement.requested_act_delivery_failure(prompt, draft) == ""
+
+
+def test_requested_position_gate_respects_negated_position() -> None:
+    prompt = "explicit anal scene, avoid missionary, include doggy style and blowjob"
+    draft = (
+        "Avery moved onto hands and knees facing away while Rowan knelt behind her. "
+        "He identified her anus before anal penetration. "
+        "Afterward she used her mouth on Rowan's penis."
+    )
+    assert generation_reliability_refinement.requested_act_delivery_failure(prompt, draft) == ""
