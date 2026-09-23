@@ -307,9 +307,20 @@ def _duplicate_short_sentence_failure(text: str) -> str:
         if len(normalized) < 20 or len(normalized.split()) < 4:
             continue
         counts[normalized] = counts.get(normalized, 0) + 1
-    repeated = [sentence for sentence, count in counts.items() if count >= 2]
+    repeated = [
+        (sentence, count)
+        for sentence, count in counts.items()
+        if count >= 2
+    ]
     if len(repeated) >= 2 or any(count >= 3 for count in counts.values()):
-        return "multiple short sentences are being recycled verbatim instead of advancing the scene"
+        examples = "; ".join(
+            f"{count}x '{sentence[:72]}{'…' if len(sentence) > 72 else ''}'"
+            for sentence, count in sorted(repeated, key=lambda item: (-item[1], item[0]))[:3]
+        )
+        return (
+            "multiple short sentences are being recycled verbatim instead of advancing the scene"
+            + (f" (examples: {examples})" if examples else "")
+        )
     return ""
 
 

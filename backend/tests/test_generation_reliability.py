@@ -215,3 +215,5 @@ def test_hard_quality_gate_rejects_multiple_recycled_short_sentences() -> None:
     )
     reason = generation_reliability_refinement.hard_quality_failure(draft)
     assert "short sentences are being recycled" in reason
+    assert "2x 'this is amazing and i can feel you'" in reason
+    assert "2x 'this is beautiful and i feel every bit of you'" in reason

@@ -974,3 +974,50 @@ def test_final_failure_reports_stream_filter_diagnostics(monkeypatch) -> None:
     assert "p2:raw=180,accepted=0" in reason
     assert "removed=" in reason
     assert "novelty=" in reason
+
+
+def test_dedupe_removes_exact_short_sentence_repeats_across_passes() -> None:
+    prior = (
+        "Muna changed the angle and pulled him closer. "
+        "That feels amazing and I can feel you. "
+        "Kaelen followed her movement instead of resetting the beat."
+    )
+    candidate = (
+        "That feels amazing and I can feel you. "
+        "The next movement changed their position completely. "
+        "This is beautiful and I feel every bit of you. "
+        "This is beautiful and I feel every bit of you."
+    )
+
+    cleaned, removed, novelty = streaming_generation.dedupe_repetitive_prose(candidate, prior)
+
+    assert cleaned.count("That feels amazing and I can feel you") == 0
+    assert cleaned.count("This is beautiful and I feel every bit of you") == 1
+    assert "The next movement changed their position completely" in cleaned
+    assert removed == 0
+    assert 0 < novelty < 1
+
+
+def test_novelty_filter_reports_removed_short_sentences_without_declaring_loop() -> None:
+    visible: list[str] = []
+    prior = "That feels amazing and I can feel you. They changed position decisively."
+
+    async def emit(text: str) -> None:
+        visible.append(text)
+
+    async def exercise():
+        guard = streaming_generation._NoveltyStreamFilter(emit, prior)
+        await guard.feed(
+            "That feels amazing and I can feel you.\n\n"
+            "A completely new physical beat followed from the changed position."
+        )
+        await guard.finish()
+        return guard
+
+    guard = asyncio.run(exercise())
+
+    assert guard.removed_sentences == 1
+    assert guard.removed_units == 0
+    assert "That feels amazing and I can feel you" not in guard.text
+    assert "completely new physical beat" in guard.text
+    assert "That feels amazing and I can feel you" not in "".join(visible)
