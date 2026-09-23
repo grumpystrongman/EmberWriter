@@ -755,3 +755,91 @@ def test_studio_allows_second_targeted_continuity_restart(monkeypatch) -> None:
     assert len(repair_prompts) == 2
     assert all("exact receiving anatomy" in prompt for prompt in repair_prompts)
     assert all("For the FIRST sentence of every new penetration state" in prompt for prompt in repair_prompts)
+
+
+def test_core_only_late_start_can_restart_twice_before_success(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    restart_prompts: list[str] = []
+    chunks = [
+        _words("buildup", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("stillbuildup", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("direct", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        if writer_calls > 0:
+            restart_prompts.append(messages[-1]["content"])
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls < 3:
+            return {
+                "verified": False,
+                "core_encounter_on_page": True,
+                "requested_explicitness_delivered": False,
+                "buildup_only": True,
+                "fade_or_skip": False,
+                "ending_complete": True,
+                "canon_respected": True,
+                "physical_continuity": True,
+                "progression_regression": False,
+                "repetition_loop": False,
+                "reason": (
+                    "core-only delivery failure: requested sexual action begins too late "
+                    "(first direct-action evidence at word 435); discard the buildup and restart "
+                    "at the requested core action"
+                ),
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+
+    messages = generation.build_messages(
+        "write",
+        "CORE ONLY. STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=150,
+        delivery_scope="core_only",
+    )
+    messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            max_passes=3,
+        )
+    )
+
+    assert writer_calls == 3
+    assert verifier_calls == 3
+    assert "direct219" in result
+    assert len(restart_prompts) == 2
+    assert all("FIRST PARAGRAPH" in prompt for prompt in restart_prompts)
+    assert all("HIDDEN SCENE DIRECTOR PLAN" in prompt for prompt in restart_prompts)

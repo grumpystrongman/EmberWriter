@@ -200,7 +200,7 @@ def _beat_delivery_text(beat: dict) -> str:
     )
 
 
-def _scene_plan_failure(plan: dict, prompt: str) -> str:
+def _scene_plan_failure(plan: dict, prompt: str, delivery_scope: str = "full_scene") -> str:
     beats = plan.get("beats")
     if not isinstance(beats, list) or len(beats) < 2:
         return "plan must contain at least two ordered beats"
@@ -250,6 +250,15 @@ def _scene_plan_failure(plan: dict, prompt: str) -> str:
     uncovered = [label for label in required if label not in beat_coverage]
     if uncovered:
         return "plan metadata listed but beats did not schedule: " + ", ".join(uncovered)
+
+    if delivery_scope == "core_only" and required:
+        first_beat = beats[0]
+        first_coverage = _labels_in_text(_beat_delivery_text(first_beat))
+        if not (first_coverage & required_set):
+            return (
+                "core-only plan begins with setup instead of a requested act/position; "
+                "beat 1 must directly deliver one of: " + ", ".join(required)
+            )
 
     return ""
 
@@ -380,7 +389,14 @@ async def build_hidden_adult_scene_plan(
                     f"{prompt}\n\n"
                     f"HEAT: {heat_level or 'adult-explicit'}\n"
                     f"DELIVERY SCOPE: {delivery_scope}\n"
-                    f"DETECTED REQUIRED ACTS / POSITIONS: {requirements}\n"
+                    + (
+                        "CORE-ONLY PLANNING RULE: beat 1 must immediately execute one detected requested act/position. "
+                        "Do not spend beat 1 on kissing, teasing, readiness, atmosphere, relationship discussion, or generic buildup. "
+                        "Any transition needed to make beat 1 physically possible must be embedded in that same beat and kept minimal.\n"
+                        if delivery_scope == "core_only"
+                        else ""
+                    )
+                    + f"DETECTED REQUIRED ACTS / POSITIONS: {requirements}\n"
                     "Every detected requirement must be explicitly covered by requested_acts and scheduled in beats. "
                     "Compatible requirements may share one requested_acts entry (for example, missionary anal).\n"
                     f"{repair}\n"
@@ -415,7 +431,7 @@ async def build_hidden_adult_scene_plan(
             )
             continue
 
-        failure = _scene_plan_failure(plan, prompt)
+        failure = _scene_plan_failure(plan, prompt, delivery_scope)
         summary = _scene_plan_debug_summary(plan, prompt)
         if failure:
             repair_note = failure
