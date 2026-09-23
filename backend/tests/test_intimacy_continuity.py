@@ -151,3 +151,30 @@ def test_rejects_first_person_fill_without_receiving_anatomy() -> None:
     )
     reason = intimacy_continuity.hard_choreography_failure(draft)
     assert "exact receiving anatomy" in reason
+
+
+def test_allows_receiving_anatomy_established_in_immediately_prior_setup_sentence() -> None:
+    draft = (
+        "Kaelen pressed the head of his cock against Muna's anus and held there. "
+        "He entered her slowly once she shifted back toward him."
+    )
+    assert intimacy_continuity.hard_choreography_failure(draft) == ""
+
+
+def test_allows_receiving_anatomy_setup_with_positioning_before_slid_in() -> None:
+    draft = (
+        "Kaelen positioned his cock at Muna's anal opening while she braced on her hands. "
+        "He slid in slowly and paused."
+    )
+    assert intimacy_continuity.hard_choreography_failure(draft) == ""
+
+
+def test_target_setup_expires_before_late_ambiguous_penetration() -> None:
+    draft = (
+        "Kaelen rested his cock against Muna's anus. "
+        "They paused while she laughed and caught her breath. "
+        "He kissed her shoulder and changed the subject. "
+        "Later he entered her without reestablishing the receiving target."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "exact receiving anatomy" in reason

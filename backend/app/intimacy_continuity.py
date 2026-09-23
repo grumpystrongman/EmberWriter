@@ -380,6 +380,7 @@ def hard_choreography_failure(draft: str) -> str:
             )
 
     penetration_target_established = False
+    pending_target_sentences = 0
     previous_sentence = ""
     sentences = [
         part.strip()
@@ -398,20 +399,46 @@ def hard_choreography_failure(draft: str) -> str:
             )
         if _WITHDRAWAL.search(sentence):
             penetration_target_established = False
+            pending_target_sentences = 0
+
         has_action = bool(_PENETRATION_ACTION.search(sentence))
         has_exact_target = bool(_EXACT_PENETRATION_TARGET.search(sentence))
+        has_penetrating_anatomy = bool(_PENIS_TERMS.search(sentence))
+        has_setup = bool(_PENETRATION_SETUP.search(sentence))
+
+        # A receiving target may be established immediately before penetration rather than
+        # repeated in the same sentence. Preserve that setup briefly when the sentence also
+        # identifies the penetrating anatomy or explicitly positions/alines the participants.
+        if has_exact_target and (has_penetrating_anatomy or has_setup):
+            pending_target_sentences = 2
+
         if has_action and has_exact_target:
             penetration_target_established = True
+            pending_target_sentences = 0
+
         bare_start = bool(_BARE_PENETRATION_PRONOUN.search(sentence))
         slid_in = bool(_BARE_SLID_IN.search(sentence)) and bool(
             _PENETRATION_SETUP.search(previous_sentence)
             or _PENETRATION_SETUP.search(sentence)
+            or pending_target_sentences > 0
         )
-        if (bare_start or slid_in) and not has_exact_target and not penetration_target_established:
+        if (
+            (bare_start or slid_in)
+            and not has_exact_target
+            and not penetration_target_established
+            and pending_target_sentences <= 0
+        ):
             return (
                 "physical continuity failure: a new penetration state begins without identifying "
                 "the exact receiving anatomy"
             )
+
+        if (bare_start or slid_in) and pending_target_sentences > 0:
+            penetration_target_established = True
+            pending_target_sentences = 0
+        elif pending_target_sentences > 0 and not has_exact_target:
+            pending_target_sentences -= 1
+
         previous_sentence = sentence
 
     for paragraph in re.split(r"\n\s*\n", draft):
