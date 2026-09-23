@@ -220,3 +220,103 @@ def test_local_studio_uses_smaller_ollama_context_than_general_writer() -> None:
 
     assert studio_tokens == 10240
     assert writer_tokens > studio_tokens
+
+
+def test_adult_specialist_local_studio_allows_two_repair_passes(monkeypatch) -> None:
+    observed: dict[str, int] = {}
+    statuses: list[str] = []
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Scene intent: intimacy\nSTUDIO SCENE DELIVERY CONTRACT:\n"
+                "You are EmberWriter's adult-fiction scene specialist."
+            ),
+        },
+        {"role": "user", "content": "AUTHOR INSTRUCTION\nWrite the requested scene."},
+    ]
+
+    async def fake_base(*_args, **kwargs) -> str:
+        observed["max_passes"] = kwargs["max_passes"]
+        return "draft"
+
+    async def status(message: str) -> None:
+        statuses.append(message)
+
+    monkeypatch.setattr(performance, "_BASE_STREAMED_COMPLETE", fake_base)
+    config = ProviderConfig(
+        provider="ollama",
+        base_url="http://localhost:11434",
+        model=local_stream._HERETIC_ROCINANTE,
+    )
+    asyncio.run(
+        performance.generate_complete_prose_streamed_budgeted(
+            config,
+            messages,
+            min_words=300,
+            on_delta=_noop_delta,
+            on_status=status,
+            max_passes=6,
+            max_output_tokens=6144,
+        )
+    )
+
+    assert observed["max_passes"] == 3
+    assert any("two repair passes maximum" in message for message in statuses)
+
+
+def test_requested_act_failure_skips_local_semantic_verifier(monkeypatch) -> None:
+    called = False
+
+    async def expensive_verify(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return {"verified": True}
+
+    messages = [
+        {
+            "role": "system",
+            "content": "Scene intent: intimacy\nSTUDIO SCENE DELIVERY CONTRACT:",
+        },
+        {
+            "role": "user",
+            "content": (
+                "AUTHOR INSTRUCTION\n"
+                "Write an explicit scene: missionary sex, doggy style sex, anal, blowjob."
+            ),
+        },
+    ]
+    monkeypatch.setattr(performance, "_verify_local_studio_scene_delivery", expensive_verify)
+    monkeypatch.setattr(reliability, "_hard_quality_failure", lambda _draft: "")
+    monkeypatch.setattr(refinement, "explicit_delivery_failure", lambda _prompt, _draft: "")
+    config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model="test")
+
+    verdict = asyncio.run(
+        performance.verify_studio_scene_delivery_fast(
+            config,
+            messages,
+            "They kissed, moved close, and declared the moment complete.",
+        )
+    )
+
+    assert verdict["verified"] is False
+    assert verdict["physical_continuity"] is False
+    assert "missionary" in str(verdict["reason"])
+    assert called is False
+
+
+def test_verified_payload_rejects_progression_regression() -> None:
+    verdict = performance._verified_from_payload(
+        {
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": True,
+            "repetition_loop": False,
+        }
+    )
+    assert verdict["verified"] is False
