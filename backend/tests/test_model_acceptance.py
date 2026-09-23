@@ -20,7 +20,11 @@ def _acceptable_scene() -> str:
         "Avery orgasmed while Rowan continued the direct sexual action. "
         "Rowan came afterward, ejaculating as the encounter reached completion. "
     )
-    return body + ("They stayed physically engaged and changed pace together without leaving the encounter. " * 92)
+    tail = " ".join(
+        f"They stayed physically engaged as the pace changed through continuation beat {index}."
+        for index in range(92)
+    )
+    return body + tail + "."
 
 
 def test_acceptance_evaluator_accepts_direct_complete_scene_under_ceiling() -> None:
