@@ -39,6 +39,14 @@ def _is_local_studio(config: ProviderConfig, messages: list[dict[str, str]]) -> 
     return config.provider == "ollama" and streaming_generation._is_studio_scene(messages)
 
 
+def _is_adult_specialist_messages(messages: list[dict[str, str]]) -> bool:
+    return any(
+        message.get("role") == "system"
+        and "adult-fiction scene specialist" in message.get("content", "")
+        for message in messages
+    )
+
+
 def _failed_verdict(reason: str, *, explicitness: bool = False) -> dict[str, object]:
     verdict: dict[str, object] = {
         "verified": False,
@@ -232,7 +240,8 @@ async def generate_complete_prose_streamed_budgeted(
     effective_passes = max_passes
     effective_output_tokens = max_output_tokens
     if _is_local_studio(config, messages):
-        effective_passes = min(max_passes, _LOCAL_STUDIO_MAX_PASSES)
+        repair_cap = 3 if _is_adult_specialist_messages(messages) else _LOCAL_STUDIO_MAX_PASSES
+        effective_passes = min(max_passes, repair_cap)
         profile = "Fast 8B" if _is_fast_model(config.model) else "Quality 12B"
         profile_cap = (
             _LOCAL_STUDIO_FAST_OUTPUT_TOKENS
@@ -242,7 +251,11 @@ async def generate_complete_prose_streamed_budgeted(
         effective_output_tokens = min(max_output_tokens, profile_cap)
         if on_status is not None:
             await on_status(
-                f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
+                (
+                    f"Local Studio · {profile} · primary draft + two repair passes maximum · compact semantic verifier"
+                    if _is_adult_specialist_messages(messages)
+                    else f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
+                )
             )
 
     return await _BASE_STREAMED_COMPLETE(
