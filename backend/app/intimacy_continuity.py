@@ -309,6 +309,11 @@ _EXACT_PENETRATION_TARGET = re.compile(
     r"\b(?:anus|anal\s+opening|asshole|rectum|mouth|throat|vagina|vaginal\s+opening)\b",
     re.IGNORECASE,
 )
+_CONTEXTUAL_ASS_TARGET = re.compile(
+    r"\b(?:into|inside|in|through|at|against)\s+"
+    r"(?:(?:her|his|their|my|your|the)\s+)?ass\b",
+    re.IGNORECASE,
+)
 _PENETRATION_SETUP = re.compile(
     r"\b(?:align(?:ed|ing)?\s+(?:himself|herself|themself|themselves)|between\s+(?:her|his|their)\s+legs|"
     r"for\s+penetration|position(?:ed|ing)?\s+(?:himself|herself|themself|themselves))\b",
@@ -402,7 +407,10 @@ def hard_choreography_failure(draft: str) -> str:
             pending_target_sentences = 0
 
         has_action = bool(_PENETRATION_ACTION.search(sentence))
-        has_exact_target = bool(_EXACT_PENETRATION_TARGET.search(sentence))
+        has_exact_target = bool(
+            _EXACT_PENETRATION_TARGET.search(sentence)
+            or _CONTEXTUAL_ASS_TARGET.search(sentence)
+        )
         has_penetrating_anatomy = bool(_PENIS_TERMS.search(sentence))
         has_setup = bool(_PENETRATION_SETUP.search(sentence))
 
