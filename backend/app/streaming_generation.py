@@ -672,7 +672,7 @@ async def generate_complete_prose_streamed(
     verifier_reason = ""
     canon_restart_used = False
     continuity_restart_count = 0
-    scope_restart_used = False
+    scope_restart_count = 0
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
     role_restart_credit = 1
@@ -788,9 +788,9 @@ async def generate_complete_prose_streamed(
                 if (
                     core_only
                     and verifier_reason.startswith("core-only delivery failure:")
-                    and not scope_restart_used
+                    and scope_restart_count < 2
                 ):
-                    scope_restart_used = True
+                    scope_restart_count += 1
                     accumulated = ""
                     if on_status is not None:
                         await on_status(
@@ -803,9 +803,11 @@ async def generate_complete_prose_streamed(
                             "content": (
                                 "Restart from scratch. CORE ONLY means the central requested action, not its lead-up. "
                                 "The previous attempt spent too much of the response on setup or delivered too little direct action, "
-                                "so it has been discarded. Begin the requested sexual action immediately, use the supplied hard body "
-                                "canon exactly, sustain concrete action throughout the segment, and do not add travel, meals, scenery, "
-                                "pets, relationship analysis, or another buildup sequence."
+                                "so it has been discarded. Begin the requested sexual action in the FIRST PARAGRAPH, use the supplied hard body "
+                                "canon exactly, and follow the HIDDEN SCENE DIRECTOR PLAN beginning with its first requested act. "
+                                "The first paragraph must contain direct sexual action rather than kissing, teasing, anticipation, readiness, "
+                                "atmosphere, relationship discussion, or generic touching. Sustain concrete action throughout the segment, "
+                                "and do not add travel, meals, scenery, pets, relationship analysis, or another buildup sequence."
                             ),
                         },
                     ]
