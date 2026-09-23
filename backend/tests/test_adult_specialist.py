@@ -54,100 +54,99 @@ A long unrelated history of kingdoms and politics.
     assert "Avery does not have a vagina, vulva, or clitoris" in user
 
 
-def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch) -> None:
+
+def test_hidden_scene_director_builds_physical_skeleton_before_optional_enrichment(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    async def fake_generate(_config, messages, **kwargs) -> str:
+    async def installed(_base_url: str) -> list[str]:
+        return [PLANNING_MODEL]
+
+    async def fake_generate(config, messages, **kwargs) -> str:
+        captured["model"] = config.model
         captured["messages"] = messages
         captured["kwargs"] = kwargs
         return json.dumps(
             {
-                "opening_state": "Kaelen stands facing seated Muna.",
-                "central_intent": "continuous encounter",
-                "requested_acts": [],
                 "character_engines": [
                     {
                         "character": "Muna",
-                        "active_behavior": "turns play into initiative and rhythm",
-                        "generic_shortcut_to_avoid": "constant giggling as a substitute for personality",
+                        "active_behavior": "turns play into deliberate initiative and rhythm",
+                        "generic_shortcut_to_avoid": "constant laughter as a substitute for personality",
+                    },
+                    {
+                        "character": "Kaelen",
+                        "active_behavior": "responds attentively to Muna's choices",
+                        "generic_shortcut_to_avoid": "generic dominance",
+                    },
+                ],
+                "relationship_turn": "trust deepens through responsive action",
+                "magic_timing": "latter half",
+                "ending_goal": "physical resolution with an immediate Communion shift",
+                "beat_notes": [
+                    {
+                        "beat_index": 1,
+                        "character_expression": "Muna controls the opening rhythm playfully.",
+                        "novelty": "Muna turns the author-specified seated/standing geometry into initiative.",
+                        "do_not_repeat": "introductory kissing",
                     }
                 ],
-                "relationship_turn": "trust deepens through action rather than explanation",
-                "magic_timing": "latter half",
-                "beats": [
-                    {
-                        "objective": "close distance",
-                        "start_state": "standing / seated",
-                        "pose_geometry": {
-                            "participant_a": "Kaelen standing facing Muna",
-                            "participant_b": "Muna seated facing Kaelen",
-                            "relative_position": "front",
-                        },
-                        "transition": "Muna rises",
-                        "action": "affectionate contact",
-                        "act_state": "NONE",
-                        "actor": "Muna",
-                        "receiver": "Kaelen",
-                        "penetration_state": "NONE",
-                        "mouth_state": "NONE",
-                        "end_state": "both standing",
-                    },
-                    {
-                        "objective": "progress",
-                        "start_state": "both standing",
-                        "pose_geometry": {
-                            "participant_a": "Kaelen standing",
-                            "participant_b": "Muna standing",
-                            "relative_position": "front",
-                        },
-                        "transition": "NONE",
-                        "action": "continue encounter",
-                        "act_state": "NONE",
-                        "actor": "Kaelen",
-                        "receiver": "Muna",
-                        "penetration_state": "NONE",
-                        "mouth_state": "NONE",
-                        "end_state": "stable",
-                    },
-                ],
-                "ending_goal": "resolution",
-                "continuity_watchouts": ["do not invent anatomy"],
             }
         )
 
+    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
     monkeypatch.setattr(adult_specialist, "generate", fake_generate)
-    config = ProviderConfig(provider="ollama", model="director-model")
+
+    prompt = """Write a high-heat sex scene between Kaelen and Muna.
+Location: private gym changing area after a sauna.
+Starting situation: Muna is seated on the mat and Kaelen is standing in front of her.
+Tone: playful, physical, joyful, explicit, missionary sex, doggy style sex, anal, blowjob
+Outcome: deepen their connection and intimacy.
+Let the encounter develop naturally from their personalities."""
+    context = """### Muna
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Muna has a penis. Muna does not have a vagina, vulva, or clitoris.
+
+### Kaelen
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Kaelen has a penis.
+"""
     plan_text = asyncio.run(
         adult_specialist.build_hidden_adult_scene_plan(
-            config,
-            "Kaelen and Muna in the changing room after the sauna. High heat. Communion deepens.",
-            "### Muna\nHARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:\nMuna has a penis.\n",
+            ProviderConfig(provider="ollama", base_url="http://localhost:11434", model="writer"),
+            prompt,
+            context,
             heat_level="inferno",
-            delivery_scope="full_scene",
+            delivery_scope="core_only",
         )
     )
 
     plan = json.loads(plan_text)
-    assert plan["opening_state"] == "Kaelen stands facing seated Muna."
-    assert len(plan["beats"]) == 2
+    assert plan["planning_source"] == "deterministic_physical_skeleton+model_enrichment"
+    assert [item["request"] for item in plan["requested_acts"]] == [
+        "missionary",
+        "doggy style",
+        "anal",
+        "blowjob",
+    ]
+    assert len(plan["beats"]) == 3
+    assert plan["beats"][0]["act_state"] == "blowjob"
+    assert plan["beats"][0]["actor"] == "Muna"
+    assert plan["beats"][0]["receiver"] == "Kaelen"
+    assert plan["beats"][0]["mouth_state"] == "Muna.mouth -> Kaelen.penis"
+    assert plan["beats"][1]["act_state"] == "missionary anal"
+    assert plan["beats"][1]["penetration_state"] == "Kaelen.penis -> Muna.anus"
+    assert plan["beats"][2]["act_state"] == "doggy style anal"
+    assert plan["beats"][2]["penetration_state"] == "Kaelen.penis -> Muna.anus"
+    assert plan["beats"][1]["transition"] != "NONE"
+    assert plan["beats"][2]["transition"] != "NONE"
     assert plan["character_engines"][0]["character"] == "Muna"
-    assert plan["magic_timing"] == "latter half"
+    assert captured["model"] == PLANNING_MODEL
+    assert captured["kwargs"]["json_mode"] is True
+    assert captured["kwargs"]["max_output_tokens"] == 800
     messages = captured["messages"]
     assert isinstance(messages, list)
-    assert "{POSITION_GEOMETRY_REFERENCE}" not in messages[0]["content"]
-    assert "MISSIONARY / FACE-TO-FACE ANAL" in messages[0]["content"]
-    assert "author should not have to choreograph the scene" in messages[0]["content"].lower()
-    assert "make the encounter unmistakably specific to these characters" in messages[0]["content"].lower()
-    assert "reserve its decisive realization for the latter half" in messages[0]["content"].lower()
-    assert "named sexual act or position" in messages[0]["content"].lower()
-    assert "do not merge incompatible requested acts" in messages[0]["content"].lower()
-    assert "\"requested_acts\"" in messages[0]["content"]
-    assert "\"actor\"" in messages[0]["content"]
-    assert "\"receiver\"" in messages[0]["content"]
-    assert "\"pose_geometry\"" in messages[0]["content"]
-    assert "Muna has a penis" in messages[1]["content"]
-    assert captured["kwargs"]["json_mode"] is True
-
+    assert "DO NOT CHANGE ACT ORDER, OWNERSHIP, ANATOMY, OR GEOMETRY" in messages[1]["content"]
+    assert len(messages[1]["content"]) < 16000
 
 def test_adult_specialist_context_is_compact() -> None:
     broad = "UNRELATED_LORE " * 10000
@@ -229,137 +228,38 @@ def test_non_explicit_request_does_not_force_erotica_model(monkeypatch) -> None:
     assert config.model == "general-model"
 
 
-def test_hidden_scene_director_retries_when_named_acts_are_missing(monkeypatch) -> None:
-    calls = 0
-    captured: list[list[dict[str, str]]] = []
 
-    def valid_plan() -> dict:
-        return {
-            "opening_state": "Kaelen stands facing seated Muna.",
-            "central_intent": "continuous encounter",
-            "requested_acts": [
-                {
-                    "request": "missionary",
-                    "actor": "Kaelen",
-                    "receiver": "Muna",
-                    "canon_safe_interpretation": "face-to-face anal using established anatomy",
-                    "required_geometry": "Muna on back; Kaelen in front between her legs",
-                    "sequence_index": 1,
-                },
-                {
-                    "request": "doggy style",
-                    "actor": "Kaelen",
-                    "receiver": "Muna",
-                    "canon_safe_interpretation": "rear anal using established anatomy",
-                    "required_geometry": "Muna facing away with hips raised; Kaelen behind",
-                    "sequence_index": 2,
-                },
-                {
-                    "request": "anal",
-                    "actor": "Kaelen",
-                    "receiver": "Muna",
-                    "canon_safe_interpretation": "penis to anus",
-                    "required_geometry": "pelvis aligned to anus",
-                    "sequence_index": 3,
-                },
-                {
-                    "request": "blowjob",
-                    "actor": "Muna",
-                    "receiver": "Kaelen",
-                    "canon_safe_interpretation": "Muna mouth to Kaelen penis",
-                    "required_geometry": "Muna mouth reachable to Kaelen penis",
-                    "sequence_index": 4,
-                },
-            ],
-            "character_engines": [],
-            "relationship_turn": "trust deepens",
-            "magic_timing": "latter half",
-            "beats": [
-                {
-                    "objective": "missionary",
-                    "start_state": "Muna seated",
-                    "pose_geometry": {
-                        "participant_a": "Muna on back",
-                        "participant_b": "Kaelen in front",
-                        "relative_position": "front between legs",
-                    },
-                    "transition": "Muna lies back",
-                    "action": "missionary anal penetration",
-                    "act_state": "missionary anal",
-                    "actor": "Kaelen",
-                    "receiver": "Muna",
-                    "penetration_state": "Kaelen.penis -> Muna.anus",
-                    "mouth_state": "NONE",
-                    "end_state": "face-to-face",
-                },
-                {
-                    "objective": "doggy",
-                    "start_state": "face-to-face",
-                    "pose_geometry": {
-                        "participant_a": "Muna facing away hips raised",
-                        "participant_b": "Kaelen kneeling behind",
-                        "relative_position": "behind",
-                    },
-                    "transition": "withdraw and turn Muna onto hands and knees",
-                    "action": "doggy style anal penetration",
-                    "act_state": "doggy style anal",
-                    "actor": "Kaelen",
-                    "receiver": "Muna",
-                    "penetration_state": "Kaelen.penis -> Muna.anus",
-                    "mouth_state": "NONE",
-                    "end_state": "rear",
-                },
-                {
-                    "objective": "oral",
-                    "start_state": "rear",
-                    "pose_geometry": {
-                        "participant_a": "Muna kneeling in front",
-                        "participant_b": "Kaelen standing",
-                        "relative_position": "front",
-                    },
-                    "transition": "Kaelen withdraws and Muna turns to face him",
-                    "action": "blowjob oral sex",
-                    "act_state": "blowjob",
-                    "actor": "Muna",
-                    "receiver": "Kaelen",
-                    "penetration_state": "NONE",
-                    "mouth_state": "Muna.mouth -> Kaelen.penis",
-                    "end_state": "oral",
-                },
-            ],
-            "ending_goal": "resolution",
-            "continuity_watchouts": [],
-        }
+def test_planner_repeat_limit_does_not_block_deterministic_scene_plan(monkeypatch) -> None:
+    async def installed(_base_url: str) -> list[str]:
+        return [PLANNING_MODEL]
 
-    async def fake_generate(_config, messages, **_kwargs) -> str:
-        nonlocal calls
-        captured.append(messages)
-        calls += 1
-        if calls == 1:
-            bad = valid_plan()
-            bad["requested_acts"] = []
-            return json.dumps(bad)
-        return json.dumps(valid_plan())
+    async def fake_generate(_config, _messages, **_kwargs) -> str:
+        raise RuntimeError("Ollama could not generate: prediction aborted, token repeat limit reached")
 
+    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
     monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+
+    prompt = """Write a high-heat sex scene between Kaelen and Muna.
+Starting situation: Muna is seated on the mat and Kaelen is standing in front of her.
+Tone: explicit, missionary sex, doggy style sex, anal, blowjob"""
     plan_text = asyncio.run(
         adult_specialist.build_hidden_adult_scene_plan(
-            ProviderConfig(provider="ollama", model="director-model"),
-            "Kaelen and Muna. missionary sex, doggy style sex, anal, blowjob.",
+            ProviderConfig(provider="ollama", base_url="http://localhost:11434", model="writer"),
+            prompt,
             "### Muna\nMuna has a penis.\n### Kaelen\nKaelen has a penis.",
             heat_level="inferno",
-            delivery_scope="full_scene",
+            delivery_scope="core_only",
         )
     )
 
-    assert calls == 2
-    assert plan_text
-    assert "PLANNER REPAIR REQUIREMENT" in captured[1][1]["content"]
-    assert "plan omitted author-requested acts/positions" in captured[1][1]["content"]
-    assert "DETECTED REQUIRED ACTS / POSITIONS: missionary, doggy, anal, blowjob" in captured[0][1]["content"]
+    plan = json.loads(plan_text)
+    assert plan["planning_source"] == "deterministic_physical_skeleton"
+    assert "token repeat limit reached" in plan["enrichment_status"]
+    assert len(plan["beats"]) == 3
+    assert adult_specialist._scene_plan_failure(plan, prompt, "core_only") == ""
 
 
-def test_hidden_scene_director_prefers_dedicated_planning_model(monkeypatch) -> None:
+def test_hidden_scene_enrichment_prefers_dedicated_planning_model(monkeypatch) -> None:
     observed: dict[str, str] = {}
 
     async def installed(_base_url: str) -> list[str]:
@@ -367,36 +267,20 @@ def test_hidden_scene_director_prefers_dedicated_planning_model(monkeypatch) -> 
 
     async def fake_generate(config, _messages, **_kwargs) -> str:
         observed["model"] = config.model
-        return json.dumps(
-            {
-                "opening_state": "A faces B.",
-                "central_intent": "progress",
-                "requested_acts": [],
-                "character_engines": [],
-                "relationship_turn": "closer",
-                "magic_timing": "latter half",
-                "beats": [
-                    {"objective": "first change", "action": "move closer"},
-                    {"objective": "second change", "action": "resolve"},
-                ],
-                "ending_goal": "resolution",
-                "continuity_watchouts": [],
-            }
-        )
+        return json.dumps({"relationship_turn": "closer through action"})
 
     monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
     monkeypatch.setattr(adult_specialist, "generate", fake_generate)
 
-    config = ProviderConfig(
-        provider="ollama",
-        base_url="http://localhost:11434",
-        model=ADULT_EXPLICIT_MODEL,
-    )
     plan = asyncio.run(
         adult_specialist.build_hidden_adult_scene_plan(
-            config,
-            "Write a high-heat scene between A and B.",
-            "Adult characters.",
+            ProviderConfig(
+                provider="ollama",
+                base_url="http://localhost:11434",
+                model=ADULT_EXPLICIT_MODEL,
+            ),
+            "Write a high-heat scene between A and B. missionary sex, anal.",
+            "### A\nA has a penis.\n### B\nB has a penis.",
             heat_level="inferno",
             delivery_scope="full_scene",
         )
@@ -404,7 +288,6 @@ def test_hidden_scene_director_prefers_dedicated_planning_model(monkeypatch) -> 
 
     assert plan
     assert observed["model"] == PLANNING_MODEL
-
 
 def test_scene_plan_accepts_anal_covered_inside_position_entries() -> None:
     prompt = "missionary sex, doggy style sex, anal, blowjob"
@@ -494,101 +377,76 @@ def test_scene_plan_allows_non_requested_transition_beats_without_full_geometry(
     assert adult_specialist._scene_plan_failure(plan, prompt) == ""
 
 
-def test_hidden_scene_planner_failure_reports_actionable_diagnostics(monkeypatch) -> None:
-    calls = 0
 
-    async def installed(_base_url: str) -> list[str]:
-        return [PLANNING_MODEL, ADULT_EXPLICIT_MODEL]
-
+def test_model_enrichment_cannot_replace_fixed_physical_beats(monkeypatch) -> None:
     async def fake_generate(_config, _messages, **_kwargs) -> str:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return json.dumps(
-                {
-                    "requested_acts": [
-                        {
-                            "request": "missionary",
-                            "actor": "Kaelen",
-                            "receiver": "Muna",
-                            "canon_safe_interpretation": "missionary anal",
-                            "required_geometry": "Muna on back; Kaelen in front",
-                        }
-                    ],
-                    "beats": [
-                        {
-                            "objective": "missionary anal",
-                            "action": "missionary anal penetration",
-                            "act_state": "missionary anal",
-                            "actor": "Kaelen",
-                            "receiver": "Muna",
-                            "pose_geometry": {"relative_position": "front"},
-                        }
-                    ],
-                }
-            )
-        return "{not valid json"
+        return json.dumps(
+            {
+                "relationship_turn": "closer",
+                "beats": [
+                    {
+                        "objective": "bad collapsed beat",
+                        "action": "ignore all requested positions",
+                    }
+                ],
+                "requested_acts": [],
+                "beat_notes": [
+                    {
+                        "beat_index": 2,
+                        "character_expression": "Kaelen follows Muna's rhythm.",
+                        "novelty": "face-to-face configuration changes the dynamic",
+                        "do_not_repeat": "oral beat",
+                    }
+                ],
+            }
+        )
 
-    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
     monkeypatch.setattr(adult_specialist, "generate", fake_generate)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    prompt = "Write a sex scene between Kaelen and Muna. missionary sex, doggy style sex, anal, blowjob."
+    plan = json.loads(
         asyncio.run(
             adult_specialist.build_hidden_adult_scene_plan(
-                ProviderConfig(
-                    provider="ollama",
-                    base_url="http://localhost:11434",
-                    model=ADULT_EXPLICIT_MODEL,
-                ),
-                "missionary sex, doggy style sex, anal, blowjob",
+                ProviderConfig(provider="openai_compatible", model="planner"),
+                prompt,
+                "### Muna\nMuna has a penis.\n### Kaelen\nKaelen has a penis.",
+                heat_level="inferno",
+                delivery_scope="core_only",
+            )
+        )
+    )
+
+    assert len(plan["requested_acts"]) == 4
+    assert len(plan["beats"]) == 3
+    assert plan["beats"][0]["act_state"] == "missionary anal"
+    assert plan["beats"][1]["act_state"] == "doggy style anal"
+    assert plan["beats"][2]["act_state"] == "blowjob"
+    assert plan["beats"][1]["character_expression"] == "Kaelen follows Muna's rhythm."
+    assert adult_specialist._scene_plan_failure(plan, prompt, "core_only") == ""
+
+
+def test_unreadable_enrichment_json_keeps_valid_deterministic_plan(monkeypatch) -> None:
+    async def fake_generate(_config, _messages, **_kwargs) -> str:
+        return "{not valid json"
+
+    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+
+    prompt = "Write a sex scene between Kaelen and Muna. missionary sex, doggy style sex, anal, blowjob."
+    plan = json.loads(
+        asyncio.run(
+            adult_specialist.build_hidden_adult_scene_plan(
+                ProviderConfig(provider="openai_compatible", model="planner"),
+                prompt,
                 "### Muna\nMuna has a penis.\n### Kaelen\nKaelen has a penis.",
                 heat_level="inferno",
                 delivery_scope="full_scene",
             )
         )
+    )
 
-    message = str(exc_info.value)
-    assert f"Planner model: {PLANNING_MODEL}" in message
-    assert "Detected requirements: missionary, doggy, anal, blowjob" in message
-    assert "Planner context:" in message
-    assert "attempt 1=validation_failed" in message
-    assert "metadata_coverage=anal,missionary" in message
-    assert "metadata_missing=blowjob,doggy" in message
-    assert "beat_missing=blowjob,doggy" in message
-    assert "attempt 2=json_parse_failed" in message
-    assert "response={not valid json" in message
-    assert "No unplanned adult draft was accepted." in message
-
-
-def test_hidden_scene_planner_failure_reports_model_call_error(monkeypatch) -> None:
-    async def installed(_base_url: str) -> list[str]:
-        return [PLANNING_MODEL]
-
-    async def fake_generate(_config, _messages, **_kwargs) -> str:
-        raise RuntimeError("ollama planner timed out")
-
-    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
-    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
-
-    with pytest.raises(RuntimeError) as exc_info:
-        asyncio.run(
-            adult_specialist.build_hidden_adult_scene_plan(
-                ProviderConfig(
-                    provider="ollama",
-                    base_url="http://localhost:11434",
-                    model=ADULT_EXPLICIT_MODEL,
-                ),
-                "missionary sex",
-                "Adult character canon.",
-                heat_level="inferno",
-                delivery_scope="full_scene",
-            )
-        )
-
-    message = str(exc_info.value)
-    assert "attempt 1=model_call_failed(RuntimeError: ollama planner timed out)" in message
-    assert "attempt 2=model_call_failed(RuntimeError: ollama planner timed out)" in message
-
+    assert plan["planning_source"] == "deterministic_physical_skeleton"
+    assert "unreadable enrichment JSON" in plan["enrichment_status"]
+    assert adult_specialist._scene_plan_failure(plan, prompt, "full_scene") == ""
 
 def test_core_only_plan_requires_first_beat_to_deliver_requested_act() -> None:
     prompt = "missionary sex, doggy style sex, anal, blowjob"
