@@ -36,6 +36,10 @@ A long unrelated history of kingdoms and politics.
     assert "HIDDEN SCENE DIRECTOR PLAN" in system
     assert "Rowan stands; Avery sits." in system
     assert "execute each meaningful beat once, in order" in system
+    assert "requested_acts" in system
+    assert "A position name is not a new organ" in system
+    assert "One occupied body part cannot perform two incompatible jobs at once" in system
+    assert "slick entrance" in system
     assert "do not reduce a character to one repeated tic" in system.lower()
     assert "do not resolve or explain it before the director's planned timing" in system.lower()
     assert "SILENT PHYSICAL STATE LEDGER" not in system
@@ -106,6 +110,9 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
     assert "author should not have to choreograph the scene" in messages[0]["content"].lower()
     assert "make the encounter unmistakably specific to these characters" in messages[0]["content"].lower()
     assert "reserve its decisive realization for the latter half" in messages[0]["content"].lower()
+    assert "named sexual act or position" in messages[0]["content"].lower()
+    assert "do not merge incompatible requested acts" in messages[0]["content"].lower()
+    assert "\"requested_acts\"" in messages[0]["content"]
     assert "Muna has a penis" in messages[1]["content"]
     assert captured["kwargs"]["json_mode"] is True
 
