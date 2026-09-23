@@ -1,8 +1,6 @@
 import asyncio
 import json
 
-import pytest
-
 from app import adult_specialist
 from app.model_catalog import ADULT_EXPLICIT_MODEL, PLANNING_MODEL
 from app.models import ProviderConfig
