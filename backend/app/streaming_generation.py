@@ -77,11 +77,42 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", text))
 
 
-def _first_core_action_word(text: str) -> int:
+def _diagnostic_excerpt(text: str, limit: int = 180) -> str:
+    compact = re.sub(r"\s+", " ", text or "").strip()
+    compact = compact.replace("|", "/").replace("[", "(").replace("]", ")")
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+def _core_action_evidence(text: str) -> tuple[int, str, str]:
     match = _CORE_ONLY_ACTION_TOKEN.search(text)
     if not match:
-        return 10_000
-    return _word_count(text[:match.start()])
+        return 10_000, "none", _diagnostic_excerpt(text[:260], 180)
+    onset = _word_count(text[:match.start()])
+    start = max(0, match.start() - 110)
+    end = min(len(text), match.end() + 150)
+    return onset, match.group(0), _diagnostic_excerpt(text[start:end], 220)
+
+
+def _first_core_action_word(text: str) -> int:
+    return _core_action_evidence(text)[0]
+
+
+def _verdict_diagnostic(verdict: dict[str, object]) -> str:
+    flags = (
+        f"core={verdict.get('core_encounter_on_page')},"
+        f"explicit={verdict.get('requested_explicitness_delivered')},"
+        f"buildup={verdict.get('buildup_only')},"
+        f"fade={verdict.get('fade_or_skip')},"
+        f"ending={verdict.get('ending_complete')},"
+        f"canon={verdict.get('canon_respected')},"
+        f"continuity={verdict.get('physical_continuity')},"
+        f"regression={verdict.get('progression_regression')},"
+        f"repetition={verdict.get('repetition_loop')}"
+    )
+    reason = _diagnostic_excerpt(str(verdict.get("reason", "")), 300)
+    return f"flags({flags}); reason='{reason}'"
 
 
 def _strip_scene_markers(text: str) -> tuple[str, bool, bool]:
@@ -625,6 +656,7 @@ class _NoveltyStreamFilter:
         self._paragraph_memory = _recent_normalized_paragraphs(prior_text)
         self.removed_units = 0
         self.removed_sentences = 0
+        self.removed_examples: list[str] = []
         self.raw_words = 0
 
     @property
@@ -654,6 +686,7 @@ class _NoveltyStreamFilter:
 
         self.raw_words += _word_count(paragraph)
         accepted_context = self._accepted_context()
+        raw_sentences = _sentence_parts(paragraph)
         self.removed_sentences += _count_exact_short_sentence_repeats(
             paragraph,
             accepted_context,
@@ -662,6 +695,17 @@ class _NoveltyStreamFilter:
             paragraph,
             accepted_context,
         )
+        cleaned_sentence_norms = {
+            _normalize_prose(sentence) for sentence in _sentence_parts(cleaned)
+        }
+        for sentence in raw_sentences:
+            normalized_sentence = _normalize_prose(sentence)
+            if (
+                normalized_sentence
+                and normalized_sentence not in cleaned_sentence_norms
+                and len(self.removed_examples) < 3
+            ):
+                self.removed_examples.append(_diagnostic_excerpt(sentence, 140))
         self.removed_units += removed
         if self.removed_units >= 2:
             raise RepetitionLoopDetected("model entered a paragraph repetition loop")
@@ -722,7 +766,9 @@ async def generate_complete_prose_streamed(
     continuity_restart_count = 0
     scope_restart_count = 0
     length_topup_used = False
+    initial_max_passes = max_passes
     pass_diagnostics: list[str] = []
+    event_diagnostics: list[str] = []
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
     role_restart_credit = 1
@@ -775,18 +821,36 @@ async def generate_complete_prose_streamed(
         )
 
         projected = f"{accumulated}\n\n{cleaned}".strip() if cleaned else accumulated
-        projected_onset = _first_core_action_word(projected) if core_only else 0
+        projected_onset, projected_action, projected_action_excerpt = (
+            _core_action_evidence(projected) if core_only else (0, "n/a", "")
+        )
+        removed_examples = (
+            "~".join(f"'{item}'" for item in novelty_filter.removed_examples)
+            if novelty_filter.removed_examples
+            else "none"
+        )
         pass_diagnostics.append(
             f"p{pass_index + 1}:raw={novelty_filter.raw_words},accepted={candidate_words},"
             f"removed={novelty_filter.removed_units},sentences_removed={novelty_filter.removed_sentences},"
-            f"novelty={novelty_filter.novelty_ratio:.2f},"
+            f"removed_examples={removed_examples},novelty={novelty_filter.novelty_ratio:.2f},"
             f"complete={str(complete).lower()},continue={str(wants_more).lower()},"
             f"loop={str(loop_interrupted).lower()}"
-            + (f",onset={projected_onset}" if core_only else "")
+            + (
+                f",onset={projected_onset},action='{_diagnostic_excerpt(projected_action, 40)}',"
+                f"action_excerpt='{projected_action_excerpt}',"
+                f"head='{_diagnostic_excerpt(projected[:220], 160)}',"
+                f"tail='{_diagnostic_excerpt(projected[-220:], 160)}'"
+                if core_only
+                else ""
+            )
         )
 
         role_failure = manuscript_role_failure(cleaned) if studio_delivery_verifier and cleaned else ""
         if role_failure:
+            event_diagnostics.append(
+                f"p{pass_index + 1}:role_failure reason='{_diagnostic_excerpt(role_failure, 280)}' "
+                f"candidate_words={candidate_words}"
+            )
             verifier_reason = role_failure
             complete = False
             wants_more = True
@@ -842,6 +906,12 @@ async def generate_complete_prose_streamed(
                 f"(no direct-action evidence within the first {_CORE_ONLY_ONSET_LIMIT} words); "
                 "discard the buildup and restart at the requested core action"
             )
+            onset, action_token, action_excerpt = _core_action_evidence(accumulated)
+            event_diagnostics.append(
+                f"restart@p{pass_index + 1}=core_onset; discarded_words={words}; "
+                f"onset={onset}; action='{_diagnostic_excerpt(action_token, 40)}'; "
+                f"evidence='{action_excerpt}'; reason='{_diagnostic_excerpt(verifier_reason, 300)}'"
+            )
             accumulated = ""
             if on_status is not None:
                 await on_status(
@@ -887,6 +957,9 @@ async def generate_complete_prose_streamed(
                     await on_status("Verifying requested scene delivery…")
                 verifier_ran_this_pass = True
                 verdict = await verify_studio_scene_delivery(config, messages, accumulated)
+                event_diagnostics.append(
+                    f"verify@p{pass_index + 1}; words={words}; {_verdict_diagnostic(verdict)}"
+                )
                 if verdict.get("verified") is True:
                     if on_status is not None:
                         await on_status("Requested scene delivery verified · finishing…")
@@ -904,6 +977,10 @@ async def generate_complete_prose_streamed(
                     and scope_restart_count < 2
                 ):
                     scope_restart_count += 1
+                    event_diagnostics.append(
+                        f"restart@p{pass_index + 1}=scope_verifier; discarded_words={words}; "
+                        f"reason='{_diagnostic_excerpt(verifier_reason, 320)}'"
+                    )
                     accumulated = ""
                     if on_status is not None:
                         await on_status(
@@ -928,6 +1005,10 @@ async def generate_complete_prose_streamed(
                     continue
                 if not canon_respected and not canon_restart_used:
                     canon_restart_used = True
+                    event_diagnostics.append(
+                        f"restart@p{pass_index + 1}=canon; discarded_words={words}; "
+                        f"reason='{_diagnostic_excerpt(verifier_reason, 320)}'"
+                    )
                     accumulated = ""
                     if on_status is not None:
                         await on_status(
@@ -951,6 +1032,10 @@ async def generate_complete_prose_streamed(
                     or verdict.get("progression_regression") is True
                 ) and continuity_restart_count < 2:
                     continuity_restart_count += 1
+                    event_diagnostics.append(
+                        f"restart@p{pass_index + 1}=continuity; discarded_words={words}; "
+                        f"reason='{_diagnostic_excerpt(verifier_reason, 360)}'"
+                    )
                     accumulated = ""
                     if on_status is not None:
                         await on_status(
@@ -1009,6 +1094,10 @@ async def generate_complete_prose_streamed(
         ):
             length_topup_used = True
             remaining = max(min_words - words, 0)
+            event_diagnostics.append(
+                f"topup@p{pass_index + 1}; words={words}; short_by={remaining}; "
+                f"candidate_words={candidate_words}"
+            )
             if on_status is not None:
                 await on_status(
                     f"Final repair draft is {remaining} words short after cleanup · adding one brief clean completion…"
@@ -1046,6 +1135,9 @@ async def generate_complete_prose_streamed(
                     if on_status is not None:
                         await on_status("Final Studio delivery verification…")
                     verdict = await verify_studio_scene_delivery(config, messages, accumulated)
+                    event_diagnostics.append(
+                        f"final_verify@p{pass_index + 1}; words={words}; {_verdict_diagnostic(verdict)}"
+                    )
                     verifier_ran_this_pass = True
                     if verdict.get("verified") is True:
                         if on_status is not None:
@@ -1089,6 +1181,12 @@ async def generate_complete_prose_streamed(
                 reason += (
                     f"; stream diagnostics: accumulated_words={words}, final_candidate_words={candidate_words}, "
                     f"passes=[{filter_diagnostics}]"
+                )
+                reason += (
+                    f"; forensic trace: model={config.model}, min_words={min_words}, "
+                    f"initial_max_passes={initial_max_passes}, events=["
+                    + " | ".join(event_diagnostics[-12:])
+                    + "]"
                 )
                 if on_status is not None:
                     await on_status(
@@ -1182,5 +1280,11 @@ async def generate_complete_prose_streamed(
                 f"; stream diagnostics: accumulated_words={_word_count(accumulated)}, "
                 "passes=[" + " | ".join(pass_diagnostics[-max_passes:]) + "]"
             )
+        reason += (
+            f"; forensic trace: model={config.model}, min_words={min_words}, "
+            f"initial_max_passes={initial_max_passes}, events=["
+            + " | ".join(event_diagnostics[-12:])
+            + "]"
+        )
         raise SceneDeliveryIncomplete(accumulated, reason)
     return accumulated
