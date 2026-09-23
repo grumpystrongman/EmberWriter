@@ -812,7 +812,24 @@ async def generate_complete_prose_streamed(
         words = _word_count(accumulated)
         abrupt = looks_abrupt_ending(accumulated)
 
-        if complete and words >= min_words and not abrupt and candidate_words > 0:
+        should_verify_now = (
+            complete and words >= min_words and not abrupt and candidate_words > 0
+        )
+        if (
+            studio_delivery_verifier
+            and core_only
+            and words >= min_words
+            and not abrupt
+            and candidate_words > 0
+            and not wants_more
+        ):
+            # Adult specialist models do not always emit EmberWriter's control marker. In
+            # core-only mode, a substantial natural stop is enough to run verification now
+            # rather than accumulating multiple unverified continuations and discovering a
+            # repairable continuity defect only after the final pass.
+            should_verify_now = True
+
+        if should_verify_now:
             if studio_delivery_verifier:
                 if on_status is not None:
                     await on_status("Verifying requested scene delivery…")
@@ -970,7 +987,9 @@ async def generate_complete_prose_streamed(
                 filter_diagnostics = " | ".join(pass_diagnostics[-max_passes:])
                 if core_only:
                     reason += (
-                        f"; delivery diagnostics: scope=core_only, full_restarts={scope_restart_count}, "
+                        f"; delivery diagnostics: scope=core_only, scope_restarts={scope_restart_count}, "
+                        f"continuity_restarts={continuity_restart_count}, "
+                        f"canon_restart={str(canon_restart_used).lower()}, "
                         f"pass={pass_index + 1}/{max_passes}"
                     )
                 reason += (
