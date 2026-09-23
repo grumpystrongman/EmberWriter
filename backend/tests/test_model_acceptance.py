@@ -16,6 +16,7 @@ def _acceptable_scene() -> str:
         "The penetration continued while Avery stroked her penis. "
         "They then changed position: Avery moved onto hands and knees facing away while Rowan knelt behind her. "
         "Rowan resumed anal penetration from behind and continued thrusting in the rear position. "
+        "Avery stroked her penis while the rear anal penetration continued. "
         "Avery orgasmed while Rowan continued the direct sexual action. "
         "Rowan came afterward, ejaculating as the encounter reached completion. "
     )
