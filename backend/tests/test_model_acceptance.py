@@ -20,10 +20,7 @@ def _acceptable_scene() -> str:
         "Avery orgasmed while Rowan continued the direct sexual action. "
         "Rowan came afterward, ejaculating as the encounter reached completion. "
     )
-    tail = " ".join(
-        f"They stayed physically engaged as the pace changed through continuation beat {index}."
-        for index in range(92)
-    )
+    tail = ("pace changed while they remained physically engaged " * 120).strip()
     return body + tail + "."
 
 
