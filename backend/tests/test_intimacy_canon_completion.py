@@ -178,3 +178,33 @@ Avery is an adult trans woman.
         context,
         "Avery touched her body.",
     ) == ""
+
+
+def test_body_canon_gate_rejects_implicit_vaginal_template_when_not_established() -> None:
+    context = """## Character intelligence
+### Muna
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Muna has a penis. Muna does not have a vagina, vulva, or clitoris.
+### Kaelen
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Kaelen has a penis.
+"""
+    bad = (
+        "Kaelen's mouth closed over her slick entrance while his hand held Muna's cock. "
+        "The folds trembled under his mouth."
+    )
+    reason = generation_reliability_refinement.hard_body_canon_failure(context, bad)
+    assert "vague cis-female-template receptive anatomy" in reason
+
+
+def test_body_canon_gate_allows_named_anal_anatomy_with_same_canon() -> None:
+    context = """## Character intelligence
+### Muna
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Muna has a penis. Muna does not have a vagina, vulva, or clitoris.
+### Kaelen
+HARD BODY / EMBODIMENT CANON — AUTHOR-OWNED; USE EXACTLY:
+Kaelen has a penis.
+"""
+    draft = "Kaelen moved behind Muna and touched her anus before they changed position."
+    assert generation_reliability_refinement.hard_body_canon_failure(context, draft) == ""
