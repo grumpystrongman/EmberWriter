@@ -894,7 +894,7 @@ def test_final_pass_with_zero_new_words_still_verifies_accumulated_draft(monkeyp
         "Trusted project canon.",
         heat_level="inferno",
         min_scene_words=150,
-        delivery_scope="core_only",
+        delivery_scope="full_scene",
     )
 
     result = asyncio.run(
