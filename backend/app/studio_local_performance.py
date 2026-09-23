@@ -251,11 +251,9 @@ async def generate_complete_prose_streamed_budgeted(
         effective_output_tokens = min(max_output_tokens, profile_cap)
         if on_status is not None:
             await on_status(
-                (
-                    f"Local Studio · {profile} · primary draft + two repair passes maximum · compact semantic verifier"
-                    if _is_adult_specialist_messages(messages)
-                    else f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
-                )
+                f"Local Studio · {profile} · primary draft + two repair passes maximum · compact semantic verifier"
+                if _is_adult_specialist_messages(messages)
+                else f"Local Studio · {profile} · primary draft + one repair pass maximum · compact semantic verifier"
             )
 
     return await _BASE_STREAMED_COMPLETE(
