@@ -141,6 +141,25 @@ def _recent_normalized_sentences(text: str) -> list[str]:
     return [value for value in values if value][-_REPEAT_RECENT_SENTENCES:]
 
 
+def _count_exact_short_sentence_repeats(candidate: str, prior_text: str = "") -> int:
+    memory = _recent_normalized_sentences(prior_text)
+    repeats = 0
+    for paragraph in _paragraph_parts(candidate):
+        for sentence in _sentence_parts(paragraph):
+            normalized = _normalize_prose(sentence)
+            if (
+                len(normalized) >= _REPEAT_EXACT_SENTENCE_MIN_CHARS
+                and _word_count(normalized) >= _REPEAT_EXACT_SENTENCE_MIN_WORDS
+                and normalized in memory[-_REPEAT_RECENT_SENTENCES:]
+            ):
+                repeats += 1
+                continue
+            if normalized:
+                memory.append(normalized)
+                memory = memory[-_REPEAT_RECENT_SENTENCES:]
+    return repeats
+
+
 def dedupe_repetitive_prose(candidate: str, prior_text: str = "") -> tuple[str, int, float]:
     """Remove model-loop prose while preserving genuinely new scene movement."""
     original_words = _word_count(candidate)
@@ -621,13 +640,15 @@ class _NoveltyStreamFilter:
             return
 
         self.raw_words += _word_count(paragraph)
-        raw_sentence_count = len(_sentence_parts(paragraph))
+        accepted_context = self._accepted_context()
+        self.removed_sentences += _count_exact_short_sentence_repeats(
+            paragraph,
+            accepted_context,
+        )
         cleaned, removed, _novelty = dedupe_repetitive_prose(
             paragraph,
-            self._accepted_context(),
+            accepted_context,
         )
-        cleaned_sentence_count = len(_sentence_parts(cleaned))
-        self.removed_sentences += max(0, raw_sentence_count - cleaned_sentence_count)
         self.removed_units += removed
         if self.removed_units >= 2:
             raise RepetitionLoopDetected("model entered a paragraph repetition loop")
