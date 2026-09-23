@@ -106,24 +106,22 @@ def _positively_requested(prompt: str, pattern: re.Pattern[str]) -> bool:
 
 def requested_act_delivery_failure(prompt: str, draft: str) -> str:
     """Require named acts/positions to appear as recognizable geometry, not keyword soup."""
-    if _positively_requested(prompt, _MISSIONARY_REQUEST):
-        if not (_MISSIONARY_GEOMETRY.search(draft) and _MISSIONARY_PARTNER_FRONT.search(draft)):
-            return (
-                "author requested missionary/face-to-face sex, but the draft never establishes "
-                "a receiver-on-back, partner-in-front/between-legs configuration"
-            )
-    if _positively_requested(prompt, _DOGGY_REQUEST):
-        if not _DOGGY_GEOMETRY.search(draft):
-            return (
-                "author requested doggy/rear sex, but the draft never establishes a recognizable "
-                "receiver-facing-away, partner-behind configuration"
-            )
-    if _positively_requested(prompt, _BLOWJOB_REQUEST):
-        if not _BLOWJOB_DELIVERY.search(draft):
-            return "author requested a blowjob/oral-on-penis beat, but no clear oral-to-penis action occurs"
-    if _positively_requested(prompt, _ANAL_REQUEST):
-        if not _ANAL_DELIVERY.search(draft):
-            return "author requested anal sex, but the draft never identifies anal receiving anatomy"
+    if _positively_requested(prompt, _MISSIONARY_REQUEST) and not (
+        _MISSIONARY_GEOMETRY.search(draft) and _MISSIONARY_PARTNER_FRONT.search(draft)
+    ):
+        return (
+            "author requested missionary/face-to-face sex, but the draft never establishes "
+            "a receiver-on-back, partner-in-front/between-legs configuration"
+        )
+    if _positively_requested(prompt, _DOGGY_REQUEST) and not _DOGGY_GEOMETRY.search(draft):
+        return (
+            "author requested doggy/rear sex, but the draft never establishes a recognizable "
+            "receiver-facing-away, partner-behind configuration"
+        )
+    if _positively_requested(prompt, _BLOWJOB_REQUEST) and not _BLOWJOB_DELIVERY.search(draft):
+        return "author requested a blowjob/oral-on-penis beat, but no clear oral-to-penis action occurs"
+    if _positively_requested(prompt, _ANAL_REQUEST) and not _ANAL_DELIVERY.search(draft):
+        return "author requested anal sex, but the draft never identifies anal receiving anatomy"
     return ""
 
 
