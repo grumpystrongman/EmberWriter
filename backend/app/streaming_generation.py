@@ -947,13 +947,20 @@ async def generate_complete_prose_streamed(
             and not length_topup_used
             and candidate_words > 0
             and words < min_words
-            and words >= max(1, int(min_words * 0.9))
+            and (
+                words >= max(1, int(min_words * 0.9))
+                or (
+                    continuity_restart_count > 0
+                    and words >= max(1, int(min_words * 0.75))
+                    and (min_words - words) <= min(180, max(60, int(min_words * 0.25)))
+                )
+            )
         ):
             length_topup_used = True
             remaining = max(min_words - words, 0)
             if on_status is not None:
                 await on_status(
-                    f"Repetition cleanup left the verified draft {remaining} words short · adding a brief clean completion…"
+                    f"Final repair draft is {remaining} words short after cleanup · adding one brief clean completion…"
                 )
             handoff = accumulated[-3500:]
             working_messages = [
