@@ -254,6 +254,82 @@ def _scene_plan_failure(plan: dict, prompt: str) -> str:
     return ""
 
 
+def _safe_debug_excerpt(value: str, limit: int = 320) -> str:
+    compact = re.sub(r"\s+", " ", value).strip()
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+def _scene_plan_debug_summary(plan: dict, prompt: str) -> str:
+    required = _requested_plan_labels(prompt)
+    requested = plan.get("requested_acts")
+    requested_items = [item for item in (requested or []) if isinstance(item, dict)]
+
+    metadata_coverage: set[str] = set()
+    for item in requested_items:
+        metadata_coverage.update(_labels_in_text(_requested_item_text(item)))
+
+    beats = plan.get("beats")
+    beat_items = [beat for beat in (beats or []) if isinstance(beat, dict)]
+    beat_coverage: set[str] = set()
+    missing_geometry: list[int] = []
+    missing_ownership: list[int] = []
+    for index, beat in enumerate(beat_items, start=1):
+        covered = _labels_in_text(_beat_delivery_text(beat))
+        beat_coverage.update(covered)
+        if not covered:
+            continue
+        geometry = beat.get("pose_geometry")
+        if not isinstance(geometry, dict) or not str(geometry.get("relative_position", "")).strip():
+            missing_geometry.append(index)
+        if not str(beat.get("actor", "")).strip() or not str(beat.get("receiver", "")).strip():
+            missing_ownership.append(index)
+
+    required_set = set(required)
+    metadata_missing = sorted(required_set - metadata_coverage)
+    beat_missing = sorted(required_set - beat_coverage)
+
+    def labels(values: set[str] | list[str]) -> str:
+        return ",".join(sorted(values)) if values else "none"
+
+    return (
+        f"requested_acts={len(requested_items)}"
+        f"; beats={len(beat_items)}"
+        f"; metadata_coverage={labels(metadata_coverage)}"
+        f"; beat_coverage={labels(beat_coverage)}"
+        f"; metadata_missing={labels(metadata_missing)}"
+        f"; beat_missing={labels(beat_missing)}"
+        f"; missing_geometry_beats={','.join(map(str, missing_geometry)) or 'none'}"
+        f"; missing_ownership_beats={','.join(map(str, missing_ownership)) or 'none'}"
+    )
+
+
+def _planner_failure_message(
+    *,
+    model: str,
+    preferred_model: str,
+    required_labels: list[str],
+    context_chars: int,
+    attempts: list[str],
+) -> str:
+    requirements = ", ".join(required_labels) if required_labels else "none explicitly named"
+    attempt_text = " | ".join(attempts) if attempts else "no attempt diagnostics captured"
+    routing = (
+        model
+        if model.casefold() == preferred_model.casefold()
+        else f"{model} (preferred {preferred_model} was not selected/available)"
+    )
+    return (
+        "Hidden scene planner could not produce a valid physical plan after repair. "
+        f"Planner model: {routing}. "
+        f"Detected requirements: {requirements}. "
+        f"Planner context: {context_chars} chars. "
+        f"Attempts: {attempt_text}. "
+        "No unplanned adult draft was accepted."
+    )
+
+
 async def _route_scene_director_model(config: ProviderConfig) -> None:
     """Prefer EmberWriter's structured planning model for hidden JSON scene direction."""
     if config.provider != "ollama":
@@ -281,6 +357,7 @@ async def build_hidden_adult_scene_plan(
     compact_context = compact_adult_context(context, prompt, limit=14000)
     required_labels = _requested_plan_labels(prompt)
     repair_note = ""
+    diagnostics: list[str] = []
 
     for attempt in range(2):
         requirements = (
@@ -321,20 +398,44 @@ async def build_hidden_adult_scene_plan(
                 json_mode=True,
                 max_output_tokens=2600,
             )
-        except (RuntimeError, ValueError, httpx.HTTPError):
+        except (RuntimeError, ValueError, httpx.HTTPError) as exc:
             repair_note = "planner model call failed"
+            diagnostics.append(
+                f"attempt {attempt + 1}=model_call_failed"
+                f"({type(exc).__name__}: {_safe_debug_excerpt(str(exc), 220)})"
+            )
             continue
 
         plan = _parse_scene_plan_json(raw)
+        if not plan:
+            excerpt = _safe_debug_excerpt(raw, 320) or "(empty response)"
+            repair_note = "planner returned unreadable or non-object JSON"
+            diagnostics.append(
+                f"attempt {attempt + 1}=json_parse_failed(response={excerpt})"
+            )
+            continue
+
         failure = _scene_plan_failure(plan, prompt)
+        summary = _scene_plan_debug_summary(plan, prompt)
         if failure:
             repair_note = failure
+            diagnostics.append(
+                f"attempt {attempt + 1}=validation_failed({failure}; {summary})"
+            )
             continue
 
         plan["beats"] = plan["beats"][:7]
         return json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
 
-    return ""
+    raise RuntimeError(
+        _planner_failure_message(
+            model=config.model,
+            preferred_model=PLANNING_MODEL,
+            required_labels=required_labels,
+            context_chars=len(compact_context),
+            attempts=diagnostics,
+        )
+    )
 
 
 def is_adult_explicit_specialist(model: str) -> bool:
