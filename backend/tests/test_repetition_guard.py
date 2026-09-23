@@ -670,3 +670,87 @@ def test_studio_repair_closes_consent_beat_and_uses_short_handoff(monkeypatch) -
     assert len(captured_second_messages[-2]["content"]) <= 3500
     assert "AUTHOR/CANON CONSENT STATE IS AUTHORITATIVE" in captured_second_messages[-1]["content"]
     assert "Do not reopen it" in captured_second_messages[-1]["content"]
+
+
+def test_studio_allows_second_targeted_continuity_restart(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    repair_prompts: list[str] = []
+    chunks = [
+        _words("first", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("second", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("third", 180) + "\n" + generation.SCENE_COMPLETE_MARKER,
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        if writer_calls > 0:
+            repair_prompts.append(messages[-1]["content"])
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        if verifier_calls < 3:
+            return {
+                "verified": False,
+                "core_encounter_on_page": True,
+                "requested_explicitness_delivered": True,
+                "buildup_only": False,
+                "fade_or_skip": False,
+                "ending_complete": True,
+                "canon_respected": True,
+                "physical_continuity": False,
+                "progression_regression": False,
+                "repetition_loop": False,
+                "reason": (
+                    "physical continuity failure: a new penetration state begins without "
+                    "identifying the exact receiving anatomy"
+                ),
+            }
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested consensual adult intimacy scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=150,
+    )
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=150,
+            on_delta=emit,
+            max_passes=3,
+        )
+    )
+
+    assert writer_calls == 3
+    assert verifier_calls == 3
+    assert "third179" in result
+    assert len(repair_prompts) == 2
+    assert all("exact receiving anatomy" in prompt for prompt in repair_prompts)
+    assert all("For the FIRST sentence of every new penetration state" in prompt for prompt in repair_prompts)
