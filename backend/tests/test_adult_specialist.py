@@ -1,6 +1,8 @@
 import asyncio
 import json
 
+import pytest
+
 from app import adult_specialist
 from app.model_catalog import ADULT_EXPLICIT_MODEL, PLANNING_MODEL
 from app.models import ProviderConfig
@@ -490,3 +492,99 @@ def test_scene_plan_allows_non_requested_transition_beats_without_full_geometry(
     }
 
     assert adult_specialist._scene_plan_failure(plan, prompt) == ""
+
+
+def test_hidden_scene_planner_failure_reports_actionable_diagnostics(monkeypatch) -> None:
+    calls = 0
+
+    async def installed(_base_url: str) -> list[str]:
+        return [PLANNING_MODEL, ADULT_EXPLICIT_MODEL]
+
+    async def fake_generate(_config, _messages, **_kwargs) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return json.dumps(
+                {
+                    "requested_acts": [
+                        {
+                            "request": "missionary",
+                            "actor": "Kaelen",
+                            "receiver": "Muna",
+                            "canon_safe_interpretation": "missionary anal",
+                            "required_geometry": "Muna on back; Kaelen in front",
+                        }
+                    ],
+                    "beats": [
+                        {
+                            "objective": "missionary anal",
+                            "action": "missionary anal penetration",
+                            "act_state": "missionary anal",
+                            "actor": "Kaelen",
+                            "receiver": "Muna",
+                            "pose_geometry": {"relative_position": "front"},
+                        }
+                    ],
+                }
+            )
+        return "{not valid json"
+
+    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
+    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(
+            adult_specialist.build_hidden_adult_scene_plan(
+                ProviderConfig(
+                    provider="ollama",
+                    base_url="http://localhost:11434",
+                    model=ADULT_EXPLICIT_MODEL,
+                ),
+                "missionary sex, doggy style sex, anal, blowjob",
+                "### Muna\nMuna has a penis.\n### Kaelen\nKaelen has a penis.",
+                heat_level="inferno",
+                delivery_scope="full_scene",
+            )
+        )
+
+    message = str(exc_info.value)
+    assert f"Planner model: {PLANNING_MODEL}" in message
+    assert "Detected requirements: missionary, doggy, anal, blowjob" in message
+    assert "Planner context:" in message
+    assert "attempt 1=validation_failed" in message
+    assert "metadata_coverage=anal,missionary" in message
+    assert "metadata_missing=blowjob,doggy" in message
+    assert "beat_missing=blowjob,doggy" in message
+    assert "attempt 2=json_parse_failed" in message
+    assert "response={not valid json" in message
+    assert "No unplanned adult draft was accepted." in message
+
+
+def test_hidden_scene_planner_failure_reports_model_call_error(monkeypatch) -> None:
+    async def installed(_base_url: str) -> list[str]:
+        return [PLANNING_MODEL]
+
+    async def fake_generate(_config, _messages, **_kwargs) -> str:
+        raise RuntimeError("ollama planner timed out")
+
+    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
+    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(
+            adult_specialist.build_hidden_adult_scene_plan(
+                ProviderConfig(
+                    provider="ollama",
+                    base_url="http://localhost:11434",
+                    model=ADULT_EXPLICIT_MODEL,
+                ),
+                "missionary sex",
+                "Adult character canon.",
+                heat_level="inferno",
+                delivery_scope="full_scene",
+            )
+        )
+
+    message = str(exc_info.value)
+    assert "attempt 1=model_call_failed(RuntimeError: ollama planner timed out)" in message
+    assert "attempt 2=model_call_failed(RuntimeError: ollama planner timed out)" in message
