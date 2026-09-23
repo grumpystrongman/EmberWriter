@@ -588,3 +588,122 @@ def test_hidden_scene_planner_failure_reports_model_call_error(monkeypatch) -> N
     message = str(exc_info.value)
     assert "attempt 1=model_call_failed(RuntimeError: ollama planner timed out)" in message
     assert "attempt 2=model_call_failed(RuntimeError: ollama planner timed out)" in message
+
+
+def test_core_only_plan_requires_first_beat_to_deliver_requested_act() -> None:
+    prompt = "missionary sex, doggy style sex, anal, blowjob"
+    plan = {
+        "requested_acts": [
+            {
+                "request": "missionary",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "missionary anal",
+                "required_geometry": "B on back; A in front",
+            },
+            {
+                "request": "doggy style",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "doggy style anal",
+                "required_geometry": "B facing away; A behind",
+            },
+            {
+                "request": "blowjob",
+                "actor": "B",
+                "receiver": "A",
+                "canon_safe_interpretation": "oral sex on penis",
+                "required_geometry": "B mouth reachable to A penis",
+            },
+        ],
+        "beats": [
+            {
+                "objective": "teasing setup",
+                "action": "kiss and tease before anything requested",
+            },
+            {
+                "objective": "missionary anal",
+                "action": "missionary anal penetration",
+                "act_state": "missionary anal",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "front"},
+            },
+            {
+                "objective": "doggy style anal",
+                "action": "doggy style anal penetration",
+                "act_state": "doggy style anal",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "behind"},
+            },
+            {
+                "objective": "blowjob",
+                "action": "blowjob oral sex",
+                "act_state": "blowjob",
+                "actor": "B",
+                "receiver": "A",
+                "pose_geometry": {"relative_position": "front"},
+            },
+        ],
+    }
+
+    reason = adult_specialist._scene_plan_failure(plan, prompt, "core_only")
+    assert "beat 1 must directly deliver" in reason
+
+
+def test_core_only_plan_accepts_requested_act_in_first_beat() -> None:
+    prompt = "missionary sex, doggy style sex, anal, blowjob"
+    plan = {
+        "requested_acts": [
+            {
+                "request": "missionary",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "missionary anal",
+                "required_geometry": "B on back; A in front",
+            },
+            {
+                "request": "doggy style",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "doggy style anal",
+                "required_geometry": "B facing away; A behind",
+            },
+            {
+                "request": "blowjob",
+                "actor": "B",
+                "receiver": "A",
+                "canon_safe_interpretation": "oral sex on penis",
+                "required_geometry": "B mouth reachable to A penis",
+            },
+        ],
+        "beats": [
+            {
+                "objective": "missionary anal",
+                "action": "missionary anal penetration",
+                "act_state": "missionary anal",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "front"},
+            },
+            {
+                "objective": "doggy style anal",
+                "action": "doggy style anal penetration",
+                "act_state": "doggy style anal",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "behind"},
+            },
+            {
+                "objective": "blowjob",
+                "action": "blowjob oral sex",
+                "act_state": "blowjob",
+                "actor": "B",
+                "receiver": "A",
+                "pose_geometry": {"relative_position": "front"},
+            },
+        ],
+    }
+
+    assert adult_specialist._scene_plan_failure(plan, prompt, "core_only") == ""
