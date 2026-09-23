@@ -760,14 +760,13 @@ def test_studio_allows_second_targeted_continuity_restart(monkeypatch) -> None:
     assert all("For the FIRST sentence of every new penetration state" in prompt for prompt in repair_prompts)
 
 
-def test_core_only_late_start_can_restart_twice_before_success(monkeypatch) -> None:
+def test_core_only_late_opening_restarts_before_minimum_and_before_verifier(monkeypatch) -> None:
     writer_calls = 0
     verifier_calls = 0
     restart_prompts: list[str] = []
     chunks = [
-        _words("buildup", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
-        _words("stillbuildup", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
-        _words("direct", 220) + "\n" + generation.SCENE_COMPLETE_MARKER,
+        _words("buildup", 189),
+        "They moved directly into oral sex and sustained the requested action. " + _words("direct", 610),
     ]
 
     async def fake_stream(config, messages, *, on_delta, **kwargs):
@@ -782,24 +781,7 @@ def test_core_only_late_start_can_restart_twice_before_success(monkeypatch) -> N
     async def fake_verifier(config, messages, draft, **kwargs):
         nonlocal verifier_calls
         verifier_calls += 1
-        if verifier_calls < 3:
-            return {
-                "verified": False,
-                "core_encounter_on_page": True,
-                "requested_explicitness_delivered": False,
-                "buildup_only": True,
-                "fade_or_skip": False,
-                "ending_complete": True,
-                "canon_respected": True,
-                "physical_continuity": True,
-                "progression_regression": False,
-                "repetition_loop": False,
-                "reason": (
-                    "core-only delivery failure: requested sexual action begins too late "
-                    "(first direct-action evidence at word 435); discard the buildup and restart "
-                    "at the requested core action"
-                ),
-            }
+        assert "oral sex" in draft
         return {
             "verified": True,
             "core_encounter_on_page": True,
@@ -825,7 +807,7 @@ def test_core_only_late_start_can_restart_twice_before_success(monkeypatch) -> N
         "CORE ONLY. STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
         "Trusted project canon.",
         heat_level="inferno",
-        min_scene_words=150,
+        min_scene_words=600,
         delivery_scope="core_only",
     )
     messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
@@ -834,18 +816,18 @@ def test_core_only_late_start_can_restart_twice_before_success(monkeypatch) -> N
         streaming_generation.generate_complete_prose_streamed(
             ProviderConfig(model="test-model"),
             messages,
-            min_words=150,
+            min_words=600,
             on_delta=emit,
             max_passes=3,
         )
     )
 
-    assert writer_calls == 3
-    assert verifier_calls == 3
-    assert "direct219" in result
-    assert len(restart_prompts) == 2
-    assert all("FIRST PARAGRAPH" in prompt for prompt in restart_prompts)
-    assert all("HIDDEN SCENE DIRECTOR PLAN" in prompt for prompt in restart_prompts)
+    assert writer_calls == 2
+    assert verifier_calls == 1
+    assert "oral sex" in result
+    assert len(restart_prompts) == 1
+    assert "exceeded the 180-word action-onset window" in restart_prompts[0]
+    assert "FIRST PARAGRAPH" in restart_prompts[0]
 
 
 def test_final_pass_with_zero_new_words_still_verifies_accumulated_draft(monkeypatch) -> None:
@@ -1174,7 +1156,7 @@ def test_core_only_near_minimum_after_cleanup_gets_one_small_topup(monkeypatch) 
     verifier_calls = 0
     prompts: list[str] = []
     chunks = [
-        _words("base", 578),
+        "Oral sex began immediately. " + _words("base", 574),
         _words("topup", 72),
     ]
 
@@ -1242,7 +1224,7 @@ def test_core_only_far_below_minimum_does_not_get_length_topup(monkeypatch) -> N
     async def fake_stream(config, messages, *, on_delta, **kwargs):
         nonlocal writer_calls
         writer_calls += 1
-        raw = _words("short", 400)
+        raw = "Oral sex began immediately. " + _words("short", 396)
         await on_delta(raw)
         return raw
 
@@ -1283,9 +1265,9 @@ def test_core_only_repair_restart_can_top_up_from_eighty_percent_of_floor(monkey
     verifier_calls = 0
     prompts: list[str] = []
     chunks = [
-        _words("first", 320),
-        _words("second", 320),
-        _words("repair", 480),
+        "Oral sex began immediately. " + _words("first", 316),
+        "Oral sex continued directly. " + _words("second", 316),
+        "Oral sex began immediately. " + _words("repair", 476),
         _words("topup", 150),
     ]
 
@@ -1363,3 +1345,41 @@ def test_core_only_repair_restart_can_top_up_from_eighty_percent_of_floor(monkey
     assert len(result.split()) >= 600
     assert "Restart the scene from scratch" in prompts[2]
     assert "Do not restart any completed act" in prompts[3]
+
+
+def test_core_only_pass_diagnostics_report_action_onset(monkeypatch) -> None:
+    writer_calls = 0
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        writer_calls += 1
+        raw = _words("buildup", 181)
+        await on_delta(raw)
+        return raw
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+
+    messages = generation.build_messages(
+        "write",
+        "CORE ONLY. STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=600,
+        delivery_scope="core_only",
+    )
+
+    with pytest.raises(streaming_generation.SceneDeliveryIncomplete) as exc_info:
+        asyncio.run(
+            streaming_generation.generate_complete_prose_streamed(
+                ProviderConfig(model="test-model"),
+                messages,
+                min_words=600,
+                on_delta=emit,
+                max_passes=1,
+            )
+        )
+
+    assert "onset=10000" in exc_info.value.reason
