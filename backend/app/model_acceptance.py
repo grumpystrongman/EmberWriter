@@ -10,7 +10,10 @@ from pathlib import Path
 from . import generation
 from .adult_specialist import build_adult_specialist_messages, is_adult_explicit_specialist
 from .generation_reliability import _hard_quality_failure, parse_scene_length
-from .generation_reliability_refinement import explicit_delivery_failure, requested_act_delivery_failure
+from .generation_reliability_refinement import (
+    explicit_delivery_failure,
+    requested_act_delivery_failure,
+)
 from .intimacy_continuity import hard_choreography_failure
 from .models import ProviderConfig
 
