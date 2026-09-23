@@ -193,3 +193,20 @@ def test_ambiguous_penetration_failure_reports_sentence_and_prior_context() -> N
     assert "He entered her from behind" in reason
     assert "previous sentence" in reason
     assert "He rested one hand at her hip" in reason
+
+
+def test_contextual_ass_phrase_counts_as_exact_penetration_target() -> None:
+    draft = (
+        "Kaelen aligned his cock behind Muna. "
+        "He filled her, his cock sinking slowly into her ass as she tightened her grip."
+    )
+    assert intimacy_continuity.hard_choreography_failure(draft) == ""
+
+
+def test_nonpenetrative_ass_reference_does_not_establish_receiving_target() -> None:
+    draft = (
+        "Kaelen grabbed her ass and pulled her closer. "
+        "He entered her slowly."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "exact receiving anatomy" in reason

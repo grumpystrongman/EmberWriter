@@ -1167,3 +1167,112 @@ def test_core_only_final_failure_reports_continuity_restart_count(monkeypatch) -
     assert "scope_restarts=0" in reason
     assert "continuity_restarts=2" in reason
     assert "canon_restart=false" in reason
+
+
+def test_core_only_near_minimum_after_cleanup_gets_one_small_topup(monkeypatch) -> None:
+    writer_calls = 0
+    verifier_calls = 0
+    prompts: list[str] = []
+    chunks = [
+        _words("base", 578),
+        _words("topup", 72),
+    ]
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        prompts.append(messages[-1]["content"])
+        raw = chunks[writer_calls]
+        writer_calls += 1
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        nonlocal verifier_calls
+        verifier_calls += 1
+        assert len(draft.split()) >= 600
+        return {
+            "verified": True,
+            "core_encounter_on_page": True,
+            "requested_explicitness_delivered": True,
+            "buildup_only": False,
+            "fade_or_skip": False,
+            "ending_complete": True,
+            "canon_respected": True,
+            "physical_continuity": True,
+            "progression_regression": False,
+            "repetition_loop": False,
+            "reason": "delivered",
+        }
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=600,
+        delivery_scope="core_only",
+    )
+    messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
+
+    result = asyncio.run(
+        streaming_generation.generate_complete_prose_streamed(
+            ProviderConfig(model="test-model"),
+            messages,
+            min_words=600,
+            on_delta=emit,
+            max_passes=1,
+        )
+    )
+
+    assert writer_calls == 2
+    assert verifier_calls == 1
+    assert len(result.split()) >= 600
+    assert "Do not restart any completed act" in prompts[1]
+    assert "do not add unrelated aftermath" in prompts[1]
+
+
+def test_core_only_far_below_minimum_does_not_get_length_topup(monkeypatch) -> None:
+    writer_calls = 0
+
+    async def fake_stream(config, messages, *, on_delta, **kwargs):
+        nonlocal writer_calls
+        writer_calls += 1
+        raw = _words("short", 400)
+        await on_delta(raw)
+        return raw
+
+    async def fake_verifier(config, messages, draft, **kwargs):
+        raise AssertionError("verifier should not run below the minimum")
+
+    async def emit(_text: str) -> None:
+        return None
+
+    monkeypatch.setattr(streaming_generation, "generate_streamed", fake_stream)
+    monkeypatch.setattr(streaming_generation, "verify_studio_scene_delivery", fake_verifier)
+    messages = generation.build_messages(
+        "write",
+        "STUDIO SCENE DELIVERY CONTRACT:\nWrite the requested adult scene.",
+        "Trusted project canon.",
+        heat_level="inferno",
+        min_scene_words=600,
+        delivery_scope="core_only",
+    )
+
+    with pytest.raises(streaming_generation.SceneDeliveryIncomplete) as exc_info:
+        asyncio.run(
+            streaming_generation.generate_complete_prose_streamed(
+                ProviderConfig(model="test-model"),
+                messages,
+                min_words=600,
+                on_delta=emit,
+                max_passes=1,
+            )
+        )
+
+    assert writer_calls == 1
+    assert "before the requested minimum of 600" in exc_info.value.reason
