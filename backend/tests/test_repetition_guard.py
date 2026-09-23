@@ -737,6 +737,7 @@ def test_studio_allows_second_targeted_continuity_restart(monkeypatch) -> None:
         heat_level="inferno",
         min_scene_words=150,
     )
+    messages[0]["content"] += "\nYou are EmberWriter's adult-fiction scene specialist."
 
     result = asyncio.run(
         streaming_generation.generate_complete_prose_streamed(
