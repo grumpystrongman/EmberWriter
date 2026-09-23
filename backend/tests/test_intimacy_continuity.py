@@ -122,3 +122,23 @@ def test_allows_named_receiving_anatomy_for_new_penetration_state() -> None:
         "He entered Muna's anus slowly and held still for a moment."
     )
     assert intimacy_continuity.hard_choreography_failure(draft) == ""
+
+
+def test_rejects_same_actor_rear_penetration_and_oral_on_receivers_penis() -> None:
+    draft = (
+        "Muna was lying on her stomach facing away while Kaelen knelt behind her. "
+        "Kaelen took her cock in his mouth and sucked her. "
+        "At the same time she felt his cock stretched inside her."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "rear configuration" in reason
+    assert "oral access" in reason
+
+
+def test_rejects_tongue_probing_inside_when_only_nearby_target_is_penis() -> None:
+    draft = (
+        "Kaelen rested his mouth at the base of Muna's cock. "
+        "His tongue worked along the shaft and began probing inside."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "tongue/inside language near penis anatomy" in reason
