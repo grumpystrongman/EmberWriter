@@ -142,3 +142,12 @@ def test_rejects_tongue_probing_inside_when_only_nearby_target_is_penis() -> Non
     )
     reason = intimacy_continuity.hard_choreography_failure(draft)
     assert "tongue/inside language near penis anatomy" in reason
+
+
+def test_rejects_first_person_fill_without_receiving_anatomy() -> None:
+    draft = (
+        "They moved closer without establishing a receiving target. "
+        "\"When you're ready, fill me slowly,\" Muna said."
+    )
+    reason = intimacy_continuity.hard_choreography_failure(draft)
+    assert "exact receiving anatomy" in reason
