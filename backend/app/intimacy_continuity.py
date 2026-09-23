@@ -247,6 +247,8 @@ VERIFIER_CONTINUITY_INSTRUCTION = (
     "Bare phrases such as 'entered her', 'slid in', 'filled him', or 'pushed deeper' cannot establish a new penetration state unless the exact receiving anatomy is already clear. "
     "A mouth has one current reachable location. If the same actor is penetrating from behind and is also described using their mouth on the receiver's front genitalia without a repositioning that makes both reachable, physical_continuity must be false. "
     "Claims of double or 'twice over' filling require two physically compatible sources and explicit targets. "
+    "For standard positions, verify conventional geometry rather than the label alone: missionary/face-to-face requires the receiver on their back with the partner in front/between the legs; doggy/rear requires the receiver facing away with hips accessible and the partner behind. "
+    "A two-person scene cannot have the same actor giving oral to the receiver's penis while that actor's penis simultaneously penetrates the receiver from behind. "
     "Hands, mouths, genitals, and bodies cannot teleport between incompatible locations. "
     "Distinguish preparation from the requested central activity. Performing oral or manual stimulation near an anatomical region "
     "does not automatically mean a requested penetration or other central act occurred. "
@@ -314,6 +316,31 @@ _PENETRATION_SETUP = re.compile(
 )
 _WITHDRAWAL = re.compile(r"\b(?:withdrew|pulled\s+out|slid\s+out|disengaged)\b", re.IGNORECASE)
 
+_PENIS_INSIDE_PRONOUN = re.compile(
+    r"\b(?:penis|cock|dick)\b[^.!?\n]{0,100}\b(?:inside|within|deep\s+in)\s+(?:her|him|them)\b",
+    re.IGNORECASE,
+)
+_ORAL_ON_POSSESSIVE_PENIS = re.compile(
+    r"\b(?:took|takes|taking|suck(?:ed|ing)?|lick(?:ed|ing)?|mouth\s+(?:closed|worked|moved))\b"
+    r"[^.!?\n]{0,120}\b(?:her|his|their)\s+(?:penis|cock|dick)\b|"
+    r"\b(?:her|his|their)\s+(?:penis|cock|dick)\b[^.!?\n]{0,100}\b(?:mouth|suck\w*|lick\w*)\b",
+    re.IGNORECASE,
+)
+_TONGUE_PROBING_INSIDE_NEAR_PENIS = re.compile(
+    r"\b(?:penis|cock|dick)\b[^.!?\n]{0,150}\btongue\b[^.!?\n]{0,100}\b(?:prob(?:e|ed|ing)?\s+inside|inside)\b|"
+    r"\btongue\b[^.!?\n]{0,100}\b(?:prob(?:e|ed|ing)?\s+inside|inside)\b[^.!?\n]{0,150}\b(?:penis|cock|dick)\b",
+    re.IGNORECASE,
+)
+_TONGUE_UNTARGETED_INSIDE = re.compile(
+    r"\btongue\b[^.!?\n]{0,120}\b(?:prob(?:e|ed|ing)?\s+inside|inside)\b",
+    re.IGNORECASE,
+)
+_REAR_GEOMETRY = re.compile(
+    r"\b(?:from\s+behind|behind\s+(?:her|him|them)|facing\s+away|on\s+(?:her|his|their)\s+stomach|"
+    r"hands?\s+and\s+knees?|all\s+fours|kneeling\s+behind)\b",
+    re.IGNORECASE,
+)
+
 
 def hard_choreography_failure(draft: str) -> str:
     """Reject only high-confidence anatomy/choreography failures before semantic verification."""
@@ -335,6 +362,23 @@ def hard_choreography_failure(draft: str) -> str:
     if _INSIDE_PENIS.search(draft):
         return "physical continuity failure: draft treats a penis as an open cavity"
 
+    if _TONGUE_PROBING_INSIDE_NEAR_PENIS.search(draft):
+        return (
+            "physical continuity failure: tongue/inside language near penis anatomy leaves the "
+            "contact target physically impossible or undefined"
+        )
+
+    for paragraph in re.split(r"\n\s*\n", draft):
+        if (
+            _REAR_GEOMETRY.search(paragraph)
+            and _ORAL_ON_POSSESSIVE_PENIS.search(paragraph)
+            and _PENIS_INSIDE_PRONOUN.search(paragraph)
+        ):
+            return (
+                "physical continuity failure: the same two-person rear configuration combines "
+                "oral access to the receiver's penis with simultaneous penetration by the actor's penis"
+            )
+
     penetration_target_established = False
     previous_sentence = ""
     sentences = [
@@ -343,6 +387,15 @@ def hard_choreography_failure(draft: str) -> str:
         if part.strip()
     ]
     for sentence in sentences:
+        if (
+            _TONGUE_UNTARGETED_INSIDE.search(sentence)
+            and _PENIS_TERMS.search(previous_sentence)
+            and not _EXACT_PENETRATION_TARGET.search(sentence)
+        ):
+            return (
+                "physical continuity failure: tongue/inside language near penis anatomy leaves the "
+                "contact target physically impossible or undefined"
+            )
         if _WITHDRAWAL.search(sentence):
             penetration_target_established = False
         has_action = bool(_PENETRATION_ACTION.search(sentence))

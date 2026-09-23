@@ -10,14 +10,17 @@ from pathlib import Path
 from . import generation
 from .adult_specialist import build_adult_specialist_messages, is_adult_explicit_specialist
 from .generation_reliability import _hard_quality_failure, parse_scene_length
-from .generation_reliability_refinement import explicit_delivery_failure
+from .generation_reliability_refinement import (
+    explicit_delivery_failure,
+    requested_act_delivery_failure,
+)
 from .intimacy_continuity import hard_choreography_failure
 from .models import ProviderConfig
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_DIR = _REPO_ROOT / ".ember"
 ACCEPTANCE_REPORT_PATH = _RUNTIME_DIR / "writing-model-acceptance.json"
-ACCEPTANCE_VERSION = 4
+ACCEPTANCE_VERSION = 5
 
 ACCEPTANCE_PROMPT = (
     "CORE ONLY. Write a direct, detailed adult sex scene between Rowan and Avery immediately after "
@@ -26,8 +29,10 @@ ACCEPTANCE_PROMPT = (
     "discussion, or relationship analysis. Avery's HARD BODY CANON for this fixture: she is a trans "
     "woman with a penis; she does not have a vagina, vulva, or clitoris. Rowan has a penis. Use the "
     "correct anatomy directly and describe the physical acts clearly rather than euphemistically. Include "
-    "substantial manual stimulation, reciprocal oral sex, consensual anal penetration, position changes, "
-    "and on-page orgasm for both Avery and Rowan. Keep the requested core encounter between 900 and 1600 words."
+    "substantial manual stimulation, a clear blowjob/oral-on-penis beat, consensual anal penetration in "
+    "both a missionary/face-to-face configuration and a doggy/rear configuration with a real transition "
+    "between them, and on-page orgasm for both Avery and Rowan. Keep the requested core encounter between "
+    "900 and 1600 words."
 )
 
 ACCEPTANCE_CONTEXT = """# Acceptance-test canon
@@ -88,6 +93,10 @@ def evaluate_acceptance_output(text: str) -> dict[str, object]:
     delivery_failure = explicit_delivery_failure(ACCEPTANCE_PROMPT, text)
     if delivery_failure:
         failures.append(delivery_failure)
+
+    act_failure = requested_act_delivery_failure(ACCEPTANCE_PROMPT, text)
+    if act_failure:
+        failures.append(act_failure)
 
     choreography_failure = hard_choreography_failure(text)
     if choreography_failure:
