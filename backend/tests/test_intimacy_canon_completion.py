@@ -241,3 +241,29 @@ def test_requested_position_gate_respects_negated_position() -> None:
         "Afterward she used her mouth on Rowan's penis."
     )
     assert generation_reliability_refinement.requested_act_delivery_failure(prompt, draft) == ""
+
+
+def test_requested_position_gate_accepts_missionary_across_adjacent_paragraphs() -> None:
+    prompt = "explicit missionary sex, doggy style sex, anal, blowjob"
+    draft = (
+        "Avery lay on her back with her legs apart while Rowan faced her between her legs.\n\n"
+        "Rowan began anal penetration and thrust carefully while Avery stayed on her back.\n\n"
+        "Avery then moved onto hands and knees facing away while Rowan knelt behind her and continued penetrative action at her anus.\n\n"
+        "After they changed position, Avery used her mouth on Rowan's cock for oral sex."
+    )
+
+    assert generation_reliability_refinement.requested_act_delivery_failure(prompt, draft) == ""
+
+
+def test_requested_position_gate_does_not_merge_nonlocal_missionary_signals() -> None:
+    prompt = "explicit missionary sex"
+    draft = (
+        "Avery lay on her back with her legs apart while Rowan faced her between her legs.\n\n"
+        "They stopped, stood up, crossed the room, and changed to a completely different position.\n\n"
+        "Much later Rowan began penetration from behind."
+    )
+
+    reason = generation_reliability_refinement.requested_act_delivery_failure(prompt, draft)
+
+    assert "missionary" in reason
+    assert "local beat window" in reason
