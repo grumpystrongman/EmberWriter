@@ -43,6 +43,12 @@ _STUDIO_CONTRACT_MARKERS = (
     "STUDIO SCENE DELIVERY CONTRACT:",
     "STUDIO CONTINUATION CONTRACT:",
 )
+_CORE_ONLY_ONSET_LIMIT = 180
+_CORE_ONLY_ACTION_TOKEN = re.compile(
+    r"\b(?:penetrat\w*|fuck\w*|thrust\w*|blow\s*job|oral\s+sex|suck\w*|lick\w*|"
+    r"hand\s*job|masturbat\w*|stroke\w*|ejaculat\w*|cum|cumming|orgasm\w*)\b",
+    re.IGNORECASE,
+)
 
 
 class RepetitionLoopDetected(RuntimeError):
@@ -69,6 +75,13 @@ def _openai_chat_url(base_url: str) -> str:
 
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+(?:['’-]\w+)?\b", text))
+
+
+def _first_core_action_word(text: str) -> int:
+    match = _CORE_ONLY_ACTION_TOKEN.search(text)
+    if not match:
+        return 10_000
+    return _word_count(text[:match.start()])
 
 
 def _strip_scene_markers(text: str) -> tuple[str, bool, bool]:
@@ -761,12 +774,15 @@ async def generate_complete_prose_streamed(
             )
         )
 
+        projected = f"{accumulated}\n\n{cleaned}".strip() if cleaned else accumulated
+        projected_onset = _first_core_action_word(projected) if core_only else 0
         pass_diagnostics.append(
             f"p{pass_index + 1}:raw={novelty_filter.raw_words},accepted={candidate_words},"
             f"removed={novelty_filter.removed_units},sentences_removed={novelty_filter.removed_sentences},"
             f"novelty={novelty_filter.novelty_ratio:.2f},"
             f"complete={str(complete).lower()},continue={str(wants_more).lower()},"
             f"loop={str(loop_interrupted).lower()}"
+            + (f",onset={projected_onset}" if core_only else "")
         )
 
         role_failure = manuscript_role_failure(cleaned) if studio_delivery_verifier and cleaned else ""
@@ -812,6 +828,41 @@ async def generate_complete_prose_streamed(
 
         words = _word_count(accumulated)
         abrupt = looks_abrupt_ending(accumulated)
+
+        if (
+            studio_delivery_verifier
+            and core_only
+            and words > _CORE_ONLY_ONSET_LIMIT
+            and _first_core_action_word(accumulated) > _CORE_ONLY_ONSET_LIMIT
+            and scope_restart_count < 2
+        ):
+            scope_restart_count += 1
+            verifier_reason = (
+                "core-only delivery failure: requested sexual action begins too late "
+                f"(no direct-action evidence within the first {_CORE_ONLY_ONSET_LIMIT} words); "
+                "discard the buildup and restart at the requested core action"
+            )
+            accumulated = ""
+            if on_status is not None:
+                await on_status(
+                    "Core-only opening exceeded the action window · discarding buildup before it consumes another pass…"
+                )
+            working_messages = [
+                *messages,
+                {
+                    "role": "user",
+                    "content": (
+                        "Restart from scratch. CORE ONLY means the central requested action, not its lead-up. "
+                        "The previous attempt exceeded the 180-word action-onset window before beginning the requested sexual action, "
+                        "so it has been discarded early. Begin the requested sexual action in the FIRST PARAGRAPH and within the first "
+                        "180 words. Use the supplied hard body canon exactly and follow the HIDDEN SCENE DIRECTOR PLAN beginning with its "
+                        "first requested act. Do not spend the opening on kissing, teasing, anticipation, readiness, atmosphere, "
+                        "relationship discussion, or generic touching. Sustain concrete action throughout the segment."
+                    ),
+                },
+            ]
+            pass_index += 1
+            continue
 
         should_verify_now = (
             complete and words >= min_words and not abrupt and candidate_words > 0
