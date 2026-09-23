@@ -93,7 +93,11 @@ _BLOWJOB_DELIVERY = re.compile(
     r"\b(?:penis|cock|dick)\b[^.!?\n]{0,120}\b(?:mouth|lips|suck\w*|oral\s+sex|blow\s*job)\b",
     re.IGNORECASE,
 )
-_ANAL_DELIVERY = re.compile(r"\b(?:anus|anal\s+opening|asshole|anal\s+penetration)\b", re.IGNORECASE)
+_ANAL_TARGET = re.compile(r"\b(?:anus|anal\s+opening|asshole)\b", re.IGNORECASE)
+_POSITION_PENETRATION = re.compile(
+    r"\b(?:penetrat\w*|thrust\w*|fuck\w*|enter(?:ed|ing)?|push(?:ed|ing)?\s+into)\b",
+    re.IGNORECASE,
+)
 
 
 def _positively_requested(prompt: str, pattern: re.Pattern[str]) -> bool:
@@ -104,24 +108,46 @@ def _positively_requested(prompt: str, pattern: re.Pattern[str]) -> bool:
     return False
 
 
+def _paragraphs(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+
+
+def _same_beat(draft: str, *patterns: re.Pattern[str]) -> bool:
+    return any(all(pattern.search(paragraph) for pattern in patterns) for paragraph in _paragraphs(draft))
+
+
 def requested_act_delivery_failure(prompt: str, draft: str) -> str:
-    """Require named acts/positions to appear as recognizable geometry, not keyword soup."""
-    if _positively_requested(prompt, _MISSIONARY_REQUEST) and not (
-        _MISSIONARY_GEOMETRY.search(draft) and _MISSIONARY_PARTNER_FRONT.search(draft)
+    """Require named acts/positions to occur as recognizable, same-beat physical geometry."""
+    if _positively_requested(prompt, _MISSIONARY_REQUEST) and not _same_beat(
+        draft,
+        _MISSIONARY_GEOMETRY,
+        _MISSIONARY_PARTNER_FRONT,
+        _POSITION_PENETRATION,
     ):
         return (
-            "author requested missionary/face-to-face sex, but the draft never establishes "
-            "a receiver-on-back, partner-in-front/between-legs configuration"
+            "author requested missionary/face-to-face sex, but no single beat establishes "
+            "receiver-on-back + partner-in-front/between-legs + penetrative action"
         )
-    if _positively_requested(prompt, _DOGGY_REQUEST) and not _DOGGY_GEOMETRY.search(draft):
+    if _positively_requested(prompt, _DOGGY_REQUEST) and not _same_beat(
+        draft,
+        _DOGGY_GEOMETRY,
+        _POSITION_PENETRATION,
+    ):
         return (
-            "author requested doggy/rear sex, but the draft never establishes a recognizable "
-            "receiver-facing-away, partner-behind configuration"
+            "author requested doggy/rear sex, but no single beat establishes "
+            "receiver-facing-away/hips-accessible + partner-behind + penetrative action"
         )
     if _positively_requested(prompt, _BLOWJOB_REQUEST) and not _BLOWJOB_DELIVERY.search(draft):
         return "author requested a blowjob/oral-on-penis beat, but no clear oral-to-penis action occurs"
-    if _positively_requested(prompt, _ANAL_REQUEST) and not _ANAL_DELIVERY.search(draft):
-        return "author requested anal sex, but the draft never identifies anal receiving anatomy"
+    if _positively_requested(prompt, _ANAL_REQUEST) and not _same_beat(
+        draft,
+        _ANAL_TARGET,
+        _POSITION_PENETRATION,
+    ):
+        return (
+            "author requested anal sex, but no single beat identifies anal receiving anatomy "
+            "together with penetrative action"
+        )
     return ""
 
 
@@ -268,9 +294,36 @@ def _long_chain_sentence(text: str) -> str:
     return ""
 
 
+_RUNAWAY_REPEATED_WORD = re.compile(
+    r"\b([A-Za-z][A-Za-z'’-]{2,})\b(?:\s*,?\s*\1\b){2,}",
+    re.IGNORECASE,
+)
+
+
+def _duplicate_short_sentence_failure(text: str) -> str:
+    counts: dict[str, int] = {}
+    for sentence in re.split(r"(?<=[.!?…])\s+|\n+", text):
+        normalized = " ".join(_words(sentence))
+        if len(normalized) < 20 or len(normalized.split()) < 4:
+            continue
+        counts[normalized] = counts.get(normalized, 0) + 1
+    repeated = [sentence for sentence, count in counts.items() if count >= 2]
+    if len(repeated) >= 2 or any(count >= 3 for count in counts.values()):
+        return "multiple short sentences are being recycled verbatim instead of advancing the scene"
+    return ""
+
+
 def hard_quality_failure(text: str) -> str:
     if not text.strip():
         return "empty draft"
+
+    repeated_word = _RUNAWAY_REPEATED_WORD.search(text)
+    if repeated_word:
+        return f"runaway repeated word detected: {repeated_word.group(1)}"
+
+    duplicate_sentence = _duplicate_short_sentence_failure(text)
+    if duplicate_sentence:
+        return duplicate_sentence
 
     chain = _long_chain_sentence(text)
     if chain:
