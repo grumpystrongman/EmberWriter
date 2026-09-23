@@ -37,6 +37,10 @@ A long unrelated history of kingdoms and politics.
     assert "Rowan stands; Avery sits." in system
     assert "execute each meaningful beat once, in order" in system
     assert "requested_acts" in system
+    assert "POSITION GEOMETRY REFERENCE" in system
+    assert "MISSIONARY / FACE-TO-FACE ANAL" in system
+    assert "DOGGY STYLE / REAR ANAL" in system
+    assert "BLOWJOB / ORAL ON PENIS" in system
     assert "A position name is not a new organ" in system
     assert "One occupied body part cannot perform two incompatible jobs at once" in system
     assert "slick entrance" in system
@@ -113,6 +117,9 @@ def test_hidden_scene_director_infers_choreography_from_short_brief(monkeypatch)
     assert "named sexual act or position" in messages[0]["content"].lower()
     assert "do not merge incompatible requested acts" in messages[0]["content"].lower()
     assert "\"requested_acts\"" in messages[0]["content"]
+    assert "\"actor\"" in messages[0]["content"]
+    assert "\"receiver\"" in messages[0]["content"]
+    assert "\"pose_geometry\"" in messages[0]["content"]
     assert "Muna has a penis" in messages[1]["content"]
     assert captured["kwargs"]["json_mode"] is True
 
