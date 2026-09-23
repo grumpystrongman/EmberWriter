@@ -55,6 +55,7 @@ Track:
 - orientation required to maintain it
 
 If source or receiving target cannot be determined from current body state, do not use penetration-dependent language.
+A position label such as missionary, doggy style, from behind, straddling, or face-to-face NEVER supplies the receiving anatomy by itself.
 
 Words such as inside, deeper, fill, filled, stretch, take, enter, push into, and thrust into are STATE-DEPENDENT vocabulary.
 Use them only when the current physical state establishes exactly WHAT is entering WHAT.
@@ -70,6 +71,9 @@ Examples:
 - A person's head or face cannot enter an anal opening.
 - A tongue may contact an anal opening and may provide limited shallow penetration, but it cannot extend deeply through an anal canal, enter a rectum to implausible depth, or fill a receiving partner completely.
 - A mouth cannot simultaneously occupy anatomically incompatible locations.
+- A participant penetrating from a rear-facing configuration cannot simultaneously use their own mouth on the receiver's front genitalia unless the prose first establishes a different physically reachable configuration.
+- Oral stimulation and penetration may occur simultaneously only when the described geometry makes both actions reachable; a keyword such as "simultaneously" does not make incompatible positions possible.
+- Claims such as "filled twice over" require two actual, physically compatible penetrating/stimulating sources and identified targets.
 - A hand cannot touch two distant body regions simultaneously unless it moves between them.
 - A body part cannot reach through another solid body region.
 - Genitals do not automatically touch one another merely because they belong to the same person.
@@ -239,6 +243,10 @@ VERIFIER_CONTINUITY_INSTRUCTION = (
     "A penis is external anatomy and not an open cavity. "
     "A head or face cannot enter an anal opening. "
     "A tongue cannot behave like a penis, extend implausibly deep into an anal canal or rectum, or fill another participant completely. "
+    "A position label such as missionary, doggy style, from behind, or straddling does not identify receiving anatomy. "
+    "Bare phrases such as 'entered her', 'slid in', 'filled him', or 'pushed deeper' cannot establish a new penetration state unless the exact receiving anatomy is already clear. "
+    "A mouth has one current reachable location. If the same actor is penetrating from behind and is also described using their mouth on the receiver's front genitalia without a repositioning that makes both reachable, physical_continuity must be false. "
+    "Claims of double or 'twice over' filling require two physically compatible sources and explicit targets. "
     "Hands, mouths, genitals, and bodies cannot teleport between incompatible locations. "
     "Distinguish preparation from the requested central activity. Performing oral or manual stimulation near an anatomical region "
     "does not automatically mean a requested penetration or other central act occurred. "
@@ -285,6 +293,27 @@ _TONGUE_DEEP_ANAL_CANAL = re.compile(
     re.IGNORECASE,
 )
 
+_BARE_PENETRATION_PRONOUN = re.compile(
+    r"\b(?:enter(?:ed|ing)?|penetrat(?:ed|ing)?|filled?|fill(?:ed|ing)?)\s+(?:her|him|them)\b",
+    re.IGNORECASE,
+)
+_BARE_SLID_IN = re.compile(r"\bslid\s+in\b", re.IGNORECASE)
+_PENETRATION_ACTION = re.compile(
+    r"\b(?:penetrat\w*|thrust\w*|fuck\w*|enter(?:ed|ing)?|slid\s+(?:in|inside)|"
+    r"push(?:ed|ing)?\s+(?:in|inside)|drov(?:e|en)\s+[^.!?\n]{0,50}\binside|fill(?:ed|ing)?)\b",
+    re.IGNORECASE,
+)
+_EXACT_PENETRATION_TARGET = re.compile(
+    r"\b(?:anus|anal\s+opening|asshole|rectum|mouth|throat|vagina|vaginal\s+opening)\b",
+    re.IGNORECASE,
+)
+_PENETRATION_SETUP = re.compile(
+    r"\b(?:align(?:ed|ing)?\s+(?:himself|herself|themself|themselves)|between\s+(?:her|his|their)\s+legs|"
+    r"for\s+penetration|position(?:ed|ing)?\s+(?:himself|herself|themself|themselves))\b",
+    re.IGNORECASE,
+)
+_WITHDRAWAL = re.compile(r"\b(?:withdrew|pulled\s+out|slid\s+out|disengaged)\b", re.IGNORECASE)
+
 
 def hard_choreography_failure(draft: str) -> str:
     """Reject only high-confidence anatomy/choreography failures before semantic verification."""
@@ -305,6 +334,32 @@ def hard_choreography_failure(draft: str) -> str:
 
     if _INSIDE_PENIS.search(draft):
         return "physical continuity failure: draft treats a penis as an open cavity"
+
+    penetration_target_established = False
+    previous_sentence = ""
+    sentences = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?…])\s+|\n+", draft)
+        if part.strip()
+    ]
+    for sentence in sentences:
+        if _WITHDRAWAL.search(sentence):
+            penetration_target_established = False
+        has_action = bool(_PENETRATION_ACTION.search(sentence))
+        has_exact_target = bool(_EXACT_PENETRATION_TARGET.search(sentence))
+        if has_action and has_exact_target:
+            penetration_target_established = True
+        bare_start = bool(_BARE_PENETRATION_PRONOUN.search(sentence))
+        slid_in = bool(_BARE_SLID_IN.search(sentence)) and bool(
+            _PENETRATION_SETUP.search(previous_sentence)
+            or _PENETRATION_SETUP.search(sentence)
+        )
+        if (bare_start or slid_in) and not has_exact_target and not penetration_target_established:
+            return (
+                "physical continuity failure: a new penetration state begins without identifying "
+                "the exact receiving anatomy"
+            )
+        previous_sentence = sentence
 
     for paragraph in re.split(r"\n\s*\n", draft):
         if not _PENIS_TERMS.search(paragraph):
