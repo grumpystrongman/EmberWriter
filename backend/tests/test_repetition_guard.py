@@ -1156,7 +1156,7 @@ def test_core_only_near_minimum_after_cleanup_gets_one_small_topup(monkeypatch) 
     verifier_calls = 0
     prompts: list[str] = []
     chunks = [
-        _words("base", 578),
+        "Oral sex began immediately. " + _words("base", 574),
         _words("topup", 72),
     ]
 
@@ -1224,7 +1224,7 @@ def test_core_only_far_below_minimum_does_not_get_length_topup(monkeypatch) -> N
     async def fake_stream(config, messages, *, on_delta, **kwargs):
         nonlocal writer_calls
         writer_calls += 1
-        raw = _words("short", 400)
+        raw = "Oral sex began immediately. " + _words("short", 396)
         await on_delta(raw)
         return raw
 
@@ -1265,9 +1265,9 @@ def test_core_only_repair_restart_can_top_up_from_eighty_percent_of_floor(monkey
     verifier_calls = 0
     prompts: list[str] = []
     chunks = [
-        _words("first", 320),
-        _words("second", 320),
-        _words("repair", 480),
+        "Oral sex began immediately. " + _words("first", 316),
+        "Oral sex continued directly. " + _words("second", 316),
+        "Oral sex began immediately. " + _words("repair", 476),
         _words("topup", 150),
     ]
 
