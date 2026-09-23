@@ -2,7 +2,7 @@ import asyncio
 import json
 
 from app import adult_specialist
-from app.model_catalog import ADULT_EXPLICIT_MODEL
+from app.model_catalog import ADULT_EXPLICIT_MODEL, PLANNING_MODEL
 from app.models import ProviderConfig
 
 
@@ -355,3 +355,138 @@ def test_hidden_scene_director_retries_when_named_acts_are_missing(monkeypatch) 
     assert "PLANNER REPAIR REQUIREMENT" in captured[1][1]["content"]
     assert "plan omitted author-requested acts/positions" in captured[1][1]["content"]
     assert "DETECTED REQUIRED ACTS / POSITIONS: missionary, doggy, anal, blowjob" in captured[0][1]["content"]
+
+
+def test_hidden_scene_director_prefers_dedicated_planning_model(monkeypatch) -> None:
+    observed: dict[str, str] = {}
+
+    async def installed(_base_url: str) -> list[str]:
+        return [PLANNING_MODEL, ADULT_EXPLICIT_MODEL]
+
+    async def fake_generate(config, _messages, **_kwargs) -> str:
+        observed["model"] = config.model
+        return json.dumps(
+            {
+                "opening_state": "A faces B.",
+                "central_intent": "progress",
+                "requested_acts": [],
+                "character_engines": [],
+                "relationship_turn": "closer",
+                "magic_timing": "latter half",
+                "beats": [
+                    {"objective": "first change", "action": "move closer"},
+                    {"objective": "second change", "action": "resolve"},
+                ],
+                "ending_goal": "resolution",
+                "continuity_watchouts": [],
+            }
+        )
+
+    monkeypatch.setattr(adult_specialist, "installed_ollama_models", installed)
+    monkeypatch.setattr(adult_specialist, "generate", fake_generate)
+
+    config = ProviderConfig(
+        provider="ollama",
+        base_url="http://localhost:11434",
+        model=ADULT_EXPLICIT_MODEL,
+    )
+    plan = asyncio.run(
+        adult_specialist.build_hidden_adult_scene_plan(
+            config,
+            "Write a high-heat scene between A and B.",
+            "Adult characters.",
+            heat_level="inferno",
+            delivery_scope="full_scene",
+        )
+    )
+
+    assert plan
+    assert observed["model"] == PLANNING_MODEL
+
+
+def test_scene_plan_accepts_anal_covered_inside_position_entries() -> None:
+    prompt = "missionary sex, doggy style sex, anal, blowjob"
+    plan = {
+        "requested_acts": [
+            {
+                "request": "missionary",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "missionary anal",
+                "required_geometry": "B on back; A in front",
+            },
+            {
+                "request": "doggy style",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "rear anal",
+                "required_geometry": "B facing away; A behind",
+            },
+            {
+                "request": "blowjob",
+                "actor": "B",
+                "receiver": "A",
+                "canon_safe_interpretation": "oral on penis",
+                "required_geometry": "B in front of A",
+            },
+        ],
+        "beats": [
+            {
+                "objective": "missionary anal",
+                "action": "missionary anal penetration",
+                "act_state": "missionary anal",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "front"},
+            },
+            {
+                "objective": "doggy style anal",
+                "action": "doggy style anal penetration",
+                "act_state": "doggy style anal",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "behind"},
+            },
+            {
+                "objective": "blowjob",
+                "action": "blowjob oral sex",
+                "act_state": "blowjob",
+                "actor": "B",
+                "receiver": "A",
+                "pose_geometry": {"relative_position": "front"},
+            },
+        ],
+    }
+
+    assert adult_specialist._scene_plan_failure(plan, prompt) == ""
+
+
+def test_scene_plan_allows_non_requested_transition_beats_without_full_geometry() -> None:
+    prompt = "missionary sex"
+    plan = {
+        "requested_acts": [
+            {
+                "request": "missionary",
+                "actor": "A",
+                "receiver": "B",
+                "canon_safe_interpretation": "face-to-face anal",
+                "required_geometry": "B on back; A in front",
+            }
+        ],
+        "beats": [
+            {
+                "objective": "character-specific transition",
+                "action": "brief emotional transition",
+            },
+            {
+                "objective": "missionary",
+                "action": "missionary anal penetration",
+                "act_state": "missionary",
+                "actor": "A",
+                "receiver": "B",
+                "pose_geometry": {"relative_position": "front"},
+            },
+        ],
+    }
+
+    assert adult_specialist._scene_plan_failure(plan, prompt) == ""
