@@ -48,6 +48,7 @@ from .provenance_store import record_assistance_event
 from .storage import compile_context, read_text
 from .story_intelligence import build_character_context, relevant_character_names
 from .streaming_generation import (
+    SceneDeliveryIncomplete,
     generate_complete_prose_streamed,
     generate_streamed,
     verify_studio_scene_delivery,
@@ -473,6 +474,11 @@ async def _generate_payload(
             heat_level=heat,
             delivery_scope=delivery_scope,
         )
+        if not scene_plan:
+            raise RuntimeError(
+                "Hidden scene planner could not produce a valid physical plan after repair; "
+                "no unplanned adult draft was accepted."
+            )
 
     messages, adult_specialist = _generation_messages(
         payload,
@@ -659,6 +665,11 @@ async def _produce_generation_stream(
                     heat_level=heat,
                     delivery_scope=delivery_scope,
                 )
+                if not scene_plan:
+                    raise RuntimeError(
+                        "Hidden scene planner could not produce a valid physical plan after repair; "
+                        "no unplanned adult draft was accepted."
+                    )
             messages, adult_specialist = _generation_messages(
                 payload,
                 context_text,
@@ -738,6 +749,26 @@ async def _produce_generation_stream(
         await partial_or_error(str(exc))
     except httpx.HTTPError as exc:
         await partial_or_error(f"Model server error: {exc}")
+    except SceneDeliveryIncomplete as exc:
+        if _is_studio_request(payload):
+            streamed_parts.clear()
+            await queue.put(
+                {
+                    "type": "reset",
+                    "reason": (
+                        "Studio rejected the generated draft because it never passed final scene-delivery "
+                        "verification. The invalid prose was removed instead of being returned as a partial result."
+                    ),
+                }
+            )
+            await queue.put(
+                {
+                    "type": "error",
+                    "detail": f"Scene delivery verification failed: {exc.reason}",
+                }
+            )
+        else:
+            await partial_or_error(str(exc))
     except RuntimeError as exc:
         await partial_or_error(str(exc))
     except Exception as exc:  # pragma: no cover - final defensive boundary for streamed responses
