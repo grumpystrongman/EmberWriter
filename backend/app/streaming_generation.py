@@ -708,6 +708,7 @@ async def generate_complete_prose_streamed(
     canon_restart_used = False
     continuity_restart_count = 0
     scope_restart_count = 0
+    length_topup_used = False
     pass_diagnostics: list[str] = []
     # A discarded assistant/prompt-echo response should not consume the author's one useful
     # repair pass. Permit one role-confusion restart outside the manuscript pass budget.
@@ -939,6 +940,40 @@ async def generate_complete_prose_streamed(
         ):
             return accumulated
 
+        if (
+            studio_delivery_verifier
+            and core_only
+            and pass_index == max_passes - 1
+            and not length_topup_used
+            and candidate_words > 0
+            and words < min_words
+            and words >= max(1, int(min_words * 0.9))
+        ):
+            length_topup_used = True
+            remaining = max(min_words - words, 0)
+            if on_status is not None:
+                await on_status(
+                    f"Repetition cleanup left the verified draft {remaining} words short · adding a brief clean completion…"
+                )
+            handoff = accumulated[-3500:]
+            working_messages = [
+                *messages,
+                {"role": "assistant", "content": handoff},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Continue from the exact final state with roughly {max(remaining + 25, 60)} fresh words. "
+                        "Do not restart any completed act, introduce a new position, or create a new penetration state. "
+                        "Add only a brief physically continuous completion of the current beat. "
+                        "Avoid repeated sentences and repeated actions. End naturally and do not add unrelated aftermath."
+                    ),
+                },
+            ]
+            verifier_reason = ""
+            max_passes += 1
+            pass_index += 1
+            continue
+
         if pass_index == max_passes - 1:
             if studio_delivery_verifier:
                 # The scene-complete marker is a writer hint, not proof. On the final allowed pass,
@@ -989,6 +1024,7 @@ async def generate_complete_prose_streamed(
                     reason += (
                         f"; delivery diagnostics: scope=core_only, scope_restarts={scope_restart_count}, "
                         f"continuity_restarts={continuity_restart_count}, "
+                        f"length_topup={str(length_topup_used).lower()}, "
                         f"canon_restart={str(canon_restart_used).lower()}, "
                         f"pass={pass_index + 1}/{max_passes}"
                     )
