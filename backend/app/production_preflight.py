@@ -18,6 +18,7 @@ from .manuscript_intelligence import _chapters, list_promises
 from .publishing import compiled_documents
 from .quality_clinic import check_text
 from .style_bible import audit as style_audit
+from .prose_editor import analyze as prose_scan
 from .storage import get_project, project_root
 
 MAX_WAIVERS = 300
@@ -150,6 +151,16 @@ def preflight(slug: str) -> dict:
     except (ValueError, FileNotFoundError):
         add("blocker", "compile_empty", "No Draft documents are enabled for Compile",
             "Include the intended manuscript chapters in the Draft binder.")
+
+    for ch in chapters:
+        inspected = prose_scan(slug, ch["path"])
+        likely = [f for f in inspected["findings"] if f["rule"] in ("modal_of", "double_word")
+                  and f["decision"] == "pending"]
+        if likely:
+            add("warning", "prose_editor", "Potential grammar mistakes await review",
+                f"{len(likely)} high-confidence mechanical correction(s) in {ch['title']} need author inspection.",
+                path=ch["path"], evidence=likely[0]["excerpt"],
+                version=inspected["source_hash"])
 
     style = style_audit(slug)
     if style["outstanding"]:

@@ -80,6 +80,16 @@ class ProductionPreflightTests(unittest.TestCase):
         decide_style(self.slug, finding["id"], "dismiss", "Deliberate speech repetition in dialogue.")
         self.assertFalse(any(i["code"] == "style_bible" for i in preflight(self.slug)["issues"]))
 
+    def test_mechanical_prose_editor_findings_flow_to_preflight(self):
+        from app.prose_editor import analyze, decide
+        report = preflight(self.slug)
+        self.assertTrue(any(item["code"] == "prose_editor" for item in report["issues"]))
+        scan = analyze(self.slug, "manuscript/chapter-001.md")
+        duplicate = next(item for item in scan["findings"] if item["rule"] == "double_word")
+        decide(self.slug, "manuscript/chapter-001.md", duplicate["id"], scan["source_hash"],
+               "dismiss", reason="Deliberate repetition in this prose passage.")
+        self.assertFalse(any(item["code"] == "prose_editor" for item in preflight(self.slug)["issues"]))
+
     def test_api_reports_and_waivers_are_project_scoped(self):
         client = TestClient(app)
         root = f"/api/projects/{self.slug}/production-preflight"

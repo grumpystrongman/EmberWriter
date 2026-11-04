@@ -223,3 +223,27 @@ that particular preflight warning. A preflight waiver is advisory only.
 This is deterministic terminology checking, **not a full grammar checker**;
 dictionary-backed local grammar, character-aware language, and semantic
 consistency analysis remain separate roadmap milestones.
+
+
+### Sentence-level Prose Editor
+
+Under **Plan -> Prose Editor**, authors can inspect current manuscript
+chapters and unapproved Book Studio candidates with an offline, deterministic
+editorial engine. Mechanical suggestions identify duplicate words, modal
+construction errors (for example *could of*), misplaced punctuation spacing,
+extra spaces, and optional wordiness reductions. Optional expected first/third
+person and past/present tense settings flag *possible* drift outside dialogue;
+those flags are subjective and never offer an automatic replacement.
+
+Each suggestion includes a precise source span, quotation, chapter and line.
+The author can apply an individual mechanical replacement (which creates a
+restorable snapshot / archived candidate version), keep the original with a
+written justification, or reopen a previously dismissed observation. A SHA-256
+source fingerprint blocks all actions when the chapter has changed since the
+scan; an edit requires a fresh scan. This first version uses transparent
+heuristics rather than a full dictionary/grammar engine. It is not an
+AI-authorship detector, literary quality judge or professional copy editor.
+
+The Production Readiness Gate now highlights outstanding high-confidence
+duplicate-word and modal-construction candidates. Author decisions are
+source-versioned and a revised chapter must be rescanned.
