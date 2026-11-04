@@ -8,6 +8,7 @@ import VoiceprintLab from './VoiceprintLab'
 import StyleBible from './StyleBible'
 import ProseEditor from './ProseEditor'
 import EditorialBoard from './EditorialBoard'
+import ProductionConductor from './ProductionConductor'
 import DevelopmentWorkspace from './DevelopmentWorkspace'
 import PlanWorkspace from './PlanWorkspace'
 import type { WorkspaceProject } from './workspace-types'
@@ -18,11 +19,14 @@ type Props = {
   onOpenSource: (path: string, anchor?: string) => void
 }
 
-type PlanHubTab = 'autopilot' | 'book_studio' | 'manuscript_intelligence' | 'story_arcs' | 'voiceprint' | 'style_bible' | 'prose_editor' | 'editorial_board' | 'timeline' | 'story_map'
+type PlanHubTab = 'autopilot' | 'book_studio' | 'manuscript_intelligence' | 'story_arcs' | 'voiceprint' | 'style_bible' | 'prose_editor' | 'editorial_board' | 'production_conductor' | 'timeline' | 'story_map'
 
 export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
   const [tab, setTab] = useState<PlanHubTab>('book_studio')
   const [editorialTarget, setEditorialTarget] = useState('')
+  function navigateProduction(destination: 'book_studio' | 'editorial_board') {
+    setTab(destination)
+  }
   function navigateEditorial(destination: 'prose_editor' | 'style_bible' | 'story_arcs', chapterPath: string) {
     setEditorialTarget(chapterPath)
     setTab(destination)
@@ -39,6 +43,7 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
       </header>
 
       <nav className="center-subtabs planning-hub-tabs" aria-label="Story development tools">
+        <button type="button" className={tab === 'production_conductor' ? 'active' : ''} onClick={() => setTab('production_conductor')}>Book Production Conductor</button>
         <button type="button" className={tab === 'book_studio' ? 'active' : ''} onClick={() => setTab('book_studio')}>Book Studio · Write the whole book</button>
         <button type="button" className={tab === 'manuscript_intelligence' ? 'active' : ''} onClick={() => setTab('manuscript_intelligence')}>Manuscript Intelligence</button>
         <button type="button" className={tab === 'story_arcs' ? 'active' : ''} onClick={() => setTab('story_arcs')}>Story Arc Investigator</button>
@@ -51,7 +56,9 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
         <button type="button" className={tab === 'story_map' ? 'active' : ''} onClick={() => setTab('story_map')}>Story Map · Arcs · Relationships · Threads</button>
       </nav>
 
-      {tab === 'book_studio' ? (
+      {tab === 'production_conductor' ? (
+        <ProductionConductor apiBase={apiBase} projectSlug={project.slug} onNavigate={navigateProduction} />
+      ) : tab === 'book_studio' ? (
         <BookStudio apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource} />
       ) : tab === 'manuscript_intelligence' ? (
         <ManuscriptIntelligence apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource} />

@@ -10,9 +10,12 @@ Every future feature should expose provenance, uncertainty, review/undo, and pri
 
 ## P0 — Reliability and a seamless whole-book production loop
 
-1. **End-to-end book production conductor:** connect outline, chapter generation,
-   local reader panels, accepted revisions, canon updates, voice checks, compile,
-   export and preflight in one guided process. Each stage has a clear author gate.
+1. **End-to-end book production conductor (first guided pipeline shipped):**
+   Book Studio drafts, optional local independent reader critiques, explicit
+   author approval gate, whole-book Editorial Board and Production Readiness
+   handoff now share a durable supervisor and a bounded checkpoint journal.
+   Next: linked author-controlled revision proposals, canon impact tasks,
+   audiobook handoff, per-stage retry settings and finalized export packaging.
 2. **Long-running job supervision:** persisted token/time budgets, retry policies,
    resource-aware model scheduling, crash recovery, durable event log,
    pause/resume/cancel and per-chapter diagnostics.

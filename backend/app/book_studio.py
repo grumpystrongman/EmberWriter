@@ -168,24 +168,97 @@ async def suggest_outline(slug: str, *, premise: str, voice: str, chapter_count:
     return cleaned
 
 
-def _context(slug: str, state: dict, chapter_index: int) -> str:
-    project = get_project(slug)
+def _prior_chapter_text(slug: str, entry: dict) -> str:
+    """Read actual approved prose or a pending local candidate, never an AI summary."""
+    number = int(entry["number"])
+    if entry["status"] == "approved":
+        return read_text(slug, f"manuscript/book-studio/chapter-{number:03d}.md")
+    if entry["status"] == "candidate":
+        source = _output(slug, number)
+        return source.read_text(encoding="utf-8") if source.is_file() else ""
+    return ""
+
+
+def _continuity_digest(slug: str, state: dict, chapter_index: int) -> str:
+    """Small, reproducible excerpts from earlier chapters, not inferred story facts."""
+    if chapter_index < 2:
+        return ""
+    earlier = [entry for entry in state["chapters"][:chapter_index-1]
+               if entry["status"] in ("approved", "candidate")]
+    # Anchor the opening and prefer recent developments. Limit the number of
+    # chapters and total text to preserve budget for actual scene continuity.
+    chosen = {entry["number"] for entry in earlier[-9:]}
+    if earlier:
+        chosen.add(earlier[0]["number"])
     parts = []
-    paths = [p for p in project["files"] if p.startswith(("world/", "characters/", "style/", "timeline/", "relationships/", "planning/")) and p.endswith((".md", ".txt")) and not p.endswith("README.md")]
-    for path in sorted(paths)[:30]:
+    for entry in earlier:
+        if entry["number"] not in chosen:
+            continue
+        prose = _prior_chapter_text(slug, entry).strip()
+        if not prose:
+            continue
+        # Original openings/endings are evidence excerpts, not authoritative
+        # summaries; they may omit important interior developments.
+        excerpt = prose[:130].replace("\n", " ").strip()
+        ending = prose[-270:].replace("\n", " ").strip()
+        parts.append(
+            f"Ch. {entry['number']} {entry['title']} [{entry['status']}]: "
+            f"opening: {excerpt}; ending: {ending}"
+        )
+    return "### Historical chapter excerpts (incomplete, source-grounded)\n" + "\n".join(parts)[:4200] if parts else ""
+
+
+def _context(slug: str, state: dict, chapter_index: int) -> str:
+    """Reserve context space for the immediate prior chapter and core canon."""
+    from .manuscript_intelligence import list_promises
+
+    parts = []
+    remaining = MAX_CONTEXT
+
+    def append(section: str, maximum: int):
+        nonlocal remaining
+        if not section or remaining < 80:
+            return
+        clipped = section[:min(maximum, remaining)]
+        parts.append(clipped)
+        remaining -= len(clipped) + 2
+
+    if chapter_index > 0:
+        prior = _prior_chapter_text(slug, state["chapters"][chapter_index - 1])
+        if prior:
+            append("### Previous chapter ending (original prose)\n" + prior[-5200:], 5400)
+
+    # Author-supplied canonical facts outrank historical prose excerpts.
+    # A fixed reserve prevents a large dossier from crowding out the current
+    # chapter's immediate continuity and authored story promises.
+    project = get_project(slug)
+    priorities = ("characters/", "world/", "relationships/", "style/", "timeline/", "planning/")
+    paths = [p for p in project["files"]
+             if p.startswith(priorities)
+             and p.endswith((".md", ".txt")) and not p.endswith("README.md")]
+    paths.sort(key=lambda path: (next((i for i, prefix in enumerate(priorities)
+                                     if path.startswith(prefix)), len(priorities)), path))
+    canon_budget = min(6900, remaining)
+    for path in paths[:30]:
+        if canon_budget < 80 or remaining < 80:
+            break
         value = read_text(slug, path).strip()
         if value:
-            parts.append(f"### {path}\n{value[:3500]}")
-    if chapter_index > 0:
-        previous = state["chapters"][chapter_index - 1]
-        # Use author-approved prior chapter or pending draft for sequential coherence.
-        if previous["status"] == "approved":
-            prev_text = read_text(slug, f"manuscript/book-studio/chapter-{chapter_index:03d}.md")
-        else:
-            file = _output(slug, chapter_index)
-            prev_text = file.read_text(encoding="utf-8") if file.is_file() else ""
-        if prev_text:
-            parts.insert(0, "### Previous chapter ending\n" + prev_text[-5500:])
+            section = f"### Author canon: {path}\n{value}"
+            before = remaining
+            append(section, min(3000, canon_budget))
+            canon_budget -= before - remaining
+
+    promises = [record for record in list_promises(slug) if record.get("status") == "open"][:12]
+    if promises:
+        body = "\n".join(
+            f"- {p['title']}: tracking phrase '{p['tracking_phrase']}'; "
+            f"author's intention: {p.get('intention', '')[:120]}"
+            for p in promises
+        )
+        append("### Open author-tracked story promises (NOT automatically fulfilled)\n" + body, 1700)
+
+    append(_continuity_digest(slug, state, chapter_index), 3500)
     return "\n\n".join(parts)[:MAX_CONTEXT]
 
 

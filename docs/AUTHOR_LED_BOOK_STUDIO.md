@@ -275,3 +275,22 @@ require an author to use this tool.
 The full feature guide and safety limits are documented in
 `docs/EDITORIAL_BOARD.md`. Scans use deterministic local heuristics, not a
 professional grammar checker or an authoritative literary quality score.
+
+
+### Durable author-led production orchestration
+
+**Plan -> Book Production Conductor** now connects the existing restart-resumable
+Book Studio queue with opt-in independent local reader critiques, an explicit
+author decision gate, the Whole-Book Editorial Board, and a publisher-facing
+Production Readiness summary. It persists its own per-project checkpoint and
+compact event journal, detects changes after editorial handoff, supports
+pause/continue and crash recovery, and never approves, overwrites, or exports
+a manuscript on the author's behalf.
+
+The new Prompt Context Inspector shows exactly the currently reconstructed
+16,000-character continuity material for a selected chapter without calling
+a model. Context prioritizes the previous chapter's original ending, authored
+canon, open story promises and a bounded source-grounded digest of recent
+and opening chapters. It doesn't invent summaries or treat hypotheses as
+canon. See `docs/PRODUCTION_CONDUCTOR.md` for workflow stages, privacy
+boundaries, recovery behavior and remaining limits.

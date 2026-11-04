@@ -49,6 +49,33 @@ class BookStudioTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires"):
             configure(self.slug, premise="Test", voice="", chapters=[], target_words=300)
 
+    def test_bounded_continuity_context_uses_original_chapter_evidence(self):
+        from app.book_studio import _context, MAX_CONTEXT
+        from app.manuscript_intelligence import create_promise
+        chapters = [{"title": f"Chapter {i}", "brief": f"Beat {i}"} for i in range(1, 13)]
+        configure(self.slug, premise="A distant city is found.", voice="Close third.",
+                  chapters=chapters, target_words=300)
+        for index in range(1, 12):
+            document = f"# Chapter {index}\n\n" + ("Opening discovery by Mara. " * 20)
+            document += f"EARLIER_SOURCE_ENDING_{index} " + ("The captain rested. " * 15)
+            file = storage.project_root(self.slug) / ".ember" / "book-candidates" / f"chapter-{index:03d}.md"
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(document, encoding="utf-8")
+        state = load_state(self.slug)
+        for chapter in state["chapters"][:11]:
+            chapter["status"] = "candidate"
+        create_promise(self.slug, "The sealed vault", "sealed vault",
+                       "The author will decide when the vault opens.")
+        storage.save_text(self.slug, "world/canon.md",
+                          "The northern city is surrounded by seven rivers.")
+        context = _context(self.slug, state, 11)
+        self.assertLessEqual(len(context), MAX_CONTEXT)
+        self.assertIn("EARLIER_SOURCE_ENDING_11", context)
+        self.assertIn("EARLIER_SOURCE_ENDING_1", context)
+        self.assertIn("The sealed vault", context)
+        self.assertIn("seven rivers", context)
+        self.assertNotIn("DO_NOT_SHARE_THIS", context)
+
     def test_revise_brief_changes_future_plan(self):
         self.setup_plan()
         updated = revise_chapter_brief(self.slug, 2, "New Crossing", "The harbor changes course.")
