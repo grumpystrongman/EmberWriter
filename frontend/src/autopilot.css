@@ -1,0 +1,49 @@
+/* Autopilot Flight Deck: original EmberWriter design, no external assets */
+.autopilot { padding: 28px clamp(18px, 3vw, 46px) 54px; color: var(--text-primary, #ede7dc); }
+.autopilot-hero { position: relative; overflow: hidden; display:flex; justify-content:space-between; gap:28px; padding:34px; border-radius:22px; border:1px solid rgba(235,165,93,.35); background: radial-gradient(ellipse at 82% 6%, rgba(244,125,58,.22), transparent 47%), linear-gradient(130deg,#211d2c,#171b28 65%,#252032); box-shadow:0 12px 40px rgba(0,0,0,.16); }
+.autopilot-orbit { position:absolute; right:22%; top:-60px; font-size:240px; color:rgba(255,170,86,.08); pointer-events:none; }
+.autopilot-copy {max-width:680px;position:relative}
+.autopilot-kicker,.autopilot-section-heading small {font-size:11px; font-weight:800; letter-spacing:.22em; color:#f4b474}
+.autopilot h2 {font-size:clamp(30px,3.3vw,48px);line-height:1.05;margin:12px 0 15px;color:#fff2dd;letter-spacing:-.04em}
+.autopilot-hero p{max-width:600px;color:#d1cbd0;font-size:15px;line-height:1.65;margin:0 0 22px}
+.autopilot-privacy {font-size:12px;color:#abddb8;font-weight:650;letter-spacing:.015em}
+.autopilot-actions {display:flex;flex-direction:column;gap:10px;min-width:210px;align-self:end;position:relative}
+.autopilot button {cursor:pointer; border:1px solid rgba(217,180,133,.26); border-radius:10px; padding:10px 14px; font:inherit; background:rgba(255,255,255,.06); color:inherit}
+.autopilot button:hover:not(:disabled){border-color:#e4ad76}
+.autopilot button:focus-visible {outline:2px solid #ffb87d;outline-offset:2px}
+.autopilot button:disabled{opacity:.5;cursor:not-allowed}
+.autopilot .autopilot-primary {background:linear-gradient(115deg,#db8145,#efb56e);color:#251726;border-color:#f0b278;font-weight:800}
+.autopilot-error{padding:16px;background:#502833;color:#fff;border-radius:10px}
+.autopilot-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-top:22px}
+.autopilot-metrics article{padding:20px 18px;border-radius:15px;background:var(--panel-bg,rgba(255,255,255,.045));border:1px solid rgba(180,155,136,.2);display:flex;flex-direction:column;gap:5px}
+.autopilot-metrics small{font-size:11px;letter-spacing:.17em;color:var(--text-muted,#b3a8a5);font-weight:750}
+.autopilot-metrics strong{font-size:clamp(23px,2.6vw,37px);font-weight:800;letter-spacing:-.045em;color:var(--text-primary,#f3e9da);white-space:nowrap}
+.autopilot-metrics em{font-size:17px;font-style:normal;color:var(--text-muted,#a99d96)}
+.autopilot-metrics span{font-size:12px;color:var(--text-muted,#a99d96)}
+.autopilot-section-heading{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:34px 0 17px}
+.autopilot-section-heading h3{font-size:23px;line-height:1.2;margin:6px 0 0;letter-spacing:-.025em}
+.autopilot-section-heading>span{font-size:12px;color:var(--text-muted,#bcb3a9)}
+.autopilot-phases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.autopilot-phase{padding:20px 18px;border:1px solid rgba(170,147,142,.24);border-radius:15px;background:var(--panel-bg,rgba(255,255,255,.04));min-width:0}
+.autopilot-phase-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.autopilot-step{font-family:monospace;font-size:15px;color:#eba46f}
+.autopilot-status{font-size:10px;text-transform:uppercase;letter-spacing:.08em;border:1px solid rgba(180,165,145,.35);border-radius:30px;padding:5px 8px;color:var(--text-muted,#d2c8bc)}
+.autopilot-status.ready{border-color:#70b995;color:#89d5ae}
+.autopilot-status.needs_attention{border-color:#bf9659;color:#f1bc78}
+.autopilot-phase h4{font-size:21px;margin:19px 0 8px}
+.autopilot-phase p{color:var(--text-muted,#c1b8af);line-height:1.5;font-size:13px;min-height:55px}
+.autopilot-phase ul,.autopilot-findings ul{margin:16px 0 0;padding-left:18px;line-height:1.6;font-size:12px}
+.autopilot-phase li+li,.autopilot-findings li+li{margin-top:8px}
+.autopilot-chapters{border:1px solid rgba(180,155,136,.2);border-radius:15px;overflow:hidden}
+.autopilot-chapter{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 125px 110px;gap:12px;text-align:left;border:0!important;border-radius:0!important;padding:15px 18px!important;border-bottom:1px solid rgba(180,155,136,.17)!important;background:transparent!important;align-items:center}
+.autopilot-chapter:hover,.autopilot-chapter.active{background:rgba(210,138,77,.12)!important}
+.autopilot-chapter span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.autopilot-chapter span:nth-child(2){color:var(--text-muted,#c3bcb3);font-size:12px}
+.autopilot-chapter strong{justify-self:end;color:#edb77b;font-size:12px}
+.autopilot-findings{padding:20px;background:rgba(225,145,83,.055)}
+.autopilot-findings-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.autopilot-findings li{line-height:1.6}
+.autopilot-footer{display:flex;flex-direction:column;gap:8px;margin-top:30px;padding:18px;border-top:1px solid rgba(180,155,136,.2)}
+.autopilot-footer span,.autopilot-footer p{color:var(--text-muted,#b3aaa5);font-size:12px;line-height:1.5}
+@media(max-width:1100px){.autopilot-phases{grid-template-columns:repeat(2,minmax(0,1fr))}.autopilot-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:670px){.autopilot-hero{flex-direction:column;padding:23px}.autopilot-actions{align-self:stretch}.autopilot-phases{grid-template-columns:1fr}.autopilot-chapter{grid-template-columns:minmax(0,1fr) 80px}.autopilot-chapter strong{grid-column:2}.autopilot-chapter span:nth-child(2){display:none}}
