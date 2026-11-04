@@ -123,9 +123,11 @@ async def evaluate(slug: str, number: int, persona: str, config: ProviderConfig,
         "Scores 1-5. Up to 6 genuinely useful findings, or empty list. "
         "Quote directly and exactly from the chapter.\n\nCHAPTER CANDIDATE:\n" + content
     )
-    raw = await generate(config, [
-        {"role": "system", "content": system}, {"role": "user", "content": prompt},
-    ], json_mode=True, temperature=0.35, max_output_tokens=3000)
+    from .local_resources import reservation
+    async with reservation():
+        raw = await generate(config, [
+            {"role": "system", "content": system}, {"role": "user", "content": prompt},
+        ], json_mode=True, temperature=0.35, max_output_tokens=3000)
     parsed = _parse(raw)
     verdict = str(parsed.get("verdict", "")).strip()
     strengths = parsed.get("strengths", [])

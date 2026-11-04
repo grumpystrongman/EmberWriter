@@ -1,4 +1,5 @@
 """Private local audiobook rendering and chapter downloads."""
+import asyncio
 import subprocess
 
 from fastapi import APIRouter, HTTPException
@@ -46,9 +47,11 @@ def renders(slug: str) -> list[dict]:
 
 
 @router.post("/renders")
-def create_render(slug: str, payload: RenderRequest) -> dict:
+async def create_render(slug: str, payload: RenderRequest) -> dict:
     try:
-        return render(slug, payload.path, payload.voice, payload.rate)
+        from .local_resources import reservation
+        async with reservation():
+            return await asyncio.to_thread(render, slug, payload.path, payload.voice, payload.rate)
     except FileNotFoundError as exc:
         raise HTTPException(404, "Project not found") from exc
     except NotImplementedError as exc:

@@ -64,6 +64,16 @@ color-contrast instrumentation and long-manuscript stress remain necessary.
 The repeated page headings and some older panels still have legacy visual
 density. Avoid claiming those are resolved.
 
+## Narration direction UX regression (November 2026)
+
+The Audiobook Workshop now includes two deliberately collapsed author tools:
+pronunciation/chapter narrator direction and timestamped proof-listening notes.
+The primary Narrate entire book action remains above them. Updated visual
+browser checks verify that both panels are closed by default and that the
+pronunciation controls do not cause horizontal overflow when expanded at
+1440, 900 and 390 CSS pixels. This test only verifies layout and visible
+controls; it does not certify audio quality or keyboard/screen-reader use.
+
 ## UX release bar going forward
 
 A new feature should not add another top-level workspace or a new permanent

@@ -146,10 +146,12 @@ async def suggest_outline(slug: str, *, premise: str, voice: str, chapter_count:
         'Return JSON only: {"chapters": [{"title":"...", "brief":"concrete scene beats, POV, character movement and plot consequence"}]}. '
         "Make every brief specific and non-repetitive."
     )
-    response = await generate(config, [
-        {"role": "system", "content": "You are an author-led novel outlining collaborator. Return only valid JSON, not prose."},
-        {"role": "user", "content": prompt},
-    ], json_mode=True, temperature=0.7, max_output_tokens=min(8192, 500 + 175 * chapter_count))
+    from .local_resources import reservation
+    async with reservation():
+        response = await generate(config, [
+            {"role": "system", "content": "You are an author-led novel outlining collaborator. Return only valid JSON, not prose."},
+            {"role": "user", "content": prompt},
+        ], json_mode=True, temperature=0.7, max_output_tokens=min(8192, 500 + 175 * chapter_count))
     stripped = response.strip()
     if stripped.startswith("```"):
         stripped = re.sub(r"^```(?:json)?\s*|\s*```$", "", stripped, flags=re.I)
@@ -311,10 +313,12 @@ async def draft_next(slug: str, config: ProviderConfig) -> dict:
                 f"Target at least {state['target_words']} words. "
                 "Write full chapter prose rather than a synopsis. Deliver an ending that prepares the next chapter."
             )
-            prose = await generate_complete_prose(
-                config, [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-                min_words=state["target_words"], max_passes=5
-            )
+            from .local_resources import reservation
+            async with reservation():
+                prose = await generate_complete_prose(
+                    config, [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+                    min_words=state["target_words"], max_passes=5
+                )
             words = len(re.findall(r"\b[\w]+(?:['’-][\w]+)*\b", prose))
             if words < state["target_words"] * .6:
                 raise ValueError(f"Generated only {words} words; chapter is too short for the requested target")

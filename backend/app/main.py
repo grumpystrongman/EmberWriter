@@ -41,6 +41,7 @@ from .routes_editorial_board import router as editorial_board_router
 from .routes_production_conductor import router as production_conductor_router
 from .production_conductor import recover_on_startup as recover_conductor, stop_on_shutdown as stop_conductor
 from .routes_audiobook_jobs import router as audiobook_jobs_router
+from .routes_audio_production import router as audiobook_production_router
 from .audiobook_jobs import recover_on_startup as recover_audio_on_startup, stop_on_shutdown as stop_audio_on_shutdown
 from .book_jobs import recover_on_startup, stop_on_shutdown
 from .routes_audiobook_local import router as audiobook_local_router
@@ -174,6 +175,7 @@ app.include_router(prose_editor_router)
 app.include_router(editorial_board_router)
 app.include_router(production_conductor_router)
 app.include_router(audiobook_jobs_router)
+app.include_router(audiobook_production_router)
 app.include_router(audiobook_local_router)
 app.include_router(quality_clinic_router)
 app.include_router(generation_router)

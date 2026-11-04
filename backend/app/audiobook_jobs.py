@@ -104,11 +104,20 @@ def start(slug: str, voice: str = "", rate: int = -1) -> dict:
         raise ValueError("Narration speed must be an integer from -5 to 5")
     if voice and voice not in available_voices():
         raise ValueError("The selected offline voice is not installed")
+    from .audio_production import snapshot
+    config = snapshot(slug)
+    # Freeze the author-selected voice and pronunciation dictionary for the
+    # entire batch. Later edits require a new batch to avoid mixed editions.
     chapters = _book(slug)
+    for chapter in chapters:
+        profile = config["chapter_profiles"].get(chapter["path"], {})
+        chapter["voice"] = profile.get("voice", voice)
+        chapter["rate"] = profile.get("rate", rate)
     record = {
         "id": uuid4().hex, "status": "queued", "voice": voice, "rate": rate,
         "created_at": _now(), "updated_at": _now(),
         "chapters": chapters, "current": None,
+        "pronunciations": config["pronunciations"], "settings_signature": config["signature"],
         "message": "Queued selected Binder chapters for local offline narration.",
     }
     _write(slug, record)
@@ -140,19 +149,33 @@ async def _worker(slug: str, job_id: str):
                 actual = _fingerprint(slug, source)
                 if actual != chapter["fingerprint"]:
                     raise ValueError(f"{source} changed since the audiobook job was queued. Start a new batch after reviewing edits.")
+                from .audio_production import snapshot
+                if job.get("settings_signature") and snapshot(slug)["signature"] != job["settings_signature"]:
+                    raise ValueError("Narration dictionary or chapter profiles changed since this batch started. Create a new batch.")
                 job["status"] = "running"
                 job["current"] = source
                 job["message"] = f"Narrating {source} offline."
                 _write(slug, job)
-                # Preserve the three-argument path for existing saved jobs.
-                speed = job.get("rate", -1)
-                if speed == -1:
-                    rendered = await asyncio.to_thread(render, slug, source, job["voice"])
-                else:
-                    rendered = await asyncio.to_thread(render, slug, source, job["voice"], speed)
+                from .local_resources import reservation
+                async with reservation():
+                    speed = chapter.get("rate", job.get("rate", -1))
+                    selected_voice = chapter.get("voice", job["voice"])
+                    custom = job.get("pronunciations", []) or chapter.get("rate", job.get("rate", -1)) != job.get("rate", -1) or chapter.get("voice", job["voice"]) != job["voice"]
+                    if custom:
+                        rendered = await asyncio.to_thread(
+                            render, slug, source, selected_voice, speed,
+                            rules=job.get("pronunciations", []),
+                            settings_signature=job["settings_signature"],
+                        )
+                    elif speed == -1:
+                        rendered = await asyncio.to_thread(render, slug, source, selected_voice)
+                    else:
+                        rendered = await asyncio.to_thread(render, slug, source, selected_voice, speed)
                 # An author may have changed the chapter while TTS was speaking.
                 if _fingerprint(slug, source) != chapter["fingerprint"]:
                     raise ValueError(f"{source} changed while narration was in progress; review the output.")
+                if job.get("settings_signature") and snapshot(slug)["signature"] != job["settings_signature"]:
+                    raise ValueError("Narration settings changed while a chapter was rendering; create a new batch.")
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -259,9 +282,16 @@ def batch_archive(slug: str) -> Path:
     if not job or job["status"] != "completed":
         raise ValueError("Finish the whole-book narration before exporting its batch package")
     entries = job["chapters"]
+    from .audio_production import snapshot, load as production_settings
+    if job.get("settings_signature") and snapshot(slug)["signature"] != job["settings_signature"]:
+        raise ValueError("Narration dictionary or chapter narrator settings changed since this batch. Re-render before export.")
+    notes = production_settings(slug)["proof_notes"]
     for chapter in entries:
         if _fingerprint(slug, chapter["path"]) != chapter["fingerprint"]:
             raise ValueError(f"{chapter['path']} changed since narration. Re-render the new manuscript before exporting.")
+        if any(note["path"] == chapter["path"] and note["filename"] == chapter["filename"]
+               and note["status"] == "open" for note in notes):
+            raise ValueError(f"{chapter['path']} has unresolved proof-listening notes; review before exporting.")
     if not entries or any(ch.get("status") != "rendered" for ch in entries):
         raise ValueError("All selected chapters must be rendered before batch export")
     target = project_root(slug) / ".ember" / "audiobook" / "current-book-narration.zip"

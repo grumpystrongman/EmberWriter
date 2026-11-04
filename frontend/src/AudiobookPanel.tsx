@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './audiobook-panel.css'
 
 type Chapter = { path: string; words: number; narratable: boolean }
@@ -6,11 +6,19 @@ type Rendered = { source_path: string; filename: string; voice: string; bytes: n
 type VoiceResult = { engine: string; voices: string[]; privacy: string; quality: string }
 type AudioQuality = { status: string; ready: boolean; m4b_available: boolean; total_tracks: number; verified_tracks: number; duration_seconds: number; issues: {path:string; detail:string}[]; tracks: {path:string; seconds: number | null; format?:string; checks:string[]}[]; disclaimer:string }
 type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
+type AudioRule = { written: string; spoken: string }
+type AudioProof = { id: string; path: string; seconds: number; note: string; status: string; filename: string }
+type AudioProduction = {
+  pronunciations: AudioRule[]
+  chapter_profiles: Record<string, {voice:string; rate:number}>
+  proof_notes: AudioProof[]
+}
 type Props = { apiBase: string; slug: string; disabled: boolean }
 
 export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook`
   const jobEndpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook-jobs`
+  const productionEndpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook-production`
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [voices, setVoices] = useState<string[]>([])
   const [renders, setRenders] = useState<Rendered[]>([])
@@ -24,6 +32,29 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [selected, setSelected] = useState('')
+  const [production, setProduction] = useState<AudioProduction | null>(null)
+  const [termWritten, setTermWritten] = useState('')
+  const [termSpoken, setTermSpoken] = useState('')
+  const [profileVoice, setProfileVoice] = useState('')
+  const [profileRate, setProfileRate] = useState(-1)
+  const [noteSeconds, setNoteSeconds] = useState('0')
+  const [proofText, setProofText] = useState('')
+  const [notesShown, setNotesShown] = useState(12)
+  const [seek, setSeek] = useState<{path:string;seconds:number} | null>(null)
+  const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({})
+  useEffect(() => {
+    const override = production?.chapter_profiles[selected]
+    setProfileVoice(override?.voice || '')
+    setProfileRate(override?.rate ?? -1)
+  }, [selected, production])
+  useEffect(() => {
+    if (!showTracks || !seek) return
+    const player = audioRefs.current[seek.path]
+    if (!player) return
+    player.currentTime = seek.seconds
+    player.scrollIntoView({behavior:'smooth',block:'center'})
+    setSeek(null)
+  }, [showTracks, seek, renders])
 
   async function getJson<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(endpoint + path, {
@@ -54,6 +85,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
       }
       const next = await response.json() as AudioJob
       setJob(next)
+      setQuality(null)
       setMessage(next.message || 'Audiobook job updated.')
     } catch (e) { setError(String(e)) }
     finally { setBusy(false) }
@@ -71,7 +103,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   }
   useEffect(() => {
     let live = true
-    setChapters([]); setRenders([]); setVoices([]); setJob(null); setMessage(''); setError(''); setQuality(null); setShowAudioChapters(false)
+    setChapters([]); setRenders([]); setVoices([]); setJob(null); setMessage(''); setError(''); setQuality(null); setShowAudioChapters(false); setProduction(null); setNotesShown(12)
     void Promise.all([getJson<Chapter[]>('/chapters'), getJson<Rendered[]>('/renders'), getJson<VoiceResult>('/voices')])
       .then(([files, tracks, speech]) => {
         if (live) {
@@ -81,6 +113,10 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         }
       }).catch(e => { if (live) setError(String(e)) })
     void getJob().then(value => { if (live) setJob(value) }).catch(() => {})
+    void fetch(productionEndpoint).then(r => {
+      if (!r.ok) throw new Error('Narration direction unavailable')
+      return r.json() as Promise<AudioProduction>
+    }).then(value => { if (live) setProduction(value) }).catch(e => { if (live) setError(String(e)) })
     const timer = window.setInterval(() => {
       void Promise.all([getJob(), getJson<Rendered[]>('/renders')]).then(([nextJob, tracks]) => {
         if (live) { setJob(nextJob); setRenders(tracks) }
@@ -88,6 +124,62 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     }, 3000)
     return () => { live = false; window.clearInterval(timer) }
   }, [endpoint])
+
+  async function editProduction(suffix: string, method: string, payload?: unknown) {
+    if (job?.active || job?.status === 'queued' || job?.status === 'running') {
+      setError('Finish or pause the current narration batch before changing its direction.')
+      return
+    }
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const response = await fetch(productionEndpoint + suffix, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        ...(payload === undefined ? {} : {body: JSON.stringify(payload)}),
+      })
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || `Narration settings request failed: ${response.status}`)
+      }
+      setProduction(await fetch(productionEndpoint).then(r => r.json()) as AudioProduction)
+      if (suffix === '/pronunciations' && method === 'PUT') {
+        setTermWritten(''); setTermSpoken('')
+      }
+      setQuality(null)
+      setMessage('Narration direction updated. Existing recordings may need to be re-rendered.')
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
+  }
+
+  function jumpToNote(note: AudioProof) {
+    const current = renders.find(track => track.source_path === note.path)
+    if (!current || current.filename !== note.filename) {
+      setError('The note refers to an earlier recording. Open the historical note, then listen to the current chapter separately.')
+      return
+    }
+    setError('')
+    setSelected(note.path)
+    setSeek({path:note.path,seconds:note.seconds})
+    setShowTracks(true)
+  }
+
+  async function saveProofNote() {
+    setBusy(true); setError('')
+    try {
+      const response = await fetch(productionEndpoint + '/notes', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({path:selected,seconds:Number(noteSeconds),note:proofText}),
+      })
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || `Proof note failed: ${response.status}`)
+      }
+      setProduction(await fetch(productionEndpoint).then(r => r.json()) as AudioProduction)
+      setProofText(''); setQuality(null)
+      setMessage('Timed proof-listening note recorded.')
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
+  }
 
   async function inspectAudio() {
     setBusy(true); setError('')
@@ -152,6 +244,77 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           </details>}
         </div>}
       </div>
+      <details className="audiobook-direction">
+        <summary>Advanced: pronunciation and chapter narrator direction ({production?.pronunciations.length || 0} terms)</summary>
+        <p>Replace unusual names with natural spoken spellings in local TTS only. The manuscript is never edited. Review the result by listening.</p>
+        <div className="audiobook-editor-row">
+          <label>Written term<input value={termWritten} maxLength={90} placeholder="Aster Vale"
+            onChange={e => setTermWritten(e.target.value)} /></label>
+          <label>Speak as<input value={termSpoken} maxLength={140} placeholder="AS-ter VAYL"
+            onChange={e => setTermSpoken(e.target.value)} /></label>
+          <button disabled={disabled || busy || !!job?.active || !termWritten.trim() || !termSpoken.trim()}
+            onClick={() => void editProduction('/pronunciations', 'PUT', {written:termWritten,spoken:termSpoken})}>
+            Save pronunciation</button>
+        </div>
+        {!!production?.pronunciations.length && <div className="audiobook-rule-list">
+          {production.pronunciations.slice(0, 35).map(rule => <div key={rule.written}>
+            <span><strong>{rule.written}</strong> → {rule.spoken}</span>
+            <button disabled={disabled || busy || !!job?.active} aria-label={'Delete pronunciation for '+rule.written}
+              onClick={() => void editProduction('/pronunciations/' + encodeURIComponent(rule.written),'DELETE')}>Remove</button>
+          </div>)}
+          {production.pronunciations.length > 35 && <p>Showing first 35 terms; update existing terms by entering the same written spelling.</p>}
+        </div>}
+        <h4>Chapter narrator override</h4>
+        <p>Choose a voice and pace for this entire chapter. Character-by-character dialogue casting is a separate, future capability.</p>
+        <div className="audiobook-editor-row">
+          <label>Chapter<select value={selected} onChange={e => {
+            const next = e.target.value; setSelected(next)
+            const profile = production?.chapter_profiles[next]
+            setProfileVoice(profile?.voice || '')
+            setProfileRate(profile?.rate ?? -1)
+          }}>
+            {chapters.map(ch => <option key={ch.path} value={ch.path}>{ch.path}</option>)}
+          </select></label>
+          <label>Voice<select value={profileVoice} onChange={e => setProfileVoice(e.target.value)}>
+            <option value="">Use batch narrator</option>
+            {voices.map(v => <option key={v} value={v}>{v}</option>)}
+          </select></label>
+          <label>Pace<select value={profileRate} onChange={e => setProfileRate(Number(e.target.value))}>
+            {Array.from({length:11},(_,i)=>i-5).map(n => <option key={n} value={n}>{n}</option>)}
+          </select></label>
+          <button disabled={disabled || busy || !selected || !!job?.active}
+            onClick={() => void editProduction('/profiles', 'PUT', {path:selected,voice:profileVoice,rate:profileRate})}>Save chapter override</button>
+          {!!production?.chapter_profiles[selected] && <button disabled={disabled || busy || !!job?.active}
+            onClick={() => void editProduction('/profiles?path='+encodeURIComponent(selected),'DELETE')}>Remove override</button>}
+        </div>
+        <p>{Object.keys(production?.chapter_profiles || {}).length} chapter overrides saved. Changing these settings after a batch is complete requires new narration for a current edition.</p>
+      </details>
+      <details className="audiobook-direction">
+        <summary>Proof listening & correction notes ({production?.proof_notes.filter(n=>n.status==='open').length || 0} open)</summary>
+        <p>Play a chapter below, record the approximate time and what the narrator should correct. Open notes prevent the audiobook from passing technical readiness until resolved.</p>
+        <div className="audiobook-editor-row">
+          <label>Chapter<select value={selected} onChange={e => setSelected(e.target.value)}>
+            {chapters.map(ch => <option key={ch.path} value={ch.path}>{ch.path}</option>)}
+          </select></label>
+          <label>Time (seconds)<input type="number" min="0" max="200000" step=".5" value={noteSeconds}
+            onChange={e => setNoteSeconds(e.target.value)} /></label>
+          <label>Issue or correction<input maxLength={1000} value={proofText} placeholder="Check pronunciation at this point"
+            onChange={e => setProofText(e.target.value)} /></label>
+          <button disabled={disabled || busy || !selected || proofText.trim().length < 4}
+            onClick={() => void saveProofNote()}>Add proof note</button>
+        </div>
+        <div className="audiobook-rule-list">
+          {(production?.proof_notes || []).slice(-notesShown).reverse().map(note => <div key={note.id}>
+            <span><strong>{note.path}</strong> · {note.seconds}s · {note.status}<small>{note.note}</small></span>
+            <button disabled={disabled || busy} onClick={() => jumpToNote(note)}>Jump to audio</button>
+            <button disabled={disabled || busy}
+              onClick={() => void editProduction('/notes/'+note.id,'POST',{resolved:note.status !== 'resolved'})}>
+              {note.status === 'resolved' ? 'Reopen' : 'Resolve'}</button>
+          </div>)}
+          {(production?.proof_notes.length || 0) > notesShown &&
+            <button onClick={() => setNotesShown(value=>value+12)}>Show older proof notes</button>}
+        </div>
+      </details>
       <details className="audiobook-single-chapter">
         <summary>Render or replace an individual chapter</summary>
       <label htmlFor="audio-source">Manuscript chapter</label>
@@ -180,7 +343,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         <summary>Narrated chapter playback and downloads ({renders.length})</summary>
         {renders.map(track => <div className="audiobook-track" key={track.source_path}>
           <div><strong>{track.source_path}</strong><small>{track.voice} · {(track.bytes / 1024 / 1024).toFixed(1)} MB</small></div>
-          <audio controls preload="none" src={endpoint + '/files/' + encodeURIComponent(track.filename)} aria-label={track.source_path} />
+          <audio ref={element => { audioRefs.current[track.source_path] = element }} controls preload="none" src={endpoint + '/files/' + encodeURIComponent(track.filename)} aria-label={track.source_path} />
           <a href={endpoint + '/files/' + encodeURIComponent(track.filename)} download>Download</a>
         </div>)}
       </details>}

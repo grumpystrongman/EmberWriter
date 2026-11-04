@@ -121,8 +121,15 @@ async function inspect(width, label) {
   const audiobook = await js("({visible:!!document.querySelector('.audiobook-heading'),rate:!!document.querySelector('#audio-rate'),qc:[...document.querySelectorAll('.audiobook-panel button')].some(x=>x.innerText.includes('Check audio readiness')),tabVisible:(()=>{const nav=document.querySelector('.publish-workflow-nav');const active=nav?.querySelector('button.active');if(!nav||!active)return false;const n=nav.getBoundingClientRect(),b=active.getBoundingClientRect();return b.left>=n.left-2&&b.right<=n.right+2})(),overflow:document.documentElement.scrollWidth-innerWidth})")
   assert(audiobook.visible && audiobook.rate && audiobook.qc && audiobook.tabVisible && audiobook.overflow <= 1,
     label + ': audiobook workspace must fit and expose pacing/QC')
+  const direction = await js("({count:document.querySelectorAll('.audiobook-direction').length,collapsed:[...document.querySelectorAll('.audiobook-direction')].every(x=>!x.open)})")
+  assert(direction.count === 2 && direction.collapsed, label + ': narration direction must be opt-in and collapsed')
   await capture(label + '-audiobook')
-  console.log(JSON.stringify({ viewport: width, plan, editor, publish, files, audiobook }))
+  await js("document.querySelector('.audiobook-direction > summary')?.click()")
+  await pause(200)
+  const expanded = await js("({dictionary:!!document.querySelector('.audiobook-editor-row input'),overflow:document.documentElement.scrollWidth-innerWidth})")
+  assert(expanded.dictionary && expanded.overflow <= 1, label + ': expanded pronunciation controls overflow')
+  await capture(label + '-audio-direction')
+  console.log(JSON.stringify({ viewport: width, plan, editor, publish, files, audiobook, direction, expanded }))
 }
 fs.mkdirSync(screenshotRoot, { recursive: true })
 try {

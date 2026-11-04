@@ -4,6 +4,8 @@ The Audiobook Workshop is in **Publish → Audiobook**. Existing Windows SAPI
 narration, individual WAV/MP3 downloads, restart-recoverable Binder-order
 whole-book jobs and chapter ZIP packages remain available.
 
+The next release adds a private pronunciation dictionary, chapter narrator profiles, timed proof-listening notes and cooperative process-local workload scheduling. See `docs/AUDIOBOOK_DIRECTION.md`. These controls remain folded into Publish → Audiobook rather than creating extra workspaces.
+
 ## New author controls
 
 - **Pacing** — SAPI speech rate can be adjusted from -5 (slower) through +5

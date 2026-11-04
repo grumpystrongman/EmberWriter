@@ -107,14 +107,16 @@ def list_renders(slug: str) -> list[dict]:
             and (folder / entry["filename"]).is_file()]
 
 
-def render(slug: str, source: str, voice: str = "", rate: int = -1) -> dict:
+def render(slug: str, source: str, voice: str = "", rate: int = -1, *,
+           rules: list[dict] | None = None, settings_signature: str = "") -> dict:
     # A concurrent manual render and a whole-book batch must not corrupt the
     # per-project manifest or create conflicting output files.
     with _RENDER_LOCKS.setdefault(slug, threading.RLock()):
-        return _render_unlocked(slug, source, voice, rate)
+        return _render_unlocked(slug, source, voice, rate, rules=rules, settings_signature=settings_signature)
 
 
-def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1) -> dict:
+def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1, *,
+                     rules: list[dict] | None = None, settings_signature: str = "") -> dict:
     if sys.platform != "win32":
         raise NotImplementedError("Offline Windows narration is currently supported on Windows only")
     sources = {item["path"]: item for item in available_chapters(slug)}
@@ -126,11 +128,19 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1) ->
         raise ValueError("Invalid installed voice name")
     if voice and voice not in available_voices():
         raise ValueError("The selected offline voice is not installed")
+    from .audio_production import snapshot, spoken_replacements
+    if rules is None:
+        settings = snapshot(slug)
+        rules = settings["pronunciations"]
+        settings_signature = settings["signature"]
+    elif not settings_signature:
+        raise ValueError("A narration rule snapshot needs its configuration signature")
     text = _spoken_text(read_text(slug, source))
+    spoken = spoken_replacements(text, rules)
     if not 5 <= len(text.split()) <= MAX_AUDIO_WORDS:
         raise ValueError("Narration requires 5 to 12,000 words per chapter")
     source_hash = hashlib.sha256(read_text(slug, source).encode("utf-8")).hexdigest()
-    fingerprint = hashlib.sha256((voice + "\n" + str(rate) + "\n" + source + "\n" + text).encode("utf-8")).hexdigest()[:16]
+    fingerprint = hashlib.sha256((voice + "\n" + str(rate) + "\n" + source + "\n" + text + "\n" + spoken + "\n" + settings_signature).encode("utf-8")).hexdigest()[:16]
     folder = _folder(slug)
     folder.mkdir(parents=True, exist_ok=True)
     wav = folder / (fingerprint + ".wav")
@@ -139,7 +149,7 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1) ->
         with tempfile.TemporaryDirectory(prefix="ember-audio-") as staging:
             input_path = Path(staging) / "chapter.txt"
             staging_wav = Path(staging) / "narration.wav"
-            input_path.write_text(text, encoding="utf-8")
+            input_path.write_text(spoken, encoding="utf-8")
             args = ["powershell.exe", "-NoProfile", "-NonInteractive",
                     "-ExecutionPolicy", "Bypass", "-File", str(SAPI_SCRIPT),
                     "-InputPath", str(input_path), "-OutputPath", str(staging_wav)]
@@ -162,9 +172,13 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1) ->
                     mp3.unlink(missing_ok=True)
             except (OSError, subprocess.SubprocessError):
                 mp3.unlink(missing_ok=True)
+    # Narration may run for many minutes; never certify audio as the current
+    # edition when the chapter changed during speech synthesis.
+    if hashlib.sha256(read_text(slug, source).encode("utf-8")).hexdigest() != source_hash:
+        raise ValueError("Manuscript changed while narration was running; re-render after reviewing edits")
     output = mp3 if mp3.is_file() else wav
     chapter = {"source_path": source, "filename": output.name, "voice": voice or "system-default",
-               "rate": rate, "source_hash": source_hash,
+               "rate": rate, "source_hash": source_hash, "settings_signature": settings_signature,
                "bytes": output.stat().st_size, "words": len(text.split()), "rendered_at": _time()}
     manifest = _read_manifest(slug)
     manifest["chapters"] = [ch for ch in manifest["chapters"]
@@ -185,6 +199,13 @@ def archive(slug: str) -> Path:
     tracks = list_renders(slug)
     if not tracks:
         raise ValueError("Render at least one chapter before exporting an audiobook")
+    from .audio_production import snapshot
+    current_settings = snapshot(slug)["signature"]
+    for track in tracks:
+        if not track.get("source_hash") or track["source_hash"] != hashlib.sha256(read_text(slug, track["source_path"]).encode("utf-8")).hexdigest():
+            raise ValueError(f"Chapter {track['source_path']} changed or lacks source provenance; re-render before export")
+        if track.get("settings_signature") != current_settings:
+            raise ValueError("Narration dictionary or chapter voice settings changed; re-render before export")
     folder = _folder(slug)
     target = folder / "audiobook-chapters.zip"
     staging = folder / "audiobook-chapters.zip.tmp"

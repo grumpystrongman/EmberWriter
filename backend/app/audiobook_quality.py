@@ -78,6 +78,10 @@ def inspect(slug: str) -> dict:
     job = read_job(slug)
     renders = {track["source_path"]: track for track in list_renders(slug)}
     selected = job["chapters"] if job else []
+    from .audio_production import load as load_settings, snapshot
+    settings = load_settings(slug)
+    config_changed = bool(job and job.get("settings_signature") and
+                          job["settings_signature"] != snapshot(slug)["signature"])
     issues: list[dict] = []
     tracks: list[dict] = []
     total_seconds = 0.0
@@ -97,6 +101,10 @@ def inspect(slug: str) -> dict:
                 fresh = False
             if not fresh:
                 track["checks"].append("Manuscript has changed since narration was queued")
+            if config_changed:
+                track["checks"].append("Pronunciation dictionary or narrator profiles changed since narration")
+            if job.get("settings_signature") and entry.get("settings_signature") != job["settings_signature"]:
+                track["checks"].append("Audio does not match the narration configuration used for this batch")
             if not entry.get("source_hash"):
                 track["checks"].append("Legacy audio has no source hash; re-render for provenance")
             elif entry["source_hash"] != chapter["fingerprint"]:
@@ -117,6 +125,11 @@ def inspect(slug: str) -> dict:
         for warning in track["checks"]:
             issues.append({"path": source, "detail": warning})
         tracks.append(track)
+    for note in settings["proof_notes"]:
+        if note["status"] != "resolved" and any(chapter["path"] == note["path"] and
+                chapter.get("filename") == note.get("filename") for chapter in selected):
+            issues.append({"path": note["path"], "detail": "Open proof-listening note at " +
+                           str(note["seconds"]) + "s: " + note["note"][:120]})
     if not job:
         issues.append({"path": "", "detail": "No whole-book audiobook job exists"})
     elif job["status"] != "completed":
