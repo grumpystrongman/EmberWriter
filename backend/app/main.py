@@ -26,6 +26,10 @@ from .project_recovery import recover_legacy_projects
 from .project_restore import restore_uploaded_project
 from .revisions import record_revision
 from .routes_autopilot import router as autopilot_router
+from .routes_canon_ripple import router as canon_ripple_router
+from .routes_book_studio import router as book_studio_router
+from .routes_audiobook_local import router as audiobook_local_router
+from .routes_quality_clinic import router as quality_clinic_router
 from .routes_atlas import router as atlas_router
 from .routes_authoring import router as authoring_router
 from .routes_binder import router as binder_router
@@ -135,6 +139,10 @@ async def writer_generation_guard(request: Request, call_next):
 
 
 app.include_router(autopilot_router)
+app.include_router(canon_ripple_router)
+app.include_router(book_studio_router)
+app.include_router(audiobook_local_router)
+app.include_router(quality_clinic_router)
 app.include_router(generation_router)
 app.include_router(memory_router)
 app.include_router(story_router)

@@ -4,6 +4,10 @@ __pycache__/
 .venv/
 .pytest_cache/
 
+# Packaging/build outputs
+*.egg-info/
+*.tsbuildinfo
+
 # Node
 node_modules/
 dist/

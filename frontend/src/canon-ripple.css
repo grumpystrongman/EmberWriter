@@ -1,0 +1,40 @@
+/* Canon Ripple: warm observatory panels consistent with the Flight Deck. */
+.canon-ripple{margin-top:32px;padding:24px;border:1px solid rgba(245,179,102,.26);border-radius:18px;background:linear-gradient(145deg,rgba(60,44,50,.55),rgba(23,27,41,.65));}
+.canon-ripple-heading{display:flex;justify-content:space-between;gap:20px;align-items:center}
+.canon-ripple-heading small{font-size:11px;color:#f1b474;font-weight:800;letter-spacing:.2em}
+.canon-ripple-heading h3{margin:8px 0;color:#f9e6d3;font-size:25px}
+.canon-ripple-heading p,.canon-ripple-disclaimer{margin:5px 0;color:#c9beb3;font-size:13px;line-height:1.6}
+.canon-ripple-tag{font-size:10px;color:#97dab1;border:1px solid #558363;padding:4px 7px;border-radius:20px;vertical-align:middle;margin-left:7px;letter-spacing:.07em}
+.canon-ripple-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.canon-ripple-counter{font-size:12px;color:#efb67e}
+.canon-ripple-disclaimer{margin:16px 0;color:#b6aaa3}
+.canon-ripple-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0;padding:18px;border:1px solid rgba(232,172,119,.24);border-radius:12px;background:rgba(13,15,25,.34)}
+.canon-ripple-form label{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#ebd7c8}
+.canon-ripple-form label:nth-child(1),.canon-ripple-form label:nth-child(4),.canon-ripple-form label:nth-child(5){grid-column:1/-1}
+.canon-ripple-form input,.canon-ripple-form textarea{box-sizing:border-box;width:100%;background:#1b1a2a;color:#fff2e2;border:1px solid rgba(202,180,160,.4);border-radius:9px;padding:11px;font:inherit}
+.canon-ripple-form textarea{min-height:80px;resize:vertical}
+.canon-ripple-form button{grid-column:1/-1;justify-self:start;background:#bd743e;color:#fff7ec;font-weight:700}
+.canon-ripple-error{color:#ffd2cf;background:#67353c;padding:12px;border-radius:8px}
+.canon-ripple-empty{padding:18px;color:#c8bdb7;border:1px dashed rgba(200,175,150,.3);border-radius:12px}
+.canon-ripple-list{display:grid;gap:14px}
+.canon-ripple-card{background:rgba(12,16,29,.45);border:1px solid rgba(196,156,120,.2);border-radius:13px;padding:20px;min-width:0}
+.canon-ripple-cardtop{display:flex;justify-content:space-between;gap:15px}
+.canon-ripple-cardtop strong{display:block;color:#fff0dd;font-size:17px}
+.canon-ripple-cardtop span{font-size:11px;color:#bea99c}
+.canon-ripple-state{align-self:flex-start;border:1px solid #c58a59;border-radius:20px;padding:5px 10px}
+.canon-ripple-state--resolved{border-color:#7bb99a;color:#95d8b4!important}
+.canon-ripple-state--rejected{border-color:#7d7171}
+.canon-ripple-fact{display:grid;grid-template-columns:60px minmax(0,1fr);gap:9px 16px;margin-top:18px}
+.canon-ripple-fact span{font-size:10px;font-weight:850;color:#efa66e;letter-spacing:.12em;padding-top:3px}
+.canon-ripple-fact p{margin:0;color:#e9dfd7;font-size:13px;overflow-wrap:anywhere}
+.canon-ripple-reason{margin-top:14px;color:#beb1ae;font-size:12px}
+.canon-ripple-warning{color:#ffca8a;font-size:12px}
+.canon-ripple-impact{margin-top:20px;border-top:1px solid rgba(210,180,160,.2);padding-top:12px}
+.canon-ripple-impact h4{display:flex;justify-content:space-between;margin:0 0 12px;font-size:14px}
+.canon-ripple-impact h4 span{font-size:12px;color:#f3b781}
+.canon-ripple-impact-row{display:grid;grid-template-columns:minmax(0,1fr) 65px 120px;gap:8px;align-items:center;padding:7px 0;border-top:1px solid rgba(225,200,175,.1);font-size:12px}
+.canon-ripple-source{text-align:left;overflow-wrap:anywhere;background:transparent!important;border:0!important;padding:6px 0!important;color:#f5c092!important}
+.canon-ripple-impact-row>span{color:#bdb1ac}
+.canon-ripple-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.canon-ripple-buttons>span{color:#8fd4ab;font-size:12px}
+@media(max-width:730px){.canon-ripple-heading{flex-direction:column;align-items:stretch}.canon-ripple-actions{align-items:flex-start}.canon-ripple-form{grid-template-columns:1fr}.canon-ripple-form label{grid-column:1/-1}.canon-ripple-impact-row{grid-template-columns:1fr 90px}.canon-ripple-impact-row>span{display:none}}

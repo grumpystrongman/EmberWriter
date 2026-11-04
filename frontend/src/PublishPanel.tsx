@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import CoverStudioPanel from './CoverStudioPanel'
+import AudiobookPanel from './AudiobookPanel'
 import DistributionPanel from './DistributionPanel'
 import PreviewStudioPanel from './PreviewStudioPanel'
 import ProjectHistoryPanel from './ProjectHistoryPanel'
@@ -100,6 +101,7 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
       <ProjectHistoryPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
       <PreviewStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
       <CoverStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
+      <AudiobookPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
 
       <details className="authoring-panel">
         <summary>

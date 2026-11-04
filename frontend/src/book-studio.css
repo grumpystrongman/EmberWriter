@@ -1,0 +1,40 @@
+.book-studio{padding:24px clamp(18px,3vw,44px) 48px;color:var(--text-primary,#f0e6dc)}
+.book-studio-hero{padding:34px;border-radius:20px;border:1px solid rgba(234,175,105,.3);background:radial-gradient(ellipse at 85% 10%,rgba(238,151,73,.23),transparent 45%),linear-gradient(130deg,#26202e,#161c2b)}
+.book-studio-hero>span{font-size:11px;letter-spacing:.2em;color:#efae7d;font-weight:800}
+.book-studio-hero h2{font-size:clamp(32px,4vw,52px);margin:12px 0 10px;color:#fff0dc}
+.book-studio-hero p{line-height:1.65;color:#d1c6c1;max-width:780px;font-size:15px}
+.book-studio-stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:25px}
+.book-studio-stats strong{border:1px solid rgba(236,178,119,.25);border-radius:24px;padding:10px 15px;font-size:12px;background:rgba(255,255,255,.05);color:#f2c69e}
+.book-studio h3{font-size:23px;color:#f9e9d3}
+.book-studio button{cursor:pointer;border:1px solid rgba(230,172,122,.35);border-radius:9px;padding:11px 14px;font:inherit;background:rgba(219,141,83,.16);color:#fae2cb}
+.book-studio button:hover:not(:disabled){background:rgba(219,141,83,.26)}
+.book-studio button:disabled{opacity:.45;cursor:not-allowed}
+.book-studio button:focus-visible,.book-studio input:focus-visible,.book-studio textarea:focus-visible{outline:2px solid #f6ae7c;outline-offset:2px}
+.book-studio-form,.book-studio-controls{margin-top:24px;padding:25px;border-radius:16px;border:1px solid rgba(184,156,145,.27);background:rgba(32,28,43,.7);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.book-studio-form p,.book-studio-controls p{max-width:790px;color:#c7bbb4;margin:0;font-size:13px;line-height:1.6}
+.book-studio label{width:100%;display:flex;flex-direction:column;gap:8px;font-size:13px;color:#e9cfbb}
+.book-studio input,.book-studio textarea{box-sizing:border-box;width:100%;padding:12px;border-radius:9px;background:#151726;color:#fff0e0;border:1px solid rgba(192,174,167,.45);font:inherit}
+.book-studio textarea{min-height:98px;resize:vertical}
+.book-studio .book-studio-outline{min-height:170px}
+.book-studio-form label:last-of-type{max-width:240px}
+.book-studio-controls label{max-width:450px}
+.book-studio-controls button:first-of-type,.book-studio-form>button{background:linear-gradient(115deg,#c8794a,#eaae71);color:#291e28;font-weight:800}
+.book-studio-chapters{margin-top:30px}
+.book-studio-chapter{margin:12px 0;padding:20px;border-radius:13px;border:1px solid rgba(193,164,142,.23);background:rgba(23,25,39,.7)}
+.book-studio-chapter-head{display:flex;align-items:flex-start;gap:16px}
+.book-studio-chapter-head>div{min-width:0;flex:1}
+.book-studio-chapter-head h4{margin:0 0 7px;color:#ffe7d0;font-size:19px}
+.book-studio-chapter-head p{margin:0;color:#c6b9b4;font-size:13px;line-height:1.5}
+.book-studio-index{font-size:19px;font-weight:800;color:#efa970}
+.book-studio-badge{padding:6px 9px;border-radius:15px;font-size:11px;text-transform:uppercase;color:#e9bd8c;border:1px solid rgba(230,177,121,.4)}
+.book-studio-chapter-actions{display:flex;gap:10px;margin-top:15px;flex-wrap:wrap}
+.book-studio-error{display:block;padding:12px;border-radius:9px;color:#ffdbda;background:rgba(158,69,76,.32);margin-top:14px}
+.book-studio-message{display:block;padding:13px;border-radius:9px;color:#aaf0c2;background:rgba(56,115,86,.27);margin-top:14px}
+.book-studio-edit{margin-top:16px;padding:18px;border:1px solid rgba(225,174,118,.32);border-radius:11px;display:flex;flex-direction:column;gap:13px}
+.book-studio-edit>div{display:flex;gap:10px}
+.book-studio-preview{margin-top:18px;border:1px solid rgba(238,176,119,.3);border-radius:12px;overflow:hidden}
+.book-studio-preview>header,.book-studio-preview>footer{padding:15px;display:flex;align-items:center;justify-content:space-between;gap:15px;background:rgba(219,144,90,.09)}
+.book-studio-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:520px;overflow:auto;padding:20px;margin:0;font-family:Georgia,serif;line-height:1.85;color:#f7ecdf;font-size:15px}
+.book-studio-preview footer{justify-content:flex-start;flex-wrap:wrap}
+.book-studio-footnote{color:#b7a8a0;font-size:12px;line-height:1.65;margin-top:27px}
+@media(max-width:670px){.book-studio-hero{padding:22px}.book-studio-chapter-head{flex-wrap:wrap}.book-studio-preview>header{flex-direction:column;align-items:flex-start}}

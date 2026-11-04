@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { WorkspaceProject } from './workspace-types'
+import CanonRipplePanel from './CanonRipplePanel'
+import QualityClinicPanel from './QualityClinicPanel'
 import './autopilot.css'
 
 type Chapter = { path: string; words: number; status: string; issue_count: number; issues: string[]; repeated_openings: number }
@@ -192,6 +194,8 @@ export default function AutopilotWorkspace({ apiBase, project, onOpenSource }: P
             </div>
           )}
 
+          <CanonRipplePanel apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource} />
+          <QualityClinicPanel apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource} />
           <footer className="autopilot-footer">
             <div><strong>{history.length ? `${history.length} saved assessment(s)` : 'No saved assessments yet'}</strong>
               <span>{history[0]?.created_at ? ` · Latest: ${new Date(history[0].created_at).toLocaleString()}` : ' · Run an assessment to save a baseline.'}</span>
