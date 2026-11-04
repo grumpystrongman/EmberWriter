@@ -4,13 +4,14 @@
 
 This review examined the actual EmberWriter frontend in an isolated synthetic
 project, not the author's private installation or novels. Chrome's local
-DevTools protocol captured **13 screenshots** across three viewport widths
+DevTools protocol captured **16 screenshots** across three viewport widths
 (1440, 900, 390 CSS pixels), following four steps at each width:
 
 1. Open **Plan → Write the book → Production guide**.
 2. Switch to **Plan → Edit & review → Editorial overview**.
 3. Open **Publish → Readiness**.
 4. Switch to **Publish → Book files**.
+5. Switch to **Publish → Audiobook** to verify narration pacing, readiness control and the compact whole-book action on desktop, laptop and narrow screens.
 
 At 900px, the audit also opens a **26-chapter synthetic editorial corpus**, verifies first-page limit of twelve, loads a second page of twelve, and narrows results to one chapter using a path search. This fifth capture tests scaling to a novel, rather than only testing navigation on an empty project.
 
@@ -47,6 +48,7 @@ The browser smoke test asserts:
   context-sensitive tool choices visible at once.
 - Publish shows **six** clear stages and mounts **one production tool family**
   at a time.
+- The currently selected Publish stage is scrolled into view in the horizontal stage navigation, even at 390px; Audiobook exposes pacing, whole-book narration and technical QC without overwhelming the layout.
 - Document `scrollWidth` does not exceed viewport width at 1440, 900 or
   390 CSS pixels.
 - On a narrow screen, Write, Plan and Publish remain directly accessible;

@@ -92,7 +92,7 @@ def _book(slug: str) -> list[dict]:
     return chapters
 
 
-def start(slug: str, voice: str = "") -> dict:
+def start(slug: str, voice: str = "", rate: int = -1) -> dict:
     if sys.platform != "win32":
         raise ValueError("Offline Windows audiobook rendering is available on Windows only")
     if _active(slug):
@@ -100,11 +100,13 @@ def start(slug: str, voice: str = "") -> dict:
     current = _read(slug)
     if current and current["status"] in ("queued", "running"):
         raise ValueError("An audiobook job is already queued. Check its status.")
+    if isinstance(rate, bool) or not isinstance(rate, int) or not -5 <= rate <= 5:
+        raise ValueError("Narration speed must be an integer from -5 to 5")
     if voice and voice not in available_voices():
         raise ValueError("The selected offline voice is not installed")
     chapters = _book(slug)
     record = {
-        "id": uuid4().hex, "status": "queued", "voice": voice,
+        "id": uuid4().hex, "status": "queued", "voice": voice, "rate": rate,
         "created_at": _now(), "updated_at": _now(),
         "chapters": chapters, "current": None,
         "message": "Queued selected Binder chapters for local offline narration.",
@@ -142,7 +144,12 @@ async def _worker(slug: str, job_id: str):
                 job["current"] = source
                 job["message"] = f"Narrating {source} offline."
                 _write(slug, job)
-                rendered = await asyncio.to_thread(render, slug, source, job["voice"])
+                # Preserve the three-argument path for existing saved jobs.
+                speed = job.get("rate", -1)
+                if speed == -1:
+                    rendered = await asyncio.to_thread(render, slug, source, job["voice"])
+                else:
+                    rendered = await asyncio.to_thread(render, slug, source, job["voice"], speed)
                 # An author may have changed the chapter while TTS was speaking.
                 if _fingerprint(slug, source) != chapter["fingerprint"]:
                     raise ValueError(f"{source} changed while narration was in progress; review the output.")
@@ -234,6 +241,15 @@ async def stop_on_shutdown():
     _TASKS.clear()
 
 
+def _hash_audio_file(path: Path) -> str:
+    """Hash a large WAV or MP3 without loading the entire recording into RAM."""
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def batch_archive(slug: str) -> Path:
     """Package exactly this completed Binder-ordered batch, not older tracks."""
     import zipfile
@@ -243,6 +259,9 @@ def batch_archive(slug: str) -> Path:
     if not job or job["status"] != "completed":
         raise ValueError("Finish the whole-book narration before exporting its batch package")
     entries = job["chapters"]
+    for chapter in entries:
+        if _fingerprint(slug, chapter["path"]) != chapter["fingerprint"]:
+            raise ValueError(f"{chapter['path']} changed since narration. Re-render the new manuscript before exporting.")
     if not entries or any(ch.get("status") != "rendered" for ch in entries):
         raise ValueError("All selected chapters must be rendered before batch export")
     target = project_root(slug) / ".ember" / "audiobook" / "current-book-narration.zip"
@@ -250,6 +269,7 @@ def batch_archive(slug: str) -> Path:
     staging = target.with_suffix(".zip.tmp")
     manifest = {
         "job_id": job["id"], "voice": job["voice"] or "system-default",
+        "rate": job.get("rate", -1),
         "chapters": [],
         "note": "Local single-narrator chapter audio; not professionally mastered.",
     }
@@ -261,7 +281,7 @@ def batch_archive(slug: str) -> Path:
             output.write(path, arcname=name)
             manifest["chapters"].append({
                 "index": index, "path": chapter["path"], "filename": name,
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "sha256": _hash_audio_file(path),
             })
         output.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
     staging.replace(target)

@@ -116,7 +116,13 @@ async function inspect(width, label) {
   const files = await js("({preflight:document.querySelectorAll('.production-preflight').length,scrollWidth:document.documentElement.scrollWidth})")
   assert(files.preflight === 0 && files.scrollWidth <= width + 1, label + ': book files stage overflow')
   await capture(label + '-book-files')
-  console.log(JSON.stringify({ viewport: width, plan, editor, publish, files }))
+  await js("([...document.querySelectorAll('.publish-workflow-nav button')].find(x=>x.innerText.includes('Audiobook')))?.click()")
+  await pause(900)
+  const audiobook = await js("({visible:!!document.querySelector('.audiobook-heading'),rate:!!document.querySelector('#audio-rate'),qc:[...document.querySelectorAll('.audiobook-panel button')].some(x=>x.innerText.includes('Check audio readiness')),tabVisible:(()=>{const nav=document.querySelector('.publish-workflow-nav');const active=nav?.querySelector('button.active');if(!nav||!active)return false;const n=nav.getBoundingClientRect(),b=active.getBoundingClientRect();return b.left>=n.left-2&&b.right<=n.right+2})(),overflow:document.documentElement.scrollWidth-innerWidth})")
+  assert(audiobook.visible && audiobook.rate && audiobook.qc && audiobook.tabVisible && audiobook.overflow <= 1,
+    label + ': audiobook workspace must fit and expose pacing/QC')
+  await capture(label + '-audiobook')
+  console.log(JSON.stringify({ viewport: width, plan, editor, publish, files, audiobook }))
 }
 fs.mkdirSync(screenshotRoot, { recursive: true })
 try {

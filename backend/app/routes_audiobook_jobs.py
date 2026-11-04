@@ -10,6 +10,7 @@ router = APIRouter(prefix="/api/projects/{slug}/audiobook-jobs", tags=["Audioboo
 
 class StartNarration(BaseModel):
     voice: str = Field(default="", max_length=110)
+    rate: int = Field(default=-1, ge=-5, le=5)
 
 
 def _error(exc):
@@ -31,7 +32,7 @@ def job_status(slug: str) -> dict:
 @router.post("/start", status_code=202)
 async def start_job(slug: str, payload: StartNarration) -> dict:
     try:
-        return start(slug, payload.voice)
+        return start(slug, payload.voice, payload.rate)
     except (FileNotFoundError, ValueError, OSError) as exc:
         _error(exc)
 
@@ -50,6 +51,29 @@ async def resume_job(slug: str) -> dict:
         return resume(slug)
     except (FileNotFoundError, ValueError, OSError) as exc:
         _error(exc)
+
+
+@router.get("/quality")
+def narration_quality(slug: str) -> dict:
+    from .audiobook_quality import inspect
+    try:
+        return inspect(slug)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        _error(exc)
+
+
+@router.get("/export.m4b")
+def book_m4b(slug: str) -> FileResponse:
+    import subprocess
+    from .audiobook_m4b import export_m4b
+    try:
+        path = export_m4b(slug)
+        return FileResponse(path, filename="emberwriter-whole-book-audiobook.m4b",
+                            media_type="audio/mp4")
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        _error(exc)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise HTTPException(502, "Local FFmpeg could not complete M4B encoding") from exc
 
 
 @router.get("/export")

@@ -21,6 +21,13 @@ MAX_FINDINGS = 220
 WORDS = re.compile(r"\b[A-Za-z]+(?:'[A-Za-z]+)?\b")
 DOUBLE = re.compile(r"\b([A-Za-z]{2,})[ \t]+\1\b", re.I)
 COULD_OF = re.compile(r"\b(could|would|should|must|might)[ \t]+of\b", re.I)
+# Unambiguous common typos only. In-world names and unusual diction can be dismissed.
+COMMON_TYPOS = {
+    "alot": "a lot", "definately": "definitely", "seperate": "separate",
+    "recieve": "receive", "occured": "occurred", "untill": "until",
+    "writting": "writing", "becuase": "because", "wich": "which",
+}
+TYPO = re.compile(r"\b(?:" + "|".join(COMMON_TYPOS) + r")\b", re.I)
 SPACE_BEFORE = re.compile(r"(?<=\w)[ \t]+(?=[,.!?;:])")
 DOUBLE_SPACES = re.compile(r"(?<=\S)[ \t]{2,}(?=\S)")
 WEAK = re.compile(r"\b(?:due to the fact that|in order to|at this point in time|very unique)\b", re.I)
@@ -31,6 +38,7 @@ PRESENT = re.compile(r"\b(?:walks|looks|turns|says|asks|thinks|goes|sees|feels|k
 QUOTES = re.compile(r'["“][^"”\n]*["”]')
 RULES = {
     "double_word": "Possible duplicated word",
+    "lexical_typo": "Possible spelling typo",
     "modal_of": "Possible incorrect modal construction",
     "space_punctuation": "Unexpected space before punctuation",
     "double_space": "Extra spaces within a sentence",
@@ -146,6 +154,10 @@ def analyze_text(slug: str, path: str, text: str, status: str,
         for m in DOUBLE.finditer(line):
             emit("double_word", line_start + m.start(), line_start + m.end(),
                  m.group(1), "A word repeats consecutively; check for intentional emphasis.")
+        for m in TYPO.finditer(line):
+            emit("lexical_typo", line_start + m.start(), line_start + m.end(),
+                 _fix_case(m.group(), COMMON_TYPOS[m.group().casefold()]),
+                 "Common English typo; confirm whether the original is intentional dialogue or in-world terminology.")
         for m in COULD_OF.finditer(line):
             emit("modal_of", line_start + m.start(), line_start + m.end(),
                  _fix_case(m.group(0), m.group(1) + " have"),

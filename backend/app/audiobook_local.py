@@ -107,19 +107,21 @@ def list_renders(slug: str) -> list[dict]:
             and (folder / entry["filename"]).is_file()]
 
 
-def render(slug: str, source: str, voice: str = "") -> dict:
+def render(slug: str, source: str, voice: str = "", rate: int = -1) -> dict:
     # A concurrent manual render and a whole-book batch must not corrupt the
     # per-project manifest or create conflicting output files.
     with _RENDER_LOCKS.setdefault(slug, threading.RLock()):
-        return _render_unlocked(slug, source, voice)
+        return _render_unlocked(slug, source, voice, rate)
 
 
-def _render_unlocked(slug: str, source: str, voice: str = "") -> dict:
+def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1) -> dict:
     if sys.platform != "win32":
         raise NotImplementedError("Offline Windows narration is currently supported on Windows only")
     sources = {item["path"]: item for item in available_chapters(slug)}
     if source not in sources:
         raise ValueError("Choose a manuscript chapter in this project")
+    if isinstance(rate, bool) or not isinstance(rate, int) or not -5 <= rate <= 5:
+        raise ValueError("Narration speed must be an integer from -5 to 5")
     if voice and not VOICE_PATTERN.fullmatch(voice):
         raise ValueError("Invalid installed voice name")
     if voice and voice not in available_voices():
@@ -127,7 +129,8 @@ def _render_unlocked(slug: str, source: str, voice: str = "") -> dict:
     text = _spoken_text(read_text(slug, source))
     if not 5 <= len(text.split()) <= MAX_AUDIO_WORDS:
         raise ValueError("Narration requires 5 to 12,000 words per chapter")
-    fingerprint = hashlib.sha256((voice + "\n" + source + "\n" + text).encode("utf-8")).hexdigest()[:16]
+    source_hash = hashlib.sha256(read_text(slug, source).encode("utf-8")).hexdigest()
+    fingerprint = hashlib.sha256((voice + "\n" + str(rate) + "\n" + source + "\n" + text).encode("utf-8")).hexdigest()[:16]
     folder = _folder(slug)
     folder.mkdir(parents=True, exist_ok=True)
     wav = folder / (fingerprint + ".wav")
@@ -142,6 +145,7 @@ def _render_unlocked(slug: str, source: str, voice: str = "") -> dict:
                     "-InputPath", str(input_path), "-OutputPath", str(staging_wav)]
             if voice:
                 args.extend(["-Voice", voice])
+            args.extend(["-Rate", str(rate)])
             subprocess.run(args, capture_output=True, text=True, timeout=900, check=True)
             if not staging_wav.is_file() or staging_wav.stat().st_size < 44:
                 raise RuntimeError("Local narration did not produce a valid wave file")
@@ -160,6 +164,7 @@ def _render_unlocked(slug: str, source: str, voice: str = "") -> dict:
                 mp3.unlink(missing_ok=True)
     output = mp3 if mp3.is_file() else wav
     chapter = {"source_path": source, "filename": output.name, "voice": voice or "system-default",
+               "rate": rate, "source_hash": source_hash,
                "bytes": output.stat().st_size, "words": len(text.split()), "rendered_at": _time()}
     manifest = _read_manifest(slug)
     manifest["chapters"] = [ch for ch in manifest["chapters"]

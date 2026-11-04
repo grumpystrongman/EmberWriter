@@ -12,3 +12,42 @@
 .audiobook-track audio{max-width:320px;width:100%}
 .audiobook-job-panel{border:1px solid rgba(229,177,130,.3);border-radius:14px;padding:20px;margin:16px 0;background:linear-gradient(125deg,rgba(65,37,55,.27),rgba(25,38,53,.3))}.audiobook-job-panel h3{font-size:20px;color:#f7d3ab;margin:0 0 9px}.audiobook-job-panel p{font-size:13px;line-height:1.6;color:#c8b7ad}.audiobook-job-buttons{display:flex;flex-wrap:wrap;gap:11px;margin-top:17px;align-items:center}.audiobook-job-buttons button{padding:11px 14px}.audiobook-job-buttons button:first-child{background:linear-gradient(110deg,#c57b50,#efb480);font-weight:800;color:#2b2029}.audiobook-job-buttons a{font-size:12px;color:#f2c18c;font-weight:800}.audiobook-job-progress{margin-top:16px;padding:14px;border-radius:11px;border:1px solid rgba(239,184,127,.23);background:rgba(16,21,33,.45)}.audiobook-job-progress strong{font-size:13px;color:#efc4a4}.audiobook-job-progress progress{display:block;width:100%;height:12px;margin:12px 0;accent-color:#d89b6d}.audiobook-job-chapter{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(224,179,134,.12);font-size:12px;color:#e0c3a6}.audiobook-job-chapter small{color:#c9b9a8}.audiobook-alert{color:#ffcccc;background:rgba(128,53,59,.35);padding:13px;border-radius:8px}
 .audiobook-success{color:#b5e6b8;background:rgba(70,113,86,.26);padding:13px;border-radius:8px}
+
+/* Focus on the author workflow; secondary playback and QC are disclosed on demand. */
+.audiobook-panel .audiobook-heading { display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:17px 20px;border-bottom:1px solid rgba(232,168,127,.22); }
+.audiobook-panel .audiobook-heading h2 { margin:0;color:#f4d1af;font-size:20px;text-transform:none;letter-spacing:normal; }
+.audiobook-panel .audiobook-heading small {color:#d9a77e;font-size:11px;letter-spacing:.08em}
+.audiobook-panel input[type=range] { padding:0;accent-color:#ee9651;width:min(100%,500px); }
+.audiobook-rate-hint { color:#bbaea2;font-size:12px;line-height:1.5 }
+.audiobook-quality {border:1px solid rgba(202,170,122,.43);border-radius:12px;background:rgba(23,32,44,.8);padding:16px;display:grid;gap:9px;max-width:950px}
+.audiobook-quality h3 {color:#f4cc9a;font-size:18px;margin:0}
+.audiobook-quality p {color:#d1bbad;font-size:12px;line-height:1.6;margin:0}
+.audiobook-quality-warnings {max-height:300px;overflow-y:auto;border-left:3px solid #ce816d;padding-left:13px;display:grid;gap:7px}
+.audiobook-quality-warnings p strong {color:#f6ba9a}
+.audiobook-m4b-download {display:inline-flex;max-width:max-content;border:1px solid #c89964;border-radius:8px;padding:11px 14px;color:#f7dcbb;font-size:13px;font-weight:700;background:rgba(182,108,58,.24)}
+.audiobook-m4b-download:hover {background:rgba(216,148,84,.26)}
+.audiobook-tracks {border:1px solid rgba(216,167,132,.3);border-radius:11px;padding:12px 16px}
+.audiobook-tracks summary {cursor:pointer;font-size:13px;color:#eac4a2;font-weight:700}
+.audiobook-job-chapter small {overflow-wrap:anywhere;max-width:80%}
+@media (max-width:650px) {
+ .audiobook-panel .audiobook-heading {padding:14px}
+ .audiobook-panel .authoring-panel-body {padding:13px}
+ .audiobook-job-panel {padding:13px}
+ .audiobook-job-buttons {gap:8px}
+ .audiobook-job-buttons button {flex:1 1 150px}
+}
+
+.audiobook-single-chapter {border:1px solid rgba(221,168,125,.34);border-radius:10px;padding:12px 14px;display:grid;gap:11px}
+.audiobook-single-chapter > summary {cursor:pointer;color:#f1caa6;font-weight:650;font-size:13px;display:list-item}
+.audiobook-panel .audiobook-job-panel {margin:8px 0 16px}
+@media (max-width:700px) {
+ .publish-workspace .center-tool-header {padding:12px 15px;margin-bottom:8px}
+ .publish-workspace .center-tool-header small,
+ .publish-workspace .center-tool-header p {display:none}
+ .publish-workspace .center-tool-header h1 {font-size:1.35rem;margin:0}
+ .audiobook-panel .audiobook-intro {display:none}
+ .audiobook-panel .audiobook-heading {padding:11px 13px}
+ .audiobook-panel .audiobook-heading small {display:none}
+ .audiobook-panel .audiobook-job-panel p {display:none}
+ .audiobook-panel .audiobook-job-panel {margin:4px 0 12px}
+}

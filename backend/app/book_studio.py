@@ -258,7 +258,11 @@ def _context(slug: str, state: dict, chapter_index: int) -> str:
         )
         append("### Open author-tracked story promises (NOT automatically fulfilled)\n" + body, 1700)
 
-    append(_continuity_digest(slug, state, chapter_index), 3500)
+    # Source-grounded interior passages surface relevant earlier decisions that
+    # the opening/ending digest might omit. No summaries or fabricated memory.
+    from .continuity_retrieval import context_section
+    append(context_section(slug, state, chapter_index), 2900)
+    append(_continuity_digest(slug, state, chapter_index), 2500)
     return "\n\n".join(parts)[:MAX_CONTEXT]
 
 

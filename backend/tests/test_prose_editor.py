@@ -50,6 +50,20 @@ class ProseEditorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "edited since"):
             decide(self.slug, self.path, modal["id"], report["source_hash"], "apply", "third", "past")
 
+    def test_common_typo_suggestions_remain_author_controlled(self):
+        storage.save_text(self.slug, self.path,
+                          "# Fictional Page\n\nThe traveler would definately recieve a seperate map.\n")
+        report = analyze(self.slug, self.path)
+        findings = [item for item in report["findings"] if item["rule"] == "lexical_typo"]
+        self.assertEqual({item["suggested"] for item in findings},
+                         {"definitely", "receive", "separate"})
+        self.assertIn("definately", storage.read_text(self.slug, self.path))
+        selected = next(item for item in findings if item["suggested"] == "definitely")
+        decision = decide(self.slug, self.path, selected["id"], report["source_hash"], "apply")
+        self.assertTrue(decision["applied"])
+        self.assertIn("definitely", storage.read_text(self.slug, self.path))
+        self.assertTrue(storage.list_snapshots(self.slug, self.path))
+
     def test_dismiss_and_invalidate_after_edit(self):
         report = analyze(self.slug, self.path, "third", "past")
         finding = next(row for row in report["findings"] if row["rule"] == "pov")

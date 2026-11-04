@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/projects/{slug}/audiobook", tags=["Audiobook"])
 class RenderRequest(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     voice: str = Field(default="", max_length=120)
+    rate: int = Field(default=-1, ge=-5, le=5)
 
 
 @router.get("/chapters")
@@ -47,7 +48,7 @@ def renders(slug: str) -> list[dict]:
 @router.post("/renders")
 def create_render(slug: str, payload: RenderRequest) -> dict:
     try:
-        return render(slug, payload.path, payload.voice)
+        return render(slug, payload.path, payload.voice, payload.rate)
     except FileNotFoundError as exc:
         raise HTTPException(404, "Project not found") from exc
     except NotImplementedError as exc:

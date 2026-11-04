@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './publish-navigation.css'
 
 import CoverStudioPanel from './CoverStudioPanel'
@@ -56,6 +56,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function PublishPanel({ apiBase, slug, projectName, disabled }: Props) {
   const [stage, setStage] = useState<PublishStage>('readiness')
+  const navRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    navRef.current?.querySelector('button.active')?.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'center' })
+  }, [stage])
   useEffect(() => { setStage('readiness'); setResult(null) }, [slug])
   const [title, setTitle] = useState(projectName)
   const [author, setAuthor] = useState('')
@@ -111,7 +115,7 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
 
   return (
     <section className="publish-workflow" aria-label="Publishing workspace">
-      <nav className="publish-workflow-nav" aria-label="Publishing steps">
+      <nav ref={navRef} className="publish-workflow-nav" aria-label="Publishing steps">
         {PUBLISH_STAGES.map(item => <button key={item.id} type="button"
           className={stage === item.id ? 'active' : ''}
           aria-current={stage === item.id ? 'page' : undefined}
