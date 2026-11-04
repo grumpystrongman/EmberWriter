@@ -32,6 +32,9 @@ from .routes_book_jobs import router as book_jobs_router
 from .routes_book_reviews import router as book_reviews_router
 from .routes_book_revisions import router as book_revisions_router
 from .routes_manuscript_intelligence import router as manuscript_intelligence_router
+from .routes_story_arcs import router as story_arcs_router
+from .routes_production_preflight import router as production_preflight_router
+from .routes_voiceprint import router as voiceprint_router
 from .book_jobs import recover_on_startup, stop_on_shutdown
 from .routes_audiobook_local import router as audiobook_local_router
 from .routes_quality_clinic import router as quality_clinic_router
@@ -152,6 +155,9 @@ app.include_router(book_jobs_router)
 app.include_router(book_reviews_router)
 app.include_router(book_revisions_router)
 app.include_router(manuscript_intelligence_router)
+app.include_router(story_arcs_router)
+app.include_router(production_preflight_router)
+app.include_router(voiceprint_router)
 app.include_router(audiobook_local_router)
 app.include_router(quality_clinic_router)
 app.include_router(generation_router)

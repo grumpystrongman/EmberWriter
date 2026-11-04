@@ -1,4 +1,4 @@
-# The Author-Led Book Studio
+﻿# The Author-Led Book Studio
 
 ## Product promise
 
@@ -28,7 +28,32 @@ reject it, or change the next chapter's direction.
   candidate for editorial review, and no existing manuscript is overwritten.
   Each chapter uses its own requirements, previous chapter and available canon;
   a local job stops for author attention when generation fails.
-- **Independent Reader Panel**: for each draft candidate, optionally call three\n  separate local AI perspectives (Genre Fan, Developmental Editor, Line Editor).\n  Readers score five craft dimensions and cite exact candidate text for each\n  actionable finding. Findings that cannot be verified against the candidate\n  are withheld. The author accepts or dismisses each finding and can build an\n  accepted-only revision brief; no rewrite is applied automatically. Editing\n  a draft marks older reviews stale. Each reviewer is evaluated independently\n  rather than receiving other models' feedback.\n- **Manuscript Intelligence** (Plan → Manuscript Intelligence): bounded, offline\n  project-scoped scan of existing chapters and unapproved Book Studio candidates.\n  The dashboard includes chapter length pulse, sentence statistics, counts of\n  mechanical writing flags, exact phrase/name presence, repeated four-word\n  echoes across chapters, and an author-owned foreshadowing/story-promise ledger\n  with source evidence. Untouched starter documents are excluded; approved Book\n  Studio chapters are counted exactly once. The author must explicitly resolve,\n  reopen, or abandon plot threads: a literal mention is never taken as proof of\n  fulfillment, nor is character presence interpreted as character agency.\n- **Revision Workbench** (Book Studio, beneath reader panels): compose an author-led\n  rewrite from approved reader findings and/or explicit author direction. Local\n  Ollama drafts a complete replacement **proposal**, leaving the original\n  candidate untouched until the author reviews a side-by-side comparison and\n  accepts. Source hashes invalidate outdated proposals, and acceptance invokes\n  Book Studio's archived candidate revision mechanism. Rejected revisions do\n  not modify the manuscript. Mechanical quality indicators and word/line\n  counts appear before and after; they are not a literary quality score.\n- **Editorial control**: read/edit/reject/approve candidates. Candidate revisions
+- **Independent Reader Panel**: for each draft candidate, optionally call three
+  separate local AI perspectives (Genre Fan, Developmental Editor, Line Editor).
+  Readers score five craft dimensions and cite exact candidate text for each
+  actionable finding. Findings that cannot be verified against the candidate
+  are withheld. The author accepts or dismisses each finding and can build an
+  accepted-only revision brief; no rewrite is applied automatically. Editing
+  a draft marks older reviews stale. Each reviewer is evaluated independently
+  rather than receiving other models' feedback.
+- **Manuscript Intelligence** (Plan → Manuscript Intelligence): bounded, offline
+  project-scoped scan of existing chapters and unapproved Book Studio candidates.
+  The dashboard includes chapter length pulse, sentence statistics, counts of
+  mechanical writing flags, exact phrase/name presence, repeated four-word
+  echoes across chapters, and an author-owned foreshadowing/story-promise ledger
+  with source evidence. Untouched starter documents are excluded; approved Book
+  Studio chapters are counted exactly once. The author must explicitly resolve,
+  reopen, or abandon plot threads: a literal mention is never taken as proof of
+  fulfillment, nor is character presence interpreted as character agency.
+- **Revision Workbench** (Book Studio, beneath reader panels): compose an author-led
+  rewrite from approved reader findings and/or explicit author direction. Local
+  Ollama drafts a complete replacement **proposal**, leaving the original
+  candidate untouched until the author reviews a side-by-side comparison and
+  accepts. Source hashes invalidate outdated proposals, and acceptance invokes
+  Book Studio's archived candidate revision mechanism. Rejected revisions do
+  not modify the manuscript. Mechanical quality indicators and word/line
+  counts appear before and after; they are not a literary quality score.
+- **Editorial control**: read/edit/reject/approve candidates. Candidate revisions
   are archived locally. Only approval writes to a manuscript file under
   `manuscript/book-studio/`. Existing files are never overwritten. The Binder
   is synced so approved chapters become visible in the manuscript workflow.
@@ -114,3 +139,41 @@ structure, stakes, relationships or ending. Your universe remains yours.
 
 An intelligent writing partner should give the author more possibilities, more
 control, and more time for the storytelling choices that matter.
+
+
+## Story-level editorial intelligence (November 2026)
+
+These three workspaces extend the author-led flow beyond chapter drafting:
+
+- **Story Arc Investigator** (Plan -> Story Arc Investigator): an explicitly
+  requested local AI assessment of one chapter at a time. It flags plausible
+  on-page decisions, causal consequences, relationship changes, revelations,
+  conflicts, and foreshadowing hypotheses. Every finding must quote a passage
+  verified against the examined draft; unsupported claims are rejected. The
+  author accepts, dismisses, or promotes foreshadowing hypotheses to the
+  Story Promise Ledger. After source edits, older findings are marked stale
+  and cannot be acted on. A deterministic whole-book Arc Dossier rolls up
+  accepted findings into subject trajectories and subjective tension trend,
+  and can be exported as Markdown. The dossier is not an independent proof
+  of narrative causality, coherence, or literary quality.
+- **Voiceprint Lab** (Plan -> Voiceprint Lab): choose a long sample of your
+  actual writing in the current project (at least 120 words). A deterministic
+  offline comparison shows sentence length, sentence-length variation,
+  paragraph length, dialogue density, punctuation rates, and deviations
+  across authored chapters and draft candidates. No model calls and no
+  rewrites. Results are descriptive, not author-identity, AI-generation,
+  plagiarism, or writing-quality scores.
+- **Production Readiness Gate** (Publish -> Production Readiness Gate):
+  advisory local preflight for incomplete chapter plans, unapproved drafts,
+  outstanding canon changes, open story promises, possible proofreading
+  errors, editorial placeholders, Binder compile coverage, and release
+  metadata. The author may waive a warning only with a written rationale.
+  Waivers are source-fingerprint-aware for content warnings and do not
+  silently carry to newly edited prose. Blockers are never waived, but
+  the existing publishing tools are not disabled. The report is exportable
+  as Markdown. A clean preflight is NOT retailer or professional certification.
+
+All three workspaces use project-local data and deliberately do not read
+other project libraries. The only model work here is the opt-in narrative
+arc assessment, which requires a locally bound Ollama provider. These tools
+were tested with fictional synthetic stories.
