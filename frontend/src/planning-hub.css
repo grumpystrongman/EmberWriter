@@ -1,0 +1,64 @@
+/* A deliberately shallow navigation hierarchy: one workflow group,
+   then at most four context-specific tools. No eleven-button tab strip. */
+.planning-hub { min-width: 0; }
+.planning-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; padding: .5rem; margin-bottom: .8rem; border: 1px solid #31404c; border-radius: 12px; background: #131f2b; }
+.planning-groups button { min-height: 46px; padding: .7rem .55rem; color: #aab9c7; background: transparent; border: 1px solid transparent; border-radius: 8px; font-weight: 650; font-size: .82rem; cursor: pointer; }
+.planning-groups button:hover { background: #253443; color: #f1f5f8; }
+.planning-groups button.active { border-color: #98643e; background: #393027; color: #ffe1bf; }
+.planning-groups button:focus-visible, .planning-tool-tabs button:focus-visible { outline: 3px solid #ffc38b; outline-offset: 2px; }
+.planning-tool-selector { border-bottom: 1px solid #2c3c49; margin-bottom: .7rem; }
+.planning-tool-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: .45rem .9rem; margin: .4rem 0 .7rem; }
+.planning-tool-heading strong { color: #f0d4ba; font-size: .88rem; }
+.planning-tool-heading span { color: #96a7b5; font-size: .77rem; line-height: 1.45; }
+.planning-tool-tabs { display: flex; flex-wrap: wrap; gap: .3rem; }
+.planning-tool-tabs button { min-height: 38px; padding: .55rem .8rem; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: #9dacbc; cursor: pointer; font-size: .8rem; }
+.planning-tool-tabs button:hover { color: #e8edf2; background: #273543; }
+.planning-tool-tabs button.active { border-bottom-color: #ee8a3a; color: #f4e1cb; background: rgba(238,138,58,.09); }
+.planning-tool-description { color: #8799aa; font-size: .73rem; margin: .65rem 0; line-height: 1.45; }
+.planning-tool-content { min-width: 0; }
+.planning-hub .production-conductor,
+.planning-hub .editorial-board,
+.planning-hub .prose-editor,
+.planning-hub .style-bible,
+.planning-hub .voiceprint-lab,
+.planning-hub .story-arc-investigator { padding: .7rem 0 1.5rem; }
+.planning-hub .conductor-hero,
+.planning-hub .editorial-board-hero,
+.planning-hub .prose-editor-hero,
+.planning-hub .style-bible-hero,
+.planning-hub .voiceprint-hero { padding: clamp(16px, 2vw, 24px); }
+.planning-hub .conductor-hero h2,
+.planning-hub .editorial-board-hero h2,
+.planning-hub .prose-editor-hero h2,
+.planning-hub .style-bible-hero h2,
+.planning-hub .voiceprint-hero h2 { font-size: clamp(1.5rem, 2.6vw, 2.1rem); margin: .55rem 0; }
+@media (max-width: 740px) {
+  .planning-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planning-tool-heading { display: block; }
+  .planning-tool-heading span { display: block; margin-top: .3rem; }
+  .planning-tool-tabs { gap: 0; }
+  .planning-tool-tabs button { flex: 1 1 auto; min-width: 0; }
+}
+@media (max-width: 410px) {
+  .planning-groups button { font-size: .73rem; padding: .7rem .3rem; }
+  .planning-tool-tabs button { font-size: .75rem; }
+}
+
+@media (max-width: 700px) {
+  .planning-hub .center-tool-header { padding: .9rem 1rem .8rem; margin-bottom: .65rem; }
+  .planning-hub .center-tool-header small, .planning-hub .center-tool-header p { display: none; }
+  .planning-hub .center-tool-header h1 { font-size: 1.28rem; margin: 0; }
+  .planning-hub .planning-groups { margin-bottom: .55rem; gap: .25rem; padding: .3rem; }
+  .planning-hub .planning-groups button { min-height: 36px; padding: .5rem .2rem; font-size: .7rem; }
+  .planning-hub .planning-tool-heading { margin: .15rem 0 .4rem; }
+  .planning-hub .planning-tool-heading span, .planning-hub .planning-tool-description { display: none; }
+  .planning-hub .planning-tool-tabs { display: flex; flex-wrap: nowrap; gap: .08rem; }
+  .planning-hub .planning-tool-tabs button { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.3; min-height: 40px; padding: .4rem .15rem; font-size: .67rem; }
+  .planning-hub .planning-tool-selector { margin-bottom: .3rem; }
+  .planning-hub .conductor-hero, .planning-hub .editorial-board-hero,
+  .planning-hub .prose-editor-hero, .planning-hub .style-bible-hero,
+  .planning-hub .voiceprint-hero { padding: 15px; }
+  .planning-hub .conductor-hero h2, .planning-hub .editorial-board-hero h2,
+  .planning-hub .prose-editor-hero h2, .planning-hub .style-bible-hero h2,
+  .planning-hub .voiceprint-hero h2 { font-size: 1.4rem; letter-spacing: .015em; }
+}

@@ -1,1 +1,34 @@
 .production-conductor{padding:26px clamp(16px,3vw,43px);color:#ead7c6}.conductor-hero{padding:30px;border-radius:18px;border:1px solid rgba(229,175,126,.3);background:radial-gradient(ellipse at 84% 3%,rgba(218,144,101,.21),transparent 60%),linear-gradient(125deg,#32243d,#192a39)}.conductor-hero small{font-size:10px;letter-spacing:.16em;color:#ecb68d;font-weight:850}.conductor-hero h2{font-size:clamp(31px,4vw,46px);color:#ffe4d0;margin:12px 0}.conductor-hero p{max-width:860px;line-height:1.75;font-size:14px;color:#d8c6b8}.conductor-launch,.conductor-job,.conductor-chapters,.conductor-handoff{margin-top:24px;border-radius:15px;padding:23px;border:1px solid rgba(220,176,136,.27);background:rgba(23,29,44,.75)}.conductor-launch h3,.conductor-chapters h3{color:#f5d1b0;font-size:23px;margin:0 0 12px}.conductor-launch p,.conductor-job p,.conductor-handoff p{font-size:13px;color:#c9b9ac;line-height:1.7}.conductor-settings{display:flex;gap:20px;flex-wrap:wrap;margin:18px 0}.conductor-settings>label{flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px;font-size:12px;color:#eac1a3}.conductor-settings input:not([type=checkbox]){background:#161d2a;color:#fee4d1;border:1px solid rgba(231,173,137,.37);border-radius:8px;padding:11px}.conductor-settings fieldset{flex:1;min-width:210px;border-radius:10px;border:1px solid rgba(227,173,129,.26);display:flex;flex-direction:column;gap:11px;font-size:12px;color:#e9c2a1}.conductor-settings fieldset label{cursor:pointer}.production-conductor button{padding:11px 14px;border-radius:8px;border:1px solid rgba(230,173,128,.38);background:rgba(217,153,105,.16);color:#ffdcc4;cursor:pointer}.production-conductor button:disabled{opacity:.4;cursor:not-allowed}.conductor-launch>button{background:linear-gradient(110deg,#c37c52,#e9b584);color:#302026;font-weight:800}.conductor-status>strong{font-size:20px;color:#f9d0a6;text-transform:capitalize}.conductor-status>div{display:flex;flex-wrap:wrap;gap:13px;margin:15px 0}.conductor-status span{font-size:12px;color:#eec49e}.conductor-status progress{display:block;width:100%;height:15px;accent-color:#d5976b}.conductor-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:15px}.conductor-stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:24px 0}.conductor-stages article{border:1px solid rgba(211,166,126,.24);background:rgba(31,34,50,.6);padding:16px;border-radius:12px}.conductor-stages article.current{border-color:#e3aa81;background:rgba(217,141,87,.12)}.conductor-stages strong{color:#f6d1b4;font-size:13px}.conductor-stages p{line-height:1.6;color:#c7b6ab;font-size:12px}.conductor-stages small{font-size:10px;color:#c19f88;letter-spacing:.06em}.conductor-context{margin-top:24px;padding:22px;border:1px solid rgba(229,178,137,.27);border-radius:14px;background:rgba(20,29,43,.7)}.conductor-context h3{font-size:21px;color:#f2d3b3}.conductor-context>p,.conductor-context details p{color:#c6b5a7;font-size:12px;line-height:1.6}.conductor-context>div{display:flex;gap:13px;flex-wrap:wrap;margin:12px 0}.conductor-context select{background:#141d2d;color:#f7ddc0;border:1px solid rgba(221,167,119,.4);padding:11px;border-radius:8px}.conductor-context summary{cursor:pointer;color:#f3d1b1}.conductor-context pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:480px;overflow:auto;border:1px solid rgba(216,157,111,.26);border-radius:9px;background:rgba(9,15,28,.75);color:#e7cab5;padding:16px;font:12px/1.7 ui-monospace,monospace}.conductor-chapters article{display:flex;gap:13px;flex-wrap:wrap;align-items:center;border-top:1px solid rgba(225,164,116,.2);padding:13px 0}.conductor-chapters strong{font-size:13px;color:#f4d7bf}.conductor-chapters article span{font-size:12px;color:#e7b88c}.conductor-chapters article small{font-size:11px;color:#b9a79b}.conductor-handoff{border-color:rgba(120,177,122,.5)}.conductor-events{padding:18px 22px;margin-top:24px;border-radius:14px;border:1px solid rgba(227,173,130,.25);background:rgba(22,28,40,.62)}.conductor-events summary{cursor:pointer;color:#f6cfa8;font-size:14px;font-weight:750}.conductor-events div{margin-top:14px;border-top:1px solid rgba(216,170,122,.16);padding-top:10px}.conductor-events small{font-size:11px;color:#e2b18e}.conductor-events p{font-size:12px;color:#cbb9a9}.conductor-handoff strong{color:#b1debc}.conductor-error{padding:12px;color:#ffc3b8;border:1px solid #ac696b}.conductor-success{padding:12px;color:#b5eac6;border:1px solid #69a078}
+
+/* Progressive disclosure keeps the first production action in view. */
+.conductor-options { flex: 1; min-width: 220px; padding: .5rem .7rem; border: 1px solid rgba(225,174,131,.3); border-radius: 9px; }
+.conductor-options summary { cursor: pointer; color: #e5c6ad; font-size: .78rem; }
+.conductor-settings .conductor-options fieldset { margin-top: 12px; min-width: 0; width: 100%; }
+.conductor-settings .conductor-options fieldset label { display: flex; gap: 10px; align-items: center; min-height: 32px; }
+.conductor-settings .conductor-options input[type="checkbox"] { appearance: auto; width: 18px; height: 18px; flex: 0 0 18px; accent-color: #ee8a3a; margin: 0; }
+.conductor-launch { padding: 18px 20px; margin-top: 14px; }
+.conductor-launch h3 { font-size: 1.2rem; }
+.conductor-launch p > button { margin-left: .2rem; padding: .3rem .55rem; font-size: .78rem; }
+.conductor-launch > button { width: auto; }
+.conductor-stage-details { margin: 16px 0; padding: .75rem 1rem; border: 1px solid rgba(228,177,139,.25); border-radius: 11px; }
+.conductor-stage-details > summary { font-size: .79rem; color: #eac3a8; cursor: pointer; }
+.conductor-stage-details .conductor-stages { margin: 16px 0 3px; }
+.conductor-context > summary, .conductor-chapters > summary { cursor: pointer; color: #f0d3b6; font-size: .86rem; font-weight: 680; }
+.conductor-context h3 { margin: 13px 0 6px; }
+.conductor-job { margin-top: 14px; }
+@media (max-width: 650px) {
+ .conductor-options { min-width: 0; width: 100%; }
+ .conductor-settings > label { min-width: 0; width: 100%; }
+ .production-conductor button { min-height: 38px; }
+}
+
+.conductor-settings > label { min-width: 0; width: 100%; }
+.conductor-options { display: block; max-width: 550px; margin-top: 13px; }
+.conductor-model-help { font-size: .75rem; color: #dda990; margin: 8px 0; }
+@media (max-width: 700px) {
+  .planning-hub .conductor-hero p { display: none; }
+  .planning-hub .conductor-launch { padding: 15px; }
+  .planning-hub .conductor-settings { margin: 10px 0; }
+  .planning-hub .conductor-launch > button { display: block; width: 100%; min-height: 40px; }
+  .planning-hub .conductor-options { margin-top: 14px; }
+}

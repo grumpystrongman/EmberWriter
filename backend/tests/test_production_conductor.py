@@ -173,6 +173,11 @@ class ProductionConductorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final["status"], "awaiting_author")
         self.assertEqual(len(final["reviews_done"]), 2)
 
+    async def test_reader_personas_require_explicit_opt_in(self):
+        from app.routes_production_conductor import ProductionStart
+        payload = ProductionStart.model_validate({"provider": self.provider.model_dump()})
+        self.assertEqual(payload.personas, [])
+
     async def test_api_validation_and_private_scope(self):
         client = TestClient(app)
         root = f"/api/projects/{self.slug}/production-conductor"

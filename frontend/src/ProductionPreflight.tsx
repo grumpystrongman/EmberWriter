@@ -55,7 +55,7 @@ export default function ProductionPreflight({ apiBase, slug, disabled }: Props) 
     finally { setBusy(false) }
   }
 
-  return <details className="authoring-panel production-preflight">
+  return <details className="authoring-panel production-preflight" open>
     <summary>Production Readiness Gate <small>AUTHOR SIGN-OFF · CONTINUITY · MANUSCRIPT QA</small></summary>
     <div className="authoring-panel-body">
       <div className="preflight-intro">

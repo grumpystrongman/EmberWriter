@@ -1,0 +1,13 @@
+.publish-workflow { min-width: 0; }
+.publish-workflow-nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .4rem; margin: .4rem 0; border: 1px solid #334454; border-radius: 12px; background: #14212e; padding: .45rem; }
+.publish-workflow-nav button { min-height: 44px; padding: .6rem .3rem; font-size: .8rem; font-weight: 650; background: transparent; color: #a9b9c6; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.publish-workflow-nav button:hover { color: #f0f4f8; background: #253647; }
+.publish-workflow-nav button.active { background: #393026; color: #ffe0b9; border-color: #a87544; }
+.publish-workflow-nav button:focus-visible { outline: 3px solid #ffc28b; outline-offset: 2px; }
+.publish-workflow-hint { margin: .65rem 0 1rem; font-size: .78rem; color: #9eafbc; line-height: 1.45; }
+.publish-workflow-content { min-width: 0; }
+.publish-workflow-content > .authoring-panel { margin-top: .6rem; }
+@media (max-width: 840px) {
+  .publish-workflow-nav { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .publish-workflow-nav button { min-width: max-content; padding: .65rem .95rem; flex: none; }
+}

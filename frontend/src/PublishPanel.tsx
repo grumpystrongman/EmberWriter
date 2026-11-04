@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import './publish-navigation.css'
 
 import CoverStudioPanel from './CoverStudioPanel'
 import AudiobookPanel from './AudiobookPanel'
@@ -9,6 +10,15 @@ import ProjectHistoryPanel from './ProjectHistoryPanel'
 import SubmissionPanel from './SubmissionPanel'
 
 type PublishFormat = 'docx' | 'epub' | 'pdf'
+type PublishStage = 'readiness' | 'interior' | 'cover' | 'audio' | 'distribution' | 'history'
+const PUBLISH_STAGES: { id: PublishStage; label: string; detail: string }[] = [
+  { id: 'readiness', label: 'Readiness', detail: 'Check publication concerns before creating files' },
+  { id: 'interior', label: 'Book files', detail: 'Preview and export EPUB, DOCX and PDF interiors' },
+  { id: 'cover', label: 'Cover', detail: 'Create and review the cover assets' },
+  { id: 'audio', label: 'Audiobook', detail: 'Offline narration and chapter audio packages' },
+  { id: 'distribution', label: 'Release', detail: 'Submissions and distribution preparation' },
+  { id: 'history', label: 'History', detail: 'Find saved project versions and backups' },
+]
 
 type Artifact = {
   format: PublishFormat
@@ -45,6 +55,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export default function PublishPanel({ apiBase, slug, projectName, disabled }: Props) {
+  const [stage, setStage] = useState<PublishStage>('readiness')
+  useEffect(() => { setStage('readiness'); setResult(null) }, [slug])
   const [title, setTitle] = useState(projectName)
   const [author, setAuthor] = useState('')
   const [language, setLanguage] = useState('en')
@@ -98,12 +110,21 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
   }
 
   return (
-    <>
-      <ProductionPreflight apiBase={apiBase} slug={slug} disabled={disabled || busy} />
-      <ProjectHistoryPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
-      <PreviewStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
-      <CoverStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
-      <AudiobookPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
+    <section className="publish-workflow" aria-label="Publishing workspace">
+      <nav className="publish-workflow-nav" aria-label="Publishing steps">
+        {PUBLISH_STAGES.map(item => <button key={item.id} type="button"
+          className={stage === item.id ? 'active' : ''}
+          aria-current={stage === item.id ? 'page' : undefined}
+          onClick={() => setStage(item.id)}>{item.label}</button>)}
+      </nav>
+      <p className="publish-workflow-hint" aria-live="polite">{PUBLISH_STAGES.find(item => item.id === stage)?.detail}</p>
+      <div className="publish-workflow-content" key={slug + ':' + stage}>
+        {stage === 'readiness' && <ProductionPreflight apiBase={apiBase} slug={slug} disabled={disabled || busy} />}
+        {stage === 'history' && <ProjectHistoryPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />}
+        {stage === 'interior' && <PreviewStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />}
+        {stage === 'cover' && <CoverStudioPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />}
+        {stage === 'audio' && <AudiobookPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />}
+        {stage === 'interior' && (
 
       <details className="authoring-panel">
         <summary>
@@ -225,10 +246,10 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
 
           {error && <small className="panel-error">{error}</small>}
         </div>
-      </details>
-
-      <SubmissionPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />
-      <DistributionPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />
-    </>
+      </details>)}
+        {stage === 'distribution' && <SubmissionPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />}
+        {stage === 'distribution' && <DistributionPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />}
+      </div>
+    </section>
   )
 }

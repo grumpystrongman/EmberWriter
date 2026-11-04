@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/projects/{slug}/production-conductor", tags=["Pr
 
 class ProductionStart(BaseModel):
     provider: ProviderConfig
-    personas: list[str] = Field(default_factory=lambda: ["developmental_editor", "line_editor"],
+    personas: list[str] = Field(default_factory=list,
                                 max_length=3)
 
 

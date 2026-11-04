@@ -25,7 +25,7 @@ export default function ProductionConductor({ apiBase, projectSlug, onNavigate }
   const [job, setJob] = useState<Pipeline | null>(null)
   const [model, setModel] = useState('')
   const [installed, setInstalled] = useState<string[]>([])
-  const [personas, setPersonas] = useState(['developmental_editor', 'line_editor'])
+  const [personas, setPersonas] = useState<string[]>([])
   const [contextChapter, setContextChapter] = useState(1)
   const [contextData, setContextData] = useState<{number: number; title: string; context: string; characters: number; budget: number; disclaimer: string} | null>(null)
   const [busy, setBusy] = useState(false)
@@ -98,27 +98,29 @@ export default function ProductionConductor({ apiBase, projectSlug, onNavigate }
     <header className="conductor-hero">
       <small>AUTHOR-LED · FULL-BOOK PRODUCTION</small>
       <h2 id="production-conductor-title">Book Production Conductor</h2>
-      <p>Take a planned book through local generation, independent critique, your chapter-by-chapter decisions, and editorial production checks. The conductor remembers its place when the app restarts. It never approves a chapter or publishes anything for you.</p>
+      <p>From chapter plan to reviewed manuscript, with local drafting and a mandatory author approval gate. Your writing stays yours.</p>
     </header>
     {error && <p role="alert" className="conductor-error">{error}</p>}
     {notice && <p role="status" className="conductor-success">{notice}</p>}
     {!job?.exists && <div className="conductor-launch">
-      <h3>Configure your book's production run</h3>
-      <p>Create a chapter plan in Book Studio first. The conductor will use that plan and your chosen installed model.</p>
+      <h3>Start a production run</h3>
+      <p>Use your Book Studio chapter plan. Every draft and final approval stays under your control. <button type="button" onClick={() => onNavigate('book_studio')}>Edit chapter plan</button></p>
       <div className="conductor-settings">
         <label>Local Ollama model<input list="conductor-models" value={model} onChange={e => setModel(e.target.value)} placeholder="Choose installed local model" />
           <datalist id="conductor-models">{installed.map(name => <option value={name} key={name} />)}</datalist>
         </label>
-        <fieldset><legend>Independent reader lenses (optional)</legend>
+      </div>
+      <button disabled={busy || !model} onClick={() => void action('start')}>Start author-led production</button>
+      {!model && <p className="conductor-model-help">Choose an installed local Ollama model to enable production.</p>}
+      <details className="conductor-options"><summary>Optional reader evaluations ({personas.length} selected)</summary>
+        <fieldset><legend>Independent reader lenses</legend>
           {[
             { key: 'developmental_editor', label: 'Developmental editor' },
             { key: 'line_editor', label: 'Line editor' },
             { key: 'genre_fan', label: 'Genre reader' },
           ].map(p => <label key={p.key}><input type="checkbox" checked={personas.includes(p.key)}
             onChange={e => setPersonas(previous => e.target.checked ? [...previous, p.key] : previous.filter(v => v !== p.key))} /> {p.label}</label>)}
-        </fieldset>
-      </div>
-      <button disabled={busy || !model} onClick={() => void action('start')}>Start author-led production</button>
+        </fieldset></details>
     </div>}
     {!!job?.exists && <div className="conductor-job">
       <div className="conductor-status">
@@ -126,7 +128,7 @@ export default function ProductionConductor({ apiBase, projectSlug, onNavigate }
         <p>{job.message}</p>
         <div><span>{job.drafted ?? 0} / {job.total ?? 0} chapters drafted</span><span>{job.approved ?? 0} explicitly approved</span>
           <span>{job.candidates ?? 0} awaiting your review</span></div>
-        <progress max={Math.max(1, job.total ?? 1)} value={job.approved ?? 0} />
+        <progress aria-label="Author-approved chapters" max={Math.max(1, job.total ?? 1)} value={job.approved ?? 0} />
       </div>
       <div className="conductor-actions">
         {(job.status === 'running' || job.status === 'queued') && <button disabled={busy} onClick={() => void action('pause')}>Pause production</button>}
@@ -136,13 +138,15 @@ export default function ProductionConductor({ apiBase, projectSlug, onNavigate }
         <button onClick={() => onNavigate('editorial_board')}>Open Editorial Board</button>
       </div>
     </div>}
+    <details className="conductor-stage-details"><summary>Show five production stages</summary>
     <div className="conductor-stages">
       {stages.map((stage, index) => <article key={stage.key} className={phaseIndex === index ? 'current' : ''}>
         <strong>{stage.label}</strong><p>{stage.description}</p>
         <small>{index < phaseIndex ? 'STAGE PASSED' : index === phaseIndex && job?.exists ? 'CURRENT STAGE' : 'UPCOMING'}</small>
       </article>)}
     </div>
-    {!!job?.chapters?.length && <div className="conductor-context">
+    </details>
+    {!!job?.chapters?.length && <details className="conductor-context"><summary>Advanced: inspect chapter prompt context</summary>
       <h3>Prompt Context Inspector</h3>
       <p>See the currently available narrative context before drafting or revising. This is a project-local read-only preview and does not invoke AI.</p>
       <div><select value={contextChapter} onChange={e => { setContextChapter(Number(e.target.value)); setContextData(null) }}>
@@ -151,13 +155,13 @@ export default function ProductionConductor({ apiBase, projectSlug, onNavigate }
       {contextData && <details open><summary>{contextData.title} · {contextData.characters} / {contextData.budget} characters</summary>
         <p>{contextData.disclaimer}</p><pre>{contextData.context || '(No prior context yet)'}</pre>
       </details>}
-    </div>}
-    {!!job?.chapters?.length && <div className="conductor-chapters"><h3>Chapter production ledger</h3>
+    </details>}
+    {!!job?.chapters?.length && <details className="conductor-chapters"><summary>Chapter production ledger ({job.chapters.length})</summary>
       {job.chapters.map(chapter => <article key={chapter.number}>
         <strong>{chapter.number}. {chapter.title}</strong><span>{chapter.status} · {chapter.candidate_words.toLocaleString()} words</span>
         <small>{chapter.reviews.length ? chapter.reviews.map(review => `${review.persona.replaceAll('_', ' ')}: ${review.current ? 'current' : 'pending'}`).join(' · ') : 'Independent reader review not requested'}</small>
       </article>)}
-    </div>}
+    </details>}
     {!!job?.events?.length && <details className="conductor-events"><summary>Production checkpoint history ({job.events.length})</summary>
       {job.events.slice(0, 15).map((event, index) => <div key={index}><small>{new Date(event.at).toLocaleString()} · {event.phase} · {event.status}</small><p>{event.message}</p></div>)}
     </details>}

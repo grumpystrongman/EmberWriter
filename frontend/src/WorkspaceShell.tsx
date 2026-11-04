@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import AppV2 from './AppV2'
 import CenterWorkspace from './CenterWorkspace'
@@ -119,13 +119,25 @@ function workspaceShortcut(index: number) {
   return index === 9 ? '0' : String(index + 1)
 }
 
+const PRIMARY_WORKSPACES: Workspace[] = ['write', 'studio', 'plan', 'analyze', 'publish']
+const NARROW_WORKSPACES: Workspace[] = ['write', 'plan', 'publish']
+
 export default function WorkspaceShell() {
+  const moreRef = useRef<HTMLDetailsElement | null>(null)
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 700px)').matches)
+  const visibleWorkspaces = narrow ? NARROW_WORKSPACES : PRIMARY_WORKSPACES
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 700px)')
+    const update = () => setNarrow(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     const stored = localStorage.getItem('emberwriter.workspace') as Workspace | null
     return workspaces.some((item) => item.id === stored) ? stored! : 'write'
   })
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem('emberwriter.focusMode') === 'true')
-  const [binderCollapsed, setBinderCollapsed] = useState(false)
+  const [binderCollapsed, setBinderCollapsed] = useState(() => window.matchMedia('(max-width: 700px)').matches)
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
@@ -205,6 +217,10 @@ export default function WorkspaceShell() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && moreRef.current?.open) {
+        moreRef.current.open = false
+        return
+      }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault()
         setWorkspace('write')
@@ -249,6 +265,7 @@ export default function WorkspaceShell() {
   function openWorkspace(next: Workspace) {
     setWorkspace(next)
     setFocusMode(false)
+    if (moreRef.current) moreRef.current.open = false
   }
 
   async function openSource(path: string, anchor = '') {
@@ -295,23 +312,39 @@ export default function WorkspaceShell() {
       data-workspace={workspace}
     >
       <header className="workspace-topbar">
-        <div className="workspace-brand" onClick={() => openWorkspace('write')} role="button" tabIndex={0}>
+        <button type="button" className="workspace-brand" onClick={() => openWorkspace('write')} aria-label="EmberWriter home: Write">
           <span className="workspace-flame">◆</span>
           <span><strong>EmberWriter</strong><small>Stories. Sharper.</small></span>
-        </div>
+        </button>
         <nav className="workspace-nav" aria-label="Primary workspaces">
-          {workspaces.map((item, index) => (
+          {workspaces.filter(item => visibleWorkspaces.includes(item.id)).map((item) => {
+            const index = workspaces.findIndex(entry => entry.id === item.id)
+            return (
             <button
               key={item.id}
               type="button"
               className={workspace === item.id ? 'active' : ''}
+              aria-current={workspace === item.id ? 'page' : undefined}
               onClick={() => openWorkspace(item.id)}
               title={`${item.label} · Ctrl/Cmd+${workspaceShortcut(index)}`}
             >
               <span>{item.icon}</span>{item.label}
             </button>
-          ))}
+          )})}
         </nav>
+        <details className={`workspace-more ${visibleWorkspaces.includes(workspace) ? '' : 'active'}`} ref={moreRef}>
+          <summary aria-label="More workspaces">More <span aria-hidden="true">▾</span></summary>
+          <nav className="workspace-more-menu" aria-label="Other workspaces">
+            {workspaces.filter(item => !visibleWorkspaces.includes(item.id)).map(item => {
+              const index = workspaces.findIndex(entry => entry.id === item.id)
+              return <button key={item.id} type="button" onClick={() => openWorkspace(item.id)}
+                className={workspace === item.id ? 'active' : ''}
+                aria-current={workspace === item.id ? 'page' : undefined}>
+                <span>{item.icon} {item.label}</span><small>Ctrl/Cmd+{workspaceShortcut(index)}</small>
+              </button>
+            })}
+          </nav>
+        </details>
         <div className="workspace-actions">
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
           <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note">▰ Note</button>

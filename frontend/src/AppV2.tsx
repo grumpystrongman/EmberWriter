@@ -17,7 +17,6 @@ import CraftPanel, {
 import EditorialPanel, { type EditorialFinding } from './EditorialPanel'
 import ImportPanel from './ImportPanel'
 import MemoryPanel, { type MemoryFact, type MemoryStats } from './MemoryPanel'
-import PublishPanel from './PublishPanel'
 import RichTextEditor, { type RichEditorHandle } from './RichTextEditor'
 import SceneArchitectPanel, { type ScenePlan, type ScenePlanResponse } from './SceneArchitectPanel'
 import StoryIntelligencePanel, { type StoryIntelligence } from './StoryIntelligencePanel'
@@ -943,8 +942,6 @@ export default function AppV2() {
             onOpenFinding={openEditorialFinding}
           />
         )}
-
-        {project && <PublishPanel apiBase={API} slug={project.slug} projectName={project.name} disabled={workspaceBusy} />}
 
         <label>Mode</label>
         <div className="mode-grid">

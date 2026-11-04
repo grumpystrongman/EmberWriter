@@ -31,6 +31,11 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
   const [perspective, setPerspective] = useState('unspecified')
   const [tense, setTense] = useState('unspecified')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [chapterQuery, setChapterQuery] = useState('')
+  const [chapterFilter, setChapterFilter] = useState<'open' | 'all'>('open')
+  const [chapterSort, setChapterSort] = useState<'order' | 'work'>('order')
+  const [visibleCount, setVisibleCount] = useState(12)
+  const [findingLimit, setFindingLimit] = useState<Record<string, number>>({})
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
@@ -47,16 +52,21 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
     }
     return response.json() as Promise<T>
   }
+  const matchingChapters = (report?.chapters || [])
+    .filter(ch => chapterFilter === 'all' || ch.outstanding > 0)
+    .filter(ch => !chapterQuery.trim() || (ch.title + ' ' + ch.path).toLowerCase().includes(chapterQuery.trim().toLowerCase()))
+    .sort((a, b) => chapterSort === 'work' ? b.outstanding - a.outstanding :
+      (report?.chapters.indexOf(a) || 0) - (report?.chapters.indexOf(b) || 0))
   async function refreshHistory() { setHistory(await request<Scan[]>('/history')) }
   useEffect(() => {
     let active = true
-    setReport(null); setHistory([]); setSelected({}); setPreview(null); setError(''); setMessage('')
+    setReport(null); setHistory([]); setSelected({}); setPreview(null); setError(''); setMessage(''); setVisibleCount(12); setChapterQuery('')
     void request<Scan[]>('/history').then(value => { if (active) setHistory(value) })
       .catch(e => { if (active) setError(String(e)) })
     return () => { active = false }
   }, [endpoint])
   async function scanBook() {
-    setBusy(true); setError(''); setMessage(''); setPreview(null); setSelected({})
+    setBusy(true); setError(''); setMessage(''); setPreview(null); setSelected({}); setVisibleCount(12); setExpanded(null); setFindingLimit({})
     try {
       setReport(await request<Report>('/scan', 'POST', { perspective, tense }))
       await refreshHistory()
@@ -97,7 +107,7 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
     <header className="editorial-board-hero">
       <small>FULL MANUSCRIPT · AUTHOR-CONTROLLED EDITORIAL TRIAGE</small>
       <h2 id="editorial-board-heading">Whole-Book Editorial Board</h2>
-      <p>Scan all authored chapters and unapproved candidates in one pass. Combine Prose Editor and Style Bible findings, review the work chapter by chapter, and preview selected mechanical fixes before approving changes.</p>
+      <p>Find issues across the entire book, inspect evidence, and preview individual corrections before accepting changes.</p>
     </header>
     <div className="editorial-board-controls">
       <label>Expected point of view<select value={perspective} onChange={e => { setPerspective(e.target.value); setReport(null); setPreview(null) }}>
@@ -111,27 +121,34 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
     </div>
     {error && <p className="editorial-board-error" role="alert">{error}</p>}
     {message && <p className="editorial-board-success" role="status">{message}</p>}
-    {!!history.length && <div className="editorial-board-history"><strong>Saved scan history</strong>{history.slice(0, 5).map(item =>
-      <span key={item.id}>{new Date(item.at).toLocaleString()}: {item.outstanding} pending · {item.fixable} mechanical fixes</span>)}</div>}
+    {!!history.length && <details className="editorial-board-history"><summary>Earlier editorial scans ({history.length})</summary>{history.slice(0, 5).map(item =>
+      <span key={item.id}>{new Date(item.at).toLocaleString()}: {item.outstanding} pending · {item.fixable} mechanical fixes</span>)}</details>}
     {report && <>
       <div className="editorial-board-stats">
         <div><strong>{report.chapter_count}</strong><span>chapters reviewed</span></div>
         <div><strong>{report.total_words.toLocaleString()}</strong><span>manuscript words</span></div>
         <div><strong>{report.outstanding}</strong><span>open observations</span></div>
         <div><strong>{report.fixable}</strong><span>possible individual fixes</span></div>
-        <div><strong>{report.dismissed}</strong><span>author-approved exceptions</span></div>
-        <div><strong>{report.reader_coverage}/{report.chapter_count}</strong><span>chapters with reader evaluation</span></div>
-        <div><strong>{report.story_arc_coverage}/{report.chapter_count}</strong><span>chapters with arc analysis</span></div>
       </div>
+      <details className="editorial-board-coverage"><summary>Additional editorial metrics and reader coverage</summary>
+        <p>{report.dismissed} author-approved exceptions · {report.reader_coverage}/{report.chapter_count} chapters with current reader evaluations · {report.story_arc_coverage}/{report.chapter_count} chapters with current story-arc analysis.</p>
+      </details>
       {report.style_truncated && <p className="editorial-board-error">The Style Bible reached its scan limit. Narrow broad rules and scan again.</p>}
-      {report.fixable > 0 && <div className="editorial-board-priorities">
-        <strong>Start with chapters containing the most reviewable mechanical issues</strong>
-        <div>{[...report.chapters].filter(ch => ch.fixable > 0).sort((a, b) => b.fixable - a.fixable).slice(0, 5).map(ch =>
-          <button key={ch.path} onClick={() => { setExpanded(ch.path); setPreview(null) }}>{ch.title}: {ch.fixable} possible fixes</button>)}</div>
-        <p>Counts suggest where to begin reviewing; they do not rank chapters by literary quality.</p>
-      </div>}
+      <div className="editorial-board-filterbar">
+        <label>Find chapter<input type="search" value={chapterQuery}
+          placeholder="Chapter title or source path"
+          onChange={e => { setChapterQuery(e.target.value); setVisibleCount(12); setExpanded(null) }} /></label>
+        <label>Show<select value={chapterFilter} onChange={e => { setChapterFilter(e.target.value as 'open' | 'all'); setVisibleCount(12); setExpanded(null) }}>
+          <option value="open">Needs review</option><option value="all">All chapters</option>
+        </select></label>
+        <label>Order<select value={chapterSort} onChange={e => { setChapterSort(e.target.value as 'order' | 'work'); setVisibleCount(12); setExpanded(null) }}>
+          <option value="order">Manuscript order</option><option value="work">Most findings first</option>
+        </select></label>
+        <span role="status">Showing {Math.min(visibleCount, matchingChapters.length)} of {matchingChapters.length} chapters</span>
+      </div>
+      {!matchingChapters.length && <p className="editorial-board-empty">No chapters match these filters. Choose “All chapters” to review completed or clean sections.</p>}
       <div className="editorial-board-chapters">
-        {report.chapters.map(ch => <article key={ch.path}>
+        {matchingChapters.slice(0, visibleCount).map(ch => <article key={ch.path}>
           <header><div><h3>{ch.title}</h3><small>{ch.status} · {ch.words.toLocaleString()} words · {ch.path}</small></div>
             <span>{ch.outstanding} open · {ch.fixable} fixable · {ch.reader_reviews} reader verdict(s) · {ch.story_arc_reviewed ? 'arc assessed' : 'arc not assessed'}{ch.reader_findings_pending ? ` · ${ch.reader_findings_pending} reader findings pending` : ''}</span></header>
           <div className="editorial-board-actions">
@@ -142,8 +159,8 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
             <button onClick={() => onNavigate('story_arcs', ch.path)}>Story Arc Investigator</button>
           </div>
           {expanded === ch.path && <div className="editorial-board-findings">
-            {!ch.findings.length && <p>No observations identified for this chapter.</p>}
-            {ch.findings.map(item => <div key={item.id} className={item.decision === 'dismissed' ? 'editorial-board-dismissed' : ''}>
+            {!ch.outstanding && <p>No pending observations. Author exceptions are available in the individual editors.</p>}
+            {ch.findings.filter(item => item.decision === 'pending').slice(0, findingLimit[ch.path] || 12).map(item => <div key={item.id} className={item.decision === 'dismissed' ? 'editorial-board-dismissed' : ''}>
               <div><strong>{item.title}</strong><span>{item.origin} · line {item.line} · {item.decision}</span></div>
               <blockquote>{item.excerpt}</blockquote>
               {item.mechanical && item.decision === 'pending' && <label className="editorial-board-select">
@@ -153,7 +170,14 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
               </label>}
               {!item.mechanical && <p>Review the observation in {item.origin === 'style' ? 'Style Bible' : 'Prose Editor'}; only exact mechanical corrections can be batch-applied.</p>}
             </div>)}
-            {checked(ch).length > 0 && <button disabled={busy} onClick={() => void makePreview(ch)}>Preview {checked(ch).length} corrections</button>}
+            {ch.outstanding > (findingLimit[ch.path] || 12) && <button disabled={busy}
+              onClick={() => setFindingLimit(prev => ({ ...prev, [ch.path]: (prev[ch.path] || 12) + 12 }))}>
+              Show more observations ({ch.outstanding - (findingLimit[ch.path] || 12)} remaining)
+            </button>}
+            {checked(ch).length > 0 && <button disabled={busy || checked(ch).length > 100} onClick={() => void makePreview(ch)}>
+              Preview {checked(ch).length} corrections
+            </button>}
+            {checked(ch).length > 100 && <p>Choose no more than 100 corrections in one batch.</p>}
             {preview && preview.path === ch.path && <section className="editorial-board-preview">
               <h4>Compare before approval</h4>
               <p>{preview.count} corrections. Nothing has been changed yet.</p>
@@ -167,6 +191,8 @@ export default function EditorialBoard({ apiBase, projectSlug, onOpenSource, onN
           </div>}
         </article>)}
       </div>
+      {matchingChapters.length > visibleCount && <button className="editorial-board-load" disabled={busy}
+        onClick={() => setVisibleCount(value => value + 12)}>Show 12 more chapters</button>}
       <p className="editorial-board-caveat">{report.limitations} For style-rule or POV/tense decisions, use the dedicated Style Bible or Prose Editor; the dashboard never guesses those decisions.</p>
     </>}
   </section>
