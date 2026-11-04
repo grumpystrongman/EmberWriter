@@ -12,6 +12,7 @@ from app.book_studio import configure
 from app.main import app
 from app.manuscript_intelligence import create_promise, update_promise
 from app.production_preflight import markdown, preflight, restore, waive
+from app.style_bible import add as add_style_rule, audit as style_audit, decide as decide_style
 
 
 class ProductionPreflightTests(unittest.TestCase):
@@ -70,6 +71,14 @@ class ProductionPreflightTests(unittest.TestCase):
                           "# Chapter One\n\nThe captain turned toward the winter harbor. TODO: confirm starlight.\n")
         new = next(i for i in preflight(self.slug)["issues"] if i["code"] == "editorial_marker")
         self.assertFalse(new["waived"])
+
+    def test_style_bible_findings_flow_to_release_gate(self):
+        add_style_rule(self.slug, "avoid", "the the")
+        warning = next(issue for issue in preflight(self.slug)["issues"] if issue["code"] == "style_bible")
+        self.assertFalse(warning["waived"])
+        finding = style_audit(self.slug)["findings"][0]
+        decide_style(self.slug, finding["id"], "dismiss", "Deliberate speech repetition in dialogue.")
+        self.assertFalse(any(i["code"] == "style_bible" for i in preflight(self.slug)["issues"]))
 
     def test_api_reports_and_waivers_are_project_scoped(self):
         client = TestClient(app)

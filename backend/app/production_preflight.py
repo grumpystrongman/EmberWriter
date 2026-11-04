@@ -17,6 +17,7 @@ from .distribution import load_release_profile
 from .manuscript_intelligence import _chapters, list_promises
 from .publishing import compiled_documents
 from .quality_clinic import check_text
+from .style_bible import audit as style_audit
 from .storage import get_project, project_root
 
 MAX_WAIVERS = 300
@@ -149,6 +150,13 @@ def preflight(slug: str) -> dict:
     except (ValueError, FileNotFoundError):
         add("blocker", "compile_empty", "No Draft documents are enabled for Compile",
             "Include the intended manuscript chapters in the Draft binder.")
+
+    style = style_audit(slug)
+    if style["outstanding"]:
+        add("warning", "style_bible", "Style Bible terminology needs review",
+            f"{style['outstanding']} terminology occurrence(s) still await author review across {style['chapters']} chapter(s)." +
+            (" Findings were truncated at the scan limit." if style["truncated"] else ""),
+            version=_hash("|".join(item["id"] for item in style["findings"] if not item["dismissed"])))
 
     profile = load_release_profile(slug)
     if not profile.author.strip():

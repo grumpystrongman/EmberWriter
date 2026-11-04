@@ -4,6 +4,8 @@
 
 **Write it yourself—or direct EmberWriter as it writes the entire book with you.** Start from a premise, character dossiers, a world bible and an outline, or ask your local model to propose a chapter blueprint. Draft up to 80 chapters sequentially with a server-side, checkpointed run that can pause, resume, and recover after a service restart. Inspect every draft, edit or reject chapters, redirect the plot and accept only the work you approve. The Book Studio lives in **Plan → Book Studio**. This is an author-led workflow, not a blind content generator.
 
+**New: Style Bible.** Under **Plan → Style Bible**, authors define preferred spellings, invented vocabulary, watch phrases, and expressions to avoid. It audits every chapter locally with exact excerpts and source-versioned, reasoned exceptions; unreviewed findings appear in Production Readiness Gate. It never rewrites prose.
+
 **New: Story Arc Investigator, Arc Dossier, Voiceprint Lab, and Production Readiness Gate.** Investigate narrative choices and consequences using evidence-verified local AI, export a whole-book Arc Dossier, compare chapter rhythm against your preferred authorial voice, and review an author-owned publishing checklist with source-aware warning waivers. Find these tools in **Plan** and **Publish**. They provide evidence and editorial support, not automatic corrections or professional certification.
 
 **New: Manuscript Intelligence** provides a local whole-book dashboard with chapter word-count pulse, character/name mention evidence, repeated phrasing across chapters, and an author-managed story promise ledger for foreshadowing and unresolved plot threads. It does not infer story truth or rewrite any text. Find it under **Plan → Manuscript Intelligence**.

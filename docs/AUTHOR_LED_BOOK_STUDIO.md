@@ -200,3 +200,26 @@ distribution remain planned. On Windows, an interrupted text-to-speech subproces
 may still finish briefly during shutdown; the job's persisted state allows
 checking its output after restart. Per-project rendering is serialized to avoid
 concurrent manifest corruption.
+
+
+### Author-managed Style Bible and terminology audit
+
+Use **Plan -> Style Bible** to define three categories of project-local rules:
+preferred spelling (flag the alternate and display the preferred form),
+avoid phrases (repetition, filler, or stylistic habits the author wishes to
+review), and watch expressions (names and invented terminology). Rules support
+case-sensitive matching and optional author guidance. The scan covers current
+manuscript chapters plus Book Studio candidates using bounded, whole-word or
+whole-phrase exact matching. Each finding cites source chapter, line number,
+and excerpt.
+
+Authors can dismiss a specific occurrence with a written reason, or reopen
+it for review. Dismissals depend on a source fingerprint and expire after
+chapter edits. The editor never replaces text automatically. The **Production
+Readiness Gate** now reports outstanding Style Bible findings so they can be
+reviewed before publishing; dismissing the occurrence in Style Bible clears
+that particular preflight warning. A preflight waiver is advisory only.
+
+This is deterministic terminology checking, **not a full grammar checker**;
+dictionary-backed local grammar, character-aware language, and semantic
+consistency analysis remain separate roadmap milestones.
