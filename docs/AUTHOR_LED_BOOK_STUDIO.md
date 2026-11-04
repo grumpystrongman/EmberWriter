@@ -28,7 +28,7 @@ reject it, or change the next chapter's direction.
   candidate for editorial review, and no existing manuscript is overwritten.
   Each chapter uses its own requirements, previous chapter and available canon;
   a local job stops for author attention when generation fails.
-- **Editorial control**: read/edit/reject/approve candidates. Candidate revisions
+- **Independent Reader Panel**: for each draft candidate, optionally call three\n  separate local AI perspectives (Genre Fan, Developmental Editor, Line Editor).\n  Readers score five craft dimensions and cite exact candidate text for each\n  actionable finding. Findings that cannot be verified against the candidate\n  are withheld. The author accepts or dismisses each finding and can build an\n  accepted-only revision brief; no rewrite is applied automatically. Editing\n  a draft marks older reviews stale. Each reviewer is evaluated independently\n  rather than receiving other models' feedback.\n- **Editorial control**: read/edit/reject/approve candidates. Candidate revisions
   are archived locally. Only approval writes to a manuscript file under
   `manuscript/book-studio/`. Existing files are never overwritten. The Binder
   is synced so approved chapters become visible in the manuscript workflow.

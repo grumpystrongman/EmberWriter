@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import './book-studio.css'
+import BookReviewPanel from './BookReviewPanel'
 
 type Chapter = { number: number; title: string; brief: string; status: string; candidate_words: number; attempts: number; error?: string }
 type BookPlan = { configured: boolean; premise?: string; voice?: string; target_words?: number; chapters: Chapter[]; running?: boolean }
@@ -254,6 +255,7 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
             {ch.status === 'candidate' && <div className="book-studio-edit-actions">{editingDraft
               ? <><button disabled={busy} onClick={() => void saveDraftEdits(ch.number)}>Save my edits</button><button onClick={() => setEditingDraft(false)}>Cancel edits</button></>
               : <button disabled={busy || !!job?.active} onClick={() => setEditingDraft(true)}>Edit the draft before approval</button>}</div>}
+            {ch.status === 'candidate' && !editingDraft && <BookReviewPanel apiBase={apiBase} projectSlug={projectSlug} chapter={ch.number} model={model} />}
             {ch.status === 'candidate' && <footer><button disabled={busy || !!job?.active || editingDraft} onClick={() => void decide(ch.number, 'approve')}>Approve and add to manuscript</button><button disabled={busy || !!job?.active} onClick={() => void decide(ch.number, 'decline')}>Decline and redraft</button></footer>}
           </div>}
         </article>)}

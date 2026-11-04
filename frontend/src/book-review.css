@@ -1,0 +1,30 @@
+.book-review{margin-top:22px;padding:22px;border:1px solid rgba(228,172,113,.3);border-radius:14px;background:linear-gradient(135deg,rgba(43,32,52,.74),rgba(22,31,42,.77));color:#e9dbce}
+.book-review header small{letter-spacing:.16em;color:#f4ae79;font-size:10px;font-weight:800}
+.book-review h4{font-size:20px;color:#ffebd6;margin:7px 0 5px}
+.book-review p{font-size:13px;line-height:1.6;color:#cfc3bb}
+.book-review-controls{margin:18px 0;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+.book-review-controls label{flex:1;min-width:200px;font-size:12px;color:#e2bd9b}
+.book-review-controls select,.book-review-controls input{margin-top:8px;width:100%;padding:10px;background:#151a2a;color:#fbece0;border:1px solid rgba(227,175,125,.4);border-radius:8px}
+.book-review-controls button{min-height:39px;background:linear-gradient(115deg,#be7952,#e7b182)!important;color:#251c22!important;font-weight:800}
+.book-review-error{color:#ffcbc4!important;border:1px solid #9d5859;border-radius:8px;padding:12px}
+.book-review-results{display:grid;gap:13px}
+.book-review-verdict{border:1px solid rgba(224,186,156,.23);background:rgba(9,17,29,.45);padding:16px;border-radius:12px}
+.book-review-stale{opacity:.6}
+.book-review-resulthead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.book-review-resulthead strong{font-size:17px;color:#f6d9bc}
+.book-review-resulthead span{color:#b9bcaa;font-size:10px;letter-spacing:.08em}
+.book-review-scores{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.book-review-scores span{font-size:11px;border:1px solid rgba(221,174,139,.24);border-radius:16px;padding:6px 9px;text-transform:capitalize}
+.book-review-scores strong{color:#f1b67e}
+.book-review-strengths{border-top:1px solid rgba(214,176,145,.15);padding:10px 0}
+.book-review-strengths strong,.book-review-findings>strong{font-size:12px;color:#eeae7d}
+.book-review-finding{border-top:1px solid rgba(216,168,129,.2);padding:13px 0}
+.book-review-finding small{font-size:10px;color:#edaf85;letter-spacing:.07em}
+.book-review-finding blockquote{margin:8px 0;padding:10px 13px;border-left:3px solid #cc8b56;color:#e7cbbb;background:rgba(200,139,97,.09);font:italic 14px Georgia,serif}
+.book-review-finding p{margin:9px 0}
+.book-review-decisions{display:flex;flex-wrap:wrap;gap:8px}
+.book-review-decisions button{font-size:12px}
+.book-review-brief{margin-top:20px;border-top:1px solid rgba(240,180,125,.3);padding-top:20px}
+.book-review-brief li{font-size:13px;margin:14px 0;line-height:1.6}
+.book-review-warning{color:#f6bf8b!important}
+.book-review-caveat{font-size:11px!important;margin-top:20px;color:#b2a7a3!important}
