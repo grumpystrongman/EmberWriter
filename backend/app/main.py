@@ -37,6 +37,7 @@ from .routes_production_preflight import router as production_preflight_router
 from .routes_voiceprint import router as voiceprint_router
 from .routes_style_bible import router as style_bible_router
 from .routes_prose_editor import router as prose_editor_router
+from .routes_editorial_board import router as editorial_board_router
 from .routes_audiobook_jobs import router as audiobook_jobs_router
 from .audiobook_jobs import recover_on_startup as recover_audio_on_startup, stop_on_shutdown as stop_audio_on_shutdown
 from .book_jobs import recover_on_startup, stop_on_shutdown
@@ -166,6 +167,7 @@ app.include_router(production_preflight_router)
 app.include_router(voiceprint_router)
 app.include_router(style_bible_router)
 app.include_router(prose_editor_router)
+app.include_router(editorial_board_router)
 app.include_router(audiobook_jobs_router)
 app.include_router(audiobook_local_router)
 app.include_router(quality_clinic_router)

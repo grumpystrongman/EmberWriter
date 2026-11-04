@@ -11,9 +11,9 @@ type Report = {
   dismissed: number; truncated: boolean; method: string
 }
 type Chapter = { path: string; title: string; status: string }
-type Props = { apiBase: string; projectSlug: string; onOpenSource: (path: string) => void }
+type Props = { apiBase: string; projectSlug: string; initialPath?: string; onOpenSource: (path: string) => void }
 
-export default function ProseEditor({ apiBase, projectSlug, onOpenSource }: Props) {
+export default function ProseEditor({ apiBase, projectSlug, initialPath, onOpenSource }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(projectSlug)}/prose-editor`
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [path, setPath] = useState('')
@@ -40,7 +40,7 @@ export default function ProseEditor({ apiBase, projectSlug, onOpenSource }: Prop
     let live = true
     setReport(null); setChapters([]); setPath(''); setError(''); setMessage('')
     void request<Chapter[]>('/chapters').then(items => {
-      if (live) { setChapters(items); setPath(items[0]?.path || '') }
+      if (live) { setChapters(items); setPath(items.some(item => item.path === initialPath) ? initialPath! : items[0]?.path || '') }
     }).catch(e => { if (live) setError(String(e)) })
     return () => { live = false }
   }, [endpoint])

@@ -90,6 +90,22 @@ class ProductionPreflightTests(unittest.TestCase):
                "dismiss", reason="Deliberate repetition in this prose passage.")
         self.assertFalse(any(item["code"] == "prose_editor" for item in preflight(self.slug)["issues"]))
 
+    def test_book_edit_reopens_editorial_preflight(self):
+        from app.editorial_board import scan
+        scan(self.slug)
+        self.assertFalse(any(i["code"] == "stale_editorial_scan" for i in preflight(self.slug)["issues"]))
+        storage.save_text(self.slug, "manuscript/chapter-001.md", "# Changed\n\nNew scene on a quiet street.")
+        first_issue = next(i for i in preflight(self.slug)["issues"] if i["code"] == "stale_editorial_scan")
+        self.assertTrue(first_issue["waivable"])
+        waived = waive(self.slug, first_issue["id"], "I reviewed this small rewrite separately in the editor.")
+        self.assertTrue(next(i for i in waived["issues"] if i["code"] == "stale_editorial_scan")["waived"])
+        storage.save_text(self.slug, "manuscript/chapter-001.md", "# Second revision\n\nAnother changed scene.")
+        new_issue = next(i for i in preflight(self.slug)["issues"] if i["code"] == "stale_editorial_scan")
+        self.assertNotEqual(first_issue["id"], new_issue["id"])
+        self.assertFalse(new_issue["waived"])
+        scan(self.slug)
+        self.assertFalse(any(i["code"] == "stale_editorial_scan" for i in preflight(self.slug)["issues"]))
+
     def test_api_reports_and_waivers_are_project_scoped(self):
         client = TestClient(app)
         root = f"/api/projects/{self.slug}/production-preflight"

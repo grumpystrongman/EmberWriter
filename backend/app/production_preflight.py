@@ -19,6 +19,7 @@ from .publishing import compiled_documents
 from .quality_clinic import check_text
 from .style_bible import audit as style_audit
 from .prose_editor import analyze as prose_scan
+from .editorial_board import freshness as editorial_freshness
 from .storage import get_project, project_root
 
 MAX_WAIVERS = 300
@@ -168,6 +169,12 @@ def preflight(slug: str) -> dict:
             f"{style['outstanding']} terminology occurrence(s) still await author review across {style['chapters']} chapter(s)." +
             (" Findings were truncated at the scan limit." if style["truncated"] else ""),
             version=_hash("|".join(item["id"] for item in style["findings"] if not item["dismissed"])))
+
+    editorial = editorial_freshness(slug)
+    if editorial["scanned"] and not editorial["current"]:
+        add("warning", "stale_editorial_scan", "Whole-book editorial review is outdated",
+            f"{len(editorial['changed'])} manuscript chapter(s) changed since the last saved editorial scan. Rerun Plan > Editorial Board before publication.",
+            version=editorial["change_signature"])
 
     profile = load_release_profile(slug)
     if not profile.author.strip():

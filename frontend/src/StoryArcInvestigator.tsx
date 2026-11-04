@@ -16,9 +16,9 @@ type Overview = {
   historical_analyses: Analysis[]; limitations: string
 }
 type Dossier = { chapters: { index: number; title: string; path: string; analyzed: boolean; tension: number | null; summary: string; pending_count: number }[]; trajectories: { subject: string; events: { chapter: number; title: string; kind: string; label: string; quote: string; path: string }[] }[]; untracked_foreshadowing: { chapter: number; title: string; label: string; quote: string; decision: string }[]; analyzed: number; total: number; review_required: number; method: string }
-type Props = { apiBase: string; projectSlug: string; onOpenSource: (path: string) => void }
+type Props = { apiBase: string; projectSlug: string; initialPath?: string; onOpenSource: (path: string) => void }
 
-export default function StoryArcInvestigator({ apiBase, projectSlug, onOpenSource }: Props) {
+export default function StoryArcInvestigator({ apiBase, projectSlug, initialPath, onOpenSource }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(projectSlug)}/story-arcs`
   const [data, setData] = useState<Overview | null>(null)
   const [dossier, setDossier] = useState<Dossier | null>(null)
@@ -45,7 +45,7 @@ export default function StoryArcInvestigator({ apiBase, projectSlug, onOpenSourc
   async function refresh() {
     const result = await request<Overview>()
     setData(result)
-    setPath(current => result.chapters.some(c => c.path === current) ? current : result.chapters[0]?.path || '')
+    setPath(current => result.chapters.some(c => c.path === current) ? current : result.chapters.some(c => c.path === initialPath) ? initialPath! : result.chapters[0]?.path || '')
     return result
   }
 

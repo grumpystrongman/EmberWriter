@@ -247,3 +247,31 @@ AI-authorship detector, literary quality judge or professional copy editor.
 The Production Readiness Gate now highlights outstanding high-confidence
 duplicate-word and modal-construction candidates. Author decisions are
 source-versioned and a revised chapter must be rescanned.
+
+
+### Whole-Book Editorial Board (Plan -> Editorial Board)
+
+This author-controlled integration layer makes the prior editorial tools
+work together at full manuscript scale. It loads actual manuscript chapters
+and unapproved Book Studio candidates, combines source-bound Prose Editor
+and Style Bible observations, and displays the current chapter-by-chapter
+Reader Panel / Story Arc Investigator coverage. Independent reader and arc
+findings become stale when their chapter changes.
+
+The author can select *pending, non-overlapping* mechanical corrections for
+one chapter, preview the complete before/after text, then deliberately apply
+the group in one change. This preserves **one restorable source snapshot** or
+one archived Book Studio candidate, never author-approves the chapter, and
+cannot touch newer prose if an earlier scan or preview is outdated. Subjective
+voice, POV, tense, and terminology observations remain judgment calls with
+links to their originating workspaces.
+
+A scan history retains counts, configuration and cryptographic chapter
+fingerprints without storing duplicate private manuscript bodies. After any
+chapter changes, the Production Readiness Gate flags a stale previously
+completed whole-book editorial review; it does not block publication or
+require an author to use this tool.
+
+The full feature guide and safety limits are documented in
+`docs/EDITORIAL_BOARD.md`. Scans use deterministic local heuristics, not a
+professional grammar checker or an authoritative literary quality score.

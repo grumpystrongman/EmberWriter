@@ -14,9 +14,9 @@ type Audit = {
   rules: Rule[]; findings: Finding[]; truncated: boolean; chapters: number
   outstanding: number; dismissed: number; limits: string
 }
-type Props = { apiBase: string; projectSlug: string; onOpenSource: (path: string) => void }
+type Props = { apiBase: string; projectSlug: string; initialPath?: string; onOpenSource: (path: string) => void }
 
-export default function StyleBible({ apiBase, projectSlug, onOpenSource }: Props) {
+export default function StyleBible({ apiBase, projectSlug, initialPath, onOpenSource }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(projectSlug)}/style-bible`
   const [data, setData] = useState<Audit | null>(null)
   const [category, setCategory] = useState<Rule['category']>('preferred')
@@ -29,6 +29,7 @@ export default function StyleBible({ apiBase, projectSlug, onOpenSource }: Props
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [showDismissed, setShowDismissed] = useState(false)
+  const [focusChapter, setFocusChapter] = useState(initialPath || '')
 
   async function request<T>(suffix: string, method = 'GET', body?: unknown): Promise<T> {
     const response = await fetch(endpoint + suffix, {
@@ -131,9 +132,10 @@ export default function StyleBible({ apiBase, projectSlug, onOpenSource }: Props
         <span>{data.dismissed} acknowledged exceptions</span>
       </div>}
       {!!data?.truncated && <p className="style-bible-error">The safety limit of 2,000 findings was reached. Reduce broad rules and rescan.</p>}
+      {focusChapter && <p className="style-bible-focused">Showing only findings in {focusChapter} <button onClick={() => setFocusChapter('')}>Show entire manuscript</button></p>}
       <label className="style-bible-check"><input type="checkbox" checked={showDismissed} onChange={e => setShowDismissed(e.target.checked)} /> Show dismissed occurrences</label>
-      {!data?.findings.filter(f => showDismissed || !f.dismissed).length && <p>No flagged occurrences in the current manuscript.</p>}
-      {data?.findings.filter(f => showDismissed || !f.dismissed).map(finding => <article className="style-bible-finding" key={finding.id}>
+      {!data?.findings.filter(f => (showDismissed || !f.dismissed) && (!focusChapter || f.path === focusChapter)).length && <p>No flagged occurrences in the current manuscript.</p>}
+      {data?.findings.filter(f => (showDismissed || !f.dismissed) && (!focusChapter || f.path === focusChapter)).map(finding => <article className="style-bible-finding" key={finding.id}>
         <div className="style-bible-findinghead"><strong>{finding.category === 'preferred' ? `Use “${finding.preferred}” instead of “${finding.matched}”?` : `Review “${finding.matched}”`}</strong><span>{finding.dismissed ? 'AUTHOR-ACKNOWLEDGED' : finding.category.toUpperCase()}</span></div>
         <p>{finding.title} · line {finding.line}</p>
         <blockquote>{finding.excerpt}</blockquote>

@@ -103,9 +103,17 @@ def _fix_case(before: str, suggested: str) -> str:
 
 def analyze(slug: str, path: str, perspective: str = "unspecified",
             tense: str = "unspecified") -> dict:
+    text, status = _get(slug, path)
+    return analyze_text(slug, path, text, status, perspective, tense)
+
+
+def analyze_text(slug: str, path: str, text: str, status: str,
+                 perspective: str = "unspecified", tense: str = "unspecified") -> dict:
+    """Scan already-loaded chapter text, avoiding redundant whole-book reads."""
     if perspective not in ("unspecified", "first", "third") or tense not in ("unspecified", "past", "present"):
         raise ValueError("Invalid narrative point of view or tense")
-    text, status = _get(slug, path)
+    if len(text.encode("utf-8")) > MAX_BYTES:
+        raise ValueError("Chapter exceeds 1 MB editing limit")
     fingerprint = _hash(text)
     decisions = _load(slug)
     rows = []
