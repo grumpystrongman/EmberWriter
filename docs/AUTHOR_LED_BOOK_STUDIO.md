@@ -177,3 +177,26 @@ All three workspaces use project-local data and deliberately do not read
 other project libraries. The only model work here is the opt-in narrative
 arc assessment, which requires a locally bound Ollama provider. These tools
 were tested with fictional synthetic stories.
+
+
+### Whole-book offline narration queue
+
+Audiobook Workshop now has a separate **Narrate entire book** action. It reads
+the author's selected Binder Draft documents in actual compile order, captures
+content fingerprints, and creates one local Windows SAPI track at a time. The
+progress record lives in the selected project's `.ember/audiobook-batch.json`.
+The author can pause after the current chapter and resume later; queued/running
+batches recover after service restart, while paused work remains paused.
+
+A chapter edited after the batch began triggers **needs attention**, rather than
+silently creating audio from changed prose. A new batch can be started after the
+author reviews changes. A completed batch exports a numbered, ordered ZIP with
+chapter WAV/MP3 tracks and checksums, without mixing in older narration tracks.
+
+This is a functional single-voice, locally hosted chapter-narration pipeline,
+**not yet a production-mastered audiobook**. Offline natural voices, character
+casting, pronunciation controls, loudness mastering, M4B and retailer-validated
+distribution remain planned. On Windows, an interrupted text-to-speech subprocess
+may still finish briefly during shutdown; the job's persisted state allows
+checking its output after restart. Per-project rendering is serialized to avoid
+concurrent manifest corruption.

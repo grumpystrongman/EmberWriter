@@ -101,8 +101,10 @@ Every future feature should expose provenance, uncertainty, review/undo, and pri
 
 38. **Natural offline voices:** optional, licensed Piper/Kokoro or equivalent
     voice assets with install/test and hardware-aware fallback.
-39. **Chapter narration queue:** pause/resume, restart recovery, render progress,
-    bounded concurrency, deterministic output manifests and retry.
+39. **Chapter narration queue (first pass shipped):** Binder-ordered local
+    batch, progress, pause/resume, restart recovery, source fingerprints and
+    chapter ZIP are implemented. Next: robust subprocess cancellation,
+    per-chapter retry controls, performance budgeting and monitoring.
 40. **Voice casting:** author assigns voices to characters; dialogue attribution
     is editable and cannot silently infer a cast.
 41. **Pronunciation lexicon:** fictional names and invented languages with

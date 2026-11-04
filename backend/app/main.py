@@ -35,6 +35,8 @@ from .routes_manuscript_intelligence import router as manuscript_intelligence_ro
 from .routes_story_arcs import router as story_arcs_router
 from .routes_production_preflight import router as production_preflight_router
 from .routes_voiceprint import router as voiceprint_router
+from .routes_audiobook_jobs import router as audiobook_jobs_router
+from .audiobook_jobs import recover_on_startup as recover_audio_on_startup, stop_on_shutdown as stop_audio_on_shutdown
 from .book_jobs import recover_on_startup, stop_on_shutdown
 from .routes_audiobook_local import router as audiobook_local_router
 from .routes_quality_clinic import router as quality_clinic_router
@@ -120,12 +122,14 @@ def _run_project_recovery() -> dict:
 async def lifespan(_: FastAPI):
     ensure_seeded()
     await recover_on_startup()
+    await recover_audio_on_startup()
     refresh_task = asyncio.create_task(
         knowledge_refresh_loop(), name="ember-knowledge-refresh"
     )
     try:
         yield
     finally:
+        await stop_audio_on_shutdown()
         await stop_on_shutdown()
         refresh_task.cancel()
         with suppress(asyncio.CancelledError):
@@ -158,6 +162,7 @@ app.include_router(manuscript_intelligence_router)
 app.include_router(story_arcs_router)
 app.include_router(production_preflight_router)
 app.include_router(voiceprint_router)
+app.include_router(audiobook_jobs_router)
 app.include_router(audiobook_local_router)
 app.include_router(quality_clinic_router)
 app.include_router(generation_router)

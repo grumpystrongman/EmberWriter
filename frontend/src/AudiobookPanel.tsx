@@ -4,13 +4,16 @@ import './audiobook-panel.css'
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
 type VoiceResult = { engine: string; voices: string[]; privacy: string; quality: string }
+type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
 type Props = { apiBase: string; slug: string; disabled: boolean }
 
 export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook`
+  const jobEndpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook-jobs`
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [voices, setVoices] = useState<string[]>([])
   const [renders, setRenders] = useState<Rendered[]>([])
+  const [job, setJob] = useState<AudioJob | null>(null)
   const [voice, setVoice] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -28,19 +31,42 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     return response.json() as Promise<T>
   }
 
+  async function getJob(): Promise<AudioJob> {
+    const response = await fetch(jobEndpoint)
+    if (!response.ok) throw new Error(`Audiobook job status: ${response.status}`)
+    return response.json() as Promise<AudioJob>
+  }
+  async function jobAction(action: 'start' | 'pause' | 'resume') {
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const response = await fetch(jobEndpoint + '/' + action, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action === 'start' ? { voice } : {}),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.detail || `Audio job error: ${response.status}`)
+      }
+      const next = await response.json() as AudioJob
+      setJob(next)
+      setMessage(next.message || 'Audiobook job updated.')
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
+  }
   async function reload() {
     const [files, tracks] = await Promise.all([
       getJson<Chapter[]>('/chapters'), getJson<Rendered[]>('/renders'),
     ])
     setChapters(files)
     setRenders(tracks)
+    setJob(await getJob())
     if (!files.some(ch => ch.path === selected)) {
       setSelected(files.find(ch => ch.narratable)?.path || '')
     }
   }
   useEffect(() => {
     let live = true
-    setChapters([]); setRenders([]); setVoices([]); setMessage(''); setError('')
+    setChapters([]); setRenders([]); setVoices([]); setJob(null); setMessage(''); setError('')
     void Promise.all([getJson<Chapter[]>('/chapters'), getJson<Rendered[]>('/renders'), getJson<VoiceResult>('/voices')])
       .then(([files, tracks, speech]) => {
         if (live) {
@@ -49,7 +75,13 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           setVoice(speech.voices[0] || '')
         }
       }).catch(e => { if (live) setError(String(e)) })
-    return () => { live = false }
+    void getJob().then(value => { if (live) setJob(value) }).catch(() => {})
+    const timer = window.setInterval(() => {
+      void Promise.all([getJob(), getJson<Rendered[]>('/renders')]).then(([nextJob, tracks]) => {
+        if (live) { setJob(nextJob); setRenders(tracks) }
+      }).catch(() => {})
+    }, 3000)
+    return () => { live = false; window.clearInterval(timer) }
   }, [endpoint])
 
   async function render() {
@@ -85,9 +117,25 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         {voices.map(v => <option key={v} value={v}>{v}</option>)}
       </select>
       <div className="audiobook-toolbar">
-        <button type="button" disabled={disabled || busy || !selected} onClick={() => void render()}>{busy ? 'Narrating chapter…' : 'Render selected chapter'}</button>
+        <button type="button" disabled={disabled || busy || !!job?.active || !selected} onClick={() => void render()}>{busy ? 'Narrating chapter…' : 'Render selected chapter'}</button>
         <button type="button" disabled={disabled || busy} onClick={() => void reload().catch(e => setError(String(e)))}>Refresh chapters</button>
         {renders.length > 0 && <a href={endpoint + '/export'} download>Download chapter audiobook ZIP</a>}
+      </div>
+      <div className="audiobook-job-panel">
+        <div><h3>Whole-book narration queue</h3>
+          <p>Use the current Binder Draft order to narrate all selected manuscript chapters. This offline job persists while you close the browser, and can pause or recover after restarting the app.</p></div>
+        <div className="audiobook-job-buttons">
+          <button type="button" disabled={disabled || busy || !!job?.active || job?.status === 'queued' || job?.status === 'running'} onClick={() => void jobAction('start')}>Narrate entire book</button>
+          {(job?.status === 'queued' || job?.status === 'running') && <button type="button" disabled={disabled || busy} onClick={() => void jobAction('pause')}>Pause after chapter</button>}
+          {(job?.status === 'paused' || job?.status === 'interrupted' || job?.status === 'needs_attention') && <button type="button" disabled={disabled || busy || !!job.active} onClick={() => void jobAction('resume')}>Resume saved batch</button>}
+          {job?.status === 'completed' && <a href={jobEndpoint + '/export'} download="emberwriter-whole-book-audiobook.zip">Download Binder-ordered audiobook ZIP</a>}
+        </div>
+        {job?.exists && <div className="audiobook-job-progress" role="status" aria-live="polite">
+          <strong>{job.status}: {job.completed ?? 0} / {job.total ?? 0} chapters</strong>
+          <progress max={Math.max(1, job.total ?? 1)} value={job.completed ?? 0} />
+          <p>{job.message} {job.current ? `(Now narrating ${job.current})` : ''}</p>
+          {job.chapters?.map((chapter, index) => <div key={chapter.path} className="audiobook-job-chapter"><small>{index + 1}. {chapter.title}</small><span>{chapter.status}</span></div>)}
+        </div>}
       </div>
       {renders.length > 0 && <div className="audiobook-tracks">
         <h3>Narrated chapters</h3>

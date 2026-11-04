@@ -16,12 +16,14 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .storage import get_project, project_root, read_text
 
 MAX_AUDIO_WORDS = 12000
+_RENDER_LOCKS: dict[str, threading.RLock] = {}
 SAPI_SCRIPT = Path(__file__).with_name("audio_sapi.ps1")
 VOICE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9 ._-]{0,100}$")
 FILENAME_PATTERN = re.compile(r"^[0-9a-f]{16}\.(?:mp3|wav)$")
@@ -106,6 +108,13 @@ def list_renders(slug: str) -> list[dict]:
 
 
 def render(slug: str, source: str, voice: str = "") -> dict:
+    # A concurrent manual render and a whole-book batch must not corrupt the
+    # per-project manifest or create conflicting output files.
+    with _RENDER_LOCKS.setdefault(slug, threading.RLock()):
+        return _render_unlocked(slug, source, voice)
+
+
+def _render_unlocked(slug: str, source: str, voice: str = "") -> dict:
     if sys.platform != "win32":
         raise NotImplementedError("Offline Windows narration is currently supported on Windows only")
     sources = {item["path"]: item for item in available_chapters(slug)}
