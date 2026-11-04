@@ -1,12 +1,14 @@
-﻿import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import './book-studio.css'
 
 type Chapter = { number: number; title: string; brief: string; status: string; candidate_words: number; attempts: number; error?: string }
 type BookPlan = { configured: boolean; premise?: string; voice?: string; target_words?: number; chapters: Chapter[]; running?: boolean }
+type BookJob = { exists: boolean; status: string; active: boolean; current_chapter?: number | null; drafted?: number; approved?: number; total_chapters?: number; message?: string; model?: string }
 type Props = { apiBase: string; projectSlug: string; onOpenSource: (path: string) => void }
 
 export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(projectSlug)}/book-studio`
+  const jobEndpoint = `${apiBase}/projects/${encodeURIComponent(projectSlug)}/book-jobs`
   const [plan, setPlan] = useState<BookPlan | null>(null)
   const [premise, setPremise] = useState('')
   const [voice, setVoice] = useState('')
@@ -16,8 +18,7 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
   const [model, setModel] = useState('')
   const [installedModels, setInstalledModels] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
-  const [auto, setAuto] = useState(false)
-  const stopRef = useRef(false)
+  const [job, setJob] = useState<BookJob | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [preview, setPreview] = useState<{ number: number; content: string } | null>(null)
@@ -43,12 +44,31 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
     setPlan(next)
     return next
   }
+  async function jobRequest<T>(suffix = '', method = 'GET', body?: unknown): Promise<T> {
+    const response = await fetch(jobEndpoint + suffix, {
+      method, headers: { 'Content-Type': 'application/json' },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    })
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}))
+      throw new Error(detail.detail || `Job request failed: ${response.status}`)
+    }
+    return response.json() as Promise<T>
+  }
+  async function refreshJob() {
+    const next = await jobRequest<BookJob>()
+    setJob(next)
+    return next
+  }
   useEffect(() => {
-    stopRef.current = true
-    setPreview(null); setError(''); setMessage(''); setPlan(null)
+    setPreview(null); setError(''); setMessage(''); setPlan(null); setJob(null)
     void refresh().catch(e => setError(String(e)))
+    void refreshJob().catch(e => setError(String(e)))
     void discoverModels().catch(() => {})
-    return () => { stopRef.current = true }
+    const timer = window.setInterval(() => {
+      void Promise.all([refresh(), refreshJob()]).catch(() => {})
+    }, 2200)
+    return () => window.clearInterval(timer)
   }, [endpoint])
 
   async function discoverModels() {
@@ -58,8 +78,9 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
     })
     if (!result.ok) throw new Error('Could not connect to local Ollama')
     const catalog = await result.json() as { models: string[] }
-    setInstalledModels(catalog.models)
-    if (!model && catalog.models.length) setModel(catalog.models[0])
+    const locallyHosted = catalog.models.filter(name => !/(?:-cloud|:cloud)(?:$|[-:])/i.test(name))
+    setInstalledModels(locallyHosted)
+    if (!model && locallyHosted.length) setModel(locallyHosted[0])
   }
 
   async function suggestChapters() {
@@ -108,24 +129,19 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
     finally { setBusy(false) }
   }
 
-  async function draftAll() {
-    stopRef.current = false
-    setAuto(true)
-    let completed = 0
+  async function changeJob(action: 'start' | 'pause' | 'resume') {
+    setBusy(true); setError(''); setMessage('')
     try {
-      let next = await refresh()
-      while (!stopRef.current && next.chapters.some(c => c.status === 'planned' || (c.status === 'failed' && c.attempts < 3))) {
-        try {
-          await draftOne()
-          completed++
-        } catch {
-          break
-        }
-        next = await refresh()
-      }
-      if (!stopRef.current && completed) setMessage(`${completed} chapter candidate(s) drafted. Review and approve them in any order.`)
-      if (stopRef.current) setMessage(`Stopped after ${completed} chapter(s). The remaining plan is saved locally.`)
-    } finally { setAuto(false) }
+      if (action === 'start' && !model.trim()) throw new Error('Choose an installed local Ollama model.')
+      const data = action === 'start' ? {
+        provider: { provider: 'ollama', base_url: 'http://127.0.0.1:11434', model: model.trim() },
+      } : undefined
+      const next = await jobRequest<BookJob>(`/${action}`, 'POST', data)
+      setJob(next)
+      setMessage(next.message || 'Drafting job updated.')
+      await refresh()
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
   }
 
   async function openPreview(number: number) {
@@ -205,9 +221,17 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
       <div className="book-studio-controls">
         <div><h3>2. Draft your story</h3><p>Choose an installed Ollama model. No remote provider fallback. Candidates are held separately until approved.</p></div>
         <label>Local Ollama model tag <input list="book-studio-local-models" value={model} onChange={e => setModel(e.target.value)} placeholder="Choose an installed Ollama model" /><datalist id="book-studio-local-models">{installedModels.map(name => <option key={name} value={name} />)}</datalist></label>
-        <button disabled={busy || auto || !pending} onClick={() => void draftOne().catch(() => {})}>Draft next chapter</button>
-        <button disabled={busy || auto || !pending} onClick={() => void draftAll()}>Draft all remaining</button>
-        {auto && <button onClick={() => { stopRef.current = true }}>Stop after current chapter</button>}
+        <div className="book-studio-run-controls">
+          <button disabled={busy || !!job?.active || !pending} onClick={() => void draftOne().catch(() => {})}>Draft one chapter</button>
+          <button disabled={busy || !!job?.active || !pending || job?.status === 'queued' || job?.status === 'running'} onClick={() => void changeJob('start')}>Run whole-book drafting locally</button>
+          {(job?.status === 'queued' || job?.status === 'running') && <button disabled={busy} onClick={() => void changeJob('pause')}>Pause after chapter</button>}
+          {(job?.status === 'paused' || job?.status === 'needs_attention' || job?.status === 'interrupted') && <button disabled={busy || !!job.active || !pending} onClick={() => void changeJob('resume')}>Resume saved job</button>}
+        </div>
+        {job?.exists && <div className="book-studio-job" role="status" aria-live="polite">
+          <div className="book-studio-job-head"><strong>Local drafting: {job.status}</strong><span>{job.drafted ?? 0} of {job.total_chapters ?? 0} drafted</span></div>
+          <progress value={job.drafted ?? 0} max={Math.max(1, job.total_chapters ?? 1)} aria-label="Book drafting progress" />
+          <p>{job.message || 'Job is saved locally.'} {job.current_chapter ? `(Chapter ${job.current_chapter} in progress)` : ''}</p>
+        </div>}
       </div>
       <div className="book-studio-chapters">
         <h3>3. Review, intervene, and approve</h3>
@@ -215,7 +239,7 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
           <div className="book-studio-chapter-head"><span className="book-studio-index">{String(ch.number).padStart(2, '0')}</span><div><h4>{ch.title}</h4><p>{ch.brief}</p></div><span className="book-studio-badge">{ch.status}</span></div>
           {ch.error && <small className="book-studio-error">{ch.error}</small>}
           <div className="book-studio-chapter-actions">
-            {(ch.status === 'planned' || ch.status === 'failed') && <button disabled={busy || auto} onClick={() => { setEditing(ch.number); setEditTitle(ch.title); setEditBrief(ch.brief) }}>Change direction</button>}
+            {(ch.status === 'planned' || ch.status === 'failed') && <button disabled={busy || !!job?.active} onClick={() => { setEditing(ch.number); setEditTitle(ch.title); setEditBrief(ch.brief) }}>Change direction</button>}
             {(ch.status === 'candidate' || ch.status === 'approved') && <button onClick={() => void openPreview(ch.number)}>Read draft ({ch.candidate_words} words)</button>}
             {ch.status === 'approved' && <button onClick={() => onOpenSource(`manuscript/book-studio/chapter-${String(ch.number).padStart(3, '0')}.md`)}>Open in manuscript editor</button>}
           </div>
@@ -229,12 +253,12 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
             {editingDraft ? <textarea className="book-studio-draft-editor" value={draftText} onChange={e => setDraftText(e.target.value)} aria-label="Edit chapter candidate text" /> : <pre>{preview.content}</pre>}
             {ch.status === 'candidate' && <div className="book-studio-edit-actions">{editingDraft
               ? <><button disabled={busy} onClick={() => void saveDraftEdits(ch.number)}>Save my edits</button><button onClick={() => setEditingDraft(false)}>Cancel edits</button></>
-              : <button disabled={busy || auto} onClick={() => setEditingDraft(true)}>Edit the draft before approval</button>}</div>}
-            {ch.status === 'candidate' && <footer><button disabled={busy || auto || editingDraft} onClick={() => void decide(ch.number, 'approve')}>Approve and add to manuscript</button><button disabled={busy || auto} onClick={() => void decide(ch.number, 'decline')}>Decline and redraft</button></footer>}
+              : <button disabled={busy || !!job?.active} onClick={() => setEditingDraft(true)}>Edit the draft before approval</button>}</div>}
+            {ch.status === 'candidate' && <footer><button disabled={busy || !!job?.active || editingDraft} onClick={() => void decide(ch.number, 'approve')}>Approve and add to manuscript</button><button disabled={busy || !!job?.active} onClick={() => void decide(ch.number, 'decline')}>Decline and redraft</button></footer>}
           </div>}
         </article>)}
       </div>
     </>}
-    <p className="book-studio-footnote">Draft-all runs sequentially in this browser session and can stop between chapters. Plans and finished candidates persist locally across restarts. Publishing-grade proofing, audiobook generation and autonomous revision cycles are separate production features.</p>
+    <p className="book-studio-footnote">Whole-book drafting now runs in the local server, with one chapter checkpointed at a time. You can close the tab and return to review progress. Queued and running jobs resume after a service restart; a paused job stays paused. Nothing is approved automatically.</p>
   </section>
 }

@@ -28,6 +28,8 @@ from .revisions import record_revision
 from .routes_autopilot import router as autopilot_router
 from .routes_canon_ripple import router as canon_ripple_router
 from .routes_book_studio import router as book_studio_router
+from .routes_book_jobs import router as book_jobs_router
+from .book_jobs import recover_on_startup, stop_on_shutdown
 from .routes_audiobook_local import router as audiobook_local_router
 from .routes_quality_clinic import router as quality_clinic_router
 from .routes_atlas import router as atlas_router
@@ -111,12 +113,14 @@ def _run_project_recovery() -> dict:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_seeded()
+    await recover_on_startup()
     refresh_task = asyncio.create_task(
         knowledge_refresh_loop(), name="ember-knowledge-refresh"
     )
     try:
         yield
     finally:
+        await stop_on_shutdown()
         refresh_task.cancel()
         with suppress(asyncio.CancelledError):
             await refresh_task
@@ -141,6 +145,7 @@ async def writer_generation_guard(request: Request, call_next):
 app.include_router(autopilot_router)
 app.include_router(canon_ripple_router)
 app.include_router(book_studio_router)
+app.include_router(book_jobs_router)
 app.include_router(audiobook_local_router)
 app.include_router(quality_clinic_router)
 app.include_router(generation_router)

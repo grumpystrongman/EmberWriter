@@ -120,6 +120,10 @@ def _local_model(config: ProviderConfig) -> None:
         raise ValueError("Book Studio only accepts local Ollama on loopback; external models are not allowed")
     if not config.model.strip():
         raise ValueError("Select an installed local writing model")
+    # Ollama's *-cloud model aliases send prompts to a hosted provider even
+    # when the API itself is on 127.0.0.1. Never use them for private books.
+    if re.search(r"(?:-cloud|:cloud)(?:$|[-:])", config.model.casefold()):
+        raise ValueError("Ollama cloud models are not permitted for private Book Studio drafting")
 
 
 async def suggest_outline(slug: str, *, premise: str, voice: str, chapter_count: int,
@@ -196,7 +200,7 @@ async def draft_next(slug: str, config: ProviderConfig) -> dict:
             raise ValueError("Configure a book plan first")
         # Continue through planned chapters, even when earlier drafts await review.
         # Candidate text supplies context, but canonical files are never overwritten.
-        index = next((i for i, ch in enumerate(state["chapters"]) if ch["status"] in ("planned", "failed")), None)
+        index = next((i for i, ch in enumerate(state["chapters"]) if ch["status"] == "planned" or (ch["status"] == "failed" and ch.get("attempts", 0) < 3)), None)
         if index is None:
             raise ValueError("No chapters awaiting drafting")
         chapter = state["chapters"][index]

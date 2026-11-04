@@ -2,7 +2,7 @@
 
 **A local-first, AI-assisted fiction studio for writing, planning, continuity, worldbuilding, spatial story design, editorial analysis, visual canon, publishing, and submission.**
 
-**Write it yourself—or direct EmberWriter as it writes the entire book with you.** Start from a premise, character dossiers, a world bible and an outline, or ask your local model to propose a chapter blueprint. Draft up to 80 chapters sequentially, inspect every draft, edit or reject chapters, redirect the plot and accept only the work you approve. The Book Studio lives in **Plan → Book Studio**. This is an author-led workflow, not a blind content generator.
+**Write it yourself—or direct EmberWriter as it writes the entire book with you.** Start from a premise, character dossiers, a world bible and an outline, or ask your local model to propose a chapter blueprint. Draft up to 80 chapters sequentially with a server-side, checkpointed run that can pause, resume, and recover after a service restart. Inspect every draft, edit or reject chapters, redirect the plot and accept only the work you approve. The Book Studio lives in **Plan → Book Studio**. This is an author-led workflow, not a blind content generator.
 
 Book Studio now includes an offline **Canon Ripple** review ledger and **Quality Clinic** for line-level writing flags. The **Publish** workspace contains an offline **Audiobook Workshop** that narrates chapters using installed Windows voices and exports local WAV/MP3 tracks. See [Author-Led Book Studio](docs/AUTHOR_LED_BOOK_STUDIO.md) for implementation details, current limitations and the multi-voice/proofing roadmap.
 
