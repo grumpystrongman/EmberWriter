@@ -25,6 +25,7 @@ from .models import (
 from .project_recovery import recover_legacy_projects
 from .project_restore import restore_uploaded_project
 from .revisions import record_revision
+from .routes_autopilot import router as autopilot_router
 from .routes_atlas import router as atlas_router
 from .routes_authoring import router as authoring_router
 from .routes_binder import router as binder_router
@@ -133,6 +134,7 @@ async def writer_generation_guard(request: Request, call_next):
     return await guard_generation_request(request, call_next)
 
 
+app.include_router(autopilot_router)
 app.include_router(generation_router)
 app.include_router(memory_router)
 app.include_router(story_router)
