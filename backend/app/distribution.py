@@ -355,8 +355,19 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
         add("error", "edition-required", "Enable at least one release edition.")
 
     edition_ids: set[str] = set()
+    package_ids: dict[str, str] = {}
     owned_isbns: dict[str, str] = {}
     for edition in enabled:
+        safe_id = re.sub(r"[^A-Za-z0-9._-]+", "-", edition.id).strip("-.") or "edition"
+        if safe_id.casefold() in package_ids:
+            add(
+                "error", "package-edition-collision",
+                f"Edition ids '{package_ids[safe_id.casefold()]}' and '{edition.id}' "
+                "would overwrite each other in the release ZIP. Rename one edition.",
+                edition_id=edition.id,
+            )
+        else:
+            package_ids[safe_id.casefold()] = edition.id
         if edition.id in edition_ids:
             add(
                 "error",
@@ -430,6 +441,37 @@ def validate_release(slug: str, profile: ReleaseProfile) -> ReleaseValidationRes
                     f"{', '.join(sorted(expected))}; selected {suffix}.",
                     edition_id=edition.id,
                 )
+            elif role == "cover" and edition.format == "ebook":
+                # Inspect the selected artifact, not the Cover Studio settings: a
+                # user can select a different, older, or imported cover image.
+                with Image.open(path) as selected_cover:
+                    width, height = selected_cover.size
+                if "kdp" in edition.retailers and (width < 625 or height < 1000):
+                    add(
+                        "error", "ebook-cover-too-small",
+                        f"Selected eBook cover is {width} x {height} pixels; "
+                        "the KDP minimum is 625 x 1000 pixels.",
+                        retailer="kdp", edition_id=edition.id,
+                        authority="Amazon KDP",
+                        authority_url="https://kdp.amazon.com/en_US/help/topic/G200645690",
+                    )
+                if "kdp" in edition.retailers and (width > 10000 or height > 10000):
+                    add(
+                        "error", "kdp-ebook-cover-too-large",
+                        "KDP eBook cover dimensions cannot exceed 10,000 pixels.",
+                        retailer="kdp", edition_id=edition.id,
+                        authority="Amazon KDP",
+                        authority_url="https://kdp.amazon.com/en_US/help/topic/G200645690",
+                    )
+                if "kdp" in edition.retailers and width and height / width < 1.6:
+                    add(
+                        "warning", "kdp-ebook-cover-ratio",
+                        f"Selected eBook cover is {width} x {height} pixels; "
+                        "KDP recommends a height-to-width ratio of at least 1.6:1.",
+                        retailer="kdp", edition_id=edition.id,
+                        authority="Amazon KDP",
+                        authority_url="https://kdp.amazon.com/en_US/help/topic/G200645690",
+                    )
 
         if edition.identifier_mode == "own":
             if not edition.isbn.strip():
