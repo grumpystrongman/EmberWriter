@@ -476,3 +476,74 @@ def pronunciation_dictionary(word: str) -> dict:
         return dictionary_lookup(word)
     except ValueError as exc:
         fail(exc)
+
+class PerformanceVoiceEdit(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    speaker: str = Field(min_length=1, max_length=100)
+
+
+class PerformanceDirectionEdit(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    emotion: str = Field(min_length=1, max_length=40)
+    delivery: str = Field(min_length=1, max_length=140)
+
+
+def _performance_source(slug: str, path: str):
+    from pathlib import Path
+    from . import audio_director
+    from .audiobook_local import _spoken_text, available_chapters
+    from .storage import project_root, read_text
+    if path not in {row["path"] for row in available_chapters(slug)}:
+        raise FileNotFoundError("Select an existing manuscript chapter")
+    source = _spoken_text(read_text(slug, path))
+    data = audio_production.load(slug)
+    names = sorted(set(["Narrator"])
+                   | set(data.get("kokoro_voices", {}))
+                   | set(data.get("neural_voices", {}))
+                   | set(data.get("character_voices", {}))
+                   | {row["character"] for row in data.get("chapter_casts", {}).get(path, [])
+                      if row.get("character")})
+    dest = project_root(slug) / ".ember" / "audio-director" / (Path(path).stem + ".performance.json")
+    performance = audio_director.load_or_compile(
+        dest, source, names, data.get("chapter_casts", {}).get(path, []))
+    return performance, dest, names
+
+
+@router.get("/performance")
+def get_performance_script(slug: str, path: str) -> dict:
+    """Read the lossless audiobook-only cue sheet and unresolved speaker list."""
+    try:
+        performance, _, names = _performance_source(slug, path)
+        return performance
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/performance/speaker")
+def save_performance_speaker(slug: str, payload: PerformanceVoiceEdit) -> dict:
+    from .audio_director import revise_speaker, save_performance
+    try:
+        performance, dest, names = _performance_source(slug, payload.path)
+        performance = revise_speaker(
+            performance, payload.start, payload.end, payload.speaker, names)
+        save_performance(dest, performance)
+        return performance
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/performance/direction")
+def save_performance_direction(slug: str, payload: PerformanceDirectionEdit) -> dict:
+    from .audio_director import revise_direction, save_performance
+    try:
+        performance, dest, _ = _performance_source(slug, payload.path)
+        performance = revise_direction(
+            performance, payload.start, payload.end, payload.emotion, payload.delivery)
+        save_performance(dest, performance)
+        return performance
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)

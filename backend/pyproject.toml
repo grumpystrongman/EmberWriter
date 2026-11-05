@@ -1,6 +1,6 @@
 [project]
 name = "emberwriter-api"
-version = "0.15.0rc1"
+version = "0.15.0rc2"
 description = "Local-first backend for EmberWriter"
 requires-python = ">=3.11"
 dependencies = [

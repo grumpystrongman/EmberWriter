@@ -4,6 +4,7 @@ import NeuralVoicePanel from './NeuralVoicePanel'
 import AuthorProductionDesk from './AuthorProductionDesk'
 import LocalKokoroPanel from './LocalKokoroPanel'
 const NeuralBookQueue = lazy(() => import('./NeuralBookQueue'))
+import AudioDirectorPanel from './AudioDirectorPanel'
 
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
@@ -353,9 +354,10 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     <div className="authoring-panel-body">
       <details className="audiobook-intro">
         <summary>About offline narration and current limitations</summary>
-        <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Select explicit character dialogue spans and assign installed Windows voices. Automated speaker inference and professional acting remain unavailable; ACX is an advisory technical preflight, not retail approval.</p>
+        <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Select explicit character dialogue spans and assign installed Windows voices. Audio Director identifies explicitly attributed dialogue and prepares performance cues; ambiguous speakers require review. Emotional acting depends on the selected speech engine, and ACX remains an advisory technical preflight, not retail approval.</p>
       </details>
       <AuthorProductionDesk endpoint={productionEndpoint} />
+      <AudioDirectorPanel apiBase={apiBase} slug={slug} path={selected} disabled={disabled || !!job?.active} />
       {error && <p role="alert" className="audiobook-alert">{error}</p>}
       {message && <p role="status" className="audiobook-success">{message}</p>}
       <label htmlFor="audio-voice">Installed offline voice</label>

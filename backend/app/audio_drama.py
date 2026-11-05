@@ -73,9 +73,28 @@ def _selected_dialogue(slug: str, path: str, start: int) -> tuple[dict, str]:
     data = audio_production.load(slug)
     span = next((row for row in data.get("chapter_casts", {}).get(path, [])
                  if row.get("start") == start and row.get("character")), None)
+    try:
+        text = _spoken_text(read_text(slug, path))
+    except FileNotFoundError as exc:
+        raise ValueError("Select a manuscript chapter with an attributed dialogue line") from exc
     if span is None:
-        raise ValueError("Tag this exact dialogue span with a saved character first")
-    text = _spoken_text(read_text(slug, path))
+        from .audio_director import load_or_compile
+        settings = data
+        names = sorted(set(settings.get("neural_voices", {}))
+                       | set(settings.get("kokoro_voices", {}))
+                       | set(settings.get("character_voices", {})) | {"Narrator"})
+        performance = load_or_compile(
+            project_root(slug) / ".ember" / "audio-director"
+            / (Path(path).stem + ".performance.json"), text, names,
+            settings.get("chapter_casts", {}).get(path, []))
+        candidate = next((row for row in performance["spans"]
+                          if row["start"] == start and row["kind"] == "dialogue"
+                          and row.get("speaker") and row.get("speaker") != "Narrator"), None)
+        if candidate is None:
+            raise ValueError("Assign this dialogue speaker in Audio Director before a Fish proof take")
+        span = {"start": candidate["start"], "end": candidate["end"],
+                "text": candidate["text"], "character": candidate["speaker"],
+                "performance": candidate.get("performance", {})}
     if not (0 <= start < span["end"] <= len(text)) or text[start:span["end"]] != span["text"]:
         raise ValueError("Dialogue changed in the manuscript. Reassign the character before rendering")
     if len(span["text"].encode("utf-8")) > 2000:
@@ -97,8 +116,11 @@ def render_take(slug: str, path: str, start: int, port: int = 8080) -> dict:
     # Fish's own /v1/tts protocol is MessagePack. A stored reference_id
     # selects voice timbre; seed alone does not make timbre reproducible.
     spoken = span["text"]
-    if setting["direction"]:
-        spoken = f"[{setting['direction']}] {spoken}"
+    cues = span.get("performance", {})
+    direction = (cues.get("delivery", "") if cues.get("emotion") not in ("neutral", None)
+                 else "") or setting["direction"]
+    if direction:
+        spoken = f"[{direction}] {spoken}"
     request = {"text": spoken, "references": [], "reference_id": setting["reference_id"],
                "format": "wav", "streaming": False}
     if setting.get("seed") is not None:
@@ -138,7 +160,7 @@ def render_take(slug: str, path: str, start: int, port: int = 8080) -> dict:
     record = {"id": identifier, "filename": output.name, "path": path,
               "source_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
               "text": span["text"], "start": start, "character": span["character"],
-              "reference_id": setting["reference_id"], "direction": setting["direction"],
+              "reference_id": setting["reference_id"], "direction": direction,
               "seed": setting.get("seed"), "audio_sha256": hashlib.sha256(audio).hexdigest(),
               "bytes": len(audio), "status": "unapproved_rehearsal"}
     (folder / (identifier + ".json")).write_text(
@@ -176,29 +198,32 @@ def production_plan(slug: str) -> dict:
         path = document["path"]
         raw = read_text(slug, path)
         text = _spoken_text(raw)
-        cursor = 0
+        from .audio_director import load_or_compile
+        known_speakers = sorted(
+            set(voices) | set(kokoro_voices) | {"Narrator"}
+            | {row["character"] for row in casts.get(path, []) if row.get("character")})
+        cue_path = (project_root(slug) / ".ember" / "audio-director"
+                    / (Path(path).stem + ".performance.json"))
+        performance = load_or_compile(cue_path, text, known_speakers,
+                                      casts.get(path, []))
+        if performance["unresolved_count"]:
+            warnings.append(f"{path}: {performance['unresolved_count']} unattributed dialogue passages need review")
         segments = []
-        for cast in sorted(casts.get(path, []), key=lambda row: row["start"]):
-            start, end = cast["start"], cast["end"]
-            if not cursor <= start < end <= len(text) or text[start:end] != cast["text"]:
-                warnings.append(f"{path}: casting selection is stale at offset {start}")
-                continue
-            if start > cursor:
-                segments.append({"speaker": "Narrator", "start": cursor, "end": start,
-                                 "text": text[cursor:start]})
-            segments.append({"speaker": cast.get("character") or "Unassigned actor",
-                             "start": start, "end": end, "text": text[start:end],
-                             "manual_cast": True})
-            cursor = end
-        if cursor < len(text):
-            segments.append({"speaker": "Narrator", "start": cursor, "end": len(text),
-                             "text": text[cursor:]})
+        for span in performance["spans"]:
+            speaker = span["speaker"] or "Unassigned actor"
+            segments.append({
+                "speaker": speaker, "start": span["start"], "end": span["end"],
+                "text": span["text"], "kind": span["kind"],
+                "manual_cast": span.get("attribution") == "author_override",
+                "attribution": span.get("attribution"),
+                "performance": span.get("performance", {}),
+            })
         for segment in segments:
             speaker = segment["speaker"]
             profile = voices.get(speaker, {})
             kokoro_profile = kokoro_voices.get(speaker, {})
             segment["reference_id"] = profile.get("reference_id")
-            segment["direction"] = profile.get("direction", "")
+            segment["direction"] = (segment["performance"].get("delivery", "") if segment["performance"].get("emotion") not in ("neutral", None) else profile.get("direction", ""))
             segment["seed"] = profile.get("seed")
             segment["kokoro_voice_id"] = kokoro_profile.get("voice_id")
             segment["kokoro_speed"] = kokoro_profile.get("speed")

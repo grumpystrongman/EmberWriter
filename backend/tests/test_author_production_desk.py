@@ -31,6 +31,12 @@ def test_production_desk_is_author_first_and_cannot_approve_unrendered_audio(tmp
             assert any("author" in step.lower() for step in report["next_steps"])
             audio_drama.save_voice(slug, "Narrator", "my-authorized-narrator")
             report = audio_drama.production_readiness(slug)
+            # The quote belongs to Mira, not the narrator. Audio Director now
+            # requires a matching character voice before calling it ready.
+            assert report["neural_plan_ready_chapters"] == 1
+            assert report["chapters_missing_voice_references"] == 1
+            audio_drama.save_voice(slug, "Mira", "my-authorized-mira")
+            report = audio_drama.production_readiness(slug)
             assert report["neural_plan_ready_chapters"] == 2
             assert report["chapters_missing_voice_references"] == 0
             assert report["proof_approved_recordings"] == 0

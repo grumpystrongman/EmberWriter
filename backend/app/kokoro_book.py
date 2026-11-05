@@ -58,10 +58,16 @@ def _hash(value: object) -> str:
 
 def _settings(slug: str) -> dict:
     state = audio_production.load(slug)
+    cue_dir = project_root(slug) / ".ember" / "audio-director"
+    cue_hashes = {
+        item.name: hashlib.sha256(item.read_bytes()).hexdigest()
+        for item in sorted(cue_dir.glob("*.performance.json"))
+    } if cue_dir.is_dir() else {}
     return {"voices": state.get("kokoro_voices", {}),
             "casts": state.get("chapter_casts", {}),
             "pronunciations": state.get("pronunciations", []),
-            "ipa_pronunciations": state.get("ipa_pronunciations", [])}
+            "ipa_pronunciations": state.get("ipa_pronunciations", []),
+            "performance_manuscripts": cue_hashes}
 
 
 def _split(text: str) -> list[str]:
@@ -135,6 +141,79 @@ def _chapter_chunks(text: str, casts: list[dict], voices: dict, path: str,
     return result
 
 
+def _chapter_performance_chunks(slug: str, text: str, casts: list[dict],
+                                voices: dict, path: str,
+                                pronunciations: list[dict] | None = None,
+                                ipa_pronunciations: list[dict] | None = None) -> list[dict]:
+    """Lossless speaker-accurate turns, preserving CMU IPA and pauses."""
+    from .audio_director import load_or_compile, render_plan
+    performance = load_or_compile(
+        project_root(slug) / ".ember" / "audio-director" /
+        (Path(path).stem + ".performance.json"), text, list(voices), casts)
+    if not performance["render_ready"]:
+        raise ValueError(
+            f"{path}: Audio Director found {performance['unresolved_count']} "
+            "unattributed dialogue passages. Review performance cues before rendering.")
+    turns = render_plan(performance, text, voices, engine="kokoro")
+    ipa_rules = ipa_pronunciations or []
+    author_ipa = {r["written"].casefold() for r in ipa_rules}
+    plain_rules = [r for r in (pronunciations or [])
+                   if r["written"].casefold() not in author_ipa]
+    result = []
+    for turn in turns:
+        spoken = audio_production.spoken_replacements(turn["source_text"], plain_rules)
+        for part in _split(spoken):
+            result.append({
+                "speaker": turn["speaker"], "text": part,
+                "voice_id": turn["voice_id"], "speed": turn["speed"],
+                "emotion": turn["emotion"], "delivery": turn["delivery"],
+                "source_start": turn["source_start"], "source_end": turn["source_end"],
+                "ipa_rules": [r for r in ipa_rules
+                              if re.search(r"(?<!\w)" + re.escape(r["written"])
+                                           + r"(?!\w)", part, re.IGNORECASE)],
+                "status": "queued", "filename": "", "sha256": "",
+            })
+    return result
+
+
+
+def _reuse_verified_speech(slug: str, previous: dict | None, job: dict) -> int:
+    """Avoid re-synthesis of byte-identical performances after cue edits.
+
+    Never trust unverified WAVs. Speaker, spoken text, IPA, speed and pause
+    must match. Each source segment can be consumed at most once.
+    """
+    if not previous or previous.get("status") != "completed" or previous.get("engine") != job["engine"]:
+        return 0
+    from collections import defaultdict, deque
+    import shutil
+    def identity(part: dict) -> tuple:
+        return (part.get("chapter"), part.get("speaker"), part.get("text"),
+                part.get("voice_id"), part.get("speed"),
+                json.dumps(part.get("ipa_rules", []), sort_keys=True, ensure_ascii=False),
+                part.get("pause_after_ms"))
+    candidates = defaultdict(deque)
+    for old_index, part in enumerate(previous["chunks"]):
+        if part.get("status") == "rendered":
+            candidates[identity(part)].append((old_index, part))
+    count = 0
+    for index, part in enumerate(job["chunks"]):
+        options = candidates[identity(part)]
+        while options:
+            old_index, original = options.popleft()
+            source = _part_path(slug, previous["id"], old_index)
+            if (not source.is_file()
+                    or hashlib.sha256(source.read_bytes()).hexdigest() != original.get("sha256")):
+                continue
+            target = _part_path(slug, job["id"], index)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            part.update(status="rendered", filename=target.name, sha256=original["sha256"])
+            count += 1
+            break
+    return count
+
+
 def start(slug: str) -> dict:
     existing = _read(slug)
     if existing and existing["status"] in ("queued", "running"):
@@ -161,8 +240,9 @@ def start(slug: str) -> dict:
         text = _spoken_text(raw)
         if len(text.split()) < 5:
             raise ValueError(f"{path}: chapter is too short to narrate")
-        selected = _chapter_chunks(text, state["casts"].get(path, []), state["voices"],
-                                   path, state["pronunciations"], state["ipa_pronunciations"])
+        selected = _chapter_performance_chunks(
+            slug, text, state["casts"].get(path, []), state["voices"], path,
+            state["pronunciations"], state["ipa_pronunciations"])
         # Keep a real chapter heading as its own spoken turn. The deliberate
         # silence belongs to the audio, not to invented manuscript punctuation.
         heading = re.match(r"^#{1,6}\s+([^\n]+)", raw)
@@ -185,9 +265,12 @@ def start(slug: str) -> dict:
         if len(chunks) > MAX_CHUNKS:
             raise ValueError("Novel exceeds maximum of 12,000 neural speech chunks")
     record = {"id": uuid4().hex, "status": "queued", "engine": "kokoro-onnx",
-              "settings_sha256": _hash(state), "chapters": chapters, "chunks": chunks,
+              "settings_sha256": _hash(_settings(slug)), "chapters": chapters, "chunks": chunks,
               "created_at": datetime.now(UTC).isoformat(), "human_review_required": True,
               "publication_approved": False, "message": "Ready for author-controlled generation"}
+    reused = _reuse_verified_speech(slug, existing, record)
+    if reused:
+        record["message"] = f"Reused {reused} verified speech segments; remaining lines queued."
     _atomic_json(_jobfile(slug), record)
     return status(slug)
 
