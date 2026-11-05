@@ -21,6 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional offline voice engine. Model weights are installed per author locally,
+# never downloaded as a dependency of opening or editing a manuscript.
+kokoro = ["kokoro-onnx>=0.6.1,<0.7", "soundfile>=0.14,<1"]
 dev = [
   "httpx2>=2.12,<3",
   "pytest>=9.0.3,<10",

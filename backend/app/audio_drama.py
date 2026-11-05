@@ -165,6 +165,7 @@ def production_plan(slug: str) -> dict:
 
     settings = audio_production.load(slug)
     voices = settings.get("neural_voices", {})
+    kokoro_voices = settings.get("kokoro_voices", {})
     casts = settings.get("chapter_casts", {})
     documents = compiled_documents(slug)
     if len(documents) > 120:
@@ -195,20 +196,23 @@ def production_plan(slug: str) -> dict:
         for segment in segments:
             speaker = segment["speaker"]
             profile = voices.get(speaker, {})
+            kokoro_profile = kokoro_voices.get(speaker, {})
             segment["reference_id"] = profile.get("reference_id")
             segment["direction"] = profile.get("direction", "")
             segment["seed"] = profile.get("seed")
-            if not segment["reference_id"]:
-                warnings.append(f"{path}: missing neural voice reference for {speaker}")
+            segment["kokoro_voice_id"] = kokoro_profile.get("voice_id")
+            segment["kokoro_speed"] = kokoro_profile.get("speed")
+            if not (segment["reference_id"] or segment["kokoro_voice_id"]):
+                warnings.append(f"{path}: missing local neural voice assignment for {speaker}")
         chapters.append({"path": path, "title": document["title"],
                          "source_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
                          "segments": segments})
     return {
         "schema_version": 1, "mode": "author_review_required",
         "chapters": chapters, "warnings": list(dict.fromkeys(warnings)),
-        "voice_library": voices,
+        "voice_library": voices, "kokoro_voice_library": kokoro_voices,
         "notice": "This is a direction/script export, not synthesized audio. "
-                  "Narrator and every manually cast actor need a saved neural voice reference. "
+                  "Narrator and every manually cast actor need a saved neural voice assignment. "
                   "A human must review speaker attribution and licensing before rendering.",
     }
 
@@ -232,7 +236,8 @@ def production_readiness(slug: str) -> dict:
         segments = chapter["segments"]
         actors = [item for item in segments if item.get("manual_cast")]
         missing_references = sorted({
-            item["speaker"] for item in segments if not item.get("reference_id")
+            item["speaker"] for item in segments
+            if not (item.get("reference_id") or item.get("kokoro_voice_id"))
         })
         source_current = (hashlib.sha256(read_text(slug, path).encode("utf-8")).hexdigest()
                           == chapter["source_sha256"])

@@ -253,8 +253,9 @@ def save_cast(slug: str, path: str, start: int, end: int,
     else:
         rate = None
     _validate_voice(voice)
-    if not voice and (not character or character not in data.get("neural_voices", {})):
-        raise ValueError("Assign an installed Windows voice or a saved neural reference to the character")
+    if not voice and (not character or not (character in data.get("neural_voices", {})
+                                                or character in data.get("kokoro_voices", {}))):
+        raise ValueError("Assign a Windows voice, Fish reference, or local Kokoro voice to the character")
     from .audiobook_local import _spoken_text
     from .storage import read_text
     spoken = _spoken_text(read_text(slug, path))

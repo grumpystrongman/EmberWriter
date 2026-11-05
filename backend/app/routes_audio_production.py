@@ -236,3 +236,67 @@ def neural_take_audio(slug: str, filename: str) -> FileResponse:
         return FileResponse(take_file(slug, filename), media_type="audio/wav")
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)
+
+class KokoroVoice(BaseModel):
+    character: str = Field(min_length=1, max_length=100)
+    voice_id: str = Field(min_length=1, max_length=80)
+    speed: float = Field(default=1.0, ge=0.7, le=1.4)
+
+
+class KokoroScene(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+
+
+@router.get("/kokoro/status")
+def kokoro_status() -> dict:
+    from .kokoro_local import status
+    return status()
+
+
+@router.get("/kokoro/voices")
+def kokoro_profiles(slug: str) -> dict:
+    from .kokoro_local import library
+    try:
+        return library(slug)
+    except (OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/kokoro/voices")
+def kokoro_save_profile(slug: str, payload: KokoroVoice) -> dict:
+    from .kokoro_local import save_profile
+    try:
+        return save_profile(slug, payload.character, payload.voice_id, payload.speed)
+    except (OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.post("/kokoro/scene-plan")
+def kokoro_scene_plan(slug: str, payload: KokoroScene) -> dict:
+    from .kokoro_local import scene_plan
+    try:
+        return scene_plan(slug, payload.path, payload.start, payload.end)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.post("/kokoro/rehearsals")
+def kokoro_scene_rehearsal(slug: str, payload: KokoroScene) -> dict:
+    from .kokoro_local import render_scene
+    try:
+        return render_scene(slug, payload.path, payload.start, payload.end)
+    except ImportError as exc:
+        raise HTTPException(503, "Optional Kokoro ONNX dependencies are not installed") from exc
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/kokoro/rehearsals/{filename}")
+def kokoro_scene_audio(slug: str, filename: str) -> FileResponse:
+    from .kokoro_local import rehearsal_file
+    try:
+        return FileResponse(rehearsal_file(slug, filename), media_type="audio/wav")
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
