@@ -151,7 +151,7 @@ async def lifespan(_: FastAPI):
             await refresh_task
 
 
-app = FastAPI(title="EmberWriter API", version="0.14.3", lifespan=lifespan)
+app = FastAPI(title="EmberWriter API", version="0.15.0rc1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -235,7 +235,7 @@ def cancel_writer_generation(slug: str) -> dict:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "service": "EmberWriter", "version": "0.14.3"}
+    return {"ok": True, "service": "EmberWriter", "version": "0.15.0rc1"}
 
 
 @app.get("/api/projects", response_model=list[ProjectSummary])

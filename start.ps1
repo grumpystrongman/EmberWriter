@@ -10,6 +10,13 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
+# Support verified developer/test checkouts with a root virtual environment.
+# Clean user installs still create backend/.venv through install.ps1.
+$RootVenv = Join-Path $Root ".venv"
+if (-not (Test-Path (Join-Path $Venv "Scripts\python.exe")) -and
+    (Test-Path (Join-Path $RootVenv "Scripts\python.exe"))) {
+    $Venv = $RootVenv
+}
 $Installer = Join-Path $Root "install.ps1"
 $ImageEngineConfig = Join-Path $Root ".ember\image-engine.json"
 $ImageEngineInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
@@ -178,7 +185,14 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 Remove-Item $BackendOutLog, $BackendErrLog, $FrontendOutLog, $FrontendErrLog -Force -ErrorAction SilentlyContinue
 
 if ($DataDir) {
-    $env:EMBER_DATA_DIR = [System.IO.Path]::GetFullPath((Join-Path $LaunchDirectory $DataDir))
+    # A release checkout may be launched from a shortcut, terminal or Pinokio.
+    # Preserve an absolute author-selected data path rather than joining it
+    # onto the launcher's current working directory.
+    if ([System.IO.Path]::IsPathRooted($DataDir)) {
+        $env:EMBER_DATA_DIR = [System.IO.Path]::GetFullPath($DataDir)
+    } else {
+        $env:EMBER_DATA_DIR = [System.IO.Path]::GetFullPath((Join-Path $LaunchDirectory $DataDir))
+    }
 } else {
     $legacyDataRoot = Join-Path $LaunchDirectory "data"
     $defaultResolved = [System.IO.Path]::GetFullPath($DefaultDataRoot)

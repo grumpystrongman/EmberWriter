@@ -2,6 +2,8 @@
 
 **A local-first, AI-assisted fiction studio for writing, planning, continuity, worldbuilding, spatial story design, editorial analysis, visual canon, publishing, and submission.**
 
+**Release candidate 0.15.0-rc.1 (author testing):** See [the test and release checklist](docs/RELEASE_CANDIDATE_0.15.0_RC1.md). Manuscript writing and editing require no AI model. Optional locally generated neural audiobook drafts are author-controlled and **not** automatically approved for distribution. Release blockers and remaining lint debt are documented rather than hidden.
+
 **Write it yourself—or direct EmberWriter as it writes the entire book with you.** Start from a premise, character dossiers, a world bible and an outline, or ask your local model to propose a chapter blueprint. Draft up to 80 chapters sequentially with a server-side, checkpointed run that can pause, resume, and recover after a service restart. Inspect every draft, edit or reject chapters, redirect the plot and accept only the work you approve. The Book Studio lives in **Plan → Book Studio**. This is an author-led workflow, not a blind content generator.
 
 **Interface refresh (November 2026).** EmberWriter now centers on a clear **Write → Plan → Review → Publish** workflow: five top-level desktop destinations (three on narrow windows), a **More** menu for advanced tools, four task groups inside Plan, six streamlined publishing stages, and a searchable/paginated whole-book editorial review. Previously stacked panels load only when selected. Visual browser tests cover 1440/900/390px widths and a 26-chapter synthetic book; the old 1100px minimum width is removed. See `docs/UI_UX_AUDIT.md` and run `npm run ux:visual` from the frontend with an isolated synthetic fixture.

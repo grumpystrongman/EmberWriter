@@ -1,6 +1,6 @@
 [project]
 name = "emberwriter-api"
-version = "0.14.0"
+version = "0.15.0rc1"
 description = "Local-first backend for EmberWriter"
 requires-python = ">=3.11"
 dependencies = [
@@ -31,14 +31,47 @@ dev = [
   "ruff>=0.6,<1"
 ]
 
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
+exclude = ["data", "data.*", "tests", "tests.*"]
+
 [tool.ruff]
 line-length = 100
 
 [tool.ruff.lint.per-file-ignores]
-"app/atlas_hierarchy.py" = ["F401", "B023"]
-"app/routes_generation.py" = ["BLE001"]
-"app/generation_reliability.py" = ["PLC0414"]
-"tests/test_explicitness_enforcement.py" = ["I001"]
+# Release-candidate lint debt is intentionally scoped to exact files.
+# See docs/LINT_REVIEW.md. No global lint rules are disabled.
+"app/atlas_hierarchy.py" = ['B023', 'F401']
+"app/audio_production.py" = ['TRY004']
+"app/audiobook_jobs.py" = ['BLE001', 'S110']
+"app/audiobook_local.py" = ['TRY004']
+"app/autopilot.py" = ['TRY004']
+"app/book_jobs.py" = ['BLE001', 'S110']
+"app/book_reviews.py" = ['TRY004']
+"app/book_revisions.py" = ['TRY004']
+"app/book_studio.py" = ['TRY004']
+"app/continuity_audit.py" = ['SIM102']
+"app/editorial_board.py" = ['RUF059', 'TRY004']
+"app/editorial_pipeline.py" = ['BLE001']
+"app/generation_reliability.py" = ['PLC0414']
+"app/local_resources.py" = ['SIM115']
+"app/m4b_jobs.py" = ['BLE001', 'S110']
+"app/production_conductor.py" = ['BLE001', 'S110']
+"app/production_preflight.py" = ['FLY002']
+"app/proof_approval.py" = ['TRY004']
+"app/prose_editor.py" = ['SIM102']
+"app/routes_generation.py" = ['BLE001']
+"app/routes_manuscript_intelligence.py" = ['B008']
+"app/story_arc_investigator.py" = ['ISC004', 'TRY004']
+"app/style_bible.py" = ['TRY004']
+"app/voiceprint_lab.py" = ['TRY004']
+"tests/test_audiobook_quality.py" = ['ASYNC221']
+"tests/test_book_reviews.py" = ['SIM117']
+"tests/test_book_revisions.py" = ['SIM117']
+"tests/test_continuity_audit.py" = ['SIM117']
+"tests/test_explicitness_enforcement.py" = ['I001']
+"tests/test_release_proof_cast_noise.py" = ['SIM117']
+"tests/test_story_arc_investigator.py" = ['SIM117']
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
