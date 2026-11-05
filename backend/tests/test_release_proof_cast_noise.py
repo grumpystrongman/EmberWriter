@@ -70,6 +70,10 @@ class DialogueCastingAndProofTests(unittest.TestCase):
         approval = approve(self.slug, self.path, 1.0, True, True)
         self.assertTrue(approval["source_aligned"])
         self.assertTrue(proof_status(self.slug, self.path, rendered["filename"])["approved"])
+        audio_production.save_pronunciation(self.slug, "Captain", "CAP-tin")
+        self.assertFalse(proof_status(self.slug, self.path, rendered["filename"])["approved"])
+        with self.assertRaisesRegex(ValueError, "voice or direction changed"):
+            approve(self.slug, self.path, 1.0, True, True)
         with audiobook_local.audio_file(self.slug, rendered["filename"]).open("ab") as output:
             output.write(b"changed")
         self.assertFalse(proof_status(self.slug, self.path, rendered["filename"])["approved"])

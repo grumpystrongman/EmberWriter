@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import './audiobook-panel.css'
 import NeuralVoicePanel from './NeuralVoicePanel'
+import AuthorProductionDesk from './AuthorProductionDesk'
 
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
@@ -346,6 +347,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         <summary>About offline narration and current limitations</summary>
         <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Select explicit character dialogue spans and assign installed Windows voices. Automated speaker inference and professional acting remain unavailable; ACX is an advisory technical preflight, not retail approval.</p>
       </details>
+      <AuthorProductionDesk endpoint={productionEndpoint} />
       {error && <p role="alert" className="audiobook-alert">{error}</p>}
       {message && <p role="status" className="audiobook-success">{message}</p>}
       <label htmlFor="audio-voice">Installed offline voice</label>

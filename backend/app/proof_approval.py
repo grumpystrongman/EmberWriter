@@ -9,7 +9,7 @@ import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .audio_production import _write, load, synchronized
+from .audio_production import _write, load, snapshot, synchronized
 from .audiobook_local import audio_file, list_renders
 from .audiobook_quality import _file_diagnostics
 from .storage import read_text
@@ -29,6 +29,10 @@ def proof_status(slug: str, path: str, filename: str) -> dict:
     if not isinstance(approval, dict) or approval.get("filename") != filename:
         return {"approved": False, "reason": "No full-recording proof approval for this take"}
     try:
+        current_take = next((row for row in list_renders(slug)
+                             if row["source_path"] == path and row["filename"] == filename), None)
+        if not current_take or current_take.get("settings_signature") != snapshot(slug)["signature"]:
+            return {"approved": False, "reason": "Narration voice or direction changed after recording"}
         recording = audio_file(slug, filename)
         source_hash = hashlib.sha256(read_text(slug, path).encode("utf-8")).hexdigest()
         if source_hash != approval.get("source_sha256"):
@@ -59,6 +63,8 @@ def approve(slug: str, path: str, listened_seconds: float,
     current_hash = hashlib.sha256(read_text(slug, path).encode("utf-8")).hexdigest()
     if track.get("source_hash") != current_hash:
         raise ValueError("Narration is stale; render the current manuscript first")
+    if track.get("settings_signature") != snapshot(slug)["signature"]:
+        raise ValueError("Narration voice or direction changed; render the current settings before approving")
     settings = load(slug)
     if any(note.get("path") == path and note.get("filename") == track["filename"]
            and note.get("status") != "resolved" for note in settings["proof_notes"]):

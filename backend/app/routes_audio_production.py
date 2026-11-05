@@ -191,6 +191,15 @@ def neural_voice(slug: str, payload: NeuralVoice) -> dict:
         fail(exc)
 
 
+@router.get("/production-readiness")
+def get_production_readiness(slug: str) -> dict:
+    from .audio_drama import production_readiness
+    try:
+        return production_readiness(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
 @router.get("/neural-production-plan")
 def neural_production_plan(slug: str) -> dict:
     from .audio_drama import production_plan

@@ -92,3 +92,29 @@
 .audiobook-panel .audiobook-intro summary {color:#d8bba5;font-size:12px;cursor:pointer}
 .audiobook-panel .audiobook-intro p {margin:9px 0 3px}
 .audiobook-panel .audiobook-intro summary:focus-visible {outline:2px solid #ffbc80;outline-offset:3px}
+
+/* Author-led production: manuscript first, AI optional, no implied release approval. */
+.author-production-desk{display:grid;gap:15px;padding:21px;border:1px solid rgba(229,179,115,.45);border-radius:15px;background:linear-gradient(130deg,rgba(82,53,51,.5),rgba(22,35,48,.85));color:#f3ddc6}
+.author-desk-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.author-desk-heading h3{font-size:24px;font-weight:750;margin:5px 0 8px;color:#ffdab0}
+.author-desk-heading p{max-width:670px;margin:0;color:#d4c1b4;line-height:1.6;font-size:13px}
+.author-desk-eyebrow{color:#f0b782;font-size:10px;letter-spacing:.14em;font-weight:800}
+.author-desk-heading button,.author-desk-detail-toggle{border:1px solid rgba(243,188,127,.6);padding:10px 13px;border-radius:8px;color:#ffe2c2;background:rgba(145,92,60,.28);cursor:pointer;font-size:12px}
+.author-desk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.author-desk-stats>div{display:grid;gap:8px;border:1px solid rgba(224,172,126,.22);border-radius:10px;padding:16px;background:rgba(15,26,39,.55)}
+.author-desk-stats strong{font-size:23px;color:#f4cc9e;font-variant-numeric:tabular-nums}
+.author-desk-stats span{font-size:11px;color:#cab8ab;line-height:1.45}
+.author-desk-disclaimer{font-size:12px;line-height:1.65;color:#e2cbbb;background:rgba(13,22,33,.45);border-left:3px solid #c98856;padding:11px 13px;margin:0}
+.author-desk-actions{display:grid;grid-template-columns:minmax(0,2fr) minmax(200px,1fr);gap:12px}
+.author-desk-actions>div{border:1px solid rgba(227,184,139,.23);padding:14px;border-radius:10px}
+.author-desk-actions h4{font-size:13px;margin:0 0 8px;color:#f5d1a8}
+.author-desk-actions ul{padding-left:20px;margin:0;line-height:1.65;color:#d6c0b3;font-size:12px}
+.author-desk-actions strong{font-size:17px;color:#f4d1b5}
+.author-desk-actions p,.author-desk-finances p{font-size:12px;color:#cbb9aa;line-height:1.65}
+.author-desk-finances{border-top:1px solid rgba(226,173,127,.23);padding-top:12px}
+.author-desk-finances summary{cursor:pointer;color:#f3d0a6;font-size:13px;font-weight:700}
+.author-desk-chapters{display:grid;gap:7px;max-height:370px;overflow:auto}
+.author-desk-chapters>div{display:grid;gap:5px;padding:11px;border:1px solid rgba(221,164,119,.24);border-radius:8px;background:rgba(10,23,36,.35)}
+.author-desk-chapters strong{font-size:13px;color:#f5d4b4}
+.author-desk-chapters span{font-size:11px;color:#d8c3b2;line-height:1.5}
+@media(max-width:620px){.author-production-desk{padding:14px}.author-desk-actions{grid-template-columns:1fr}.author-desk-heading h3{font-size:20px}.author-desk-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}

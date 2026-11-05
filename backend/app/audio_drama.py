@@ -211,3 +211,87 @@ def production_plan(slug: str) -> dict:
                   "Narrator and every manually cast actor need a saved neural voice reference. "
                   "A human must review speaker attribution and licensing before rendering.",
     }
+
+
+def production_readiness(slug: str) -> dict:
+    """Author-facing status based on files and saved assignments, not AI confidence.
+
+    A draft/plan is never reported as release-approved. Neural rehearsals are
+    intentionally excluded from finished audio counts.
+    """
+    from .audiobook_local import list_renders
+    from .proof_approval import proof_status
+    from .storage import read_text
+
+    plan = production_plan(slug)
+    settings = audio_production.load(slug)
+    renders = {row["source_path"]: row for row in list_renders(slug)}
+    chapters = []
+    for chapter in plan["chapters"]:
+        path = chapter["path"]
+        segments = chapter["segments"]
+        actors = [item for item in segments if item.get("manual_cast")]
+        missing_references = sorted({
+            item["speaker"] for item in segments if not item.get("reference_id")
+        })
+        source_current = (hashlib.sha256(read_text(slug, path).encode("utf-8")).hexdigest()
+                          == chapter["source_sha256"])
+        recording = renders.get(path)
+        source_matches = bool(
+            recording and recording.get("source_hash") == chapter["source_sha256"]
+            and recording.get("settings_signature") == audio_production.snapshot(slug)["signature"]
+        )
+        approved = False
+        if recording and source_matches:
+            approved = proof_status(slug, path, recording["filename"])["approved"]
+        open_notes = sum(
+            bool(recording) and note.get("path") == path
+            and note.get("status") == "open"
+            and note.get("filename") == recording["filename"]
+            for note in settings.get("proof_notes", [])
+        )
+        chapters.append({
+            "path": path, "title": chapter["title"],
+            "words": len(_spoken_text(read_text(slug, path)).split()),
+            "assigned_dialogue": len(actors),
+            "missing_neural_references": missing_references,
+            "source_current": source_current,
+            "has_sapi_recording": bool(recording and source_matches),
+            "recording_proof_approved": bool(approved),
+            "open_proof_notes": open_notes,
+            "neural_drama_ready_for_rehearsal": bool(segments and not missing_references),
+        })
+    total = len(chapters)
+    approved = sum(row["recording_proof_approved"] for row in chapters)
+    neural_prepared = sum(row["neural_drama_ready_for_rehearsal"] for row in chapters)
+    missing = sum(bool(row["missing_neural_references"]) for row in chapters)
+    words = sum(row["words"] for row in chapters)
+    return {
+        "title": "Author's Production Desk",
+        "ownership": "The manuscript and all casting decisions remain under author control.",
+        "chapters": chapters,
+        "total_chapters": total,
+        "total_words": words,
+        "dialogue_selections": sum(row["assigned_dialogue"] for row in chapters),
+        "neural_plan_ready_chapters": neural_prepared,
+        "chapters_missing_voice_references": missing,
+        "sapi_recorded_chapters": sum(row["has_sapi_recording"] for row in chapters),
+        "proof_approved_recordings": approved,
+        "estimated_narrated_hours": round(words / 9300, 2),
+        "estimated_hours_note": "Planning-only estimate at 9,300 spoken words/hour; actual "
+                                "duration depends on performance and pacing.",
+        "publication_ready": False,
+        "publication_note": (
+            "This desk is not a publication certificate. Neural voice references and "
+            "source-anchored dialogue are production planning only. Rehearsal takes are "
+            "never implicitly approved, mixed into a finished book, or retailer certified."
+        ),
+        "next_steps": [
+            *([] if total else ["Add manuscript chapters to the Binder Draft."]),
+            *([] if missing == 0 else ["Assign missing narrator or character neural voice references."]),
+            *([] if approved == total and total > 0 else [
+                "As the author, listen to and explicitly approve every finished chapter recording."
+            ]),
+            "Review licensing, accessibility, mastering, and retailer requirements before release.",
+        ],
+    }
