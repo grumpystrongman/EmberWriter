@@ -46,3 +46,17 @@ The optional `backend/smoke_kokoro.py` checks three voices with a synthetic pass
 - Source-to-audio alignment and automated missing/duplicated-sentence detection.
 - Studio-grade mastering and a separate finished-audiobook export, with license verification and retailer-specific validation.
 - Better speaker attribution proposals with unassigned/ambiguous dialogue surfaced for author review.
+
+## Author-led neural book batch (new)
+
+The Audiobook Workshop now contains a **Neural Audiobook Production** panel, distinct from the existing Windows SAPI queue. Authors may create a production batch from the selected Binder Draft, then generate its remaining voice segments while the browser remains open. All work uses the local Kokoro ONNX model, saved narrator/character voices and speeds, and the author's pronunciation dictionary.
+
+Generation is bounded to a maximum of 120 manuscript chapters and 12,000 short segments. Each segment is individually recorded as a PCM WAV with a content fingerprint; complete chapters are assembled into separate draft WAVs. Chapter outputs are always labeled `rendered_unapproved`. The author can listen to and save each draft. No audio is automatically mastered, proof-approved, released, or copied into the existing commercial publishing pipeline.
+
+The queue file is stored in the project at `.ember/kokoro-book/job.json`. **One audio segment is committed at a time.** The browser sends the next request only after the last one finishes, and its Pause button stops after the current segment. Closing the browser or restarting the server leaves the completed chunks on disk. Reopening the project and selecting Generate remaining resumes at the next incomplete segment rather than repeating the whole book.
+
+Manuscript edits, voice/pacing changes, pronunciation changes, or dialogue cast changes invalidate the queued batch. The production desk flags the job as stale and will not offer a stale chapter for normal playback. The author must explicitly create a fresh batch after reviewing changes; old audio files are kept for forensic recovery, not silently reused.
+
+These are *draft audio recordings* without commercial mastering, ASR-based completeness verification, or chapter-level proof-listening approvals. The existing SAPI proof-approval path is deliberately separate until neural output has its own complete review and approval system.
+
+The test script `backend/smoke_kokoro_book.py` runs a **real two-chapter synthetic book** through the FastAPI endpoints, performs local neural inference with a narrator and actor, checks that every segment finishes, then exports assembled chapter WAVs into `%LOCALAPPDATA%\\EmberWriter\\demos`. It does not access user manuscripts or upload anything.

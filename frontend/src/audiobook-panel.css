@@ -118,3 +118,22 @@
 .author-desk-chapters strong{font-size:13px;color:#f5d4b4}
 .author-desk-chapters span{font-size:11px;color:#d8c3b2;line-height:1.5}
 @media(max-width:620px){.author-production-desk{padding:14px}.author-desk-actions{grid-template-columns:1fr}.author-desk-heading h3{font-size:20px}.author-desk-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* The author decides when local neural production starts, pauses, and is reviewed. */
+.neural-book-queue{margin:14px 0;padding:19px;border:1px solid rgba(240,173,104,.46);border-radius:13px;background:linear-gradient(135deg,rgba(80,47,45,.4),rgba(18,34,51,.85));display:grid;gap:13px}
+.neural-book-heading span{font-size:10px;font-weight:750;color:#eec093;letter-spacing:.14em}
+.neural-book-heading h3{font-size:20px;color:#f8d1ab;margin:6px 0 8px}
+.neural-book-heading p,.neural-book-queue>p{max-width:850px;font-size:12px;line-height:1.65;color:#d6c3b4;margin:0}
+.neural-book-progress{padding:14px;border:1px solid rgba(231,173,127,.3);border-radius:10px;background:rgba(13,27,43,.48)}
+.neural-book-progress strong{font-size:14px;color:#f0ceab}
+.neural-book-progress progress{width:100%;height:13px;display:block;margin:12px 0;accent-color:#e9a46f}
+.neural-book-progress p{font-size:12px;color:#d3bba8;line-height:1.55}
+.neural-book-queue details{border-top:1px solid rgba(234,176,125,.25);padding-top:12px}
+.neural-book-queue summary{cursor:pointer;font-weight:700;color:#f3cfac;font-size:13px}
+.neural-book-chapters{max-height:420px;overflow:auto;display:grid;gap:10px;margin-top:12px}
+.neural-book-chapters>div{display:flex;flex-wrap:wrap;align-items:center;gap:11px;padding:12px;border:1px solid rgba(222,164,127,.24);border-radius:8px}
+.neural-book-chapters strong{color:#f3cba7;font-size:13px}
+.neural-book-chapters small{flex:1 1 200px;color:#d3bbae;font-size:11px}
+.neural-book-chapters audio{max-width:260px;width:100%}
+.neural-book-chapters a{font-size:12px;color:#fac492}
+@media(max-width:620px){.neural-book-queue{padding:13px}.neural-book-chapters audio{max-width:100%}}

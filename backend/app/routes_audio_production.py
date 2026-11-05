@@ -300,3 +300,40 @@ def kokoro_scene_audio(slug: str, filename: str) -> FileResponse:
         return FileResponse(rehearsal_file(slug, filename), media_type="audio/wav")
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)
+
+@router.get("/kokoro/book")
+def neural_book_status(slug: str) -> dict:
+    from .kokoro_book import status
+    try:
+        return status(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.post("/kokoro/book")
+def neural_book_start(slug: str) -> dict:
+    from .kokoro_book import start
+    try:
+        return start(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.post("/kokoro/book/next")
+async def neural_book_next(slug: str) -> dict:
+    from .kokoro_book import advance
+    try:
+        return await advance(slug)
+    except ImportError as exc:
+        raise HTTPException(503, "Optional local Kokoro ONNX dependencies are not installed") from exc
+    except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.get("/kokoro/book/audio/{filename}")
+def neural_book_audio(slug: str, filename: str) -> FileResponse:
+    from .kokoro_book import chapter_audio
+    try:
+        return FileResponse(chapter_audio(slug, filename), media_type="audio/wav")
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)

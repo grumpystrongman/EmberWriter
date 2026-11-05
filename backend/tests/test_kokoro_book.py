@@ -1,0 +1,144 @@
+"""Neural whole-book batch: exact voice identity, resume, provenance and author review."""
+import hashlib
+import wave
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import audio_production, kokoro_book, storage
+from app.main import app
+
+
+def _project(tmp_path: Path):
+    slug = storage.create_project("Synthetic Book for Independent Authors")["slug"]
+    sources = [
+        ("manuscript/first.md", 'Mira said, "Follow me." The sun set and the old bridge was quiet. ' * 9),
+        ("manuscript/second.md", 'The captain watched the mountains and listened to Mira. ' * 10),
+    ]
+    for path, text in sources:
+        storage.save_text(slug, path, text)
+    audio_production.save_character_voice(slug, "Mira", "")
+    # A voice identity can be Kokoro-only; no Windows SAPI binding required.
+    data = audio_production.load(slug)
+    data["kokoro_voices"] = {
+        "Narrator": {"voice_id": "af_heart", "speed": 1.0},
+        "Mira": {"voice_id": "bf_emma", "speed": 0.85},
+    }
+    audio_production._write(slug, data)
+    first = sources[0][1]
+    quote = '"Follow me."'
+    pos = first.index(quote)
+    audio_production.save_cast(slug, sources[0][0], pos, pos + len(quote), quote, "", "Mira")
+    documents = [{"path": path, "title": f"Chapter {i + 1}", "content": text}
+                 for i, (path, text) in enumerate(sources)]
+    return slug, sources, documents
+
+
+def _fake_render(slug, job, index):
+    target = kokoro_book._part_path(slug, job["id"], index)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(target), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(24000)
+        out.writeframes(bytes(12000))
+    return hashlib.sha256(target.read_bytes()).hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_neural_batch_resumes_increments_and_assembles_unapproved_chapters(tmp_path):
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug, _sources, documents = _project(tmp_path)
+        with (
+            patch("app.kokoro_book.compiled_documents", return_value=documents),
+            patch("app.kokoro_book.kokoro_local.status", return_value={"installed": True, "voice_ids": ["af_heart", "bf_emma"]}),
+            patch("app.kokoro_book._render_part", side_effect=_fake_render),
+        ):
+            state = kokoro_book.start(slug)
+            assert state["total"] > 2
+            assert state["completed"] == 0
+            first_job = state["id"]
+            with pytest.raises(ValueError, match="unfinished"):
+                kokoro_book.start(slug)
+            state = await kokoro_book.advance(slug)
+            assert state["completed"] == 1
+            # Emulate a server restart: no in-memory task registry is needed.
+            assert kokoro_book.status(slug)["id"] == first_job
+            while state["status"] != "completed":
+                state = await kokoro_book.advance(slug)
+            assert state["completed"] == state["total"]
+            assert all(ch["status"] == "rendered_unapproved" for ch in state["chapters"])
+            assert not state["publication_approved"]
+            for ch in state["chapters"]:
+                audio = kokoro_book.chapter_audio(slug, ch["filename"])
+                assert audio.is_file()
+                with wave.open(str(audio), "rb") as wav:
+                    assert wav.getframerate() == 24000
+                    assert wav.getnframes() > 0
+            with pytest.raises(ValueError):
+                kokoro_book.chapter_audio(slug, "../secret.wav")
+
+
+@pytest.mark.asyncio
+async def test_neural_batch_stops_when_source_or_voice_is_edited(tmp_path):
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug, sources, documents = _project(tmp_path)
+        with (
+            patch("app.kokoro_book.compiled_documents", return_value=documents),
+            patch("app.kokoro_book.kokoro_local.status", return_value={"installed": True, "voice_ids": ["af_heart", "bf_emma"]}),
+            patch("app.kokoro_book._render_part", side_effect=_fake_render),
+        ):
+            kokoro_book.start(slug)
+            await kokoro_book.advance(slug)
+            original = kokoro_book.status(slug)["completed"]
+            storage.save_text(slug, sources[1][0], "Changed manuscript after beginning the job.")
+            assert kokoro_book.status(slug)["stale"]
+            with pytest.raises(ValueError, match="manuscript changed"):
+                await kokoro_book.advance(slug)
+            assert kokoro_book.status(slug)["completed"] == original
+            storage.save_text(slug, sources[1][0], sources[1][1])
+            data = audio_production.load(slug)
+            data["kokoro_voices"]["Mira"]["speed"] = 1.2
+            audio_production._write(slug, data)
+            assert kokoro_book.status(slug)["stale"]
+            with pytest.raises(ValueError, match="settings changed"):
+                await kokoro_book.advance(slug)
+
+
+def test_chunk_planning_preserves_whitespace_and_all_voices(tmp_path):
+    long_text = ("A quiet sentence. " * 160) + 'Mira said, "Go."'
+    chunks = kokoro_book._split(long_text)
+    assert len(chunks) >= 5
+    assert "".join(chunks) == long_text
+    assert all(len(part) <= kokoro_book.CHUNK_CHARS for part in chunks)
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug, _sources, documents = _project(tmp_path)
+        with (
+            patch("app.kokoro_book.compiled_documents", return_value=documents),
+            patch("app.kokoro_book.kokoro_local.status", return_value={"installed": True, "voice_ids": ["af_heart", "bf_emma"]}),
+            TestClient(app) as client,
+        ):
+            result = client.post(f"/api/projects/{slug}/audiobook-production/kokoro/book")
+            assert result.status_code == 200, result.text
+            state = client.get(f"/api/projects/{slug}/audiobook-production/kokoro/book")
+            assert state.status_code == 200
+            assert state.json()["total"] > 2
+            assert "Follow me" not in state.text
+
+
+def test_neural_batch_respects_local_author_pronunciation_dictionary(tmp_path):
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug, sources, docs = _project(tmp_path)
+        audio_production.save_pronunciation(slug, "Mira", "MEE-rah")
+        with (
+            patch("app.kokoro_book.compiled_documents", return_value=docs),
+            patch("app.kokoro_book.kokoro_local.status",
+                  return_value={"installed": True, "voice_ids": ["af_heart", "bf_emma"]}),
+        ):
+            state = kokoro_book.start(slug)
+            assert state["completed"] == 0
+            job = kokoro_book._read(slug)
+            assert any("MEE-rah" in part["text"] for part in job["chunks"])
+            assert "MEE-rah" not in storage.read_text(slug, sources[0][0])
