@@ -2,6 +2,8 @@
 
 **A local-first, AI-assisted fiction studio for writing, planning, continuity, worldbuilding, spatial story design, editorial analysis, visual canon, publishing, and submission.**
 
+**Public beta is on hold until all three acceptance gates pass:** a complete human-reviewed novel without pervasive AI filler; a complete proof-listened audiobook of that same novel; and a clean, data-safe end-user installation. See [beta release requirements](docs/BETA_SHIP_GATES.md).
+
 **Release candidate 0.15.0-rc.1 (author testing):** See [the test and release checklist](docs/RELEASE_CANDIDATE_0.15.0_RC1.md). Manuscript writing and editing require no AI model. Optional locally generated neural audiobook drafts are author-controlled and **not** automatically approved for distribution. Release blockers and remaining lint debt are documented rather than hidden.
 
 **Write it yourself—or direct EmberWriter as it writes the entire book with you.** Start from a premise, character dossiers, a world bible and an outline, or ask your local model to propose a chapter blueprint. Draft up to 80 chapters sequentially with a server-side, checkpointed run that can pause, resume, and recover after a service restart. Inspect every draft, edit or reject chapters, redirect the plot and accept only the work you approve. The Book Studio lives in **Plan → Book Studio**. This is an author-led workflow, not a blind content generator.
