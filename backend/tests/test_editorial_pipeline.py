@@ -1,10 +1,11 @@
 """Author-approved coordinated editorial revision tests using synthetic prose."""
 import pytest
 from fastapi.testclient import TestClient
-from app import storage, editorial, editorial_fix, editorial_pipeline
+
+from app import editorial, editorial_fix, editorial_pipeline, storage
 from app.editorial_models import EditorialRunRequest
-from app.models import ProviderConfig
 from app.main import app
+from app.models import ProviderConfig
 
 
 @pytest.mark.asyncio

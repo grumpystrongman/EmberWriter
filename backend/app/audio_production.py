@@ -9,8 +9,8 @@ import hashlib
 import json
 import re
 import threading
+from datetime import UTC, datetime
 from functools import wraps
-from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -157,7 +157,7 @@ def spoken_replacements(text: str, rules: list[dict]) -> str:
         entries.append((written, spoken))
     # Longest phrase first; avoid replacing another rule's synthesized output.
     entries.sort(key=lambda item: -len(item[0]))
-    pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(w) for w, _ in entries) + r")(?!\w)", re.I)
+    pattern = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(w) for w, _ in entries) + r")(?!\w)", re.IGNORECASE)
     replacements = {written.casefold(): spoken for written, spoken in entries}
     return pattern.sub(lambda match: replacements[match.group().casefold()], text)
 
@@ -181,7 +181,7 @@ def add_note(slug: str, path: str, seconds: float, note: str) -> dict:
         raise ValueError("Narrate this chapter before adding a timed proof note")
     item = {"id": uuid4().hex, "path": path, "seconds": float(seconds),
             "note": note, "status": "open", "filename": render["filename"],
-            "created_at": datetime.now(timezone.utc).isoformat()}
+            "created_at": datetime.now(UTC).isoformat()}
     data["proof_notes"].append(item)
     _write(slug, data)
     return item

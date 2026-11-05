@@ -5,7 +5,6 @@ from typing import Annotated, Literal
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from .models import ProviderConfig
 
 from .editorial import (
     get_editorial_profile,
@@ -31,6 +30,7 @@ from .editorial_models import (
     EditorialRunResult,
     EditorialRunSummary,
 )
+from .models import ProviderConfig
 from .storage import get_project
 
 router = APIRouter(prefix="/api/projects/{slug}/editorial")

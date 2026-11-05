@@ -30,7 +30,7 @@ class DialogueCastingAndProofTests(unittest.TestCase):
 
     def _fake_sapi(self, args, **kwargs):
         if "-OutputPath" not in args:
-            return None
+            return
         segments_path = Path(args[args.index("-SegmentsPath") + 1])
         self.segments = json.loads(segments_path.read_text(encoding="utf-8"))
         with wave.open(str(Path(args[args.index("-OutputPath") + 1])), "wb") as wav:

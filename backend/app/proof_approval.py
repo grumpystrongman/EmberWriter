@@ -6,11 +6,10 @@ full playback and line-by-line source alignment for the exact audio bytes.
 from __future__ import annotations
 
 import hashlib
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from .audio_production import _file, _write, load, synchronized
+from .audio_production import _write, load, synchronized
 from .audiobook_local import audio_file, list_renders
 from .audiobook_quality import _file_diagnostics
 from .storage import read_text
@@ -69,7 +68,7 @@ def approve(slug: str, path: str, listened_seconds: float,
         "audio_sha256": _digest(recording), "duration_seconds": duration,
         "listened_seconds": round(float(listened_seconds), 2),
         "source_aligned": True, "full_listen": True,
-        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "approved_at": datetime.now(UTC).isoformat(),
     }
     settings.setdefault("proof_approvals", {})[path] = approval
     _write(slug, settings)

@@ -3,9 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
-from app import storage, memory
+from app import memory, storage
 from app.continuity_audit import audit, find_conflicts
 from app.main import app
 

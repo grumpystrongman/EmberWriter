@@ -7,7 +7,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .audiobook_local import (
-    archive, audio_file, available_chapters, available_voices, list_renders, render,
+    archive,
+    audio_file,
+    available_chapters,
+    available_voices,
+    list_renders,
+    render,
 )
 
 router = APIRouter(prefix="/api/projects/{slug}/audiobook", tags=["Audiobook"])

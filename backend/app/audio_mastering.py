@@ -25,7 +25,7 @@ TARGET_TP = -2.0
 TARGET_LRA = 11.0
 MAX_TRACKS = 120
 ANALYZER_VERSION = 3  # Independent residual noise estimate added; invalidate older cache
-LOUDNORM_JSON = re.compile(r"\{\s*\"input_i\"\s*:\s*\"[^\"]+\".*?\"target_offset\"\s*:\s*\"[^\"]+\"\s*\}", re.S)
+LOUDNORM_JSON = re.compile(r"\{\s*\"input_i\"\s*:\s*\"[^\"]+\".*?\"target_offset\"\s*:\s*\"[^\"]+\"\s*\}", re.DOTALL)
 
 
 def executable() -> str | None:

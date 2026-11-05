@@ -11,7 +11,7 @@ import hashlib
 import json
 import threading
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -101,7 +101,7 @@ def plan(slug: str, run_id: str, limit: int = 40) -> dict:
         raise ValueError("No current nonoverlapping editorial findings were found")
     record = {
         "version": 1, "id": uuid4().hex, "run_id": run_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "status": "planned", "items": selected, "skipped": skipped,
         "message": "Review the staged changes before approving manuscript edits.",
     }

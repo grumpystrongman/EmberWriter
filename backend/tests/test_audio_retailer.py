@@ -8,7 +8,7 @@ import unittest
 import wave
 from pathlib import Path
 
-from app.audio_retailer import _constant_bitrate, check_track, ACX_PROFILE
+from app.audio_retailer import ACX_PROFILE, _constant_bitrate, check_track
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg required")

@@ -12,9 +12,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .audio_mastering import analyze_file, _hash
-from .audiobook_local import audio_file
+from .audio_mastering import _hash, analyze_file
 from .audiobook_jobs import _read as read_job
+from .audiobook_local import audio_file
 from .audiobook_quality import inspect
 
 ACX_PROFILE = {

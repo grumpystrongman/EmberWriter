@@ -65,6 +65,7 @@ def narration_quality(slug: str) -> dict:
 @router.post("/mastering")
 async def mastering_report(slug: str) -> dict:
     import asyncio
+
     from .audio_mastering import report
     from .local_resources import reservation
     try:
@@ -77,6 +78,7 @@ async def mastering_report(slug: str) -> dict:
 @router.get("/export.m4b")
 def book_m4b(slug: str) -> FileResponse:
     import subprocess
+
     from .audiobook_m4b import export_m4b
     try:
         path = export_m4b(slug)
@@ -92,6 +94,7 @@ def book_m4b(slug: str) -> FileResponse:
 async def leveled_book_m4b(slug: str) -> FileResponse:
     import asyncio
     import subprocess
+
     from .audiobook_m4b import export_m4b
     from .local_resources import reservation
     try:
@@ -118,6 +121,7 @@ def book_archive(slug: str) -> FileResponse:
 async def acx_preflight(slug: str) -> dict:
     """Strict preflight of ACX technical limits; never claim approval."""
     import asyncio
+
     from .audio_retailer import report
     from .local_resources import reservation
     try:
