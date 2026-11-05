@@ -345,7 +345,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         </div>
         {job?.exists && <div className="audiobook-job-progress" role="status" aria-live="polite">
           <strong>{job.status}: {job.completed ?? 0} / {job.total ?? 0} chapters</strong>
-          <progress max={Math.max(1, job.total ?? 1)} value={job.completed ?? 0} />
+          <progress aria-label="Whole-book audiobook narration progress" max={Math.max(1, job.total ?? 1)} value={job.completed ?? 0} />
           <p>{job.message} {job.current ? `(Now narrating ${job.current})` : ''}</p>
           {!!job.chapters?.length && <details className="audiobook-chapter-ledger">
             <summary>Chapter narration ledger ({job.chapters.length})</summary>
