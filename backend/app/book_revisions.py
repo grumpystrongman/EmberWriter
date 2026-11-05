@@ -9,13 +9,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from uuid import uuid4
 
-from .book_studio import _local_model, candidate, edit_candidate, load_state
 from .book_reviews import brief
+from .book_studio import _local_model, candidate, edit_candidate, load_state
 from .generation import generate
 from .models import ProviderConfig
 from .quality_clinic import check_text
@@ -26,7 +26,7 @@ MAX_PROPOSALS = 30
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _hash(text: str) -> str:
@@ -138,7 +138,7 @@ async def propose(slug: str, number: int, config: ProviderConfig, author_directi
         {"role": "user", "content": "\n\n".join(instructions)},
     ], temperature=0.55, max_output_tokens=14000)
     proposed = answer.strip()
-    proposed = re.sub(r"^\x60{3}(?:markdown|md)?\s*|\s*\x60{3}$", "", proposed, flags=re.I).strip() + "\n"
+    proposed = re.sub(r"^\x60{3}(?:markdown|md)?\s*|\s*\x60{3}$", "", proposed, flags=re.IGNORECASE).strip() + "\n"
     if len(proposed) > MAX_CHARS or len(proposed.split()) < max(25, int(len(source.split()) * .6)):
         raise ValueError("Model returned an incomplete or excessively short revision; nothing was saved")
     if _hash(proposed) == _hash(source):

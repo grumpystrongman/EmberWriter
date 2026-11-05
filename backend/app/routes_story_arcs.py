@@ -1,12 +1,12 @@
 """Opt-in narrative arc inspection; evidence-backed and author-controlled."""
-import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .models import ProviderConfig
-from .story_arc_investigator import act, chapters, inspect, overview, dossier, dossier_markdown
+from .story_arc_investigator import act, chapters, dossier, dossier_markdown, inspect, overview
 
 router = APIRouter(prefix="/api/projects/{slug}/story-arcs", tags=["Story Arc Investigator"])
 
@@ -65,7 +65,7 @@ def narrative_dossier_markdown(slug: str) -> str:
 async def analyze_chapter(slug: str, payload: Inspection) -> dict:
     try:
         return await inspect(slug, payload.path, payload.provider, payload.focus)
-    except (FileNotFoundError, ValueError, OSError, httpx.HTTPError, RuntimeError, asyncio.TimeoutError) as exc:
+    except (TimeoutError, FileNotFoundError, ValueError, OSError, httpx.HTTPError, RuntimeError) as exc:
         _bad(exc)
 
 

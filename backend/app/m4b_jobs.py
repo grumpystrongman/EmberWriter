@@ -10,7 +10,7 @@ import asyncio
 import hashlib
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,7 +22,7 @@ STAGES = ("queued", "measuring", "encoding", "verifying", "completed", "interrup
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _path(slug: str) -> Path:
@@ -74,7 +74,8 @@ def _identity(slug: str) -> str:
     A completed M4B may not be downloaded as current if a source track has
     been replaced with different audio while keeping its valid WAV header.
     """
-    from .audiobook_jobs import _read as read_audio, _fingerprint, _hash_audio_file
+    from .audiobook_jobs import _fingerprint, _hash_audio_file
+    from .audiobook_jobs import _read as read_audio
     from .audiobook_local import audio_file
     job = read_audio(slug)
     if not job or job.get("status") != "completed":

@@ -10,7 +10,7 @@ import asyncio
 import hashlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -23,7 +23,7 @@ MAX_BOOK_CHAPTERS = 120
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _path(slug: str) -> Path:
@@ -278,13 +278,15 @@ def _hash_audio_file(path: Path) -> str:
 def batch_archive(slug: str) -> Path:
     """Package exactly this completed Binder-ordered batch, not older tracks."""
     import zipfile
+
     from .audiobook_local import audio_file
 
     job = _read(slug)
     if not job or job["status"] != "completed":
         raise ValueError("Finish the whole-book narration before exporting its batch package")
     entries = job["chapters"]
-    from .audio_production import snapshot, load as production_settings
+    from .audio_production import load as production_settings
+    from .audio_production import snapshot
     if job.get("settings_signature") and snapshot(slug)["signature"] != job["settings_signature"]:
         raise ValueError("Narration dictionary or chapter narrator settings changed since this batch. Re-render before export.")
     notes = production_settings(slug)["proof_notes"]

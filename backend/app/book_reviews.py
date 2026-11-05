@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .book_studio import _local_model, candidate
@@ -25,7 +25,7 @@ CATEGORIES = {"structure", "pacing", "character", "voice", "dialogue", "clarity"
 
 
 def _now():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _file(slug: str, number: int) -> Path:
@@ -66,7 +66,7 @@ def _parse(raw: str) -> dict:
     text = raw.strip()
     fence = chr(96) * 3
     if text.startswith(fence):
-        text = re.sub(r"^" + fence + r"(?:json)?\s*|\s*" + fence + r"$", "", text, flags=re.I)
+        text = re.sub(r"^" + fence + r"(?:json)?\s*|\s*" + fence + r"$", "", text, flags=re.IGNORECASE)
     try:
         obj = json.loads(text)
     except json.JSONDecodeError as exc:

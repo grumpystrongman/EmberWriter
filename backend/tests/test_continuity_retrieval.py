@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import storage
-from app.book_studio import _context, configure, load_state, MAX_CONTEXT
-from app.continuity_retrieval import related_passages, context_section
+from app.book_studio import MAX_CONTEXT, _context, configure, load_state
+from app.continuity_retrieval import context_section, related_passages
 
 
 class ContextEvidenceTests(unittest.TestCase):

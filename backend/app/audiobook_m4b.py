@@ -116,7 +116,7 @@ def export_m4b(slug: str, *, level: bool = False,
             checkpoint("measuring")
             # Measure the CONCATENATED book rather than each chapter separately;
             # this retains natural relative dynamics between scenes.
-            from .audio_mastering import TARGET_I, TARGET_TP, TARGET_LRA, _numbers
+            from .audio_mastering import TARGET_I, TARGET_LRA, TARGET_TP, _numbers
             first = _run_checked(
                 [ffmpeg, "-nostdin", "-hide_banner", "-v", "info",
                  "-f", "concat", "-safe", "0", "-i", str(playlist),

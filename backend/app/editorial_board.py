@@ -11,16 +11,18 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from .book_studio import edit_candidate
 from .book_reviews import history as reader_history
-from .story_arc_investigator import overview as arc_overview
+from .book_studio import edit_candidate
 from .manuscript_intelligence import _chapters
-from .prose_editor import analyze as prose_analyze, analyze_text as prose_analyze_text, _get as get_chapter
+from .prose_editor import _get as get_chapter
+from .prose_editor import analyze as prose_analyze
+from .prose_editor import analyze_text as prose_analyze_text
 from .storage import get_project, project_root, save_text
+from .story_arc_investigator import overview as arc_overview
 from .style_bible import audit as style_audit
 
 MAX_CHAPTERS = 120
@@ -32,7 +34,7 @@ def _hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 def _directory(slug: str) -> Path:
     get_project(slug)

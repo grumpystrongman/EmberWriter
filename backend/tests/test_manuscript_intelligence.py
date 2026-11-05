@@ -5,9 +5,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+
 from app import storage
-from app.manuscript_intelligence import analyze, create_promise, update_promise
 from app.main import app
+from app.manuscript_intelligence import analyze, create_promise, update_promise
 
 
 class ManuscriptIntelligenceTests(unittest.TestCase):
@@ -56,10 +57,11 @@ class ManuscriptIntelligenceTests(unittest.TestCase):
         report = analyze(self.slug)
         echoes = {item["phrase"] for item in report["cross_chapter_echoes"]}
         self.assertIn("the hidden lantern was", echoes)
-        from app.book_studio import configure, draft_next, approve
-        from app.models import ProviderConfig
-        from unittest.mock import AsyncMock
         import asyncio
+        from unittest.mock import AsyncMock
+
+        from app.book_studio import approve, configure, draft_next
+        from app.models import ProviderConfig
         configure(self.slug, premise="A new journey", voice="Warm third person",
                   target_words=300, chapters=[{"title": "New Light", "brief": "The lantern is restored."}])
         writing = "Mira found the glass compass and promised to return it. " * 35

@@ -9,15 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import zipfile
 import threading
-from datetime import datetime, timezone
+import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .storage import get_project, project_root, read_text
@@ -30,7 +29,7 @@ FILENAME_PATTERN = re.compile(r"^[0-9a-f]{16}\.(?:mp3|wav)$")
 
 
 def _time() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _folder(slug: str) -> Path:
@@ -131,7 +130,7 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1, *,
         raise ValueError("Invalid installed voice name")
     if voice and voice not in available_voices():
         raise ValueError("The selected offline voice is not installed")
-    from .audio_production import snapshot, spoken_replacements, cast_segments
+    from .audio_production import cast_segments, snapshot, spoken_replacements
     settings = snapshot(slug)
     if rules is None:
         rules = settings["pronunciations"]

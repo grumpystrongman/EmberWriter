@@ -1,5 +1,6 @@
 """Reviewable, author-controlled chapter revisions, using local generation only."""
 import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -41,7 +42,7 @@ def history(slug: str, number: int) -> dict:
 async def draft_revision(slug: str, number: int, payload: RevisionRequest) -> dict:
     try:
         return await propose(slug, number, payload.provider, payload.author_direction)
-    except (FileNotFoundError, ValueError, OSError, httpx.HTTPError, RuntimeError, asyncio.TimeoutError) as exc:
+    except (TimeoutError, FileNotFoundError, ValueError, OSError, httpx.HTTPError, RuntimeError) as exc:
         _error(exc)
 
 

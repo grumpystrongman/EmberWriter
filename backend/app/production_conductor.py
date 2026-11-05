@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,7 +25,7 @@ POLL_SECONDS = 1.5
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _path(slug: str) -> Path:
@@ -341,9 +341,7 @@ def resume(slug: str) -> dict:
         raise ValueError("The active production task is still finishing")
     _model(state)
     draft = book_jobs.status(slug)
-    if draft.get("status") == "paused" and book_jobs._next_pending(slug):
-        book_jobs.resume(slug)
-    elif draft.get("status") == "needs_attention" and book_jobs._next_pending(slug):
+    if draft.get("status") == "paused" and book_jobs._next_pending(slug) or draft.get("status") == "needs_attention" and book_jobs._next_pending(slug):
         book_jobs.resume(slug)
     elif draft.get("status") in ("queued", "running") and not book_jobs._running(slug):
         raise ValueError("The book queue is not active yet; restore its service before continuing")

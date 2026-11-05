@@ -12,14 +12,15 @@ import unittest
 import wave
 from pathlib import Path
 from unittest.mock import patch
-from fastapi.testclient import TestClient
-from app.main import app
 
-from app import storage, audiobook_jobs, audiobook_local
+from fastapi.testclient import TestClient
+
+from app import audiobook_jobs, audiobook_local, storage
 from app.audio_mastering import _numbers, analyze_file, report
-from app.proof_approval import approve
 from app.audiobook_m4b import export_m4b
 from app.binder import sync_binder
+from app.main import app
+from app.proof_approval import approve
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"),
@@ -45,7 +46,7 @@ class AudioMasteringTests(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     def fake_sapi(command, **kwargs):
         if "-OutputPath" not in command:
-            return None
+            return
         path = Path(command[command.index("-OutputPath") + 1])
         # Audible artificial tone at a well-defined amplitude, roughly -17 dBFS.
         with wave.open(str(path), "wb") as out:

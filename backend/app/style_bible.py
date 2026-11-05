@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -28,7 +28,7 @@ def _hash(value: str) -> str:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _path(slug: str) -> Path:
@@ -112,7 +112,7 @@ def _scan(slug: str, state: dict) -> dict:
         for rule in state["rules"]:
             phrase = rule["phrase"]
             pattern = re.compile(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)",
-                                 0 if rule.get("case_sensitive") else re.I)
+                                 0 if rule.get("case_sensitive") else re.IGNORECASE)
             for match in pattern.finditer(text):
                 if len(found) >= MAX_FINDINGS:
                     truncated = True

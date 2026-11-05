@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from app import storage
-from app.book_studio import candidate, configure, edit_candidate, draft_next
 from app.book_reviews import brief, decide, evaluate, history
+from app.book_studio import candidate, configure, draft_next, edit_candidate
 from app.main import app
 from app.models import ProviderConfig
 

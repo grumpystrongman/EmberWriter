@@ -12,8 +12,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app import storage
-from app import audiobook_jobs
+from app import audiobook_jobs, storage
 from app.binder import sync_binder
 from app.main import app
 
@@ -56,7 +55,6 @@ class AudiobookJobTests(unittest.IsolatedAsyncioTestCase):
                 output.setsampwidth(2)
                 output.setframerate(16000)
                 output.writeframes(b"\x00\x00" * 16000)
-        return None
 
     async def test_entire_book_follows_binder_and_packages_only_batch_tracks(self):
         from app.publishing import compiled_documents

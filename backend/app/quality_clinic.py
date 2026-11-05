@@ -23,11 +23,11 @@ WEAK_PHRASES = (
     "due to the fact that", "in order to", "at this point in time",
     "each and every", "the fact that", "made a decision to",
 )
-SUSPECT_PASSIVE = re.compile(r"\b(?:was|were|is|are|been|be|being)\s+(?:\w+ly\s+)?[a-z]+(?:ed|en)\b", re.I)
-DOUBLE_WORD = re.compile(r"\b([A-Za-z]{2,})\s+\1\b", re.I)
+SUSPECT_PASSIVE = re.compile(r"\b(?:was|were|is|are|been|be|being)\s+(?:\w+ly\s+)?[a-z]+(?:ed|en)\b", re.IGNORECASE)
+DOUBLE_WORD = re.compile(r"\b([A-Za-z]{2,})\s+\1\b", re.IGNORECASE)
 SPACING = re.compile(r"(?<!\.)\s{2,}(?=\S)")
 MULTI_PUNCT = re.compile(r"(?<!\.)[!?]{3,}")
-WORDY = re.compile(r"\b(?:really|very|quite|rather|somewhat|just|actually|basically|literally)\b", re.I)
+WORDY = re.compile(r"\b(?:really|very|quite|rather|somewhat|just|actually|basically|literally)\b", re.IGNORECASE)
 DIALOGUE = re.compile(r"[\"“][^\"”]{3,}[\"”]")
 STARTS = ("however", "additionally", "moreover", "furthermore", "consequently", "nevertheless")
 MAX_FINDINGS = 120

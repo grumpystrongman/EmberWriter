@@ -8,26 +8,26 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .book_studio import load_state
 from .canon_ripple import list_ripples
 from .distribution import load_release_profile
+from .editorial_board import freshness as editorial_freshness
 from .manuscript_intelligence import _chapters, list_promises
+from .prose_editor import analyze as prose_scan
 from .publishing import compiled_documents
 from .quality_clinic import check_text
-from .style_bible import audit as style_audit
-from .prose_editor import analyze as prose_scan
-from .editorial_board import freshness as editorial_freshness
 from .storage import get_project, project_root
+from .style_bible import audit as style_audit
 
 MAX_WAIVERS = 300
 MAX_MANUSCRIPT_BYTES = 12_000_000
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _hash(value: str) -> str:
@@ -126,7 +126,7 @@ def preflight(slug: str) -> dict:
                 path=ch["path"], version=fingerprint)
         lines = content.splitlines()
         for index, line in enumerate(lines, 1):
-            if re.search(r"\b(?:TODO|TBD|FIXME|PLACEHOLDER)\b", line, flags=re.I):
+            if re.search(r"\b(?:TODO|TBD|FIXME|PLACEHOLDER)\b", line, flags=re.IGNORECASE):
                 add("warning", "editorial_marker", "Unresolved editorial marker",
                     f"Found a possible drafting placeholder on line {index}.",
                     path=ch["path"], evidence=line.strip()[:190], version=fingerprint)

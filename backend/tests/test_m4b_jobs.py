@@ -10,7 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from app import storage, m4b_jobs
+
+from app import m4b_jobs, storage
 from app.local_resources import reservation
 from app.main import app
 
@@ -128,8 +129,8 @@ class M4BJobTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(m4b_jobs.status(self.slug)["status"], "interrupted")
 
     async def test_cancel_active_subprocess_reaps_child(self):
-        import subprocess
         import sys
+
         from app.audiobook_m4b import _run_checked
         event = threading.Event()
         started = threading.Event()

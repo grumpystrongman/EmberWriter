@@ -8,10 +8,15 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .audiobook_jobs import recover_on_startup as recover_audio_on_startup
+from .audiobook_jobs import stop_on_shutdown as stop_audio_on_shutdown
+from .book_jobs import recover_on_startup, stop_on_shutdown
 from .generation_guard import cancel_generation, guard_generation_request
 from .importer import import_project
 from .knowledge import ensure_seeded
 from .knowledge_scheduler import knowledge_refresh_loop
+from .m4b_jobs import recover_on_startup as recover_m4b_on_startup
+from .m4b_jobs import stop_on_shutdown as stop_m4b_on_shutdown
 from .models import (
     FilePayload,
     ProjectCreate,
@@ -22,53 +27,51 @@ from .models import (
     SearchRequest,
     StudioStatePayload,
 )
+from .production_conductor import recover_on_startup as recover_conductor
+from .production_conductor import stop_on_shutdown as stop_conductor
 from .project_recovery import recover_legacy_projects
 from .project_restore import restore_uploaded_project
 from .revisions import record_revision
+from .routes_atlas import router as atlas_router
+from .routes_audio_production import router as audiobook_production_router
+from .routes_audiobook_jobs import router as audiobook_jobs_router
+from .routes_audiobook_local import router as audiobook_local_router
+from .routes_authoring import router as authoring_router
 from .routes_autopilot import router as autopilot_router
-from .routes_canon_ripple import router as canon_ripple_router
-from .routes_book_studio import router as book_studio_router
+from .routes_binder import router as binder_router
+from .routes_board import router as board_router
 from .routes_book_jobs import router as book_jobs_router
 from .routes_book_reviews import router as book_reviews_router
 from .routes_book_revisions import router as book_revisions_router
-from .routes_manuscript_intelligence import router as manuscript_intelligence_router
-from .routes_story_arcs import router as story_arcs_router
-from .routes_production_preflight import router as production_preflight_router
-from .routes_voiceprint import router as voiceprint_router
-from .routes_style_bible import router as style_bible_router
-from .routes_prose_editor import router as prose_editor_router
-from .routes_editorial_board import router as editorial_board_router
-from .routes_production_conductor import router as production_conductor_router
-from .production_conductor import recover_on_startup as recover_conductor, stop_on_shutdown as stop_conductor
-from .routes_audiobook_jobs import router as audiobook_jobs_router
-from .routes_m4b_jobs import router as m4b_jobs_router
-from .m4b_jobs import recover_on_startup as recover_m4b_on_startup, stop_on_shutdown as stop_m4b_on_shutdown
-from .routes_audio_production import router as audiobook_production_router
-from .audiobook_jobs import recover_on_startup as recover_audio_on_startup, stop_on_shutdown as stop_audio_on_shutdown
-from .book_jobs import recover_on_startup, stop_on_shutdown
-from .routes_audiobook_local import router as audiobook_local_router
-from .routes_quality_clinic import router as quality_clinic_router
-from .routes_atlas import router as atlas_router
-from .routes_authoring import router as authoring_router
-from .routes_binder import router as binder_router
-from .routes_board import router as board_router
+from .routes_book_studio import router as book_studio_router
+from .routes_canon_ripple import router as canon_ripple_router
 from .routes_chemistry import router as chemistry_router
 from .routes_cover import router as cover_router
 from .routes_craft import router as craft_router
 from .routes_development import router as development_router
 from .routes_distribution import router as distribution_router
 from .routes_editorial import router as editorial_router
+from .routes_editorial_board import router as editorial_board_router
 from .routes_generation import router as generation_router
 from .routes_knowledge import router as knowledge_router
+from .routes_m4b_jobs import router as m4b_jobs_router
+from .routes_manuscript_intelligence import router as manuscript_intelligence_router
 from .routes_media import router as media_router
 from .routes_memory import router as memory_router
 from .routes_preview import router as preview_router
+from .routes_production_conductor import router as production_conductor_router
+from .routes_production_preflight import router as production_preflight_router
+from .routes_prose_editor import router as prose_editor_router
 from .routes_provenance import router as provenance_router
+from .routes_quality_clinic import router as quality_clinic_router
 from .routes_reader import router as reader_router
 from .routes_review import router as review_router
 from .routes_sd import router as sd_router
 from .routes_story import router as story_router
+from .routes_story_arcs import router as story_arcs_router
+from .routes_style_bible import router as style_bible_router
 from .routes_submissions import router as submissions_router
+from .routes_voiceprint import router as voiceprint_router
 from .runtime_config import cors_origins
 from .storage import (
     PROJECTS_ROOT,

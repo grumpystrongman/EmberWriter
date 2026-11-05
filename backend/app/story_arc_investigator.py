@@ -11,7 +11,7 @@ import asyncio
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -28,7 +28,7 @@ _LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def _stamp() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _hash(value: str) -> str:
@@ -103,7 +103,7 @@ def overview(slug: str) -> dict:
 def _decode(raw: str) -> dict:
     text = raw.strip()
     if text.startswith("```"):
-        text = re.sub(r"^" + re.escape("```") + r"(?:json)?\s*|\s*" + re.escape("```") + "$", "", text, flags=re.I)
+        text = re.sub(r"^" + re.escape("```") + r"(?:json)?\s*|\s*" + re.escape("```") + "$", "", text, flags=re.IGNORECASE)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:

@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app import storage, audiobook_jobs, audiobook_local, audio_production
+from app import audio_production, audiobook_jobs, audiobook_local, storage
 from app.audiobook_quality import inspect
 from app.binder import sync_binder
 from app.main import app
@@ -38,7 +38,7 @@ class AudioDirectionTests(unittest.IsolatedAsyncioTestCase):
 
     def fake_sapi(self, args, **kwargs):
         if "-OutputPath" not in args:
-            return None
+            return
         self.commands.append(args)
         source = Path(args[args.index("-InputPath") + 1])
         self.assertIn("AS-ter VAYL", source.read_text(encoding="utf-8"))

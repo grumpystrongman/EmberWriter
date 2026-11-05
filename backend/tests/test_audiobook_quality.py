@@ -14,9 +14,9 @@ from fastapi.testclient import TestClient
 
 from app import audiobook_jobs, audiobook_local, storage
 from app.audiobook_quality import _file_diagnostics, inspect
-from app.proof_approval import approve
 from app.binder import sync_binder
 from app.main import app
+from app.proof_approval import approve
 
 
 class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
@@ -41,7 +41,7 @@ class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
 
     def fake_sapi(self, command, **kwargs):
         if "-OutputPath" not in command:
-            return None
+            return
         self.calls.append(command)
         target = Path(command[command.index("-OutputPath") + 1])
         with wave.open(str(target), "wb") as output:
@@ -49,7 +49,7 @@ class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
             output.setsampwidth(2)
             output.setframerate(16000)
             output.writeframes(b"\x05\x00" * 16000)
-        return None
+        return
 
     async def wait_done(self):
         for _ in range(300):
@@ -126,9 +126,10 @@ class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"),
                          "This integration requires locally installed FFmpeg and FFprobe")
     async def test_real_ffmpeg_builds_one_chapter_marker_without_cloud(self):
-        from app.audiobook_m4b import export_m4b
         import json
         import subprocess
+
+        from app.audiobook_m4b import export_m4b
         with patch("app.audiobook_local.subprocess.run", side_effect=self.fake_sapi), patch(
             "app.audiobook_local.shutil.which", return_value=None
         ):

@@ -8,8 +8,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app import storage
-from app.prose_editor import analyze, decide, sources
 from app.main import app
+from app.prose_editor import analyze, decide
 
 
 class ProseEditorTests(unittest.TestCase):

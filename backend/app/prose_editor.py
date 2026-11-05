@@ -9,32 +9,32 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
+from .book_studio import candidate, edit_candidate, load_state
 from .manuscript_intelligence import _chapters
 from .storage import get_project, project_root, read_text, save_text
-from .book_studio import edit_candidate, candidate, load_state
 
 MAX_BYTES = 1_000_000
 MAX_FINDINGS = 220
 WORDS = re.compile(r"\b[A-Za-z]+(?:'[A-Za-z]+)?\b")
-DOUBLE = re.compile(r"\b([A-Za-z]{2,})[ \t]+\1\b", re.I)
-COULD_OF = re.compile(r"\b(could|would|should|must|might)[ \t]+of\b", re.I)
+DOUBLE = re.compile(r"\b([A-Za-z]{2,})[ \t]+\1\b", re.IGNORECASE)
+COULD_OF = re.compile(r"\b(could|would|should|must|might)[ \t]+of\b", re.IGNORECASE)
 # Unambiguous common typos only. In-world names and unusual diction can be dismissed.
 COMMON_TYPOS = {
     "alot": "a lot", "definately": "definitely", "seperate": "separate",
     "recieve": "receive", "occured": "occurred", "untill": "until",
     "writting": "writing", "becuase": "because", "wich": "which",
 }
-TYPO = re.compile(r"\b(?:" + "|".join(COMMON_TYPOS) + r")\b", re.I)
+TYPO = re.compile(r"\b(?:" + "|".join(COMMON_TYPOS) + r")\b", re.IGNORECASE)
 SPACE_BEFORE = re.compile(r"(?<=\w)[ \t]+(?=[,.!?;:])")
 DOUBLE_SPACES = re.compile(r"(?<=\S)[ \t]{2,}(?=\S)")
-WEAK = re.compile(r"\b(?:due to the fact that|in order to|at this point in time|very unique)\b", re.I)
+WEAK = re.compile(r"\b(?:due to the fact that|in order to|at this point in time|very unique)\b", re.IGNORECASE)
 FIRST_PERSON = re.compile(r"\b(?:I|me|my|mine|myself|we|us|our|ours)\b")
-SECOND_PERSON = re.compile(r"\b(?:you|your|yours|yourself|yourselves)\b", re.I)
-PAST = re.compile(r"\b(?:walked|looked|turned|said|asked|thought|went|saw|felt|knew|was|were|had|did|stood|ran)\b", re.I)
-PRESENT = re.compile(r"\b(?:walks|looks|turns|says|asks|thinks|goes|sees|feels|knows|is|are|has|does|stands|runs)\b", re.I)
+SECOND_PERSON = re.compile(r"\b(?:you|your|yours|yourself|yourselves)\b", re.IGNORECASE)
+PAST = re.compile(r"\b(?:walked|looked|turned|said|asked|thought|went|saw|felt|knew|was|were|had|did|stood|ran)\b", re.IGNORECASE)
+PRESENT = re.compile(r"\b(?:walks|looks|turns|says|asks|thinks|goes|sees|feels|knows|is|are|has|does|stands|runs)\b", re.IGNORECASE)
 QUOTES = re.compile(r'["“][^"”\n]*["”]')
 RULES = {
     "double_word": "Possible duplicated word",
@@ -243,7 +243,7 @@ def decide(slug: str, path: str, finding_id: str, source_hash: str,
         decisions.pop(finding_id)
     else:
         decisions[finding_id] = {"decision": "dismissed", "reason": reason.strip(),
-                                 "recorded_at": datetime.now(timezone.utc).isoformat()}
+                                 "recorded_at": datetime.now(UTC).isoformat()}
     if len(decisions) > 1000:
         raise ValueError("Too many editorial dismissal records")
     _write(slug, decisions)

@@ -12,7 +12,9 @@ from app.book_studio import configure
 from app.main import app
 from app.manuscript_intelligence import create_promise, update_promise
 from app.production_preflight import markdown, preflight, restore, waive
-from app.style_bible import add as add_style_rule, audit as style_audit, decide as decide_style
+from app.style_bible import add as add_style_rule
+from app.style_bible import audit as style_audit
+from app.style_bible import decide as decide_style
 
 
 class ProductionPreflightTests(unittest.TestCase):

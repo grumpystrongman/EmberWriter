@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -171,7 +171,7 @@ def current_readiness(slug: str) -> dict[str, Any]:
 def run_audit(slug: str) -> dict[str, Any]:
     report = current_readiness(slug)
     report["id"] = uuid4().hex
-    report["created_at"] = datetime.now(timezone.utc).isoformat()
+    report["created_at"] = datetime.now(UTC).isoformat()
     path = _local_audit_file(slug)
     previous = _safe_json_read(path)
     updated = [report, *previous][:MAX_AUDITS]

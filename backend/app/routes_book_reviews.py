@@ -1,8 +1,10 @@
 """Project-local evidence-backed reader panel review API."""
 import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+
 from .book_reviews import PERSONAS, brief, decide, evaluate, history
 from .models import ProviderConfig
 
@@ -47,7 +49,7 @@ def read(slug: str, number: int) -> dict:
 async def analyze(slug: str, number: int, payload: EvaluateRequest) -> dict:
     try:
         return await evaluate(slug, number, payload.persona, payload.provider, payload.focus)
-    except (FileNotFoundError, ValueError, OSError, httpx.HTTPError, RuntimeError, asyncio.TimeoutError) as exc:
+    except (TimeoutError, FileNotFoundError, ValueError, OSError, httpx.HTTPError, RuntimeError) as exc:
         _failure(exc)
 
 

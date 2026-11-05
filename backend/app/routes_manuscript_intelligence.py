@@ -1,6 +1,7 @@
 """Read-only whole-novel insights and author-managed story promise ledger."""
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+
 from .manuscript_intelligence import analyze, create_promise, list_promises, update_promise
 
 router = APIRouter(prefix="/api/projects/{slug}/manuscript-intelligence", tags=["Manuscript Intelligence"])

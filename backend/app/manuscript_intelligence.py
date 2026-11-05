@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -31,7 +31,7 @@ STOP = {"the", "and", "that", "with", "from", "this", "have", "were", "they",
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _ledger_file(slug: str) -> Path:
@@ -123,7 +123,7 @@ def _chapters(slug: str) -> list[dict]:
 
 
 def _occurrences(text: str, phrase: str) -> list[dict]:
-    pattern = re.compile(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", re.I)
+    pattern = re.compile(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", re.IGNORECASE)
     hits = []
     for match in pattern.finditer(text):
         if len(hits) >= 4:

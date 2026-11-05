@@ -10,8 +10,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app import storage
-from app import book_jobs
+from app import book_jobs, storage
 from app.book_studio import configure, load_state
 from app.main import app
 from app.models import ProviderConfig

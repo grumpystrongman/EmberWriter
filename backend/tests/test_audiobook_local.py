@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import gc
-import io
 import tempfile
 import unittest
 import wave
@@ -13,7 +12,14 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app import storage
-from app.audiobook_local import _spoken_text, archive, audio_file, available_chapters, list_renders, render
+from app.audiobook_local import (
+    _spoken_text,
+    archive,
+    audio_file,
+    available_chapters,
+    list_renders,
+    render,
+)
 from app.main import app
 
 
@@ -48,7 +54,6 @@ class AudiobookLocalTests(unittest.TestCase):
                 writer.setsampwidth(2)
                 writer.setframerate(16000)
                 writer.writeframes(b"\x00\x00" * 1000)
-            return None
 
         with patch("app.audiobook_local.subprocess.run", side_effect=fake_sapi), patch("app.audiobook_local.shutil.which", return_value=None):
             track = render(self.slug, "manuscript/chapter-001.md")

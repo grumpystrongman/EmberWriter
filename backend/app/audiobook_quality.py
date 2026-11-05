@@ -5,15 +5,15 @@ Legacy renders without source hashes are treated as unverified, not current.
 """
 from __future__ import annotations
 
-import hashlib
 import math
 import shutil
 import subprocess
 import wave
 from pathlib import Path
 
-from .audiobook_local import _folder, list_renders, audio_file
-from .audiobook_jobs import _read as read_job, _fingerprint
+from .audiobook_jobs import _fingerprint
+from .audiobook_jobs import _read as read_job
+from .audiobook_local import audio_file, list_renders
 from .storage import get_project
 
 MIN_DURATION = 0.1
@@ -78,7 +78,8 @@ def inspect(slug: str) -> dict:
     job = read_job(slug)
     renders = {track["source_path"]: track for track in list_renders(slug)}
     selected = job["chapters"] if job else []
-    from .audio_production import load as load_settings, snapshot
+    from .audio_production import load as load_settings
+    from .audio_production import snapshot
     settings = load_settings(slug)
     from .proof_approval import proof_status
     config_changed = bool(job and job.get("settings_signature") and

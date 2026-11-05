@@ -10,7 +10,7 @@ import asyncio
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -27,7 +27,7 @@ _LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _state_file(slug: str) -> Path:
@@ -154,7 +154,7 @@ async def suggest_outline(slug: str, *, premise: str, voice: str, chapter_count:
         ], json_mode=True, temperature=0.7, max_output_tokens=min(8192, 500 + 175 * chapter_count))
     stripped = response.strip()
     if stripped.startswith("```"):
-        stripped = re.sub(r"^```(?:json)?\s*|\s*```$", "", stripped, flags=re.I)
+        stripped = re.sub(r"^```(?:json)?\s*|\s*```$", "", stripped, flags=re.IGNORECASE)
     parsed = json.loads(stripped)
     chapters = parsed.get("chapters") if isinstance(parsed, dict) else None
     if not isinstance(chapters, list) or len(chapters) != chapter_count:
@@ -367,7 +367,7 @@ def edit_candidate(slug: str, number: int, content: str) -> dict:
     # Preserve earlier versions for author-driven editing and recovery.
     revisions = project_root(slug) / ".ember" / "book-candidate-revisions" / f"chapter-{number:03d}"
     revisions.mkdir(parents=True, exist_ok=True)
-    backup = revisions / f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}.md"
+    backup = revisions / f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}.md"
     backup.write_text(chapter_info["content"], encoding="utf-8")
     tmp = file.with_suffix(".md.tmp")
     normalized = content.rstrip() + "\n"

@@ -1,5 +1,6 @@
 """Whole-manuscript editorial review and explicitly approved batch corrections."""
 from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field

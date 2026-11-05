@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from app import storage, production_conductor, book_jobs
-from app.book_studio import configure, candidate, approve, load_state
+from app import book_jobs, production_conductor, storage
+from app.book_studio import approve, configure, load_state
 from app.main import app
 from app.models import ProviderConfig
 

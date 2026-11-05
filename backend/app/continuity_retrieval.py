@@ -12,12 +12,7 @@ from collections import Counter
 
 TOKEN = re.compile(r"[A-Za-z][A-Za-z'-]{2,}")
 STOP = frozenset(
-    "the and then those these that this with from into were was are have has had "
-    "they them their his her she him him who when where what which why how while "
-    "before after every just very some other more than much each once also along "
-    "about across again under over through without between against there here "
-    "chapter scene story moments discover discovers discovery characters return "
-    "returns happens happen must should would could will did been being".split()
+    ["the", "and", "then", "those", "these", "that", "this", "with", "from", "into", "were", "was", "are", "have", "has", "had", "they", "them", "their", "his", "her", "she", "him", "him", "who", "when", "where", "what", "which", "why", "how", "while", "before", "after", "every", "just", "very", "some", "other", "more", "than", "much", "each", "once", "also", "along", "about", "across", "again", "under", "over", "through", "without", "between", "against", "there", "here", "chapter", "scene", "story", "moments", "discover", "discovers", "discovery", "characters", "return", "returns", "happens", "happen", "must", "should", "would", "could", "will", "did", "been", "being"]
 )
 MAX_SCAN_CHARS = 550_000
 MAX_SNIPPET = 520

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app import storage
 from app.main import app
-from app.voiceprint_lab import baseline, options, report, select
+from app.voiceprint_lab import report, select
 
 
 def sample(short=False):

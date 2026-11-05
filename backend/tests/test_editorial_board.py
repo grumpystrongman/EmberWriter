@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 from app import storage
 from app.editorial_board import apply, freshness, history, markdown, preview, report, scan
-from app.style_bible import add as add_rule, decide as dismiss_style
-from app.prose_editor import decide as dismiss_prose
 from app.main import app
+from app.prose_editor import decide as dismiss_prose
+from app.style_bible import add as add_rule
 
 
 class EditorialBoardTests(unittest.TestCase):
@@ -104,7 +104,8 @@ class EditorialBoardTests(unittest.TestCase):
     def test_unapproved_book_studio_candidate_is_editable_but_not_approved(self):
         import asyncio
         from unittest.mock import AsyncMock
-        from app.book_studio import configure, draft_next, candidate, load_state
+
+        from app.book_studio import candidate, configure, draft_next, load_state
         from app.models import ProviderConfig
         configure(self.slug, premise="A lantern guides a lost ship", voice="Quiet maritime prose",
                   target_words=300,
@@ -133,9 +134,10 @@ class EditorialBoardTests(unittest.TestCase):
         import asyncio
         import json
         from unittest.mock import AsyncMock
-        from app.book_studio import configure, draft_next, candidate, edit_candidate
-        from app.models import ProviderConfig
+
         from app.book_reviews import evaluate
+        from app.book_studio import candidate, configure, draft_next, edit_candidate
+        from app.models import ProviderConfig
         from app.story_arc_investigator import inspect
         configure(self.slug, premise="The strange beacon", voice="Close third",
                   target_words=300, chapters=[{"title": "Night", "brief": "Return to the lighthouse."}])

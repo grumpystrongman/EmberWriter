@@ -12,8 +12,9 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from app import storage
-from app.book_reviews import decide as decide_finding, evaluate
-from app.book_revisions import decide, get_proposal, list_proposals, propose
+from app.book_reviews import decide as decide_finding
+from app.book_reviews import evaluate
+from app.book_revisions import decide, list_proposals, propose
 from app.book_studio import candidate, configure, draft_next, edit_candidate
 from app.main import app
 from app.models import ProviderConfig

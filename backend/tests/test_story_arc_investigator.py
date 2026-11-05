@@ -11,9 +11,9 @@ from fastapi.testclient import TestClient
 
 from app import storage
 from app.main import app
-from app.models import ProviderConfig
-from app.story_arc_investigator import act, chapters, inspect, overview, dossier, dossier_markdown
 from app.manuscript_intelligence import list_promises
+from app.models import ProviderConfig
+from app.story_arc_investigator import act, chapters, dossier, dossier_markdown, inspect, overview
 
 
 class StoryArcInvestigatorTests(unittest.TestCase):

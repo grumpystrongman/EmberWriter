@@ -1,9 +1,20 @@
 """Local-only whole-book drafting endpoints with explicit review."""
-import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from .book_studio import approve, candidate, configure, decline, draft_next, load_state, revise_chapter_brief, edit_candidate, suggest_outline
+
+from .book_studio import (
+    approve,
+    candidate,
+    configure,
+    decline,
+    draft_next,
+    edit_candidate,
+    load_state,
+    revise_chapter_brief,
+    suggest_outline,
+)
 from .models import ProviderConfig
 
 router = APIRouter(prefix="/api/projects/{slug}/book-studio", tags=["Book Studio"])
@@ -62,7 +73,7 @@ async def propose_outline(slug: str, payload: OutlineRequest) -> dict:
         raise HTTPException(404, "Project not found") from exc
     except (OSError, ValueError, TypeError) as exc:
         raise HTTPException(400, str(exc)) from exc
-    except (httpx.HTTPError, RuntimeError, asyncio.TimeoutError) as exc:
+    except (TimeoutError, httpx.HTTPError, RuntimeError) as exc:
         raise HTTPException(502, str(exc)[:500]) from exc
 
 
@@ -84,7 +95,7 @@ async def draft(slug: str, payload: DraftRequest) -> dict:
         raise HTTPException(404, str(exc)) from exc
     except (OSError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
-    except (httpx.HTTPError, RuntimeError, asyncio.TimeoutError) as exc:
+    except (TimeoutError, httpx.HTTPError, RuntimeError) as exc:
         raise HTTPException(502, str(exc)[:500]) from exc
 
 

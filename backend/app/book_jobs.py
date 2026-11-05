@@ -10,20 +10,20 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from .book_studio import _local_model, draft_next, load_state
 from .models import ProviderConfig
-from .storage import list_projects, project_root, get_project
+from .storage import get_project, list_projects, project_root
 
 _TASKS: dict[str, asyncio.Task] = {}
 MAX_CHAPTERS_PER_RUN = 80
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _path(slug: str) -> Path:

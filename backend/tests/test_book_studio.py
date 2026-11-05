@@ -12,7 +12,15 @@ from fastapi.testclient import TestClient
 
 from app import storage
 from app.book_studio import (
-    approve, candidate, configure, decline, draft_next, load_state, revise_chapter_brief, edit_candidate, suggest_outline,
+    approve,
+    candidate,
+    configure,
+    decline,
+    draft_next,
+    edit_candidate,
+    load_state,
+    revise_chapter_brief,
+    suggest_outline,
 )
 from app.main import app
 from app.models import ProviderConfig
@@ -50,7 +58,7 @@ class BookStudioTests(unittest.TestCase):
             configure(self.slug, premise="Test", voice="", chapters=[], target_words=300)
 
     def test_bounded_continuity_context_uses_original_chapter_evidence(self):
-        from app.book_studio import _context, MAX_CONTEXT
+        from app.book_studio import MAX_CONTEXT, _context
         from app.manuscript_intelligence import create_promise
         chapters = [{"title": f"Chapter {i}", "brief": f"Beat {i}"} for i in range(1, 13)]
         configure(self.slug, premise="A distant city is found.", voice="Close third.",

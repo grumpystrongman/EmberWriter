@@ -64,8 +64,8 @@ def download(slug: str) -> FileResponse:
         file = _folder(slug) / filename
         if not file.is_file():
             raise FileNotFoundError("Encoded M4B is missing")
-        from .m4b_jobs import _identity
         from .audiobook_jobs import _hash_audio_file
+        from .m4b_jobs import _identity
         if not record.get("input_identity") or _identity(slug) != record["input_identity"]:
             raise ValueError("Audiobook inputs changed after encoding; re-encode the current audio")
         if not record.get("artifact_sha256") or _hash_audio_file(file) != record["artifact_sha256"]:
