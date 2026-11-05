@@ -337,3 +337,104 @@ def neural_book_audio(slug: str, filename: str) -> FileResponse:
         return FileResponse(chapter_audio(slug, filename), media_type="audio/wav")
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)
+
+class NeuralProofDecision(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    listened_seconds: float = Field(ge=0)
+    full_listen: bool
+    source_aligned: bool
+
+
+class NeuralChapterAction(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+
+
+class NeuralRetakeAction(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    segment: int = Field(ge=0)
+
+
+@router.get("/kokoro/book/proof")
+def neural_proof_status(slug: str) -> dict:
+    from .kokoro_finishing import proof_status
+    try:
+        return proof_status(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/kokoro/book/proof")
+def neural_proof_approve(slug: str, payload: NeuralProofDecision) -> dict:
+    from .kokoro_finishing import approve
+    try:
+        return approve(slug, payload.path, payload.listened_seconds,
+                       payload.full_listen, payload.source_aligned)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.delete("/kokoro/book/proof")
+def neural_proof_revoke(slug: str, payload: NeuralChapterAction) -> dict:
+    from .kokoro_finishing import revoke
+    try:
+        return revoke(slug, payload.path)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/kokoro/book/segments")
+def neural_book_segments(slug: str, path: str) -> dict:
+    from .kokoro_finishing import segment_list
+    try:
+        return segment_list(slug, path)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.post("/kokoro/book/retake")
+async def neural_book_retake(slug: str, payload: NeuralRetakeAction) -> dict:
+    from .kokoro_finishing import retake
+    try:
+        return await retake(slug, payload.path, payload.segment)
+    except ImportError as exc:
+        raise HTTPException(503, "Install optional Kokoro ONNX engine to retake audio") from exc
+    except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.post("/kokoro/book/export")
+def neural_book_export(slug: str) -> dict:
+    from .kokoro_finishing import export
+    try:
+        return export(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/kokoro/book/export/{filename}")
+def neural_book_archive(slug: str, filename: str) -> FileResponse:
+    from .kokoro_finishing import export_file
+    try:
+        return FileResponse(export_file(slug, filename),
+                            media_type="application/zip", filename=filename)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+@router.post("/kokoro/book/export-m4b")
+async def neural_book_export_m4b(slug: str) -> dict:
+    import asyncio
+
+    from .kokoro_finishing import export_m4b
+    try:
+        return await asyncio.to_thread(export_m4b, slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/kokoro/book/export-m4b/{filename}")
+def neural_book_m4b_download(slug: str, filename: str) -> FileResponse:
+    from .kokoro_finishing import m4b_file
+    try:
+        return FileResponse(m4b_file(slug, filename), media_type="audio/mp4", filename=filename)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)

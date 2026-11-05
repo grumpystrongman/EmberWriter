@@ -1,5 +1,6 @@
 param(
     [switch]$SkipManagedImageEngine,
+    [switch]$EnableManagedImageEngine,
     [string]$DataDir = ""
 )
 
@@ -227,7 +228,7 @@ Write-Host "Project data:    $env:EMBER_DATA_DIR"
 
 if (-not (Test-Path $Venv)) {
     Write-Host "First-run backend setup is required..." -ForegroundColor Yellow
-    & $Installer -SkipImageEngineInstall:$SkipManagedImageEngine
+    & $Installer -InstallImageEngine:($EnableManagedImageEngine -and -not $SkipManagedImageEngine)
 }
 
 $Python = Join-Path $Venv "Scripts\python.exe"
@@ -248,7 +249,7 @@ if (-not $Npm) {
 Stop-ExistingEmberService -Port 5173 -HealthCheck ${function:Test-EmberUi} -Label "EmberWriter UI"
 Stop-FrontendNodeProcesses
 
-if (-not $SkipManagedImageEngine) {
+if ($EnableManagedImageEngine -and -not $SkipManagedImageEngine) {
     if (-not (Test-Path $ImageEngineConfig)) {
         Write-Host "Managed image engine is not installed yet. Installing Forge..." -ForegroundColor Yellow
         try {

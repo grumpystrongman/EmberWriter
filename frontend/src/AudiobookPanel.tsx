@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import './audiobook-panel.css'
 import NeuralVoicePanel from './NeuralVoicePanel'
 import AuthorProductionDesk from './AuthorProductionDesk'
 import LocalKokoroPanel from './LocalKokoroPanel'
-import NeuralBookQueue from './NeuralBookQueue'
+const NeuralBookQueue = lazy(() => import('./NeuralBookQueue'))
 
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
@@ -483,7 +483,9 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         </div>}
         {(castSuggestions.length > 0 || castUnassigned > 0) && <p role="status">{castSuggestions.length} explicit attributions suggested · {castUnassigned} quotations ambiguous or not attributed.</p>}
       </details>
-      <NeuralBookQueue endpoint={productionEndpoint} disabled={disabled || busy || !!job?.active} />
+      <Suspense fallback={<p>Opening neural audiobook production…</p>}>
+        <NeuralBookQueue endpoint={productionEndpoint} disabled={disabled || busy || !!job?.active} />
+      </Suspense>
       <LocalKokoroPanel endpoint={productionEndpoint} selected={selected}
         selectionStart={castingStart} selectionEnd={castingEnd}
         characters={Object.keys(production?.character_voices || {})}

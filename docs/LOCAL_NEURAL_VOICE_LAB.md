@@ -60,3 +60,17 @@ Manuscript edits, voice/pacing changes, pronunciation changes, or dialogue cast 
 These are *draft audio recordings* without commercial mastering, ASR-based completeness verification, or chapter-level proof-listening approvals. The existing SAPI proof-approval path is deliberately separate until neural output has its own complete review and approval system.
 
 The test script `backend/smoke_kokoro_book.py` runs a **real two-chapter synthetic book** through the FastAPI endpoints, performs local neural inference with a narrator and actor, checks that every segment finishes, then exports assembled chapter WAVs into `%LOCALAPPDATA%\\EmberWriter\\demos`. It does not access user manuscripts or upload anything.
+
+## Neural audiobook finishing checkpoint
+
+The neural batch now supports **source-bound author listening approval** for each chapter, individual voice-segment retakes, and **two complete-book delivery assets**: a manifest-bearing archive of approved 24 kHz chapter WAVs, and one AAC 192 kbps, 44.1 kHz **chapter-marked M4B**. Every chapter WAV is verified against the exact manuscript chapter, frozen voice settings, recorded SHA-256, and author confirmation. Retakes invalidate the affected chapter's approval; downloaded exports are blocked if the edition becomes stale.
+
+The UI's checkboxes represent author attestations, **not automatic listen-tracking or ASR transcription**. The author must genuinely listen from beginning to end and compare the text with the performance before clicking approve. M4B creation uses local FFmpeg and FFprobe and checks encoded audio format and chapter count. The encoded output is **not retailer-certified or professionally mastered**. An author's rights to a model's synthesized voice are subject to the model/voice licenses and the eventual distributor's policy.
+
+After changes to manuscript or cast voice, create a fresh audio batch rather than trying to approve mismatched recordings. Old audio files remain available under the project's private `.ember` folder for recovery and investigation but cannot be downloaded as a current approved edition.
+
+### Installation for writers
+
+**Basic writing and editing require neither Ollama nor Stable Diffusion.** `install.ps1` installs the core writing application by default and does not install AI models or image models without an explicit opt-in. To add the managed writing-model collection, rerun `install.ps1 -InstallAIModels`. To install the optional image generator, rerun `install.ps1 -InstallImageEngine`. `start.ps1` opens the writer without automatically provisioning the image engine; advanced users may opt in to managed image startup with `start.ps1 -EnableManagedImageEngine`.
+
+An optional local Kokoro speech engine and model bundle must be installed separately. FFmpeg is required for the chapter-marked M4B option; lossless WAV chapter export remains separate. Existing manuscripts and candidate revisions are never deletion targets during core installation.

@@ -5,7 +5,9 @@ param(
     [ValidateSet("forge", "automatic1111")]
     [string]$ImageEngine = "forge",
     [switch]$SkipImageEngineInstall,
-    [switch]$SkipImageModelDownload
+    [switch]$SkipImageModelDownload,
+    [switch]$InstallAIModels,
+    [switch]$InstallImageEngine
 )
 
 $ErrorActionPreference = "Stop"
@@ -118,6 +120,7 @@ if (-not (Test-Path $FrontendViteCmd)) {
     throw "Frontend setup completed without node_modules\.bin\vite.cmd. Delete frontend\node_modules and rerun install.ps1."
 }
 
+if ($InstallAIModels) {
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Host "Ollama is not installed. Attempting Windows installation..." -ForegroundColor Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
@@ -224,7 +227,9 @@ if (-not $SkipModelDownload) {
     Write-Host "Studio Auto routes explicit adult scenes to the proven specialist, general fiction to Magnum, character/dialogue work to Pygmalion, and planning/fast work to Qwen."
 }
 
-if (-not $SkipImageEngineInstall) {
+}
+
+if ($InstallImageEngine -and -not $SkipImageEngineInstall) {
     Write-Host ""
     Write-Host "Installing EmberWriter's managed image engine ($ImageEngine)..." -ForegroundColor Cyan
     $ImageInstaller = Join-Path $Root "scripts\install-image-engine.ps1"
