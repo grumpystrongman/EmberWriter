@@ -35,7 +35,7 @@ def _metadata_text(chapters: list[dict], durations: list[float], title: str) -> 
     return "\n".join(lines) + "\n"
 
 
-def export_m4b(slug: str) -> Path:
+def export_m4b(slug: str, *, level: bool = False) -> Path:
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
         raise ValueError("Local FFmpeg and FFprobe must be installed to create M4B")
@@ -54,7 +54,7 @@ def export_m4b(slug: str) -> Path:
     sources = [audio_file(slug, chapter["filename"]) for chapter in chapters]
     folder = _folder(slug)
     folder.mkdir(parents=True, exist_ok=True)
-    target = folder / "current-book-narration.m4b"
+    target = folder / ("current-book-narration-leveled.m4b" if level else "current-book-narration.m4b")
     # Stage the output so a failed encoder never overwrites the prior artifact.
     with tempfile.TemporaryDirectory(prefix="ember-m4b-", dir=folder) as working:
         scratch = Path(working)
@@ -71,11 +71,33 @@ def export_m4b(slug: str) -> Path:
             encoding="utf-8",
         )
         output = scratch / "narration.m4b"
+        normalize_filter = []
+        if level:
+            # Measure the CONCATENATED book rather than each chapter separately;
+            # this retains natural relative dynamics between scenes.
+            from .audio_mastering import TARGET_I, TARGET_TP, TARGET_LRA, _numbers
+            first = subprocess.run(
+                [ffmpeg, "-nostdin", "-hide_banner", "-v", "info",
+                 "-f", "concat", "-safe", "0", "-i", str(playlist),
+                 "-vn", "-af", f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}:print_format=json",
+                 "-f", "null", "-"],
+                capture_output=True, text=True, errors="replace", timeout=1200, check=True,
+            )
+            measurement = _numbers(first.stderr)
+            if any(measurement[key] is None for key in
+                   ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")):
+                raise ValueError("Cannot loudness-normalize silent or unmeasurable audiobook")
+            normalize_filter = ["-af",
+                (f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}:"
+                 f"measured_I={measurement['input_i']}:measured_TP={measurement['input_tp']}:"
+                 f"measured_LRA={measurement['input_lra']}:measured_thresh={measurement['input_thresh']}:"
+                 f"offset={measurement['target_offset']}:linear=true:print_format=summary")]
         subprocess.run(
             [ffmpeg, "-nostdin", "-hide_banner", "-v", "error", "-y",
              "-f", "concat", "-safe", "0", "-i", str(playlist),
              "-f", "ffmetadata", "-i", str(metadata),
              "-map", "0:a:0", "-map_metadata", "1", "-map_chapters", "1",
+             *normalize_filter,
              "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
              "-f", "ipod", "-movflags", "+faststart", str(output)],
             capture_output=True, text=True, timeout=1200, check=True,
@@ -93,6 +115,16 @@ def export_m4b(slug: str) -> Path:
             raise ValueError("FFmpeg output has no AAC audio stream")
         if len(info.get("chapters", [])) != len(chapters):
             raise ValueError("M4B chapter markers do not match the narration batch")
+        if level:
+            from .audio_mastering import analyze_file
+            final = analyze_file(output)
+            # AAC encoding can shift the measured peak and loudness; fail closed
+            # when the encoded result is unsuitable rather than certify it.
+            if (final["integrated_lufs"] is None or
+                abs(final["integrated_lufs"] - TARGET_I) > 2.5 or
+                final["true_peak_dbtp"] is None or
+                final["true_peak_dbtp"] > -1.0):
+                raise ValueError("Leveled M4B did not meet the selected listening target. Review the source audio.")
         # Recheck source freshness after encoding (novels may be edited while audio compiles).
         second_report = inspect(slug)
         if not second_report["ready"] or second_report["total_tracks"] != len(chapters):

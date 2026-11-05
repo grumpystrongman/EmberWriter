@@ -75,3 +75,20 @@
  .audiobook-editor-row label {flex:1 1 100%}
  .audiobook-editor-row button {flex:1 1 120px}
 }
+
+/* Optional, source-bound loudness inspection: never permanently visible. */
+.audiobook-mastering {display:grid;gap:12px;margin:12px 0;padding:15px;border:1px solid rgba(217,168,117,.3);border-radius:9px;background:rgba(17,28,41,.7)}
+.audiobook-mastering > strong {color:#f3cfaa;font-size:13px}
+.audiobook-mastering p {color:#c5b5a8;font-size:12px;line-height:1.6;margin:0}
+.audiobook-mastering details {border:1px solid rgba(206,157,115,.25);padding:9px;border-radius:7px}
+.audiobook-mastering details summary {cursor:pointer;color:#e8c4a9;font-size:12px}
+.audiobook-mastering-tracks {max-height:280px;overflow-y:auto;display:grid;gap:6px;padding-top:8px}
+.audiobook-mastering-tracks p {padding:6px 0;border-bottom:1px solid rgba(207,157,120,.2);overflow-wrap:anywhere}
+.audiobook-mastering .audiobook-m4b-download {max-width:100%;width:fit-content;white-space:normal;text-align:center}
+@media(max-width:600px){.audiobook-mastering{padding:12px}.audiobook-mastering .audiobook-m4b-download{width:100%;justify-content:center}}
+
+/* The introductory explanation must not push audiobook production below the fold. */
+.audiobook-panel .audiobook-intro {padding:8px 12px;border-radius:8px;background:transparent}
+.audiobook-panel .audiobook-intro summary {color:#d8bba5;font-size:12px;cursor:pointer}
+.audiobook-panel .audiobook-intro p {margin:9px 0 3px}
+.audiobook-panel .audiobook-intro summary:focus-visible {outline:2px solid #ffbc80;outline-offset:3px}

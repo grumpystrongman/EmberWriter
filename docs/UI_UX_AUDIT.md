@@ -74,6 +74,20 @@ pronunciation controls do not cause horizontal overflow when expanded at
 1440, 900 and 390 CSS pixels. This test only verifies layout and visible
 controls; it does not certify audio quality or keyboard/screen-reader use.
 
+## Optional loudness panel regression (November 2026)
+
+The author-triggered technical mastering analysis and separate leveled M4B
+export live inside a collapsed subsection of **Publish → Audiobook**. An
+isolated synthetic 3-second WAV track was used to drive the actual backend
+readiness check and loudness API from the browser. The visual smoke harness
+now checks no horizontal overflow after expanding that panel at **1440, 900
+and 390 pixels**, plus verifies a rendered LUFS/true-peak report at 900px.
+The explanatory Audiobook introduction was also condensed to prevent it
+from burying the whole-book narration action on laptop screens.
+
+These checks do not establish professional mastering, retail acceptance,
+screen-reader accessibility or subjective narrator quality.
+
 ## UX release bar going forward
 
 A new feature should not add another top-level workspace or a new permanent

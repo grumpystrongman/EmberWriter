@@ -62,6 +62,18 @@ def narration_quality(slug: str) -> dict:
         _error(exc)
 
 
+@router.post("/mastering")
+async def mastering_report(slug: str) -> dict:
+    import asyncio
+    from .audio_mastering import report
+    from .local_resources import reservation
+    try:
+        async with reservation():
+            return await asyncio.to_thread(report, slug)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        _error(exc)
+
+
 @router.get("/export.m4b")
 def book_m4b(slug: str) -> FileResponse:
     import subprocess
@@ -74,6 +86,23 @@ def book_m4b(slug: str) -> FileResponse:
         _error(exc)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         raise HTTPException(502, "Local FFmpeg could not complete M4B encoding") from exc
+
+
+@router.get("/export-leveled.m4b")
+async def leveled_book_m4b(slug: str) -> FileResponse:
+    import asyncio
+    import subprocess
+    from .audiobook_m4b import export_m4b
+    from .local_resources import reservation
+    try:
+        async with reservation():
+            path = await asyncio.to_thread(export_m4b, slug, level=True)
+        return FileResponse(path, filename="emberwriter-whole-book-leveled.m4b",
+                            media_type="audio/mp4")
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        _error(exc)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise HTTPException(502, "Local FFmpeg loudness leveling failed") from exc
 
 
 @router.get("/export")

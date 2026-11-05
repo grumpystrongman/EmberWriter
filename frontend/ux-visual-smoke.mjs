@@ -129,7 +129,23 @@ async function inspect(width, label) {
   const expanded = await js("({dictionary:!!document.querySelector('.audiobook-editor-row input'),overflow:document.documentElement.scrollWidth-innerWidth})")
   assert(expanded.dictionary && expanded.overflow <= 1, label + ': expanded pronunciation controls overflow')
   await capture(label + '-audio-direction')
-  console.log(JSON.stringify({ viewport: width, plan, editor, publish, files, audiobook, direction, expanded }))
+  await js("([...document.querySelectorAll('.audiobook-panel button')].find(x=>x.innerText.includes('Check audio readiness')))?.click()")
+  await pause(950)
+  const ready = await js("({pass:!!document.querySelector('.audiobook-quality h3')?.innerText.includes('passed'),mastering:[...document.querySelectorAll('.audiobook-direction > summary')].some(x=>x.innerText.includes('loudness'))})")
+  assert(ready.pass && ready.mastering, label + ': verified synthetic chapter must expose optional mastering')
+  await js("([...document.querySelectorAll('.audiobook-direction > summary')].find(x=>x.innerText.includes('loudness')))?.click()")
+  await pause(200)
+  assert((await js("document.documentElement.scrollWidth-innerWidth")) <= 1, label + ': expanded mastering panel overflow')
+  if (width === 900) {
+    await js("([...document.querySelectorAll('.audiobook-panel button')].find(x=>x.innerText.includes('Analyze audiobook loudness')))?.click()")
+    await pause(2500)
+    const metrics = await js("({reported:!!document.querySelector('.audiobook-mastering'),target:document.querySelector('.audiobook-mastering > strong')?.innerText,error:document.querySelector('.audiobook-alert')?.innerText})")
+    assert(metrics.reported && metrics.target.includes('LUFS'), 'Measured mastering results missing: '+JSON.stringify(metrics))
+    console.log('REAL_AUDIO_MASTERING_UI_PASSED', JSON.stringify(metrics))
+    await capture(label + '-loudness-measured')
+  }
+  await capture(label + '-audio-mastering')
+  console.log(JSON.stringify({ viewport: width, plan, editor, publish, files, audiobook, direction, expanded, ready }))
 }
 fs.mkdirSync(screenshotRoot, { recursive: true })
 try {

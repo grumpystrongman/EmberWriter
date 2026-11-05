@@ -4,6 +4,7 @@ import './audiobook-panel.css'
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
 type VoiceResult = { engine: string; voices: string[]; privacy: string; quality: string }
+type AudioMastering = {status:string; tracks: {path:string;title:string;integrated_lufs:number|null;true_peak_dbtp:number|null;loudness_range_lu:number|null}[];warnings:{path:string;detail:string}[];target_lufs:number;true_peak_target_dbtp:number;disclaimer:string}
 type AudioQuality = { status: string; ready: boolean; m4b_available: boolean; total_tracks: number; verified_tracks: number; duration_seconds: number; issues: {path:string; detail:string}[]; tracks: {path:string; seconds: number | null; format?:string; checks:string[]}[]; disclaimer:string }
 type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
 type AudioRule = { written: string; spoken: string }
@@ -26,6 +27,8 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [voice, setVoice] = useState('')
   const [rate, setRate] = useState(-1)
   const [quality, setQuality] = useState<AudioQuality | null>(null)
+  const [mastering, setMastering] = useState<AudioMastering | null>(null)
+  const [masteringBusy, setMasteringBusy] = useState(false)
   const [showTracks, setShowTracks] = useState(false)
   const [showAudioChapters, setShowAudioChapters] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -86,6 +89,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
       const next = await response.json() as AudioJob
       setJob(next)
       setQuality(null)
+      setMastering(null)
       setMessage(next.message || 'Audiobook job updated.')
     } catch (e) { setError(String(e)) }
     finally { setBusy(false) }
@@ -181,6 +185,19 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     finally { setBusy(false) }
   }
 
+  async function measureLoudness() {
+    setMasteringBusy(true); setError('')
+    try {
+      const response = await fetch(jobEndpoint + '/mastering', {method:'POST'})
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || `Loudness analysis failed: ${response.status}`)
+      }
+      setMastering(await response.json() as AudioMastering)
+    } catch (e) { setError(String(e)) }
+    finally { setMasteringBusy(false) }
+  }
+
   async function inspectAudio() {
     setBusy(true); setError('')
     try {
@@ -208,10 +225,10 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   return <section className="authoring-panel audiobook-panel">
     <header className="audiobook-heading"><h2>Audiobook Workshop</h2><small>OFFLINE · LOCAL NARRATION · MP3/WAV</small></header>
     <div className="authoring-panel-body">
-      <div className="audiobook-intro">
-        <strong>Hear your story come alive.</strong>
-        <p>Generate narrated chapter audio using installed Windows voices without sending manuscript text to a cloud service. This is a first-pass audiobook studio; voice acting, sound mastering and multi-actor dialogue are future production enhancements.</p>
-      </div>
+      <details className="audiobook-intro">
+        <summary>About offline narration and current limitations</summary>
+        <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Professional voice acting, retail mastering presets, and automatic multi-actor dialogue remain future enhancements.</p>
+      </details>
       {error && <p role="alert" className="audiobook-alert">{error}</p>}
       {message && <p role="status" className="audiobook-success">{message}</p>}
       <label htmlFor="audio-voice">Installed offline voice</label>
@@ -339,6 +356,26 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         {quality.issues.length > 35 && <p>Additional issues not shown. Recheck after addressing the first 35.</p>}
         <p>{quality.disclaimer}</p>
       </section>}
+      {quality?.ready && quality.m4b_available && <details className="audiobook-direction">
+        <summary>Advanced: loudness, true peak and optional M4B leveling</summary>
+        <p>Measure integrated LUFS, true peak and dynamic range locally with FFmpeg. Results are for listening quality, not retailer certification. Analysis may take time for a full-length book.</p>
+        <button type="button" disabled={disabled || busy || masteringBusy} onClick={() => void measureLoudness()}>
+          {masteringBusy ? 'Measuring local audio…' : 'Analyze audiobook loudness'}
+        </button>
+        {mastering && <section className="audiobook-mastering" aria-live="polite">
+          <strong>Listening target: {mastering.target_lufs} LUFS / {mastering.true_peak_target_dbtp} dBTP</strong>
+          <p>{mastering.disclaimer}</p>
+          {!!mastering.warnings.length && <p>{mastering.warnings.length} potential loudness or peak concerns. Inspect chapters below before distributing.</p>}
+          <details><summary>Measured chapters ({mastering.tracks.length})</summary>
+            <div className="audiobook-mastering-tracks">{mastering.tracks.slice(0,120).map(track => <p key={track.path}>
+              <strong>{track.title}</strong> · {track.integrated_lufs ?? 'Unknown'} LUFS · {track.true_peak_dbtp ?? 'Unknown'} dBTP · LRA {track.loudness_range_lu ?? 'Unknown'}</p>)}</div>
+          </details>
+          <a className="audiobook-m4b-download" href={jobEndpoint + '/export-leveled.m4b'} download="emberwriter-whole-book-leveled.m4b">
+            Build optional leveled chapter-marked M4B
+          </a>
+          <p>Leveling creates a separate AAC file. Existing narration and unmodified M4B stay untouched.</p>
+        </section>}
+      </details>}
       {renders.length > 0 && <details className="audiobook-tracks" open={showTracks} onToggle={e => setShowTracks(e.currentTarget.open)}>
         <summary>Narrated chapter playback and downloads ({renders.length})</summary>
         {renders.map(track => <div className="audiobook-track" key={track.source_path}>
