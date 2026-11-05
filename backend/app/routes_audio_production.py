@@ -1,5 +1,7 @@
 """Author-owned offline narration planning and proof-listening API."""
+import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from . import audio_production
@@ -145,5 +147,75 @@ def add_character_cast(slug: str, payload: Cast) -> dict:
 def clear_character_casts(slug: str, path: str) -> dict:
     try:
         return audio_production.clear_casts(slug, path)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+class NeuralVoice(BaseModel):
+    character: str = Field(min_length=1, max_length=100)
+    reference_id: str = Field(min_length=1, max_length=80)
+    direction: str = Field(default="", max_length=500)
+    seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
+
+
+class NeuralTake(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+    port: int = Field(default=8080, ge=1024, le=65535)
+
+
+@router.get("/neural-voices")
+def neural_voices(slug: str) -> dict:
+    from .audio_drama import voice_library
+    try:
+        return voice_library(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/neural-voices")
+def neural_voice(slug: str, payload: NeuralVoice) -> dict:
+    from .audio_drama import save_voice
+    try:
+        return save_voice(slug, payload.character, payload.reference_id,
+                          payload.direction, payload.seed)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/neural-production-plan")
+def neural_production_plan(slug: str) -> dict:
+    from .audio_drama import production_plan
+    try:
+        return production_plan(slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/neural-health")
+def neural_health(port: int = 8080) -> dict:
+    from .audio_drama import local_health
+    try:
+        return local_health(port)
+    except ValueError as exc:
+        fail(exc)
+
+
+@router.post("/neural-takes")
+def neural_take(slug: str, payload: NeuralTake) -> dict:
+    from .audio_drama import render_take
+    try:
+        return render_take(slug, payload.path, payload.start, payload.port)
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, "Local Fish Speech server is unavailable or rejected the proof take") from exc
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/neural-takes/{filename}")
+def neural_take_audio(slug: str, filename: str) -> FileResponse:
+    from .audio_drama import take_file
+    try:
+        return FileResponse(take_file(slug, filename), media_type="audio/wav")
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)

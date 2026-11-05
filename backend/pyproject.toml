@@ -16,7 +16,8 @@ dependencies = [
   "striprtf>=0.0.29,<1",
   "markdown>=3.7,<4",
   "reportlab>=4.2,<5",
-  "Pillow>=13,<14"
+  "Pillow>=13,<14",
+  "msgpack>=1.1,<2"
 ]
 
 [project.optional-dependencies]

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './audiobook-panel.css'
+import NeuralVoicePanel from './NeuralVoicePanel'
 
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
@@ -448,6 +449,10 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           </p>)}
         </div>
       </details>
+      <NeuralVoicePanel productionEndpoint={productionEndpoint} selected={selected}
+        casts={production?.chapter_casts?.[selected] || []}
+        characters={Object.keys(production?.character_voices || {})}
+        disabled={disabled || busy || !!job?.active} />
       <details className="audiobook-direction">
         <summary>Proof listening & correction notes ({production?.proof_notes.filter(n=>n.status==='open').length || 0} open)</summary>
         <p>Play a chapter below, record the approximate time and what the narrator should correct. Open notes prevent the audiobook from passing technical readiness until resolved.</p>
