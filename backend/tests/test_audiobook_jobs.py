@@ -55,7 +55,7 @@ class AudiobookJobTests(unittest.IsolatedAsyncioTestCase):
                 output.setnchannels(1)
                 output.setsampwidth(2)
                 output.setframerate(16000)
-                output.writeframes(b"\x00\x00" * 800)
+                output.writeframes(b"\x00\x00" * 16000)
         return None
 
     async def test_entire_book_follows_binder_and_packages_only_batch_tracks(self):
@@ -71,6 +71,9 @@ class AudiobookJobTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(complete["status"], "completed")
         self.assertEqual(complete["completed"], 2)
         self.assertEqual([ch["path"] for ch in complete["chapters"]], [doc["path"] for doc in selected])
+        from app.proof_approval import approve
+        for path in (self.chapter1, self.chapter2):
+            approve(self.slug, path, 1.0, True, True)
         archive = audiobook_jobs.batch_archive(self.slug)
         import zipfile
         with zipfile.ZipFile(archive) as z:

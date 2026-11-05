@@ -53,3 +53,12 @@ async def analyze(slug: str, payload: AnalyzeRequest) -> dict:
         raise HTTPException(status_code=502, detail=f"Model server error: {exc}") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/projects/{slug}/memory/continuity-audit")
+def continuity_audit(slug: str) -> dict:
+    from .continuity_audit import audit
+    try:
+        return audit(slug)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc

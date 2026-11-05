@@ -4,6 +4,8 @@ from typing import Annotated, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
+from .models import ProviderConfig
 
 from .editorial import (
     get_editorial_profile,
@@ -152,3 +154,63 @@ def editorial_fix_apply(slug: str, payload: EditorialFixApplyRequest) -> Editori
         raise HTTPException(status_code=404, detail="Project, document, or editorial finding not found") from exc
     except (OSError, RuntimeError, TypeError, UnicodeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class EditorialBatchPlan(BaseModel):
+    run_id: str = Field(min_length=1)
+    limit: int = Field(default=40, ge=1, le=80)
+
+
+class EditorialBatchProposalRequest(BaseModel):
+    plan_id: str
+    provider: ProviderConfig
+    instruction: str = Field(default="", max_length=2000)
+
+
+class EditorialBatchApplyRequest(BaseModel):
+    plan_id: str
+    approved_ids: list[str] = Field(min_length=1, max_length=80)
+    confirmed: bool = False
+
+
+@router.get("/batch")
+def editorial_batch_status(slug: str) -> dict:
+    from .editorial_pipeline import status
+    try:
+        _require_project(slug)
+        return status(slug)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Editorial batch not found") from exc
+
+
+@router.post("/batch/plan")
+def editorial_batch_plan(slug: str, payload: EditorialBatchPlan) -> dict:
+    from .editorial_pipeline import plan
+    try:
+        return plan(slug, payload.run_id, payload.limit)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/batch/propose")
+async def editorial_batch_propose(slug: str, payload: EditorialBatchProposalRequest) -> dict:
+    from .editorial_pipeline import propose
+    try:
+        return await propose(slug, payload.plan_id, payload.provider, payload.instruction)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/batch/apply")
+def editorial_batch_apply(slug: str, payload: EditorialBatchApplyRequest) -> dict:
+    from .editorial_pipeline import apply
+    try:
+        return apply(slug, payload.plan_id, payload.approved_ids, payload.confirmed)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

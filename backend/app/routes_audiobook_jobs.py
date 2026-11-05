@@ -112,3 +112,16 @@ def book_archive(slug: str) -> FileResponse:
         return FileResponse(path, filename="emberwriter-whole-book-audiobook.zip", media_type="application/zip")
     except (FileNotFoundError, ValueError, OSError) as exc:
         _error(exc)
+
+
+@router.post("/retailer/acx-preflight")
+async def acx_preflight(slug: str) -> dict:
+    """Strict preflight of ACX technical limits; never claim approval."""
+    import asyncio
+    from .audio_retailer import report
+    from .local_resources import reservation
+    try:
+        async with reservation():
+            return await asyncio.to_thread(report, slug)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        _error(exc)

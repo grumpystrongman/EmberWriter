@@ -10,10 +10,16 @@ type M4BJob = { exists: boolean; status: string; active: boolean; mode?: string;
 type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
 type AudioRule = { written: string; spoken: string }
 type AudioProof = { id: string; path: string; seconds: number; note: string; status: string; filename: string }
+type CastSpan = { start:number; end:number; text:string; voice:string }
+type ProofApproval = { filename:string; source_sha256:string; audio_sha256:string; duration_seconds:number; approved_at:string }
+type AcxReport = {technical_preflight_passed:boolean; submission_eligible:boolean; submission_blocker:string; profile:{name:string;source:string}; tracks:{filename:string;issues:string[];technical_preflight_passed:boolean}[];disclaimer:string;manual_requirements:string[]}
+
 type AudioProduction = {
   pronunciations: AudioRule[]
   chapter_profiles: Record<string, {voice:string; rate:number}>
   proof_notes: AudioProof[]
+  chapter_casts?: Record<string, CastSpan[]>
+  proof_approvals?: Record<string, ProofApproval>
 }
 type Props = { apiBase: string; slug: string; disabled: boolean }
 
@@ -47,8 +53,26 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [noteSeconds, setNoteSeconds] = useState('0')
   const [proofText, setProofText] = useState('')
   const [notesShown, setNotesShown] = useState(12)
+  const [castingText, setCastingText] = useState('')
+  const [castingStart, setCastingStart] = useState(0)
+  const [castingEnd, setCastingEnd] = useState(0)
+  const [castingVoice, setCastingVoice] = useState('')
+  const [listenedSeconds, setListenedSeconds] = useState('')
+  const [confirmedComplete, setConfirmedComplete] = useState(false)
+  const [confirmedAligned, setConfirmedAligned] = useState(false)
+  const [retailer, setRetailer] = useState<AcxReport | null>(null)
+  const [retailerBusy, setRetailerBusy] = useState(false)
   const [seek, setSeek] = useState<{path:string;seconds:number} | null>(null)
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({})
+  const castingRef = useRef<HTMLTextAreaElement | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setCastingText(''); setCastingStart(0); setCastingEnd(0); setConfirmedComplete(false); setConfirmedAligned(false)
+    if (!selected) return
+    void getJson<{text:string}>('/casting-text?path=' + encodeURIComponent(selected))
+      .then(result => {if (!cancelled) setCastingText(result.text)}).catch(() => {})
+    return () => {cancelled = true}
+  }, [selected, endpoint])
   useEffect(() => {
     const override = production?.chapter_profiles[selected]
     setProfileVoice(override?.voice || '')
@@ -174,6 +198,50 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     setShowTracks(true)
   }
 
+  async function saveCharacterCast() {
+    if (!selected || castingEnd <= castingStart || !castingVoice) {
+      setError('Select a dialogue passage in the text and choose an installed character voice.')
+      return
+    }
+    await editProduction('/casting', 'PUT', {
+      path:selected, start:castingStart, end:castingEnd,
+      text:castingText.slice(castingStart, castingEnd), voice:castingVoice,
+    })
+  }
+
+  async function approveCompleteListen() {
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const response = await fetch(productionEndpoint + '/proof-approvals', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          path:selected, listened_seconds:Number(listenedSeconds),
+          source_aligned:confirmedAligned, full_listen:confirmedComplete,
+        }),
+      })
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || 'Proof approval failed')
+      }
+      setProduction(await fetch(productionEndpoint).then(r => r.json()) as AudioProduction)
+      setQuality(null); setMessage('Full-chapter proof approval saved for this exact recording and manuscript.')
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
+  }
+
+  async function runRetailerPreflight() {
+    setRetailerBusy(true); setError(''); setRetailer(null)
+    try {
+      const response = await fetch(jobEndpoint + '/retailer/acx-preflight', {method:'POST'})
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || 'ACX preflight failed')
+      }
+      setRetailer(await response.json() as AcxReport)
+    } catch (e) { setError(String(e)) }
+    finally { setRetailerBusy(false) }
+  }
+
   async function saveProofNote() {
     setBusy(true); setError('')
     try {
@@ -252,7 +320,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     <div className="authoring-panel-body">
       <details className="audiobook-intro">
         <summary>About offline narration and current limitations</summary>
-        <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Professional voice acting, retail mastering presets, and automatic multi-actor dialogue remain future enhancements.</p>
+        <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Select explicit character dialogue spans and assign installed Windows voices. Automated speaker inference and professional acting remain unavailable; ACX is an advisory technical preflight, not retail approval.</p>
       </details>
       {error && <p role="alert" className="audiobook-alert">{error}</p>}
       {message && <p role="status" className="audiobook-success">{message}</p>}
@@ -307,7 +375,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           {production.pronunciations.length > 35 && <p>Showing first 35 terms; update existing terms by entering the same written spelling.</p>}
         </div>}
         <h4>Chapter narrator override</h4>
-        <p>Choose a voice and pace for this entire chapter. Character-by-character dialogue casting is a separate, future capability.</p>
+        <p>Choose a voice and pace for this entire chapter. Choose a narrator for the chapter; below you can explicitly cast dialogue by highlighting the exact passage in spoken-text preview.</p>
         <div className="audiobook-editor-row">
           <label>Chapter<select value={selected} onChange={e => {
             const next = e.target.value; setSelected(next)
@@ -330,6 +398,27 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
             onClick={() => void editProduction('/profiles?path='+encodeURIComponent(selected),'DELETE')}>Remove override</button>}
         </div>
         <p>{Object.keys(production?.chapter_profiles || {}).length} chapter overrides saved. Changing these settings after a batch is complete requires new narration for a current edition.</p>
+        <h4>Character dialogue casting within the chapter</h4>
+        <p>Highlight a dialogue span in the read-only spoken text. Each selection uses its own installed voice; unselected text uses the narrator. The manuscript is never edited.</p>
+        <label htmlFor="casting-preview">Spoken chapter preview (select text to cast)</label>
+        <textarea id="casting-preview" ref={castingRef} readOnly rows={6} value={castingText}
+          onSelect={event => {setCastingStart(event.currentTarget.selectionStart);setCastingEnd(event.currentTarget.selectionEnd)}} />
+        <p>Selected characters: {castingStart}–{castingEnd}. {castingEnd > castingStart ? castingText.slice(castingStart, Math.min(castingEnd, castingStart+120)) : 'Highlight dialogue above.'}</p>
+        <div className="audiobook-editor-row">
+          <label>Character voice<select value={castingVoice} onChange={event => setCastingVoice(event.target.value)}>
+            <option value="">Choose a voice</option>
+            {voices.map(v => <option key={v} value={v}>{v}</option>)}
+          </select></label>
+          <button disabled={disabled || busy || !selected || !castingVoice || castingEnd <= castingStart || !!job?.active}
+            onClick={() => void saveCharacterCast()}>Cast selected dialogue</button>
+          <button disabled={disabled || busy || !(production?.chapter_casts?.[selected]?.length) || !!job?.active}
+            onClick={() => void editProduction('/casting?path='+encodeURIComponent(selected), 'DELETE')}>Clear chapter casting</button>
+        </div>
+        <div className="audiobook-rule-list">
+          {(production?.chapter_casts?.[selected] || []).map((span, index) => <p key={span.start+':'+index}>
+            <strong>{span.voice}</strong> · {span.start}–{span.end} · {span.text.slice(0,120)}
+          </p>)}
+        </div>
       </details>
       <details className="audiobook-direction">
         <summary>Proof listening & correction notes ({production?.proof_notes.filter(n=>n.status==='open').length || 0} open)</summary>
@@ -355,6 +444,22 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           </div>)}
           {(production?.proof_notes.length || 0) > notesShown &&
             <button onClick={() => setNotesShown(value=>value+12)}>Show older proof notes</button>}
+        </div>
+        <h4>Approve the entire recording after proof-listening</h4>
+        <p>Listen to the full chapter and compare the narration against the source manuscript. This approval is an author attestation, not automated transcript alignment. Any change to the source or recording invalidates it.</p>
+        <p>Current take: {renders.find(track => track.source_path === selected)?.filename || 'None'} ·
+          {production?.proof_approvals?.[selected]?.filename === renders.find(track => track.source_path === selected)?.filename
+            ? ' prior approval recorded (recheck readiness for source/audio changes)' : ' not approved'}</p>
+        <div className="audiobook-editor-row">
+          <label>Seconds listened<input type="number" min="0" step=".5" value={listenedSeconds}
+            placeholder={String(quality?.tracks.find(track => track.path === selected)?.seconds ?? '')}
+            onChange={event=>setListenedSeconds(event.target.value)} /></label>
+          <label><input type="checkbox" checked={confirmedComplete} onChange={event=>setConfirmedComplete(event.target.checked)} /> I listened to the entire recording</label>
+          <label><input type="checkbox" checked={confirmedAligned} onChange={event=>setConfirmedAligned(event.target.checked)} /> I compared narration with the chapter source and found it aligned</label>
+          <button disabled={disabled || busy || !selected || !confirmedComplete || !confirmedAligned || !Number(listenedSeconds)}
+            onClick={() => void approveCompleteListen()}>Approve exact chapter recording</button>
+          {!!production?.proof_approvals?.[selected] && <button disabled={disabled || busy}
+            onClick={() => void editProduction('/proof-approvals?path='+encodeURIComponent(selected), 'DELETE')}>Revoke approval</button>}
         </div>
       </details>
       <details className="audiobook-single-chapter">
@@ -395,7 +500,21 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
       </section>}
       {quality?.ready && quality.m4b_available && <details className="audiobook-direction">
         <summary>Advanced: loudness, true peak and optional M4B leveling</summary>
-        <p>Measure integrated LUFS, true peak and dynamic range locally with FFmpeg. Results are for listening quality, not retailer certification. Analysis may take time for a full-length book.</p>
+        <p>Measure integrated LUFS, true peak, residual quiet-window noise and dynamic range locally with FFmpeg. Results are engineering observations, not retailer certification.</p>
+        <button type="button" disabled={disabled || busy || retailerBusy} onClick={() => void runRetailerPreflight()}>
+          {retailerBusy ? 'Checking ACX audio…' : 'Run ACX/Audible technical preflight'}
+        </button>
+        {retailer && <section className="audiobook-mastering" aria-live="polite">
+          <strong>ACX technical preflight: {retailer.technical_preflight_passed ? 'Measured checks passed' : 'Action needed / unverified'}</strong>
+          <p role="alert"><strong>Retailer submission blocked:</strong> {retailer.submission_blocker}</p>
+          <p>{retailer.disclaimer}</p>
+          <details><summary>Retailer track observations ({retailer.tracks.length})</summary>
+            {retailer.tracks.map((track,index)=><p key={index}>{track.filename}: {track.technical_preflight_passed ? 'measured checks passed' : track.issues.join(', ')}</p>)}
+          </details>
+          <details><summary>Human submission checklist</summary>
+            {retailer.manual_requirements.map((requirement,index)=><p key={index}>{requirement}</p>)}
+          </details>
+        </section>}
         <button type="button" disabled={disabled || busy || masteringBusy} onClick={() => void measureLoudness()}>
           {masteringBusy ? 'Measuring local audio…' : 'Analyze audiobook loudness'}
         </button>

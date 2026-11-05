@@ -108,15 +108,18 @@ def list_renders(slug: str) -> list[dict]:
 
 
 def render(slug: str, source: str, voice: str = "", rate: int = -1, *,
-           rules: list[dict] | None = None, settings_signature: str = "") -> dict:
+           rules: list[dict] | None = None, settings_signature: str = "",
+           casts: list[dict] | None = None) -> dict:
     # A concurrent manual render and a whole-book batch must not corrupt the
     # per-project manifest or create conflicting output files.
     with _RENDER_LOCKS.setdefault(slug, threading.RLock()):
-        return _render_unlocked(slug, source, voice, rate, rules=rules, settings_signature=settings_signature)
+        return _render_unlocked(slug, source, voice, rate, rules=rules,
+                                settings_signature=settings_signature, casts=casts)
 
 
 def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1, *,
-                     rules: list[dict] | None = None, settings_signature: str = "") -> dict:
+                     rules: list[dict] | None = None, settings_signature: str = "",
+                     casts: list[dict] | None = None) -> dict:
     if sys.platform != "win32":
         raise NotImplementedError("Offline Windows narration is currently supported on Windows only")
     sources = {item["path"]: item for item in available_chapters(slug)}
@@ -128,14 +131,20 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1, *,
         raise ValueError("Invalid installed voice name")
     if voice and voice not in available_voices():
         raise ValueError("The selected offline voice is not installed")
-    from .audio_production import snapshot, spoken_replacements
+    from .audio_production import snapshot, spoken_replacements, cast_segments
+    settings = snapshot(slug)
     if rules is None:
-        settings = snapshot(slug)
         rules = settings["pronunciations"]
         settings_signature = settings["signature"]
     elif not settings_signature:
         raise ValueError("A narration rule snapshot needs its configuration signature")
     text = _spoken_text(read_text(slug, source))
+    casting = casts if casts is not None else settings.get("chapter_casts", {}).get(source, [])
+    segments = cast_segments(text, casting, voice, rules) if casting else []
+    if casting:
+        installed = set(available_voices())
+        if any(segment["voice"] not in installed for segment in segments if segment["voice"]):
+            raise ValueError("A chapter character voice is no longer installed")
     spoken = spoken_replacements(text, rules)
     if not 5 <= len(text.split()) <= MAX_AUDIO_WORDS:
         raise ValueError("Narration requires 5 to 12,000 words per chapter")
@@ -150,12 +159,17 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1, *,
             input_path = Path(staging) / "chapter.txt"
             staging_wav = Path(staging) / "narration.wav"
             input_path.write_text(spoken, encoding="utf-8")
+            if segments:
+                segments_path = Path(staging) / "segments.json"
+                segments_path.write_text(json.dumps(segments, ensure_ascii=False), encoding="utf-8")
             args = ["powershell.exe", "-NoProfile", "-NonInteractive",
                     "-ExecutionPolicy", "Bypass", "-File", str(SAPI_SCRIPT),
                     "-InputPath", str(input_path), "-OutputPath", str(staging_wav)]
             if voice:
                 args.extend(["-Voice", voice])
             args.extend(["-Rate", str(rate)])
+            if segments:
+                args.extend(["-SegmentsPath", str(segments_path)])
             subprocess.run(args, capture_output=True, text=True, timeout=900, check=True)
             if not staging_wav.is_file() or staging_wav.stat().st_size < 44:
                 raise RuntimeError("Local narration did not produce a valid wave file")

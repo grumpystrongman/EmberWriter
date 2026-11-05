@@ -80,6 +80,7 @@ def inspect(slug: str) -> dict:
     selected = job["chapters"] if job else []
     from .audio_production import load as load_settings, snapshot
     settings = load_settings(slug)
+    from .proof_approval import proof_status
     config_changed = bool(job and job.get("settings_signature") and
                           job["settings_signature"] != snapshot(slug)["signature"])
     issues: list[dict] = []
@@ -118,6 +119,10 @@ def inspect(slug: str) -> dict:
                 track["checks"].append(details.get("reason", "Damaged or empty audio"))
             elif details.get("valid") is None:
                 track["checks"].append(details.get("reason", "Audio integrity unverified"))
+            approval = proof_status(slug, source, chapter["filename"])
+            track["proof_approval"] = approval
+            if not approval["approved"]:
+                track["checks"].append("Full-recording proof-listening not approved: " + approval["reason"])
             if details.get("possibly_silent_intro"):
                 track["checks"].append("Opening two seconds may be silent; listen before distributing")
             if isinstance(details.get("seconds"), (float, int)):
@@ -143,5 +148,5 @@ def inspect(slug: str) -> dict:
         "duration_seconds": round(total_seconds, 2),
         "verified_tracks": sum(not track["checks"] for track in tracks),
         "total_tracks": len(tracks),
-        "disclaimer": "Technical checks only. Listen to every chapter for missing lines, pronunciation, pacing, artifacts and voice quality. Not a mastered M4B or retailer certification.",
+        "disclaimer": "Readiness includes author-attested full playback and source alignment bound to exact manuscript and audio hashes. This is not automatic speech-to-text verification or retailer certification.",
     }

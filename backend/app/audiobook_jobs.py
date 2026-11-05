@@ -117,7 +117,8 @@ def start(slug: str, voice: str = "", rate: int = -1) -> dict:
         "id": uuid4().hex, "status": "queued", "voice": voice, "rate": rate,
         "created_at": _now(), "updated_at": _now(),
         "chapters": chapters, "current": None,
-        "pronunciations": config["pronunciations"], "settings_signature": config["signature"],
+        "pronunciations": config["pronunciations"], "chapter_casts": config.get("chapter_casts", {}),
+        "settings_signature": config["signature"],
         "message": "Queued selected Binder chapters for local offline narration.",
     }
     _write(slug, record)
@@ -160,12 +161,13 @@ async def _worker(slug: str, job_id: str):
                 async with reservation():
                     speed = chapter.get("rate", job.get("rate", -1))
                     selected_voice = chapter.get("voice", job["voice"])
-                    custom = job.get("pronunciations", []) or chapter.get("rate", job.get("rate", -1)) != job.get("rate", -1) or chapter.get("voice", job["voice"]) != job["voice"]
+                    custom = job.get("pronunciations", []) or bool(job.get("chapter_casts", {}).get(source)) or chapter.get("rate", job.get("rate", -1)) != job.get("rate", -1) or chapter.get("voice", job["voice"]) != job["voice"]
                     if custom:
                         rendered = await asyncio.to_thread(
                             render, slug, source, selected_voice, speed,
                             rules=job.get("pronunciations", []),
                             settings_signature=job["settings_signature"],
+                            casts=job.get("chapter_casts", {}).get(source, []),
                         )
                     elif speed == -1:
                         rendered = await asyncio.to_thread(render, slug, source, selected_voice)
@@ -286,12 +288,15 @@ def batch_archive(slug: str) -> Path:
     if job.get("settings_signature") and snapshot(slug)["signature"] != job["settings_signature"]:
         raise ValueError("Narration dictionary or chapter narrator settings changed since this batch. Re-render before export.")
     notes = production_settings(slug)["proof_notes"]
+    from .proof_approval import proof_status
     for chapter in entries:
         if _fingerprint(slug, chapter["path"]) != chapter["fingerprint"]:
             raise ValueError(f"{chapter['path']} changed since narration. Re-render the new manuscript before exporting.")
         if any(note["path"] == chapter["path"] and note["filename"] == chapter["filename"]
                and note["status"] == "open" for note in notes):
             raise ValueError(f"{chapter['path']} has unresolved proof-listening notes; review before exporting.")
+        if not proof_status(slug, chapter["path"], chapter["filename"])["approved"]:
+            raise ValueError(f"{chapter['path']} requires author proof-listening approval before exporting.")
     if not entries or any(ch.get("status") != "rendered" for ch in entries):
         raise ValueError("All selected chapters must be rendered before batch export")
     target = project_root(slug) / ".ember" / "audiobook" / "current-book-narration.zip"

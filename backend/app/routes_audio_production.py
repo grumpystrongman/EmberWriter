@@ -14,6 +14,13 @@ class Profile(BaseModel):
     voice: str = Field(default="", max_length=110)
     rate: int = Field(default=-1, ge=-5, le=5)
 
+class Cast(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    text: str = Field(min_length=1, max_length=20000)
+    voice: str = Field(min_length=1, max_length=110)
+
 class Note(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     seconds: float = Field(ge=0, le=200000)
@@ -21,6 +28,12 @@ class Note(BaseModel):
 
 class Decision(BaseModel):
     resolved: bool
+
+class Approval(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    listened_seconds: float = Field(gt=0, le=200000)
+    source_aligned: bool
+    full_listen: bool
 
 def fail(exc):
     if isinstance(exc, FileNotFoundError):
@@ -73,5 +86,41 @@ def add_note(slug: str, payload: Note) -> dict:
 def resolve_note(slug: str, note_id: str, payload: Decision) -> dict:
     try:
         return audio_production.resolve_note(slug, note_id, payload.resolved)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.post("/proof-approvals")
+def approve_proof(slug: str, payload: Approval) -> dict:
+    from .proof_approval import approve
+    try:
+        return approve(slug, payload.path, payload.listened_seconds,
+                       payload.source_aligned, payload.full_listen)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.delete("/proof-approvals")
+def revoke_proof(slug: str, path: str) -> dict:
+    from .proof_approval import revoke
+    try:
+        return revoke(slug, path)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/casting")
+def add_character_cast(slug: str, payload: Cast) -> dict:
+    try:
+        return audio_production.save_cast(slug, payload.path, payload.start,
+                                          payload.end, payload.text, payload.voice)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.delete("/casting")
+def clear_character_casts(slug: str, path: str) -> dict:
+    try:
+        return audio_production.clear_casts(slug, path)
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)

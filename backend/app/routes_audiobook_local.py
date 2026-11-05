@@ -2,7 +2,7 @@
 import asyncio
 import subprocess
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -82,3 +82,18 @@ def download_archive(slug: str) -> FileResponse:
     except (OSError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return FileResponse(path, filename="emberwriter-audiobook-chapters.zip", media_type="application/zip")
+
+
+@router.get("/casting-text")
+def casting_text(slug: str, path: str = Query(min_length=1, max_length=500)) -> dict:
+    """Read-only spoken-text offsets for exact dialogue selection."""
+    from .audiobook_local import _spoken_text
+    from .storage import read_text
+    try:
+        sources = {item["path"] for item in available_chapters(slug)}
+        if path not in sources:
+            raise FileNotFoundError("Choose a manuscript chapter in this project")
+        text = _spoken_text(read_text(slug, path))
+        return {"path": path, "text": text}
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc

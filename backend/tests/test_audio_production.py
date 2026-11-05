@@ -74,6 +74,10 @@ class AudioDirectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((state := await self.wait_done())["status"], "completed", state["message"])
         self.assertEqual(self.commands[0][self.commands[0].index("-Voice") + 1], "Synthetic Narrator")
         self.assertEqual(self.commands[0][self.commands[0].index("-Rate") + 1], "3")
+        self.assertFalse(inspect(self.slug)["ready"])
+        self.assertIn("proof-listening not approved", str(inspect(self.slug)["issues"]))
+        from app.proof_approval import approve
+        approve(self.slug, self.path, 1.0, True, True)
         self.assertTrue(inspect(self.slug)["ready"])
         self.assertTrue(audiobook_local.archive(self.slug).exists())
         self.assertTrue(audiobook_jobs.batch_archive(self.slug).exists())

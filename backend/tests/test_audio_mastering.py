@@ -17,6 +17,7 @@ from app.main import app
 
 from app import storage, audiobook_jobs, audiobook_local
 from app.audio_mastering import _numbers, analyze_file, report
+from app.proof_approval import approve
 from app.audiobook_m4b import export_m4b
 from app.binder import sync_binder
 
@@ -72,6 +73,7 @@ class AudioMasteringTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_measured_tracks_and_opt_in_leveled_m4b(self):
         await self._narrate()
+        approve(self.slug, self.source, 3.0, True, True)
         original = audiobook_local.audio_file(self.slug, audiobook_local.list_renders(self.slug)[0]["filename"])
         first = analyze_file(original)
         self.assertTrue(first["measured"], first)
@@ -131,6 +133,8 @@ class AudioMasteringTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(measured["longest_quiet_seconds"], 1.5)
         self.assertEqual(measured["quiet_threshold_dbfs"], -50)
         self.assertNotIn("room_noise_floor", measured)
+        self.assertEqual(measured["noise_floor_status"], "insufficient_quiet_samples")
+        self.assertIsNone(measured["noise_floor_estimate_dbfs"])
 
     def test_rejects_non_numeric_ffmpeg_response(self):
         with self.assertRaisesRegex(ValueError, "loudness"):

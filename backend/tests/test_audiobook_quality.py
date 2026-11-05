@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from app import audiobook_jobs, audiobook_local, storage
 from app.audiobook_quality import _file_diagnostics, inspect
+from app.proof_approval import approve
 from app.binder import sync_binder
 from app.main import app
 
@@ -71,6 +72,8 @@ class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
         track = audiobook_local.list_renders(self.slug)[0]
         self.assertEqual(track["rate"], 2)
         self.assertEqual(track["source_hash"], audiobook_jobs._fingerprint(self.slug, self.source))
+        self.assertFalse(inspect(self.slug)["ready"])
+        approve(self.slug, self.source, 1.0, True, True)
         ready = inspect(self.slug)
         self.assertTrue(ready["ready"], ready)
         self.assertEqual(ready["verified_tracks"], 1)
@@ -95,6 +98,7 @@ class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
         ):
             audiobook_jobs.start(self.slug)
             self.assertEqual((await self.wait_done())["status"], "completed")
+        approve(self.slug, self.source, 1.0, True, True)
         self.assertTrue(inspect(self.slug)["ready"])
         entry = audiobook_local.list_renders(self.slug)[0]
         wav = audiobook_local.audio_file(self.slug, entry["filename"])
@@ -130,6 +134,7 @@ class AudioQualityChecks(unittest.IsolatedAsyncioTestCase):
         ):
             audiobook_jobs.start(self.slug)
             self.assertEqual((await self.wait_done())["status"], "completed")
+        approve(self.slug, self.source, 1.0, True, True)
         output = export_m4b(self.slug)
         self.assertTrue(output.is_file())
         self.assertGreater(output.stat().st_size, 1024)

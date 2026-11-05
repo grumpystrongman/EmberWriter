@@ -19,6 +19,7 @@ from .storage import get_project, project_root
 MAX_RULES = 150
 MAX_PROFILES = 120
 MAX_NOTES = 500
+MAX_CASTS = 500
 TERM = re.compile(r"^[\w][\w'’-]*(?:[ -][\w'’-]+){0,5}$", re.UNICODE)
 _MUTATION_LOCKS: dict[str, threading.RLock] = {}
 
@@ -38,7 +39,7 @@ def _file(slug: str) -> Path:
 
 
 def _empty() -> dict:
-    return {"version": 1, "pronunciations": [], "chapter_profiles": {}, "proof_notes": []}
+    return {"version": 1, "pronunciations": [], "chapter_profiles": {}, "proof_notes": [], "proof_approvals": {}, "chapter_casts": {}}
 
 
 def load(slug: str) -> dict:
@@ -130,7 +131,8 @@ def _signature(data: dict) -> str:
     payload = {"pronunciations": sorted(
         ((x["written"].casefold(), x["spoken"]) for x in data["pronunciations"]),
         key=lambda item: item[0]),
-        "chapter_profiles": data["chapter_profiles"]}
+        "chapter_profiles": data["chapter_profiles"],
+        "chapter_casts": data.get("chapter_casts", {})}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
@@ -138,6 +140,7 @@ def snapshot(slug: str) -> dict:
     data = load(slug)
     return {"pronunciations": list(data["pronunciations"]),
             "chapter_profiles": dict(data["chapter_profiles"]),
+            "chapter_casts": dict(data.get("chapter_casts", {})),
             "signature": _signature(data)}
 
 
@@ -193,3 +196,59 @@ def resolve_note(slug: str, note_id: str, resolved: bool) -> dict:
     item["status"] = "resolved" if resolved else "open"
     _write(slug, data)
     return item
+
+
+@synchronized
+def save_cast(slug: str, path: str, start: int, end: int,
+              expected_text: str, voice: str) -> dict:
+    """Cast an explicitly selected spoken-text span; never infer speaker identity."""
+    _source(slug, path)
+    _validate_voice(voice)
+    if not voice:
+        raise ValueError("A character cast must use a selected installed voice")
+    from .audiobook_local import _spoken_text
+    from .storage import read_text
+    spoken = _spoken_text(read_text(slug, path))
+    if isinstance(start, bool) or isinstance(end, bool) or not isinstance(start, int) or not isinstance(end, int):
+        raise ValueError("Casting offsets must be integers")
+    if not (0 <= start < end <= len(spoken)) or spoken[start:end] != expected_text:
+        raise ValueError("Casting selection no longer matches the chapter's spoken text")
+    data = load(slug)
+    chapter_casts = data.setdefault("chapter_casts", {})
+    entries = chapter_casts.setdefault(path, [])
+    if len(entries) >= MAX_CASTS:
+        raise ValueError("Chapter casting limit reached")
+    if any(start < row["end"] and row["start"] < end for row in entries):
+        raise ValueError("Character casting spans must not overlap")
+    entries.append({"start": start, "end": end, "text": expected_text, "voice": voice})
+    entries.sort(key=lambda row: row["start"])
+    return _write(slug, data)
+
+
+@synchronized
+def clear_casts(slug: str, path: str) -> dict:
+    _source(slug, path)
+    data = load(slug)
+    data.setdefault("chapter_casts", {}).pop(path, None)
+    return _write(slug, data)
+
+
+def cast_segments(text: str, spans: list[dict], narrator: str, rules: list[dict]) -> list[dict]:
+    """Deterministic contiguous speaker segments with source-anchored selections."""
+    if len(spans) > MAX_CASTS:
+        raise ValueError("Too many chapter character casts")
+    cursor = 0
+    segments = []
+    for span in sorted(spans, key=lambda x: x["start"]):
+        start, end = span["start"], span["end"]
+        if not isinstance(start, int) or not isinstance(end, int) or not (cursor <= start < end <= len(text)):
+            raise ValueError("Invalid or overlapping chapter cast positions")
+        if text[start:end] != span["text"]:
+            raise ValueError("Character dialogue selection is stale; review your cast positions")
+        if start > cursor:
+            segments.append({"text": spoken_replacements(text[cursor:start], rules), "voice": narrator})
+        segments.append({"text": spoken_replacements(text[start:end], rules), "voice": span["voice"]})
+        cursor = end
+    if cursor < len(text):
+        segments.append({"text": spoken_replacements(text[cursor:], rules), "voice": narrator})
+    return [segment for segment in segments if segment["text"]]

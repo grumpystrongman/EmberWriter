@@ -11,6 +11,8 @@ import math
 import re
 import shutil
 import subprocess
+import sys
+from array import array
 from pathlib import Path
 
 from .audiobook_jobs import _read as read_job
@@ -22,7 +24,7 @@ TARGET_I = -18.0
 TARGET_TP = -2.0
 TARGET_LRA = 11.0
 MAX_TRACKS = 120
-ANALYZER_VERSION = 2  # RMS and quiet-passage statistics added; invalidate older LUFS-only cache
+ANALYZER_VERSION = 3  # Independent residual noise estimate added; invalidate older cache
 LOUDNORM_JSON = re.compile(r"\{\s*\"input_i\"\s*:\s*\"[^\"]+\".*?\"target_offset\"\s*:\s*\"[^\"]+\"\s*\}", re.S)
 
 
@@ -86,6 +88,7 @@ def _technical_pcm_levels(path: Path, *, timeout: int) -> dict:
         return round(value, 2) if math.isfinite(value) else None
     rms = reading(r"RMS level dB:\s*([-+\w.]+)")
     rms_peak = reading(r"RMS peak dB:\s*([-+\w.]+)")
+    sample_peak = reading(r"Peak level dB:\s*([-+\w.]+)")
     starts = [float(item) for item in re.findall(r"silence_start:\s*([\d.]+)", text)]
     ends = [float(item) for item in re.findall(r"silence_end:\s*([\d.]+)", text)]
     # Only complete intervals are counted. Silence remaining at the end
@@ -94,11 +97,87 @@ def _technical_pcm_levels(path: Path, *, timeout: int) -> dict:
     return {
         "rms_dbfs": rms,
         "rms_peak_dbfs": rms_peak,
+        "sample_peak_dbfs": sample_peak,
         "quiet_intervals": len(complete),
         "longest_quiet_seconds": round(max(complete, default=0), 2),
         "quiet_threshold_dbfs": -50,
         "quiet_minimum_seconds": 0.4,
     }
+
+
+
+def _residual_noise(path: Path, *, timeout: int = 1200) -> dict:
+    """Measure the residual signal in quiet windows, independently of speech RMS.
+
+    This estimates an audible low-level residual, not proof of microphone room
+    tone: compression, noise gating, and music can all change the result.
+    Digital silence is intentionally excluded. Nothing is uploaded.
+    """
+    ffmpeg = executable()
+    if not ffmpeg:
+        raise ValueError("Local FFmpeg is required for residual-noise analysis")
+    # 250ms at 8 kHz mono, signed 16-bit PCM. Process a bounded stream rather
+    # than loading a full novel's audio into memory.
+    window_samples = 2000
+    proc = subprocess.Popen(
+        [ffmpeg, "-nostdin", "-hide_banner", "-v", "error", "-i", str(path),
+         "-vn", "-ac", "1", "-ar", "8000", "-f", "s16le", "-"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
+    eligible = []
+    total = 0
+    digital_silent = 0
+    import time
+    deadline = time.monotonic() + timeout
+    try:
+        assert proc.stdout is not None
+        while True:
+            if time.monotonic() > deadline:
+                raise ValueError("Residual-noise analysis timed out")
+            raw = proc.stdout.read(window_samples * 2)
+            if not raw:
+                break
+            if len(raw) < window_samples * 2:
+                break
+            values = array("h")
+            values.frombytes(raw)
+            if sys.byteorder != "little":
+                values.byteswap()
+            total += 1
+            squares = sum(int(x) * int(x) for x in values)
+            if squares == 0:
+                digital_silent += 1
+                continue
+            rms = 20 * math.log10(math.sqrt(squares / len(values)) / 32768)
+            peak = 20 * math.log10(max(abs(x) for x in values) / 32768)
+            # Require very quiet, nonzero audio and exclude transients. This
+            # does not confuse a full-volume pure tone with background noise.
+            if -85 <= rms <= -42 and peak <= -35:
+                eligible.append(rms)
+        if proc.wait(timeout=max(1, deadline-time.monotonic())) != 0:
+            raise ValueError("FFmpeg could not decode the residual signal")
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError("FFmpeg could not measure the residual signal") from exc
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        if proc.stdout:
+            proc.stdout.close()
+    result = {
+        "noise_floor_status": "insufficient_quiet_samples",
+        "noise_floor_estimate_dbfs": None,
+        "noise_floor_sample_seconds": round(len(eligible) * 0.25, 2),
+        "digital_silence_seconds": round(digital_silent * 0.25, 2),
+        "noise_floor_method": "nonzero quiet-window PCM RMS, 250ms windows, 8kHz mono",
+    }
+    if len(eligible) >= 4:
+        eligible.sort()
+        # Median of quietest fifth: avoids being skewed by a few louder gaps.
+        tail = eligible[:max(1, math.ceil(len(eligible) * 0.20))]
+        result["noise_floor_estimate_dbfs"] = round(tail[len(tail)//2], 2)
+        result["noise_floor_status"] = "estimated_residual"
+    return result
 
 
 def analyze_file(path: Path, *, timeout: int = 1200) -> dict:
@@ -121,8 +200,10 @@ def analyze_file(path: Path, *, timeout: int = 1200) -> dict:
         raise ValueError("Local FFmpeg could not measure this audio") from exc
     measured = _numbers(result.stderr)
     technical = _technical_pcm_levels(path, timeout=timeout)
+    residual = _residual_noise(path, timeout=timeout)
     return {
         **technical,
+        **residual,
         "integrated_lufs": measured["input_i"],
         "true_peak_dbtp": measured["input_tp"],
         "loudness_range_lu": measured["input_lra"],
@@ -170,6 +251,10 @@ def report(slug: str) -> dict:
             warnings.append({"path": chapter["path"], "detail": "Integrated loudness could not be measured; review silence or corrupted audio"})
         elif track["integrated_lufs"] < -24 or track["integrated_lufs"] > -14:
             warnings.append({"path": chapter["path"], "detail": "Chapter loudness falls outside the optional -24 to -14 LUFS inspection band"})
+        if track.get("noise_floor_status") != "estimated_residual":
+            warnings.append({"path": chapter["path"], "detail": "Noise floor cannot be estimated without a sustained nonzero quiet passage; manually inspect room tone"})
+        elif track["noise_floor_estimate_dbfs"] > -60:
+            warnings.append({"path": chapter["path"], "detail": "Elevated quiet-passage residual signal; listen for hiss, hum, or other background noise"})
         if track.get("rms_dbfs") is None:
             warnings.append({"path": chapter["path"], "detail": "Overall RMS level could not be measured"})
         if (track.get("longest_quiet_seconds") or 0) > 10.0:
@@ -190,7 +275,7 @@ def report(slug: str) -> dict:
     payload = {
         "status": "measured", "analyzer_version": ANALYZER_VERSION, "tracks": items, "warnings": warnings,
         "target_lufs": TARGET_I, "true_peak_target_dbtp": TARGET_TP,
-        "disclaimer": "Local engineering measurements only. The -18 LUFS / -2 dBTP target is not a retailer certification or ACX compliance preset.",
+        "disclaimer": "Residual noise is an estimate from nonzero quiet passages, not verified microphone room tone; inspect by ear. -18 LUFS / -2 dBTP is not retailer certification.",
     }
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = cache_path.with_suffix(".json.tmp")
