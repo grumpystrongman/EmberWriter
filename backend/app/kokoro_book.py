@@ -60,7 +60,8 @@ def _settings(slug: str) -> dict:
     state = audio_production.load(slug)
     return {"voices": state.get("kokoro_voices", {}),
             "casts": state.get("chapter_casts", {}),
-            "pronunciations": state.get("pronunciations", [])}
+            "pronunciations": state.get("pronunciations", []),
+            "ipa_pronunciations": state.get("ipa_pronunciations", [])}
 
 
 def _split(text: str) -> list[str]:
@@ -92,7 +93,8 @@ def _split(text: str) -> list[str]:
 
 
 def _chapter_chunks(text: str, casts: list[dict], voices: dict, path: str,
-                    pronunciations: list[dict] | None = None) -> list[dict]:
+                    pronunciations: list[dict] | None = None,
+                    ipa_pronunciations: list[dict] | None = None) -> list[dict]:
     cursor = 0
     turns = []
     for cast in sorted(casts, key=lambda item: item["start"]):
@@ -116,10 +118,19 @@ def _chapter_chunks(text: str, casts: list[dict], voices: dict, path: str,
             raise ValueError(f"{path}: assign a Kokoro voice to {speaker} before producing a book")
         # Pronunciation preferences are applied to the spoken rendering, never
         # written back to the author's manuscript.
-        spoken = audio_production.spoken_replacements(passage, pronunciations or [])
+        ipa_rules = ipa_pronunciations or []
+        author_ipa = {r["written"].casefold() for r in ipa_rules}
+        # If IPA is authored for a word, it overrides older approximate
+        # English respellings such as buoy -> boo-ee.
+        plain_rules = [r for r in (pronunciations or [])
+                       if r["written"].casefold() not in author_ipa]
+        spoken = audio_production.spoken_replacements(passage, plain_rules)
         for part in _split(spoken):
             result.append({"speaker": speaker, "text": part,
                            "voice_id": profile["voice_id"], "speed": profile["speed"],
+                           "ipa_rules": [r for r in ipa_rules
+                                         if re.search(r"(?<!\w)" + re.escape(r["written"])
+                                                      + r"(?!\w)", part, re.IGNORECASE)],
                            "status": "queued", "filename": "", "sha256": ""})
     return result
 
@@ -151,7 +162,17 @@ def start(slug: str) -> dict:
         if len(text.split()) < 5:
             raise ValueError(f"{path}: chapter is too short to narrate")
         selected = _chapter_chunks(text, state["casts"].get(path, []), state["voices"],
-                                   path, state["pronunciations"])
+                                   path, state["pronunciations"], state["ipa_pronunciations"])
+        # Keep a real chapter heading as its own spoken turn. The deliberate
+        # silence belongs to the audio, not to invented manuscript punctuation.
+        heading = re.match(r"^#{1,6}\s+([^\n]+)", raw)
+        if heading and selected and selected[0]["speaker"] == "Narrator":
+            spoken_title = _spoken_text(heading.group(1))
+            first = selected[0]
+            if first["text"].startswith(spoken_title) and len(first["text"]) > len(spoken_title):
+                body = {**first, "text": first["text"][len(spoken_title):]}
+                selected[0] = {**first, "text": spoken_title, "pause_after_ms": 1350}
+                selected.insert(1, body)
         if not selected:
             raise ValueError(f"{path}: no spoken material")
         first = len(chunks)
@@ -215,8 +236,20 @@ def _render_part(slug: str, job: dict, index: int):
     # Protect the shared in-process ONNX session from simultaneous use.
     with kokoro_local._LOCK:
         engine = kokoro_local._engine(str(model), str(voices))
-        samples, frequency = engine.create(part["text"].strip(), voice=voice_id,
-                                           speed=part["speed"], lang=lang)
+        rules = part.get("ipa_rules", [])
+        if rules:
+            from .pronunciation_lexicon import phonemize_author_text
+
+            # Direct IPA is fed to the Kokoro phoneme path. No unreliable
+            # respelling is sent back through grapheme-to-phoneme conversion.
+            phonemes = phonemize_author_text(part["text"].strip(), rules,
+                                             engine.tokenizer, lang)
+            samples, frequency = engine.create(phonemes, voice=voice_id,
+                                               speed=part["speed"], lang=lang,
+                                               is_phonemes=True)
+        else:
+            samples, frequency = engine.create(part["text"].strip(), voice=voice_id,
+                                               speed=part["speed"], lang=lang)
     if frequency != 24000 or not 0 < len(samples) <= 24000 * 180:
         raise ValueError("Speech engine returned empty or invalid audio")
     dest = _part_path(slug, job["id"], index)
@@ -248,6 +281,13 @@ def _assemble(slug: str, job: dict, chapter_index: int) -> str:
                     raise ValueError("Audio chunk has unexpected PCM format")
                 while block := source.readframes(24000):
                     output.writeframesraw(block)
+            # The chapter title needs a breath before its opening scene.
+            # Ordinary voice turns get a shorter, natural separation.
+            if i < ch["first"] + ch["count"] - 1:
+                pause_ms = job["chunks"][i].get("pause_after_ms", 160)
+                if not isinstance(pause_ms, int) or not 0 <= pause_ms <= 3000:
+                    raise ValueError("Invalid audio transition duration")
+                output.writeframesraw(bytes(2 * round(24000 * pause_ms / 1000)))
     temp.replace(target)
     return name
 
@@ -263,6 +303,19 @@ async def advance(slug: str) -> dict:
         _current(slug, job)
         if not kokoro_local.status()["installed"]:
             raise ValueError("Optional local Kokoro model files are unavailable")
+        # Repair interrupted book assembly before starting the next segment.
+        # A chapter can have all its speech chunks durably rendered while its
+        # final chapter WAV was not committed (or after a verified cache reuse).
+        for chapter_index, chapter in enumerate(job["chapters"]):
+            parts = job["chunks"][chapter["first"]:chapter["first"] + chapter["count"]]
+            if (parts and all(item["status"] == "rendered" for item in parts)
+                    and (chapter["status"] != "rendered_unapproved" or not chapter["filename"])):
+                chapter["filename"] = await asyncio.to_thread(
+                    _assemble, slug, job, chapter_index
+                )
+                chapter["status"] = "rendered_unapproved"
+                chapter.pop("proof_approval", None)
+                _atomic_json(_jobfile(slug), job)
         next_index = next((i for i, part in enumerate(job["chunks"])
                            if part["status"] != "rendered"), None)
         if next_index is None:

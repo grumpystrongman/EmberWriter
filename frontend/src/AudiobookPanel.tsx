@@ -13,6 +13,7 @@ type AudioQuality = { status: string; ready: boolean; m4b_available: boolean; to
 type M4BJob = { exists: boolean; status: string; active: boolean; mode?: string; filename?: string; downloadable?: boolean; message?: string }
 type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
 type AudioRule = { written: string; spoken: string }
+type IpaRule = { written: string; ipa: string }
 type AudioProof = { id: string; path: string; seconds: number; note: string; status: string; filename: string }
 type CastSpan = { start:number; end:number; text:string; voice:string; character?:string; rate?:number }
 type SuggestedCast = {path:string;start:number;end:number;text:string;character:string;confidence:string}
@@ -21,6 +22,7 @@ type AcxReport = {technical_preflight_passed:boolean; submission_eligible:boolea
 
 type AudioProduction = {
   pronunciations: AudioRule[]
+  ipa_pronunciations?: IpaRule[]
   chapter_profiles: Record<string, {voice:string; rate:number}>
   proof_notes: AudioProof[]
   chapter_casts?: Record<string, CastSpan[]>
@@ -54,6 +56,10 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [production, setProduction] = useState<AudioProduction | null>(null)
   const [termWritten, setTermWritten] = useState('')
   const [termSpoken, setTermSpoken] = useState('')
+  const [ipaWritten, setIpaWritten] = useState('buoys')
+  const [ipaPhonemes, setIpaPhonemes] = useState('bˈuːiz')
+  const [dictionaryOptions, setDictionaryOptions] = useState<{arpa:string;ipa:string}[]>([])
+  const [dictionaryMessage, setDictionaryMessage] = useState('')
   const [profileVoice, setProfileVoice] = useState('')
   const [profileRate, setProfileRate] = useState(-1)
   const [noteSeconds, setNoteSeconds] = useState('0')
@@ -402,6 +408,33 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           </div>)}
           {production.pronunciations.length > 35 && <p>Showing first 35 terms; update existing terms by entering the same written spelling.</p>}
         </div>}
+        <h4>Precise phoneme pronunciation · Neural audiobook</h4>
+        <p>Words can have several correct pronunciations. For example, American <em>buoy</em> can sound like “BOO-ee” or “boy.” Choose the sound you want, then save an IPA phoneme rule. Kokoro uses these phonemes directly rather than guessing from a respelling. Only the selected word changes; your manuscript and similar-sounding words stay untouched.</p>
+        <div className="audiobook-editor-row">
+          <label>Written word<input maxLength={80} value={ipaWritten} onChange={e=>setIpaWritten(e.target.value)} placeholder="buoys" /></label>
+          <label>Exact Kokoro IPA<input maxLength={100} value={ipaPhonemes} onChange={e=>setIpaPhonemes(e.target.value)} placeholder="bˈuːiz" /></label>
+          <button type="button" disabled={disabled || busy || !ipaWritten.trim()} onClick={async()=>{
+            setDictionaryMessage('');setDictionaryOptions([])
+            try {
+              const result=await fetch(productionEndpoint+'/pronunciation-dictionary?word='+encodeURIComponent(ipaWritten))
+              if(!result.ok) throw new Error('Dictionary lookup failed')
+              const data=await result.json() as {variants:{arpa:string;ipa:string}[]}
+              setDictionaryOptions(data.variants)
+              setDictionaryMessage(data.variants.length ? 'Carnegie Mellon US English dictionary: choose a pronunciation, then save it.' : 'No dictionary entry; enter a custom pronunciation.')
+            } catch (e) {setDictionaryMessage(String(e))}
+          }}>Look up in CMU pronunciation dictionary</button>
+          <button type="button" disabled={disabled || busy || !!job?.active || !ipaWritten.trim() || !ipaPhonemes.trim()}
+            onClick={()=>void editProduction('/ipa-pronunciations','PUT',{written:ipaWritten,ipa:ipaPhonemes})}>Save IPA override</button>
+        </div>
+        {dictionaryMessage && <p role="status">{dictionaryMessage}</p>}
+        {dictionaryOptions.map((option,index)=><button key={index} type="button" onClick={()=>setIpaPhonemes(option.ipa)}>
+          Use /{option.ipa}/ · {option.arpa}
+        </button>)}
+        <p>Example: <button type="button" onClick={()=>{setIpaWritten('buoy');setIpaPhonemes('bˈuːi')}}>buoy → BOO-ee</button> <button type="button" onClick={()=>{setIpaWritten('buoys');setIpaPhonemes('bˈuːiz')}}>buoys → BOO-eez</button>. Check the Cambridge dictionary for regional variants and rehearse before producing a complete book. IPA overrides take priority over old spoken-spelling rules and apply across all chapters.</p>
+        {(production?.ipa_pronunciations || []).map(item=><div key={item.written} className="audiobook-editor-row">
+          <span><strong>{item.written}</strong> → /{item.ipa}/</span>
+          <button type="button" disabled={disabled || busy || !!job?.active} onClick={()=>void editProduction('/ipa-pronunciations/'+encodeURIComponent(item.written),'DELETE')}>Remove IPA rule</button>
+        </div>)}
         <h4>Chapter narrator override</h4>
         <p>Choose a voice and pace for this entire chapter. Choose a narrator for the chapter; below you can explicitly cast dialogue by highlighting the exact passage in spoken-text preview.</p>
         <div className="audiobook-editor-row">

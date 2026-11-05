@@ -142,3 +142,66 @@ def test_neural_batch_respects_local_author_pronunciation_dictionary(tmp_path):
             job = kokoro_book._read(slug)
             assert any("MEE-rah" in part["text"] for part in job["chunks"])
             assert "MEE-rah" not in storage.read_text(slug, sources[0][0])
+
+
+@pytest.mark.asyncio
+async def test_markdown_chapter_heading_gets_distinct_voice_turn_and_real_pause(tmp_path):
+    from app.audiobook_local import _spoken_text
+
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug = storage.create_project("Title Pause and Buoy Pronunciation Test")["slug"]
+        path = "manuscript/buoy.md"
+        raw = "# The Bell Below Low Water\n\nThe buoys drifted close to the quay. A buoy struck the rock at dawn."
+        storage.save_text(slug, path, raw)
+        state = audio_production.load(slug)
+        state["kokoro_voices"] = {"Narrator": {"voice_id": "af_heart", "speed": 1.0}}
+        audio_production._write(slug, state)
+        audio_production.save_pronunciation(slug, "buoys", "boo-eez")
+        audio_production.save_pronunciation(slug, "buoy", "boo-ee")
+        docs = [{"path": path, "title": "The Bell Below Low Water"}]
+        with (
+            patch("app.kokoro_book.compiled_documents", return_value=docs),
+            patch("app.kokoro_book.kokoro_local.status",
+                  return_value={"installed": True, "voice_ids": ["af_heart"]}),
+            patch("app.kokoro_book._render_part", side_effect=_fake_render),
+        ):
+            status = kokoro_book.start(slug)
+            job = kokoro_book._read(slug)
+            first, body = job["chunks"][0], job["chunks"][1]
+            assert first["text"] == "The Bell Below Low Water"
+            assert first["pause_after_ms"] >= 1000
+            assert "boo-eez" in body["text"] and "boo-ee" in body["text"]
+            assert _spoken_text(raw).startswith(first["text"] + "\n\n")
+            assert "buoys" in storage.read_text(slug, path)
+            while status["status"] != "completed":
+                status = await kokoro_book.advance(slug)
+            audio = kokoro_book.chapter_audio(slug, status["chapters"][0]["filename"])
+            with wave.open(str(audio), "rb") as complete:
+                # Two synthetic 0.25-sec segments, with >=1-sec title pause.
+                assert complete.getnframes() >= 2 * 6000 + 24000
+
+
+@pytest.mark.asyncio
+async def test_restart_assembles_chapters_when_every_audio_chunk_is_already_on_disk(tmp_path):
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug, _sources, documents = _project(tmp_path)
+        with (
+            patch("app.kokoro_book.compiled_documents", return_value=documents),
+            patch("app.kokoro_book.kokoro_local.status",
+                  return_value={"installed": True, "voice_ids": ["af_heart", "bf_emma"]}),
+        ):
+            kokoro_book.start(slug)
+            job = kokoro_book._read(slug)
+            for index, chunk in enumerate(job["chunks"]):
+                chunk["sha256"] = _fake_render(slug, job, index)
+                chunk["status"] = "rendered"
+            # Simulates crash after chunks were safely committed but before
+            # chapter assembly. Rerendering the complete book is forbidden.
+            kokoro_book._atomic_json(kokoro_book._jobfile(slug), job)
+            with patch("app.kokoro_book._render_part", side_effect=AssertionError("rerendered")):
+                completed = await kokoro_book.advance(slug)
+            assert completed["status"] == "completed"
+            assert all(ch["status"] == "rendered_unapproved"
+                       for ch in completed["chapters"])
+            assert all(kokoro_book.chapter_audio(slug, chapter["filename"]).is_file()
+                       for chapter in completed["chapters"])

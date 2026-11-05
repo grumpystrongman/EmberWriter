@@ -40,7 +40,7 @@ def _file(slug: str) -> Path:
 
 
 def _empty() -> dict:
-    return {"version": 1, "pronunciations": [], "chapter_profiles": {}, "proof_notes": [], "proof_approvals": {}, "chapter_casts": {}, "character_voices": {}}
+    return {"version": 1, "ipa_pronunciations": [], "pronunciations": [], "chapter_profiles": {}, "proof_notes": [], "proof_approvals": {}, "chapter_casts": {}, "character_voices": {}}
 
 
 def load(slug: str) -> dict:
@@ -349,3 +349,33 @@ def suggest_casts(slug: str, path: str) -> dict:
             "unassigned_or_ambiguous": count_unassigned,
             "notice": "Explicit speaker tags only. Review every suggestion before applying; "
                       "dialogue without a clear attribution is never auto-assigned."}
+
+
+@synchronized
+def save_ipa_pronunciation(slug: str, written: str, ipa: str) -> dict:
+    """Store author-selected Kokoro IPA without touching manuscript text."""
+    from .pronunciation_lexicon import MAX_OVERRIDES, validate_rule
+
+    written, ipa = validate_rule(written, ipa)
+    data = load(slug)
+    entries = data.setdefault("ipa_pronunciations", [])
+    current = next((item for item in entries
+                    if item["written"].casefold() == written.casefold()), None)
+    if current:
+        current.update({"written": written, "ipa": ipa})
+    else:
+        if len(entries) >= MAX_OVERRIDES:
+            raise ValueError("IPA override library is full")
+        entries.append({"written": written, "ipa": ipa})
+    return _write(slug, data)
+
+
+@synchronized
+def delete_ipa_pronunciation(slug: str, written: str) -> dict:
+    data = load(slug)
+    entries = data.get("ipa_pronunciations", [])
+    updated = [item for item in entries if item["written"].casefold() != written.casefold()]
+    if len(updated) == len(entries):
+        raise FileNotFoundError("IPA pronunciation not found")
+    data["ipa_pronunciations"] = updated
+    return _write(slug, data)

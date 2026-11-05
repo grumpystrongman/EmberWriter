@@ -438,3 +438,41 @@ def neural_book_m4b_download(slug: str, filename: str) -> FileResponse:
         return FileResponse(m4b_file(slug, filename), media_type="audio/mp4", filename=filename)
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)
+
+
+class IpaRule(BaseModel):
+    written: str = Field(min_length=1, max_length=80)
+    ipa: str = Field(min_length=1, max_length=100)
+
+
+@router.get("/pronunciation-reference")
+def pronunciation_reference() -> dict:
+    from .pronunciation_lexicon import reference_examples
+
+    return reference_examples()
+
+
+@router.put("/ipa-pronunciations")
+def save_ipa_term(slug: str, payload: IpaRule) -> dict:
+    try:
+        return audio_production.save_ipa_pronunciation(slug, payload.written, payload.ipa)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.delete("/ipa-pronunciations/{written}")
+def delete_ipa_term(slug: str, written: str) -> dict:
+    try:
+        return audio_production.delete_ipa_pronunciation(slug, written)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.get("/pronunciation-dictionary")
+def pronunciation_dictionary(word: str) -> dict:
+    from .pronunciation_lexicon import dictionary_lookup
+
+    try:
+        return dictionary_lookup(word)
+    except ValueError as exc:
+        fail(exc)
