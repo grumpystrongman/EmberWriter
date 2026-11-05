@@ -93,7 +93,7 @@ async function inspect(width, label) {
     const page = await js("({total:document.querySelector('.editorial-board-filterbar [role=status]')?.innerText,cards:document.querySelectorAll('.editorial-board-chapters > article').length,more:!!document.querySelector('.editorial-board-load'),errors:[...document.querySelectorAll('.editorial-board-error')].map(x=>x.innerText)})")
     assert(page.cards === 12 && page.more, 'An extended manuscript must paginate its chapter cards: ' + JSON.stringify(page))
     await js("document.querySelector('.editorial-board-load').click()")
-    await pause(140)
+    await pause(550)
     const afterMore = await js("document.querySelectorAll('.editorial-board-chapters > article').length")
     assert(afterMore === 24, 'Load more should render 24 chapters, not the entire book')
     await js("document.querySelector('.editorial-board-filterbar input')?.setAttribute('data-ux-test','1')")
@@ -143,6 +143,18 @@ async function inspect(width, label) {
     assert(metrics.reported && metrics.target.includes('LUFS'), 'Measured mastering results missing: '+JSON.stringify(metrics))
     console.log('REAL_AUDIO_MASTERING_UI_PASSED', JSON.stringify(metrics))
     await capture(label + '-loudness-measured')
+  }
+  if (width === 900) {
+    await js("([...document.querySelectorAll('.audiobook-quality button')].find(x=>x.innerText.includes('Queue chapter-marked M4B')))?.click()")
+    let encoding
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await pause(1000)
+      encoding = await js("({status:document.querySelector('.audiobook-encode-status strong')?.innerText,download:!!document.querySelector('.audiobook-encode-status a[href*=download]'),overflow:document.documentElement.scrollWidth-innerWidth})")
+      if (encoding.download) break
+    }
+    assert(encoding.download && encoding.status.includes('completed') && encoding.overflow <= 1, 'M4B encode job UI must finish with a download: '+JSON.stringify(encoding))
+    console.log('DURABLE_M4B_JOB_UI_PASSED', JSON.stringify(encoding))
+    await capture(label + '-m4b-completed')
   }
   await capture(label + '-audio-mastering')
   console.log(JSON.stringify({ viewport: width, plan, editor, publish, files, audiobook, direction, expanded, ready }))

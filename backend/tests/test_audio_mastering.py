@@ -77,6 +77,9 @@ class AudioMasteringTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(first["measured"], first)
         self.assertIsNotNone(first["integrated_lufs"])
         self.assertIsNotNone(first["true_peak_dbtp"])
+        self.assertIsNotNone(first["rms_dbfs"])
+        self.assertGreater(first["rms_dbfs"], -40)
+        self.assertEqual(first["quiet_intervals"], 0)
         response = report(self.slug)
         self.assertEqual(len(response["tracks"]), 1)
         api = TestClient(app).post(f"/api/projects/{self.slug}/audiobook-jobs/mastering")
@@ -104,6 +107,30 @@ class AudioMasteringTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "readiness"):
             export_m4b(self.slug, level=True)
         self.assertTrue(new_m4b.is_file())
+
+    async def test_identical_source_but_replaced_audio_changes_encode_identity(self):
+        from app.m4b_jobs import _identity
+        await self._narrate()
+        entry = audiobook_local.list_renders(self.slug)[0]
+        source = audiobook_local.audio_file(self.slug, entry["filename"])
+        first = _identity(self.slug)
+        # A trailing byte does not change the original WAV's listed frames,
+        # but it does change the physical audio artifact being exported.
+        with source.open("ab") as stream:
+            stream.write(b"replaced synthetic audio bytes")
+        self.assertNotEqual(first, _identity(self.slug))
+
+    def test_silence_intervals_are_not_mislabeled_ambient_noise_floor(self):
+        file = Path(self.tmp.name) / "artificial-pause.wav"
+        with wave.open(str(file), "wb") as wav:
+            wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(16000)
+            wav.writeframes(b"\x00\x00" * 32000)
+            wav.writeframes(b"".join(struct.pack("<h", int(10000 * math.sin(2 * math.pi * 440 * n / 16000))) for n in range(16000)))
+        measured = analyze_file(file)
+        self.assertIsNotNone(measured["rms_dbfs"])
+        self.assertGreaterEqual(measured["longest_quiet_seconds"], 1.5)
+        self.assertEqual(measured["quiet_threshold_dbfs"], -50)
+        self.assertNotIn("room_noise_floor", measured)
 
     def test_rejects_non_numeric_ffmpeg_response(self):
         with self.assertRaisesRegex(ValueError, "loudness"):

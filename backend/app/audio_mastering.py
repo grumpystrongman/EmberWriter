@@ -22,6 +22,7 @@ TARGET_I = -18.0
 TARGET_TP = -2.0
 TARGET_LRA = 11.0
 MAX_TRACKS = 120
+ANALYZER_VERSION = 2  # RMS and quiet-passage statistics added; invalidate older LUFS-only cache
 LOUDNORM_JSON = re.compile(r"\{\s*\"input_i\"\s*:\s*\"[^\"]+\".*?\"target_offset\"\s*:\s*\"[^\"]+\"\s*\}", re.S)
 
 
@@ -52,6 +53,54 @@ def _numbers(body: str) -> dict:
     return {key: parse(key) for key in fields}
 
 
+def _technical_pcm_levels(path: Path, *, timeout: int) -> dict:
+    """FFmpeg-measured overall RMS and intervals below a known threshold.
+
+    Do NOT treat astats Noise_floor as ambient microphone noise. It describes
+    the entire waveform and can be near the peak even for a pure sine wave.
+    """
+    ffmpeg = executable()
+    if not ffmpeg:
+        raise ValueError("Local FFmpeg is required for RMS analysis")
+    try:
+        run = subprocess.run(
+            [ffmpeg, "-nostdin", "-hide_banner", "-v", "info",
+             "-i", str(path), "-vn", "-af",
+             "astats=metadata=0:reset=0,silencedetect=noise=-50dB:d=0.4",
+             "-f", "null", "-"],
+            capture_output=True, text=True, errors="replace",
+            timeout=timeout, check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError("FFmpeg could not inspect narration RMS or quiet passages") from exc
+    text = run.stderr
+    overall = text.rsplit("Overall", 1)[-1]
+    def reading(pattern):
+        found = re.search(pattern, overall)
+        if not found:
+            return None
+        try:
+            value = float(found.group(1))
+        except ValueError:
+            return None
+        return round(value, 2) if math.isfinite(value) else None
+    rms = reading(r"RMS level dB:\s*([-+\w.]+)")
+    rms_peak = reading(r"RMS peak dB:\s*([-+\w.]+)")
+    starts = [float(item) for item in re.findall(r"silence_start:\s*([\d.]+)", text)]
+    ends = [float(item) for item in re.findall(r"silence_end:\s*([\d.]+)", text)]
+    # Only complete intervals are counted. Silence remaining at the end
+    # can be estimated separately by a future timeline-based listener.
+    complete = [end - start for start, end in zip(starts, ends) if end >= start]
+    return {
+        "rms_dbfs": rms,
+        "rms_peak_dbfs": rms_peak,
+        "quiet_intervals": len(complete),
+        "longest_quiet_seconds": round(max(complete, default=0), 2),
+        "quiet_threshold_dbfs": -50,
+        "quiet_minimum_seconds": 0.4,
+    }
+
+
 def analyze_file(path: Path, *, timeout: int = 1200) -> dict:
     ffmpeg = executable()
     if not ffmpeg:
@@ -71,7 +120,9 @@ def analyze_file(path: Path, *, timeout: int = 1200) -> dict:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         raise ValueError("Local FFmpeg could not measure this audio") from exc
     measured = _numbers(result.stderr)
+    technical = _technical_pcm_levels(path, timeout=timeout)
     return {
+        **technical,
         "integrated_lufs": measured["input_i"],
         "true_peak_dbtp": measured["input_tp"],
         "loudness_range_lu": measured["input_lra"],
@@ -97,7 +148,8 @@ def report(slug: str) -> dict:
     if cache_path.is_file():
         try:
             body = json.loads(cache_path.read_text(encoding="utf-8"))
-            cached = {x["path"]: x for x in body.get("tracks", []) if isinstance(x, dict)}
+            if body.get("analyzer_version") == ANALYZER_VERSION:
+                cached = {x["path"]: x for x in body.get("tracks", []) if isinstance(x, dict)}
         except (ValueError, OSError, KeyError):
             cached = {}
     items = []
@@ -118,6 +170,10 @@ def report(slug: str) -> dict:
             warnings.append({"path": chapter["path"], "detail": "Integrated loudness could not be measured; review silence or corrupted audio"})
         elif track["integrated_lufs"] < -24 or track["integrated_lufs"] > -14:
             warnings.append({"path": chapter["path"], "detail": "Chapter loudness falls outside the optional -24 to -14 LUFS inspection band"})
+        if track.get("rms_dbfs") is None:
+            warnings.append({"path": chapter["path"], "detail": "Overall RMS level could not be measured"})
+        if (track.get("longest_quiet_seconds") or 0) > 10.0:
+            warnings.append({"path": chapter["path"], "detail": "A passage longer than ten seconds falls below -50 dBFS; listen for an unintended gap"})
         if track.get("true_peak_dbtp") is None:
             warnings.append({"path": chapter["path"], "detail": "True peak could not be measured"})
         elif track["true_peak_dbtp"] > -1.0:
@@ -132,7 +188,7 @@ def report(slug: str) -> dict:
         if _hash(audio_file(slug, item["filename"])) != item["audio_sha256"]:
             raise ValueError("An audio file changed during loudness analysis")
     payload = {
-        "status": "measured", "tracks": items, "warnings": warnings,
+        "status": "measured", "analyzer_version": ANALYZER_VERSION, "tracks": items, "warnings": warnings,
         "target_lufs": TARGET_I, "true_peak_target_dbtp": TARGET_TP,
         "disclaimer": "Local engineering measurements only. The -18 LUFS / -2 dBTP target is not a retailer certification or ACX compliance preset.",
     }

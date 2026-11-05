@@ -4,8 +4,9 @@ import './audiobook-panel.css'
 type Chapter = { path: string; words: number; narratable: boolean }
 type Rendered = { source_path: string; filename: string; voice: string; bytes: number; words: number }
 type VoiceResult = { engine: string; voices: string[]; privacy: string; quality: string }
-type AudioMastering = {status:string; tracks: {path:string;title:string;integrated_lufs:number|null;true_peak_dbtp:number|null;loudness_range_lu:number|null}[];warnings:{path:string;detail:string}[];target_lufs:number;true_peak_target_dbtp:number;disclaimer:string}
+type AudioMastering = {status:string; tracks: {path:string;title:string;integrated_lufs:number|null;true_peak_dbtp:number|null;loudness_range_lu:number|null;rms_dbfs?:number|null;longest_quiet_seconds?:number}[];warnings:{path:string;detail:string}[];target_lufs:number;true_peak_target_dbtp:number;disclaimer:string}
 type AudioQuality = { status: string; ready: boolean; m4b_available: boolean; total_tracks: number; verified_tracks: number; duration_seconds: number; issues: {path:string; detail:string}[]; tracks: {path:string; seconds: number | null; format?:string; checks:string[]}[]; disclaimer:string }
+type M4BJob = { exists: boolean; status: string; active: boolean; mode?: string; filename?: string; downloadable?: boolean; message?: string }
 type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
 type AudioRule = { written: string; spoken: string }
 type AudioProof = { id: string; path: string; seconds: number; note: string; status: string; filename: string }
@@ -19,6 +20,7 @@ type Props = { apiBase: string; slug: string; disabled: boolean }
 export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const endpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook`
   const jobEndpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook-jobs`
+  const m4bEndpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/m4b-jobs`
   const productionEndpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook-production`
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [voices, setVoices] = useState<string[]>([])
@@ -29,6 +31,8 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [quality, setQuality] = useState<AudioQuality | null>(null)
   const [mastering, setMastering] = useState<AudioMastering | null>(null)
   const [masteringBusy, setMasteringBusy] = useState(false)
+  const [m4b, setM4b] = useState<M4BJob | null>(null)
+  const [encodeBusy, setEncodeBusy] = useState(false)
   const [showTracks, setShowTracks] = useState(false)
   const [showAudioChapters, setShowAudioChapters] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -107,7 +111,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   }
   useEffect(() => {
     let live = true
-    setChapters([]); setRenders([]); setVoices([]); setJob(null); setMessage(''); setError(''); setQuality(null); setShowAudioChapters(false); setProduction(null); setNotesShown(12)
+    setChapters([]); setRenders([]); setVoices([]); setJob(null); setM4b(null); setMessage(''); setError(''); setQuality(null); setShowAudioChapters(false); setProduction(null); setNotesShown(12)
     void Promise.all([getJson<Chapter[]>('/chapters'), getJson<Rendered[]>('/renders'), getJson<VoiceResult>('/voices')])
       .then(([files, tracks, speech]) => {
         if (live) {
@@ -117,14 +121,17 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         }
       }).catch(e => { if (live) setError(String(e)) })
     void getJob().then(value => { if (live) setJob(value) }).catch(() => {})
+    void fetch(m4bEndpoint).then(r => r.ok ? r.json() : null)
+      .then(value => { if (live && value) setM4b(value as M4BJob) }).catch(() => {})
     void fetch(productionEndpoint).then(r => {
       if (!r.ok) throw new Error('Narration direction unavailable')
       return r.json() as Promise<AudioProduction>
     }).then(value => { if (live) setProduction(value) }).catch(e => { if (live) setError(String(e)) })
     const timer = window.setInterval(() => {
-      void Promise.all([getJob(), getJson<Rendered[]>('/renders')]).then(([nextJob, tracks]) => {
-        if (live) { setJob(nextJob); setRenders(tracks) }
-      }).catch(() => {})
+      void Promise.all([getJob(), getJson<Rendered[]>('/renders'), fetch(m4bEndpoint).then(r => r.ok ? r.json() : null)])
+        .then(([nextJob, tracks, encoding]) => {
+          if (live) { setJob(nextJob); setRenders(tracks); if (encoding) setM4b(encoding as M4BJob) }
+        }).catch(() => {})
     }, 3000)
     return () => { live = false; window.clearInterval(timer) }
   }, [endpoint])
@@ -183,6 +190,24 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
       setMessage('Timed proof-listening note recorded.')
     } catch (e) { setError(String(e)) }
     finally { setBusy(false) }
+  }
+
+  async function encodeM4B(action: 'start' | 'pause' | 'resume', mode: 'original' | 'leveled' = 'original') {
+    setEncodeBusy(true); setError(''); setMessage('')
+    try {
+      const response = await fetch(m4bEndpoint + '/' + action, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(action === 'start' ? {mode} : {}),
+      })
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || `M4B encoding request failed: ${response.status}`)
+      }
+      const next = await response.json() as M4BJob
+      setM4b(next)
+      setMessage(next.message || 'M4B encoding updated.')
+    } catch (e) { setError(String(e)) }
+    finally { setEncodeBusy(false) }
   }
 
   async function measureLoudness() {
@@ -348,8 +373,20 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
       {quality && <section className="audiobook-quality" aria-live="polite">
         <h3>{quality.ready ? 'Audio technical checks passed' : 'Audio needs review'}</h3>
         <p>{quality.verified_tracks}/{quality.total_tracks} verified tracks · {Math.round(quality.duration_seconds / 60)} minutes detected</p>
-        {quality.ready && quality.m4b_available && job?.status === "completed" && <a className="audiobook-m4b-download"
-          href={jobEndpoint + "/export.m4b"} download="emberwriter-whole-book-audiobook.m4b">Build chapter-marked M4B (offline AAC)</a>}
+        {quality.ready && quality.m4b_available && job?.status === "completed" && <button className="audiobook-m4b-download"
+          disabled={busy || encodeBusy || !!m4b?.active || m4b?.status === 'queued'}
+          onClick={() => void encodeM4B('start', 'original')}>Queue chapter-marked M4B (offline AAC)</button>}
+        {m4b?.exists && <section className="audiobook-encode-status" aria-live="polite">
+          <strong>M4B encoding: {m4b.status} {m4b.mode === 'leveled' ? '(leveled)' : '(original)'}</strong>
+          <p>{m4b.message}</p>
+          <div className="audiobook-job-buttons">
+            {m4b.status === 'queued' && <button disabled={encodeBusy || busy} onClick={() => void encodeM4B('pause')}>Pause queued encode</button>}
+            {['paused','interrupted','needs_attention'].includes(m4b.status) && <button disabled={encodeBusy || busy || !!m4b.active}
+              onClick={() => void encodeM4B('resume')}>Retry M4B encoding</button>}
+            {m4b.downloadable && <a href={m4bEndpoint + '/download'} download>Download completed M4B</a>}
+          </div>
+          <small>Saved job status; an interrupted encode restarts from verified chapter audio.</small>
+        </section>}
         {!quality.m4b_available && <p>Install FFmpeg and FFprobe locally to enable a single chapter-marked M4B.</p>}
         {quality.issues.length > 0 && <div className="audiobook-quality-warnings">{quality.issues.slice(0, 35).map((issue, i) =>
           <p key={i}><strong>{issue.path || 'Whole book'}:</strong> {issue.detail}</p>)}</div>}
@@ -368,11 +405,12 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           {!!mastering.warnings.length && <p>{mastering.warnings.length} potential loudness or peak concerns. Inspect chapters below before distributing.</p>}
           <details><summary>Measured chapters ({mastering.tracks.length})</summary>
             <div className="audiobook-mastering-tracks">{mastering.tracks.slice(0,120).map(track => <p key={track.path}>
-              <strong>{track.title}</strong> · {track.integrated_lufs ?? 'Unknown'} LUFS · {track.true_peak_dbtp ?? 'Unknown'} dBTP · LRA {track.loudness_range_lu ?? 'Unknown'}</p>)}</div>
+              <strong>{track.title}</strong> · {track.integrated_lufs ?? 'Unknown'} LUFS · {track.true_peak_dbtp ?? 'Unknown'} dBTP · RMS {track.rms_dbfs ?? 'Unknown'} dBFS · LRA {track.loudness_range_lu ?? 'Unknown'} · longest quiet {track.longest_quiet_seconds ?? 0}s</p>)}</div>
           </details>
-          <a className="audiobook-m4b-download" href={jobEndpoint + '/export-leveled.m4b'} download="emberwriter-whole-book-leveled.m4b">
-            Build optional leveled chapter-marked M4B
-          </a>
+          <button className="audiobook-m4b-download" disabled={encodeBusy || busy || !!m4b?.active || m4b?.status === 'queued'}
+            onClick={() => void encodeM4B('start','leveled')}>
+            Queue optional leveled chapter-marked M4B
+          </button>
           <p>Leveling creates a separate AAC file. Existing narration and unmodified M4B stay untouched.</p>
         </section>}
       </details>}

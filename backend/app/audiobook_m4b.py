@@ -9,6 +9,8 @@ import json
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 from .audiobook_jobs import _read as read_job
@@ -35,7 +37,45 @@ def _metadata_text(chapters: list[dict], durations: list[float], title: str) -> 
     return "\n".join(lines) + "\n"
 
 
-def export_m4b(slug: str, *, level: bool = False) -> Path:
+def _run_checked(command: list[str], *, timeout: float, cancel_event: threading.Event | None = None) -> subprocess.CompletedProcess:
+    """Kill local FFmpeg/FFprobe on cancellation or timeout.
+
+    The subprocess is always reaped before a cancelled encoding worker exits.
+    """
+    started = time.monotonic()
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, errors="replace")
+    try:
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                raise RuntimeError("M4B encode cancelled before completion")
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout)
+            try:
+                stdout, stderr = proc.communicate(timeout=min(.5, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        if proc.returncode:
+            raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
+        return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
+    except BaseException:
+        if proc.poll() is None:
+            proc.kill()
+        proc.communicate()
+        raise
+
+
+def export_m4b(slug: str, *, level: bool = False,
+               cancel_event: threading.Event | None = None,
+               progress=None) -> Path:
+    def checkpoint(stage: str):
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("M4B encode cancelled before completion")
+        if progress is not None:
+            progress(stage)
+
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
         raise ValueError("Local FFmpeg and FFprobe must be installed to create M4B")
@@ -73,15 +113,16 @@ def export_m4b(slug: str, *, level: bool = False) -> Path:
         output = scratch / "narration.m4b"
         normalize_filter = []
         if level:
+            checkpoint("measuring")
             # Measure the CONCATENATED book rather than each chapter separately;
             # this retains natural relative dynamics between scenes.
             from .audio_mastering import TARGET_I, TARGET_TP, TARGET_LRA, _numbers
-            first = subprocess.run(
+            first = _run_checked(
                 [ffmpeg, "-nostdin", "-hide_banner", "-v", "info",
                  "-f", "concat", "-safe", "0", "-i", str(playlist),
                  "-vn", "-af", f"loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}:print_format=json",
                  "-f", "null", "-"],
-                capture_output=True, text=True, errors="replace", timeout=1200, check=True,
+                timeout=1200, cancel_event=cancel_event,
             )
             measurement = _numbers(first.stderr)
             if any(measurement[key] is None for key in
@@ -92,7 +133,8 @@ def export_m4b(slug: str, *, level: bool = False) -> Path:
                  f"measured_I={measurement['input_i']}:measured_TP={measurement['input_tp']}:"
                  f"measured_LRA={measurement['input_lra']}:measured_thresh={measurement['input_thresh']}:"
                  f"offset={measurement['target_offset']}:linear=true:print_format=summary")]
-        subprocess.run(
+        checkpoint("encoding")
+        _run_checked(
             [ffmpeg, "-nostdin", "-hide_banner", "-v", "error", "-y",
              "-f", "concat", "-safe", "0", "-i", str(playlist),
              "-f", "ffmetadata", "-i", str(metadata),
@@ -100,15 +142,16 @@ def export_m4b(slug: str, *, level: bool = False) -> Path:
              *normalize_filter,
              "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
              "-f", "ipod", "-movflags", "+faststart", str(output)],
-            capture_output=True, text=True, timeout=1200, check=True,
+            timeout=1200, cancel_event=cancel_event,
         )
+        checkpoint("verifying")
         if not output.exists() or output.stat().st_size < 1024:
             raise ValueError("FFmpeg produced no usable M4B audio")
-        probe = subprocess.run(
+        probe = _run_checked(
             [ffprobe, "-v", "error", "-show_entries",
              "stream=codec_name:chapter=start_time,end_time:format=duration",
              "-of", "json", str(output)],
-            capture_output=True, text=True, timeout=45, check=True,
+            timeout=45, cancel_event=cancel_event,
         )
         info = json.loads(probe.stdout)
         if not any(stream.get("codec_name") == "aac" for stream in info.get("streams", [])):
@@ -129,5 +172,6 @@ def export_m4b(slug: str, *, level: bool = False) -> Path:
         second_report = inspect(slug)
         if not second_report["ready"] or second_report["total_tracks"] != len(chapters):
             raise ValueError("The source manuscript or audio changed during compilation")
+        checkpoint("verifying")
         output.replace(target)
     return target

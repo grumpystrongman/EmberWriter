@@ -88,6 +88,20 @@ from burying the whole-book narration action on laptop screens.
 These checks do not establish professional mastering, retail acceptance,
 screen-reader accessibility or subjective narrator quality.
 
+## Durable M4B encoding UX review
+
+The Audiobook Workshop now queues M4B encoding in a durable project-local
+job rather than holding a download link open during full-length FFmpeg
+processing. The compact status panel gives the saved encoding stage,
+an option to pause only before work starts, retry after an interrupted
+encode and a download action after successful verification.
+
+The synthetic browser test starts a **real local FFmpeg encode job** from
+the existing Audiobook workspace at 900px and waits for the completed
+job/download state. It continues checking layout, optional mastering panels
+and the primary Narrate entire book action at 1440, 900 and 390px. Unlike
+visual-only snapshots, the job UI test exercises API and worker behavior.
+
 ## UX release bar going forward
 
 A new feature should not add another top-level workspace or a new permanent

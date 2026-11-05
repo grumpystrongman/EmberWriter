@@ -44,6 +44,46 @@ A failed encode or unexpectedly poor output leaves any previous completed
 artifact intact. Full-length encoding can be expensive and at present runs
 on explicit request, **not** in a durable, separately resumable job queue.
 
+## Durable M4B encoding queue
+
+EmberWriter now offers **Queue chapter-marked M4B** instead of relying on
+a single long-running download request. `POST /m4b-jobs/start` returns
+immediately and a per-project private record persists under `.ember/`.
+The interface polls actual states: queued, measuring (optional leveling),
+encoding, verifying, completed, paused, interrupted and needs_attention.
+
+An encode may be **paused while queued**, before work starts. Once FFmpeg
+begins encoding, a pause does not suspend an individual codec frame. On a
+server shutdown EmberWriter sends a cancellation signal, kills and reaps
+the local encoder child process, and marks the job interrupted. Startup
+recovery restarts a full encode after checking the audio source again.
+An existing finished M4B is never overwritten by partial temporary output.
+
+The completed-job download endpoint checks current manuscript/audio
+readiness **and SHA-256 identities of the exact source track files** before
+serving media. It also validates the finished M4B artifact checksum, so an
+edited or replaced recording cannot silently borrow an earlier encode. The batch is not exported blindly if the
+manuscript changed after narration. This is **single-server-process**
+coordination, not multi-worker/distributed locking or partial-file
+checkpointing. Old synchronous M4B endpoints remain for compatibility,
+but the current author UI uses the new asynchronous queue.
+
+## RMS and quiet-passage inspection
+
+The local analysis now includes **overall RMS level** and **RMS peak**
+in dBFS, plus detected passages whose amplitude remains below **-50 dBFS**
+for at least **0.4 seconds**. A quiet interval longer than ten seconds
+gets a listening-review flag.
+
+These measurements are objective observations, not a retailer-compliant
+noise floor. In particular, FFmpeg `astats` reports a `Noise floor`
+measurement for the overall waveform that can be **near a pure tone's
+peak level**; it should not be represented as ambient microphone noise.
+EmberWriter deliberately **does not** present it as one.
+
+The cached report has an analyzer version so the older LUFS-only results
+will be remeasured the first time this expanded check runs.
+
 ## Quality boundaries and next steps
 
 Loudness measurements do not establish that speech is intelligible, dialogue
