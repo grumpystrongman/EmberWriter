@@ -125,8 +125,7 @@ def save_character_voice(slug: str, character: str, voice: str, rate: int = -1) 
         raise ValueError("Character name must be 1-100 printable characters")
     if isinstance(rate, bool) or not isinstance(rate, int) or not -5 <= rate <= 5:
         raise ValueError("Character narration rate must be between -5 and 5")
-    if not voice:
-        raise ValueError("Choose an installed voice for this character")
+    # A character can be neural-only, without a matching Windows SAPI voice.
     _validate_voice(voice)
     data = load(slug)
     profiles = data.setdefault("character_voices", {})
@@ -254,8 +253,8 @@ def save_cast(slug: str, path: str, start: int, end: int,
     else:
         rate = None
     _validate_voice(voice)
-    if not voice:
-        raise ValueError("A character cast must use a selected installed voice")
+    if not voice and (not character or character not in data.get("neural_voices", {})):
+        raise ValueError("Assign an installed Windows voice or a saved neural reference to the character")
     from .audiobook_local import _spoken_text
     from .storage import read_text
     spoken = _spoken_text(read_text(slug, path))
@@ -303,3 +302,49 @@ def cast_segments(text: str, spans: list[dict], narrator: str, rules: list[dict]
     if cursor < len(text):
         segments.append({"text": spoken_replacements(text[cursor:], rules), "voice": narrator})
     return [segment for segment in segments if segment["text"]]
+
+
+_SPOKEN_QUOTES = re.compile(r'["“][^"”\n]{2,800}["”]')
+_SPEECH_VERBS = r"(?:said|asked|replied|whispered|murmured|shouted|cried|called|answered|snapped|hissed|growled|exclaimed)"
+
+
+def suggest_casts(slug: str, path: str) -> dict:
+    """Suggest only explicit dialogue attributions; never apply automatically."""
+    _source(slug, path)
+    from .audiobook_local import _spoken_text
+    from .storage import read_text
+
+    data = load(slug)
+    names = list(data.get("character_voices", {}))
+    text = _spoken_text(read_text(slug, path))
+    existing = data.get("chapter_casts", {}).get(path, [])
+    candidates = []
+    count_unassigned = 0
+    for match in _SPOKEN_QUOTES.finditer(text):
+        if any(match.start() < row["end"] and row["start"] < match.end() for row in existing):
+            continue
+        before = text[max(0, match.start() - 130):match.start()]
+        after = text[match.end():match.end() + 130]
+        found = set()
+        for name in names:
+            escaped = re.escape(name)
+            if re.search(r"\b" + escaped + r"\s+" + _SPEECH_VERBS + r"\s*[,;:]?\s*$", before, re.IGNORECASE):
+                found.add(name)
+            if re.search(r"\b" + _SPEECH_VERBS + r"\s+" + escaped + r"\s*[,;:]?\s*$", before, re.IGNORECASE):
+                found.add(name)
+            if re.search(r"^\s*[,;:]?\s*" + escaped + r"\s+" + _SPEECH_VERBS + r"\b", after, re.IGNORECASE):
+                found.add(name)
+            if re.search(r"^\s*[,;:]?\s*" + _SPEECH_VERBS + r"\s+" + escaped + r"\b", after, re.IGNORECASE):
+                found.add(name)
+        if len(found) == 1:
+            candidates.append({"path": path, "start": match.start(), "end": match.end(),
+                               "text": match.group(), "character": next(iter(found)),
+                               "confidence": "explicit_nearby_speech_tag"})
+        else:
+            count_unassigned += 1
+        if len(candidates) >= 250:
+            break
+    return {"path": path, "suggestions": candidates,
+            "unassigned_or_ambiguous": count_unassigned,
+            "notice": "Explicit speaker tags only. Review every suggestion before applying; "
+                      "dialogue without a clear attribution is never auto-assigned."}

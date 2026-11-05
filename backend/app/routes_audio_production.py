@@ -134,6 +134,14 @@ def remove_character_voice(slug: str, character: str) -> dict:
         fail(exc)
 
 
+@router.get("/casting-suggestions")
+def casting_suggestions(slug: str, path: str) -> dict:
+    try:
+        return audio_production.suggest_casts(slug, path)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
 @router.put("/casting")
 def add_character_cast(slug: str, payload: Cast) -> dict:
     try:

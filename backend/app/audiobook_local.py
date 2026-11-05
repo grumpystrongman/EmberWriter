@@ -139,6 +139,8 @@ def _render_unlocked(slug: str, source: str, voice: str = "", rate: int = -1, *,
         raise ValueError("A narration rule snapshot needs its configuration signature")
     text = _spoken_text(read_text(slug, source))
     casting = casts if casts is not None else settings.get("chapter_casts", {}).get(source, [])
+    if any(span.get("character") and not span.get("voice") for span in casting):
+        raise ValueError("This chapter has neural-only character casts. Assign a Windows SAPI voice before using SAPI narration.")
     segments = cast_segments(text, casting, voice, rules) if casting else []
     if casting:
         installed = set(available_voices())

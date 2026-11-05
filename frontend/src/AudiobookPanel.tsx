@@ -12,6 +12,7 @@ type AudioJob = { exists: boolean; status: string; active: boolean; total?: numb
 type AudioRule = { written: string; spoken: string }
 type AudioProof = { id: string; path: string; seconds: number; note: string; status: string; filename: string }
 type CastSpan = { start:number; end:number; text:string; voice:string; character?:string; rate?:number }
+type SuggestedCast = {path:string;start:number;end:number;text:string;character:string;confidence:string}
 type ProofApproval = { filename:string; source_sha256:string; audio_sha256:string; duration_seconds:number; approved_at:string }
 type AcxReport = {technical_preflight_passed:boolean; submission_eligible:boolean; submission_blocker:string; profile:{name:string;source:string}; tracks:{filename:string;issues:string[];technical_preflight_passed:boolean}[];disclaimer:string;manual_requirements:string[]}
 
@@ -56,6 +57,8 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [proofText, setProofText] = useState('')
   const [notesShown, setNotesShown] = useState(12)
   const [castingText, setCastingText] = useState('')
+  const [castSuggestions, setCastSuggestions] = useState<SuggestedCast[]>([])
+  const [castUnassigned, setCastUnassigned] = useState(0)
   const [castingStart, setCastingStart] = useState(0)
   const [castingEnd, setCastingEnd] = useState(0)
   const [castingVoice, setCastingVoice] = useState('')
@@ -74,6 +77,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   useEffect(() => {
     let cancelled = false
     setCastingText(''); setCastingStart(0); setCastingEnd(0); setConfirmedComplete(false); setConfirmedAligned(false)
+    setCastSuggestions([]); setCastUnassigned(0)
     if (!selected) return
     void getJson<{text:string}>('/casting-text?path=' + encodeURIComponent(selected))
       .then(result => {if (!cancelled) setCastingText(result.text)}).catch(() => {})
@@ -202,6 +206,19 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     setSelected(note.path)
     setSeek({path:note.path,seconds:note.seconds})
     setShowTracks(true)
+  }
+
+  async function suggestDialogue() {
+    if (!selected) return
+    setBusy(true); setError('')
+    try {
+      const response = await fetch(productionEndpoint + '/casting-suggestions?path=' + encodeURIComponent(selected))
+      if (!response.ok) throw new Error('Could not identify explicit dialogue speakers')
+      const result = await response.json() as {suggestions:SuggestedCast[];unassigned_or_ambiguous:number}
+      setCastSuggestions(result.suggestions)
+      setCastUnassigned(result.unassigned_or_ambiguous)
+    } catch (e) {setError(String(e))}
+    finally {setBusy(false)}
   }
 
   async function saveCharacterCast() {
@@ -406,17 +423,17 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         </div>
         <p>{Object.keys(production?.chapter_profiles || {}).length} chapter overrides saved. Changing these settings after a batch is complete requires new narration for a current edition.</p>
         <h4>Reusable character voice library</h4>
-        <p>Save a character name, installed Windows voice, and speaking pace once. Reuse that profile in any chapter. Updating it also recasts previously tagged passages and requires a new narration batch.</p>
+        <p>Save a character identity once, with an optional Windows voice and pace. Characters can be neural-only; add their Fish voice reference in Neural Voice Studio below before casting their dialogue. A neural-only cast cannot be rendered with the Windows SAPI engine. Updating identities also recasts previously tagged passages and requires a new narration batch.</p>
         <div className="audiobook-editor-row">
           <label>Character name<input maxLength={100} value={newCharacter} onChange={e=>setNewCharacter(e.target.value)} placeholder="Mira" /></label>
-          <label>Installed character voice<select value={newCharacterVoice} onChange={e=>setNewCharacterVoice(e.target.value)}>
-            <option value="">Choose a voice</option>
+          <label>Optional Windows character voice<select value={newCharacterVoice} onChange={e=>setNewCharacterVoice(e.target.value)}>
+            <option value="">Neural only — no Windows voice</option>
             {voices.map(v=><option key={v} value={v}>{v}</option>)}
           </select></label>
           <label>Character pace<select value={newCharacterRate} onChange={e=>setNewCharacterRate(Number(e.target.value))}>
             {Array.from({length:11},(_,i)=>i-5).map(n=><option key={n} value={n}>{n}</option>)}
           </select></label>
-          <button disabled={disabled || busy || !!job?.active || !newCharacter.trim() || !newCharacterVoice} onClick={()=>void editProduction('/characters','PUT',{character:newCharacter,voice:newCharacterVoice,rate:newCharacterRate})}>Save character voice</button>
+          <button disabled={disabled || busy || !!job?.active || !newCharacter.trim()} onClick={()=>void editProduction('/characters','PUT',{character:newCharacter,voice:newCharacterVoice,rate:newCharacterRate})}>Save character identity</button>
         </div>
         {Object.entries(production?.character_voices || {}).map(([character, preset])=><div className="audiobook-editor-row" key={character}>
           <span><strong>{character}</strong> · {preset.voice} · pace {preset.rate}</span>
@@ -448,6 +465,19 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
             <strong>{span.character || span.voice}</strong> · {span.voice}{span.rate !== undefined ? ' · pace '+span.rate : ''} · {span.start}–{span.end} · {span.text.slice(0,120)}
           </p>)}
         </div>
+        <h4>Review explicit speaker suggestions</h4>
+        <p>Find dialogue with directly stated speaker tags, such as “Mira said” or “said Mira.” These are suggestions only; ambiguous lines are never assigned automatically.</p>
+        <button type="button" disabled={disabled || busy || !selected || !!job?.active} onClick={()=>void suggestDialogue()}>Find speaker suggestions in this chapter</button>
+        {castSuggestions.length > 0 && <div className="audiobook-rule-list">
+          {castSuggestions.filter(item=>!(production?.chapter_casts?.[selected] || []).some(span=>span.start < item.end && item.start < span.end)).slice(0,30).map(item=><div key={item.start} className="audiobook-editor-row">
+            <span><strong>{item.character}</strong>: {item.text.slice(0,140)}</span>
+            <button type="button" disabled={disabled || busy || !!job?.active} onClick={()=>void editProduction('/casting','PUT',{
+              path:item.path,start:item.start,end:item.end,text:item.text,voice:'',character:item.character,
+            })}>Approve casting</button>
+          </div>)}
+          {castSuggestions.length > 30 && <p>Showing up to 30 suggested lines. Review the rest in the manuscript.</p>}
+        </div>}
+        {(castSuggestions.length > 0 || castUnassigned > 0) && <p role="status">{castSuggestions.length} explicit attributions suggested · {castUnassigned} quotations ambiguous or not attributed.</p>}
       </details>
       <NeuralVoicePanel productionEndpoint={productionEndpoint} selected={selected}
         casts={production?.chapter_casts?.[selected] || []}

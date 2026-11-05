@@ -110,6 +110,10 @@ def start(slug: str, voice: str = "", rate: int = -1) -> dict:
     # entire batch. Later edits require a new batch to avoid mixed editions.
     chapters = _book(slug)
     for chapter in chapters:
+        if any(cast.get("character") and not cast.get("voice")
+               for cast in config.get("chapter_casts", {}).get(chapter["path"], [])):
+            raise ValueError(f"{chapter['path']} has neural-only cast voices. Assign Windows voices or use neural production.")
+    for chapter in chapters:
         profile = config["chapter_profiles"].get(chapter["path"], {})
         chapter["voice"] = profile.get("voice", voice)
         chapter["rate"] = profile.get("rate", rate)

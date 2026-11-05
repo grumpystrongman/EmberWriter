@@ -144,3 +144,74 @@ def test_binder_ordered_audio_drama_plan_keeps_source_and_cast_identity(tmp_path
             assert all(ch["source_sha256"] == hashlib.sha256(
                 storage.read_text(slug, ch["path"]).encode("utf-8")).hexdigest()
                 for ch in plan["chapters"])
+
+
+def test_neural_only_character_is_castable_without_windows_voice(tmp_path: Path):
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug = storage.create_project("Neural-Only Cast")["slug"]
+        path = "manuscript/001.md"
+        storage.save_text(slug, path, 'Mira looked over. "I will return soon." Everyone listened.')
+        audio_production.save_character_voice(slug, "Mira", "", -1)
+        audio_drama.save_voice(slug, "Mira", "authorized-mira")
+        text = audiobook_local._spoken_text(storage.read_text(slug, path))
+        quote = '"I will return soon."'
+        start = text.index(quote)
+        cast = audio_production.save_cast(slug, path, start, start + len(quote),
+                                          quote, "", "Mira")
+        assert cast["chapter_casts"][path][0]["character"] == "Mira"
+        assert cast["chapter_casts"][path][0]["voice"] == ""
+        with pytest.raises(ValueError, match="neural-only"):
+            audiobook_local.render(slug, path)
+        with patch("app.publishing.compiled_documents", return_value=[
+            {"path": path, "title": "One"},
+        ]):
+            plan = audio_drama.production_plan(slug)
+        assert any(segment["speaker"] == "Mira" and
+                   segment["reference_id"] == "authorized-mira"
+                   for segment in plan["chapters"][0]["segments"])
+
+
+def test_sapi_batch_preflight_rejects_neural_only_cast_before_rendering(tmp_path: Path):
+    from app import audiobook_jobs
+
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug = storage.create_project("Batch neural-only guard")["slug"]
+        path = "manuscript/001.md"
+        storage.save_text(slug, path, 'Mira asked "Where is the door?" And waited.')
+        audio_production.save_character_voice(slug, "Mira", "")
+        audio_drama.save_voice(slug, "Mira", "local-mira")
+        text = audiobook_local._spoken_text(storage.read_text(slug, path))
+        quote = '"Where is the door?"'
+        start = text.index(quote)
+        audio_production.save_cast(slug, path, start, start + len(quote), quote, "", "Mira")
+        with (
+            patch("app.audiobook_jobs._book", return_value=[{"path": path}]),
+            pytest.raises(ValueError, match="neural-only"),
+        ):
+            audiobook_jobs.start(slug)
+
+
+def test_explicit_speaker_suggestions_require_author_approval(tmp_path: Path):
+    with patch.object(storage, "PROJECTS_ROOT", tmp_path / "projects"):
+        slug = storage.create_project("Speaker suggestions")["slug"]
+        path = "manuscript/001.md"
+        source = 'Mira said, "We leave now." Then no one spoke. "Why?" asked Elara. "Nobody knows."'
+        storage.save_text(slug, path, source)
+        audio_production.save_character_voice(slug, "Mira", "")
+        audio_production.save_character_voice(slug, "Elara", "")
+        audio_drama.save_voice(slug, "Mira", "ref-mira")
+        audio_drama.save_voice(slug, "Elara", "ref-elara")
+        candidates = audio_production.suggest_casts(slug, path)
+        assert {entry["character"] for entry in candidates["suggestions"]} == {"Mira", "Elara"}
+        assert candidates["unassigned_or_ambiguous"] >= 1
+        assert audio_production.load(slug)["chapter_casts"] == {}
+        with TestClient(app) as client:
+            resp = client.get(f"/api/projects/{slug}/audiobook-production/casting-suggestions",
+                              params={"path": path})
+            assert resp.status_code == 200, resp.text
+            assert len(resp.json()["suggestions"]) == 2
+        suggestion = next(row for row in candidates["suggestions"] if row["character"] == "Mira")
+        applied = audio_production.save_cast(slug, path, suggestion["start"], suggestion["end"],
+                                             suggestion["text"], "", "Mira")
+        assert len(applied["chapter_casts"][path]) == 1
+        assert len(audio_production.suggest_casts(slug, path)["suggestions"]) == 1
