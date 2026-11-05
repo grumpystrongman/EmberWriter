@@ -10,7 +10,7 @@ type M4BJob = { exists: boolean; status: string; active: boolean; mode?: string;
 type AudioJob = { exists: boolean; status: string; active: boolean; total?: number; completed?: number; current?: string | null; message?: string; chapters?: { path: string; title: string; status: string; words: number }[] }
 type AudioRule = { written: string; spoken: string }
 type AudioProof = { id: string; path: string; seconds: number; note: string; status: string; filename: string }
-type CastSpan = { start:number; end:number; text:string; voice:string }
+type CastSpan = { start:number; end:number; text:string; voice:string; character?:string; rate?:number }
 type ProofApproval = { filename:string; source_sha256:string; audio_sha256:string; duration_seconds:number; approved_at:string }
 type AcxReport = {technical_preflight_passed:boolean; submission_eligible:boolean; submission_blocker:string; profile:{name:string;source:string}; tracks:{filename:string;issues:string[];technical_preflight_passed:boolean}[];disclaimer:string;manual_requirements:string[]}
 
@@ -19,6 +19,7 @@ type AudioProduction = {
   chapter_profiles: Record<string, {voice:string; rate:number}>
   proof_notes: AudioProof[]
   chapter_casts?: Record<string, CastSpan[]>
+  character_voices?: Record<string, {voice:string; rate:number}>
   proof_approvals?: Record<string, ProofApproval>
 }
 type Props = { apiBase: string; slug: string; disabled: boolean }
@@ -57,6 +58,10 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   const [castingStart, setCastingStart] = useState(0)
   const [castingEnd, setCastingEnd] = useState(0)
   const [castingVoice, setCastingVoice] = useState('')
+  const [castingCharacter, setCastingCharacter] = useState('')
+  const [newCharacter, setNewCharacter] = useState('')
+  const [newCharacterVoice, setNewCharacterVoice] = useState('')
+  const [newCharacterRate, setNewCharacterRate] = useState(-1)
   const [listenedSeconds, setListenedSeconds] = useState('')
   const [confirmedComplete, setConfirmedComplete] = useState(false)
   const [confirmedAligned, setConfirmedAligned] = useState(false)
@@ -199,13 +204,14 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
   }
 
   async function saveCharacterCast() {
-    if (!selected || castingEnd <= castingStart || !castingVoice) {
+    if (!selected || castingEnd <= castingStart || (!castingVoice && !castingCharacter)) {
       setError('Select a dialogue passage in the text and choose an installed character voice.')
       return
     }
     await editProduction('/casting', 'PUT', {
       path:selected, start:castingStart, end:castingEnd,
-      text:castingText.slice(castingStart, castingEnd), voice:castingVoice,
+      text:castingText.slice(castingStart, castingEnd), voice:castingCharacter ? '' : castingVoice,
+      character:castingCharacter,
     })
   }
 
@@ -398,25 +404,47 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
             onClick={() => void editProduction('/profiles?path='+encodeURIComponent(selected),'DELETE')}>Remove override</button>}
         </div>
         <p>{Object.keys(production?.chapter_profiles || {}).length} chapter overrides saved. Changing these settings after a batch is complete requires new narration for a current edition.</p>
+        <h4>Reusable character voice library</h4>
+        <p>Save a character name, installed Windows voice, and speaking pace once. Reuse that profile in any chapter. Updating it also recasts previously tagged passages and requires a new narration batch.</p>
+        <div className="audiobook-editor-row">
+          <label>Character name<input maxLength={100} value={newCharacter} onChange={e=>setNewCharacter(e.target.value)} placeholder="Mira" /></label>
+          <label>Installed character voice<select value={newCharacterVoice} onChange={e=>setNewCharacterVoice(e.target.value)}>
+            <option value="">Choose a voice</option>
+            {voices.map(v=><option key={v} value={v}>{v}</option>)}
+          </select></label>
+          <label>Character pace<select value={newCharacterRate} onChange={e=>setNewCharacterRate(Number(e.target.value))}>
+            {Array.from({length:11},(_,i)=>i-5).map(n=><option key={n} value={n}>{n}</option>)}
+          </select></label>
+          <button disabled={disabled || busy || !!job?.active || !newCharacter.trim() || !newCharacterVoice} onClick={()=>void editProduction('/characters','PUT',{character:newCharacter,voice:newCharacterVoice,rate:newCharacterRate})}>Save character voice</button>
+        </div>
+        {Object.entries(production?.character_voices || {}).map(([character, preset])=><div className="audiobook-editor-row" key={character}>
+          <span><strong>{character}</strong> · {preset.voice} · pace {preset.rate}</span>
+          <button type="button" disabled={disabled || busy || !!job?.active} onClick={()=>{setNewCharacter(character);setNewCharacterVoice(preset.voice);setNewCharacterRate(preset.rate)}}>Edit voice</button>
+          <button type="button" disabled={disabled || busy || !!job?.active} onClick={()=>void editProduction('/characters?character='+encodeURIComponent(character),'DELETE')}>Remove</button>
+        </div>)}
         <h4>Character dialogue casting within the chapter</h4>
-        <p>Highlight a dialogue span in the read-only spoken text. Each selection uses its own installed voice; unselected text uses the narrator. The manuscript is never edited.</p>
+        <p>Highlight a dialogue span in the read-only spoken text, then choose a saved character or one-off installed voice. Named character voice and pace persist across chapters, but dialogue must still be assigned manually in each chapter. Unselected text uses the narrator. The manuscript is never edited.</p>
         <label htmlFor="casting-preview">Spoken chapter preview (select text to cast)</label>
         <textarea id="casting-preview" ref={castingRef} readOnly rows={6} value={castingText}
           onSelect={event => {setCastingStart(event.currentTarget.selectionStart);setCastingEnd(event.currentTarget.selectionEnd)}} />
         <p>Selected characters: {castingStart}–{castingEnd}. {castingEnd > castingStart ? castingText.slice(castingStart, Math.min(castingEnd, castingStart+120)) : 'Highlight dialogue above.'}</p>
         <div className="audiobook-editor-row">
-          <label>Character voice<select value={castingVoice} onChange={event => setCastingVoice(event.target.value)}>
+          <label>Saved character<select value={castingCharacter} onChange={event => setCastingCharacter(event.target.value)}>
+            <option value="">None · choose an individual voice</option>
+            {Object.keys(production?.character_voices || {}).map(name=><option key={name} value={name}>{name}</option>)}
+          </select></label>
+          <label>Individual voice<select value={castingVoice} disabled={!!castingCharacter} onChange={event => setCastingVoice(event.target.value)}>
             <option value="">Choose a voice</option>
             {voices.map(v => <option key={v} value={v}>{v}</option>)}
           </select></label>
-          <button disabled={disabled || busy || !selected || !castingVoice || castingEnd <= castingStart || !!job?.active}
+          <button disabled={disabled || busy || !selected || (!castingVoice && !castingCharacter) || castingEnd <= castingStart || !!job?.active}
             onClick={() => void saveCharacterCast()}>Cast selected dialogue</button>
           <button disabled={disabled || busy || !(production?.chapter_casts?.[selected]?.length) || !!job?.active}
             onClick={() => void editProduction('/casting?path='+encodeURIComponent(selected), 'DELETE')}>Clear chapter casting</button>
         </div>
         <div className="audiobook-rule-list">
           {(production?.chapter_casts?.[selected] || []).map((span, index) => <p key={span.start+':'+index}>
-            <strong>{span.voice}</strong> · {span.start}–{span.end} · {span.text.slice(0,120)}
+            <strong>{span.character || span.voice}</strong> · {span.voice}{span.rate !== undefined ? ' · pace '+span.rate : ''} · {span.start}–{span.end} · {span.text.slice(0,120)}
           </p>)}
         </div>
       </details>

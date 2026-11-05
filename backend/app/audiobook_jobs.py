@@ -308,7 +308,10 @@ def batch_archive(slug: str) -> Path:
         "job_id": job["id"], "voice": job["voice"] or "system-default",
         "rate": job.get("rate", -1),
         "chapters": [],
-        "note": "Local single-narrator chapter audio; not professionally mastered.",
+        "settings_signature": job.get("settings_signature", ""),
+        "character_voices": production_settings(slug).get("character_voices", {}),
+        "chapter_casts": job.get("chapter_casts", {}),
+        "note": "Local Windows SAPI narrator and author-assigned character audio; not professionally mastered.",
     }
     with zipfile.ZipFile(staging, "w", compression=zipfile.ZIP_STORED) as output:
         for index, chapter in enumerate(entries, 1):

@@ -28,6 +28,12 @@ try {
       if ($speaker -notin $installed) { throw "Selected offline cast voice is not installed: $speaker" }
       if ([string]::IsNullOrEmpty([string]$segment.text)) { throw 'Empty cast segment' }
       if ($synth.Voice.Name -ne $speaker) { $synth.SelectVoice($speaker) }
+      $segmentRate = $Rate
+      if ($null -ne $segment.rate) {
+        $segmentRate = [int]$segment.rate
+        if ($segmentRate -lt -5 -or $segmentRate -gt 5) { throw 'Invalid character narration rate' }
+      }
+      $synth.Rate = $segmentRate
       $synth.Speak([string]$segment.text)
     }
   } else {

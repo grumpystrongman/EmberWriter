@@ -15,12 +15,18 @@ class Profile(BaseModel):
     voice: str = Field(default="", max_length=110)
     rate: int = Field(default=-1, ge=-5, le=5)
 
+class CharacterVoice(BaseModel):
+    character: str = Field(min_length=1, max_length=100)
+    voice: str = Field(min_length=1, max_length=110)
+    rate: int = Field(default=-1, ge=-5, le=5)
+
 class Cast(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     start: int = Field(ge=0)
     end: int = Field(gt=0)
     text: str = Field(min_length=1, max_length=20000)
-    voice: str = Field(min_length=1, max_length=110)
+    voice: str = Field(default="", max_length=110)
+    character: str = Field(default="", max_length=100)
 
 class Note(BaseModel):
     path: str = Field(min_length=1, max_length=500)
@@ -110,11 +116,27 @@ def revoke_proof(slug: str, path: str) -> dict:
         fail(exc)
 
 
+@router.put("/characters")
+def upsert_character_voice(slug: str, payload: CharacterVoice) -> dict:
+    try:
+        return audio_production.save_character_voice(slug, payload.character, payload.voice, payload.rate)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.delete("/characters")
+def remove_character_voice(slug: str, character: str) -> dict:
+    try:
+        return audio_production.delete_character_voice(slug, character)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
 @router.put("/casting")
 def add_character_cast(slug: str, payload: Cast) -> dict:
     try:
         return audio_production.save_cast(slug, payload.path, payload.start,
-                                          payload.end, payload.text, payload.voice)
+                                          payload.end, payload.text, payload.voice, payload.character)
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)
 
