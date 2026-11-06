@@ -56,6 +56,10 @@ def test_template_api_preview_and_create(writer_project: str) -> None:
                                json={"template_id": "stage-play", "title": "The Room"})
         assert response.status_code == 201
         assert response.json()["format"] == "stage_play"
+        form = client.get(f"/api/projects/{writer_project}/writing-templates/assignment",
+                          params={"path": response.json()["path"]})
+        assert form.status_code == 200
+        assert form.json()["format"] == "stage_play"
         assert client.post("/api/writing-templates/preview",
                            json={"template_id": "invalid", "title": "No"}).status_code == 400
 
