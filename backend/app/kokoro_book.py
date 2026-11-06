@@ -16,8 +16,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from . import audio_production, kokoro_local
-from .expressive_prosody import PROSODY_VERSION, apply_expression
 from .audiobook_local import _spoken_text
+from .expressive_prosody import PROSODY_VERSION, apply_expression
 from .local_resources import reservation
 from .publishing import compiled_documents
 from .storage import project_root, read_text
@@ -204,8 +204,8 @@ def _reuse_verified_speech(slug: str, previous: dict | None, job: dict) -> int:
     """
     if not previous or previous.get("status") != "completed" or previous.get("engine") != job["engine"]:
         return 0
-    from collections import defaultdict, deque
     import shutil
+    from collections import defaultdict, deque
     def identity(part: dict) -> tuple:
         return (part.get("chapter"), part.get("speaker"), part.get("text"),
                 part.get("voice_id"), part.get("speed"),
