@@ -384,7 +384,9 @@ export default function WorkspaceShell() {
         onClose={() => setTemplateOpen(false)}
         onCreated={path => { void (async () => { await sleep(230); await openSource(path) })() }} />
       <ReferenceCapture project={projectContext} open={captureOpen} onClose={() => setCaptureOpen(false)} />
-      {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace} />}
+      {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace}
+        onOpenSource={path => { void openSource(path) }}
+        onNewWriting={() => { if (projectContext) setTemplateOpen(true) else openWorkspace('write') }} />}
     </div>
   )
 }
