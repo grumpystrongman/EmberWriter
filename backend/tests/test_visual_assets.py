@@ -41,9 +41,11 @@ async def test_visual_asset_upload_metadata_and_canon_round_trip(tmp_path: Path)
     slug = storage.create_project("Visual Novel")["slug"]
 
     asset = await routes_media.upload_visual_asset(
-        slug, "blackwood", upload_file("blackwood.png"), title="Blackwood", kind="location"
+        slug, "blackwood", upload_file("blackwood.png"), title="Blackwood", kind="location",
+        source_url="https://example.org/architecture"
     )
     assert asset["canon_status"] == "reference"
+    assert asset["source_url"] == "https://example.org/architecture"
     assert asset["relative_path"] == "assets/visuals/blackwood.png"
     assert len(routes_media.list_visual_assets(slug)) == 1
 
@@ -54,9 +56,11 @@ async def test_visual_asset_upload_metadata_and_canon_round_trip(tmp_path: Path)
             canon_status="canonical",
             linked_entities=["Blackwood"],
             notes="Approved exterior reference.",
+            source_url="https://example.org/updated-reference",
         ),
     )
     assert updated["canon_status"] == "canonical"
+    assert updated["source_url"] == "https://example.org/updated-reference"
     assert updated["linked_entities"] == ["Blackwood"]
     assert routes_media.visual_asset_metadata(slug, "blackwood")["notes"].startswith(
         "Approved"
