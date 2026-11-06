@@ -180,7 +180,7 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
   }
 
   const dialogue = (script?.spans || []).filter(row => row.kind === 'dialogue')
-  const shown = showAll ? dialogue : dialogue.filter(row => !row.speaker)
+  const shown = showAll ? (script?.spans || []).filter(row => row.text.trim()) : dialogue.filter(row => !row.speaker)
   return <details id="audio-director-tool" className="audiobook-direction" data-testid="audio-director">
     <summary>Audio Director · {script ? `${dialogue.length} spoken lines · ${script.unresolved_count} need review` : 'performance manuscript'}</summary>
     <p>The performance manuscript is a separate, lossless version of this chapter for narration. Every quotation gets its own voice and delivery direction. Unresolved voices block neural book production rather than defaulting to the narrator.</p>
@@ -216,22 +216,23 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
     </details>
     {script && <>
       <p><strong>{script.render_ready ? 'Speaker preflight passed' : 'Speaker preflight blocked'}</strong> · {script.unresolved_count} unattributed dialogue lines.</p>
-      <button type="button" onClick={() => setShowAll(v => !v)}>{showAll ? 'Show only unassigned dialogue' : 'Review all dialogue and performance cues'}</button>
+      <button type="button" onClick={() => setShowAll(v => !v)}>{showAll ? 'Show only unassigned dialogue' : 'Direct all voices, narration and emotion'}</button>
       {shown.length === 0 && <p>Every identified quotation has a voice assignment. Review the emotional delivery before rendering.</p>}
       {shown.map(row => {
         const current = edit[row.start] || {emotion: row.performance?.emotion || 'neutral',
                                           delivery: row.performance?.delivery || 'natural', energy: row.performance?.energy || 3}
         return <div key={row.start} className="audiobook-job-chapter" style={{display:'block',margin:'0.7rem 0',padding:'0.7rem'}}>
           <blockquote style={{whiteSpace:'pre-wrap',margin:'0 0 0.5rem'}}>{row.text}</blockquote>
-          <small>Characters {row.start}–{row.end} · {row.attribution || 'unresolved'}</small>
+          <small>{row.kind === 'narration' ? 'Narration' : 'Dialogue'} · Characters {row.start}–{row.end} · {row.attribution || (row.kind === 'narration' ? 'narrator' : 'unresolved')}</small>
           <div className="audiobook-editor-row">
+            {row.kind === 'narration' ? <span><strong>Narrator</strong> · Set a scene-wide delivery below</span> :
             <label>Speaking character
               <select aria-label={`Speaker for line ${row.start}`} value={row.speaker || ''} disabled={disabled || busy}
                 onChange={e => void save('/performance/speaker', {start:row.start, end:row.end, speaker:e.target.value})}>
                 <option value="">Unassigned — requires review</option>
                 {names.filter(name => name !== 'Narrator').map(name => <option key={name} value={name}>{name}</option>)}
               </select>
-            </label>
+            </label>}
             <label>Emotion
               <select value={current.emotion} disabled={disabled || busy}
                 onChange={e => setEdit(p => ({...p,[row.start]:{...current,emotion:e.target.value}}))}>
@@ -260,14 +261,14 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
                 current.energy !== (row.performance?.energy || 3)}
               title="Save delivery first, then listen to the CPU take with the chosen expression."
               onClick={() => void kokoroPreview(row.start, row.end)}>▶ Hear CPU expression</button>}
-            {kittenInstalled && row.speaker && kittenProfiles[row.speaker] && <button type="button"
+            {row.kind === 'dialogue' && kittenInstalled && row.speaker && kittenProfiles[row.speaker] && <button type="button"
               disabled={disabled || busy || row.end - row.start > 1200 ||
                 current.emotion !== (row.performance?.emotion || 'neutral') ||
                 current.delivery !== (row.performance?.delivery || 'natural') ||
                 current.energy !== (row.performance?.energy || 3)}
               title="Save your delivery cue before requesting native-emotion speech."
               onClick={() => void kittenPreview(row.start)}>▶ Hear native CPU emotion</button>}
-            {row.speaker && fishSpeakers.includes(row.speaker) && <button type="button" disabled={disabled || busy}
+            {row.kind === 'dialogue' && row.speaker && fishSpeakers.includes(row.speaker) && <button type="button" disabled={disabled || busy}
               onClick={() => void fishPreview(row.start)}>▶ Compare Fish take (GPU)</button>}
           </div>
           {kokoroTakes[row.start] && <div><small>CPU Kokoro take · unapproved</small><audio controls src={kokoroTakes[row.start]} aria-label={`Kokoro expressive rehearsal for line ${row.start}`} /></div>}
