@@ -301,6 +301,7 @@ def kitten_save_profile(slug: str, payload: KittenVoice) -> dict:
 @router.post("/kitten/rehearsals")
 async def kitten_rehearse(slug: str, payload: KittenProof) -> dict:
     import asyncio
+
     from .kitten_local import render_line
     from .local_resources import reservation
     try:
@@ -573,6 +574,7 @@ class PerformanceDirectionEdit(BaseModel):
 
 def _performance_source(slug: str, path: str):
     from pathlib import Path
+
     from . import audio_director
     from .audiobook_local import _spoken_text, available_chapters
     from .storage import project_root, read_text
@@ -580,7 +582,7 @@ def _performance_source(slug: str, path: str):
         raise FileNotFoundError("Select an existing manuscript chapter")
     source = _spoken_text(read_text(slug, path))
     data = audio_production.load(slug)
-    names = sorted(set(["Narrator"])
+    names = sorted({"Narrator"}
                    | set(data.get("kokoro_voices", {}))
                    | set(data.get("neural_voices", {}))
                    | set(data.get("kitten_voices", {}))
@@ -597,7 +599,7 @@ def _performance_source(slug: str, path: str):
 def get_performance_script(slug: str, path: str) -> dict:
     """Read the lossless audiobook-only cue sheet and unresolved speaker list."""
     try:
-        performance, _, names = _performance_source(slug, path)
+        performance, _, _names = _performance_source(slug, path)
         return performance
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)
