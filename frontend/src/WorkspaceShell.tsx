@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import AppV2 from './AppV2'
 import EmberCompanion from './EmberCompanion'
+import ReferenceCapture from './ReferenceCapture'
 import CenterWorkspace from './CenterWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './workspace-shell.css'
@@ -140,6 +141,7 @@ export default function WorkspaceShell() {
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem('emberwriter.focusMode') === 'true')
   const [binderCollapsed, setBinderCollapsed] = useState(() => window.matchMedia('(max-width: 700px)').matches)
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
+  const [captureOpen, setCaptureOpen] = useState(false)
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
 
@@ -348,6 +350,7 @@ export default function WorkspaceShell() {
         </details>
         <div className="workspace-actions">
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
+          <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" disabled={!projectContext}>▧ Reference</button>
           <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note">▰ Note</button>
           <button
             type="button"
@@ -370,6 +373,7 @@ export default function WorkspaceShell() {
         <AppV2 />
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
+      <ReferenceCapture project={projectContext} open={captureOpen} onClose={() => setCaptureOpen(false)} />
       {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace} />}
     </div>
   )
