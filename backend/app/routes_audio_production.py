@@ -382,12 +382,18 @@ def neural_book_status(slug: str) -> dict:
         fail(exc)
 
 
+class NeuralBatchStart(BaseModel):
+    engine: str = Field(default="kokoro-onnx", pattern=r"^(kokoro-onnx|kitten-tts-2)$")
+
+
 @router.post("/kokoro/book")
-def neural_book_start(slug: str) -> dict:
+def neural_book_start(slug: str, payload: NeuralBatchStart | None = None) -> dict:
     from .kokoro_book import start
     try:
-        return start(slug)
-    except (FileNotFoundError, OSError, ValueError) as exc:
+        return start(slug, engine=payload.engine if payload is not None else "kokoro-onnx")
+    except ImportError as exc:
+        raise HTTPException(503, "Selected optional local speech engine is not installed") from exc
+    except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
         fail(exc)
 
 
@@ -397,7 +403,7 @@ async def neural_book_next(slug: str) -> dict:
     try:
         return await advance(slug)
     except ImportError as exc:
-        raise HTTPException(503, "Optional local Kokoro ONNX dependencies are not installed") from exc
+        raise HTTPException(503, "Optional local neural speech engine dependencies are not installed") from exc
     except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
         fail(exc)
 
