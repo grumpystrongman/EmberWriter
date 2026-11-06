@@ -64,11 +64,28 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
   const [draggingReference, setDraggingReference] = useState(false)
   const [referenceSourceUrl, setReferenceSourceUrl] = useState('')
   const [referenceNote, setReferenceNote] = useState('')
+  const [visionModel, setVisionModel] = useState('')
+  const [localVisionModels, setLocalVisionModels] = useState<string[]>([])
+  const [imageDirection, setImageDirection] = useState('What visible details might inspire my writing?')
+  const [imageInterpretation, setImageInterpretation] = useState('')
+  const [imageInterpretBusy, setImageInterpretBusy] = useState(false)
 
   const selectedAsset = assets.find((item) => item.asset_id === selectedAssetId) || null
+  useEffect(() => { setImageInterpretation('') }, [selectedAssetId])
   const canonicalAssets = useMemo(() => assets.filter((item) => item.canon_status === 'canonical'), [assets])
 
   useEffect(() => { void loadAssets() }, [project.slug])
+  useEffect(() => {
+    let cancelled = false
+    void fetch(`${apiBase}/models`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'ollama', base_url: 'http://127.0.0.1:11434', model: '' }),
+    }).then(response => response.ok ? response.json() : { models: [] })
+      .then((data: { models?: string[] }) => {
+        if (!cancelled) setLocalVisionModels((data.models || []).filter(name => !/(?:-cloud|:cloud)(?:$|[-:])/i.test(name)))
+      }).catch(() => {})
+    return () => { cancelled = true }
+  }, [apiBase])
   useEffect(() => {
     if (!assetId || assetId.startsWith('visual-')) setAssetId(slugify(subject || 'visual'))
   }, [subject])
@@ -209,6 +226,27 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
     acceptReference(file)
   }
 
+  async function interpretImage(asset: VisualAsset) {
+    if (!visionModel.trim()) {
+      setError('Select an installed local Ollama vision-capable model first.')
+      return
+    }
+    setImageInterpretBusy(true)
+    setImageInterpretation('')
+    setError('')
+    try {
+      const response = await request<{ interpretation: string }>(
+        `${apiBase}/projects/${project.slug}/visual-assets/${asset.asset_id}/interpret`,
+        { method: 'POST', body: JSON.stringify({ model: visionModel.trim(), direction: imageDirection }) },
+      )
+      setImageInterpretation(response.interpretation)
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setImageInterpretBusy(false)
+    }
+  }
+
   async function updateAsset(asset: VisualAsset, patch: Partial<Pick<VisualAsset, 'canon_status' | 'notes' | 'source_url' | 'linked_entities' | 'title' | 'kind'>>) {
     setBusy(true)
     setError('')
@@ -324,6 +362,29 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
       </section>
 
       {selectedAsset && <section className="visual-detail atlas-panel"><div className="atlas-panel-heading"><div><strong>{selectedAsset.title}</strong><small>{selectedAsset.asset_id}</small></div><span className={`visual-status ${selectedAsset.canon_status}`}>{selectedAsset.canon_status}</span></div><div className="visual-detail-grid"><img src={`${apiBase}/projects/${project.slug}/visual-assets/${selectedAsset.asset_id}?v=${encodeURIComponent(selectedAsset.generated_at)}`} alt={selectedAsset.title} /><div><label>Linked story entities <input value={selectedAsset.linked_entities.join(', ')} onChange={(event) => setAssets((current) => current.map((item) => item.asset_id === selectedAsset.asset_id ? { ...item, linked_entities: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) } : item))} onBlur={() => { const current = assets.find((item) => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { linked_entities: current.linked_entities }) }} /></label><label>Source website <input type="url" value={selectedAsset.source_url || ''} onChange={event => setAssets(current => current.map(item => item.asset_id === selectedAsset.asset_id ? { ...item, source_url: event.target.value } : item))} onBlur={() => { const current = assets.find(item => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { source_url: current.source_url }) }} placeholder="Link to where you found this image" /></label><label>Notes <textarea value={selectedAsset.notes} onChange={(event) => setAssets((current) => current.map((item) => item.asset_id === selectedAsset.asset_id ? { ...item, notes: event.target.value } : item))} onBlur={() => { const current = assets.find((item) => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { notes: current.notes }) }} placeholder="What this image establishes visually…" /></label><p><b>Source:</b> {selectedAsset.source}</p>{selectedAsset.reference_asset_id && <p><b>Derived from:</b> {selectedAsset.reference_asset_id}</p>}</div></div></section>}
+
+      {selectedAsset && <section className="atlas-panel" aria-label="Understand this visual reference">
+        <div className="atlas-panel-heading"><div><strong>Ask local AI about this picture</strong>
+          <small>Optional. Requires an installed Ollama vision-capable model. The resized image stays on your computer and is sent only to your local Ollama server. No manuscript changes happen.</small>
+        </div></div>
+        <label>Installed local model
+          <input list="ember-local-vision-models" value={visionModel} onChange={event => setVisionModel(event.target.value)}
+            placeholder="Choose an installed vision model" />
+          <datalist id="ember-local-vision-models">{localVisionModels.map(item => <option value={item} key={item} />)}</datalist>
+          <small>Not all installed models understand pictures. Choose a vision-capable one.</small>
+        </label>
+        <label>What do you want the AI to notice?
+          <textarea value={imageDirection} onChange={event => setImageDirection(event.target.value)} maxLength={2000}
+            placeholder="Focus on color and atmosphere, not the objects…" />
+        </label>
+        <button type="button" onClick={() => void interpretImage(selectedAsset)} disabled={imageInterpretBusy || !visionModel.trim()}>
+          {imageInterpretBusy ? 'Looking at your reference…' : 'Describe this image for my story'}
+        </button>
+        {imageInterpretation && <div className="visual-grounding" role="status" style={{ display: 'block', whiteSpace: 'pre-wrap', marginTop: 14 }}>
+          <strong>Ideas from the image (not approved canon)</strong><p>{imageInterpretation}</p>
+          <p>Copy the details you like into the reference's Notes field. Only you decide which ideas belong in the story.</p>
+        </div>}
+      </section>}
 
       {(error || notice) && <div className={error ? 'center-error' : 'atlas-notice'}>{error || notice}</div>}
     </div>
