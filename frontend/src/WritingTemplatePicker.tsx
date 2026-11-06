@@ -11,6 +11,7 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
   const [templates, setTemplates] = useState<Entry[]>([])
   const [selected, setSelected] = useState('')
   const [title, setTitle] = useState('Untitled work')
+  const [newProjectName, setNewProjectName] = useState('')
   const [query, setQuery] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [view, setView] = useState<'structure' | 'guide'>('structure')
@@ -78,17 +79,34 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
   const chosen = templates.find(row => row.id === selected)
 
   async function create() {
-    if (!project || !selected || !preview || busy) return
+    if (!selected || !preview || busy || (!project && !newProjectName.trim())) return
     setBusy(true); setError('')
     try {
-      const response = await fetch(`${API}/projects/${encodeURIComponent(project.slug)}/writing-templates`, {
+      let slug = project?.slug || ''
+      let createdNewProject = false
+      if (!slug) {
+        const created = await fetch(`${API}/projects`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newProjectName.trim(), description: '' }),
+        })
+        const result = await created.json().catch(() => ({}))
+        if (!created.ok || !result.slug) throw new Error(result.detail || 'Could not create your writing project')
+        slug = result.slug
+        createdNewProject = true
+      }
+      const response = await fetch(`${API}/projects/${encodeURIComponent(slug)}/writing-templates`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_id: selected, title }),
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.detail || 'Could not create your new writing document')
       window.dispatchEvent(new CustomEvent('emberwriter:binder-changed'))
-      onCreated(result.path)
+      if (createdNewProject) {
+        window.dispatchEvent(new CustomEvent('emberwriter:open-writing-document',
+          { detail: { slug, path: result.path } }))
+      } else {
+        onCreated(result.path)
+      }
       onClose()
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
@@ -127,6 +145,11 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
           <span className="writing-picker-kicker">{chosen?.group || 'Writing'} · {chosen?.format?.replaceAll('_', ' ')}</span>
           <h3>{chosen?.title || 'Choose a format'}</h3>
           <p>{chosen?.description}</p>
+          {!project && <label className="writing-picker-title">First, name your writing project
+            <input value={newProjectName} onChange={event => setNewProjectName(event.target.value)}
+              maxLength={120} placeholder="My new writing project" />
+            <small>A private local project will be created when you confirm. Your work stays on this computer.</small>
+          </label>}
           <label className="writing-picker-title">Document title
             <input value={title} onChange={event => setTitle(event.target.value)} maxLength={160}
               placeholder="Give your work a name" />
@@ -136,16 +159,16 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
             <button className={view === 'guide' ? 'selected' : ''} onClick={() => setView('guide')} type="button">Writing guidance</button>
           </div>
           <pre className="writing-picker-preview">{preview ? (view === 'structure' ? preview.content : preview.guide) : 'Enter a title to see your starting page.'}</pre>
-          <p className="writing-picker-safety">Creates a new page in your manuscript and a separate, editable writing guide. It never replaces existing writing.</p>
+          <p className="writing-picker-safety">Creates a new page, plus a separate editable writing guide. Existing writing is never replaced.</p>
           {error && <p className="writing-picker-error" role="alert">{error}</p>}
           <footer>
             <button type="button" onClick={onClose} disabled={busy}>Not now</button>
             <button type="button" className="writing-picker-primary" onClick={() => void create()}
-              disabled={!project || !preview || !title.trim() || busy}>
+              disabled={!preview || !title.trim() || (!project && !newProjectName.trim()) || busy}>
               {busy ? 'Creating your page…' : 'Create my writing page →'}
             </button>
           </footer>
-          {!project && <p className="writing-picker-error">Open or create a project first, then choose a writing format.</p>}
+
         </div>
       </div>
     </section>
