@@ -175,6 +175,7 @@ def _folder(slug: str) -> Path:
 def render_line(slug: str, path: str, start: int) -> dict:
     import numpy as np
     import soundfile as sf
+
     from .expressive_prosody import apply_expression
 
     if not status()["installed"]:
