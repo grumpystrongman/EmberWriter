@@ -76,6 +76,11 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
 
   useEffect(() => { void loadAssets() }, [project.slug])
   useEffect(() => {
+    const refresh = () => { void loadAssets() }
+    window.addEventListener('emberwriter:visuals-changed', refresh)
+    return () => window.removeEventListener('emberwriter:visuals-changed', refresh)
+  }, [project.slug])
+  useEffect(() => {
     let cancelled = false
     void fetch(`${apiBase}/models`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
