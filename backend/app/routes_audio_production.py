@@ -583,6 +583,7 @@ def _performance_source(slug: str, path: str):
     names = sorted(set(["Narrator"])
                    | set(data.get("kokoro_voices", {}))
                    | set(data.get("neural_voices", {}))
+                   | set(data.get("kitten_voices", {}))
                    | set(data.get("character_voices", {}))
                    | {row["character"] for row in data.get("chapter_casts", {}).get(path, [])
                       if row.get("character")})
