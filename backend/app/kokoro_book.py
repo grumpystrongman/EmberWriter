@@ -16,6 +16,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from . import audio_production, kokoro_local
+from .expressive_prosody import PROSODY_VERSION, apply_expression
 from .audiobook_local import _spoken_text
 from .local_resources import reservation
 from .publishing import compiled_documents
@@ -63,7 +64,7 @@ def _settings(slug: str) -> dict:
         item.name: hashlib.sha256(item.read_bytes()).hexdigest()
         for item in sorted(cue_dir.glob("*.performance.json"))
     } if cue_dir.is_dir() else {}
-    return {"voices": state.get("kokoro_voices", {}),
+    return {"prosody_version": PROSODY_VERSION, "voices": state.get("kokoro_voices", {}),
             "casts": state.get("chapter_casts", {}),
             "pronunciations": state.get("pronunciations", []),
             "ipa_pronunciations": state.get("ipa_pronunciations", []),
@@ -166,6 +167,10 @@ def _chapter_performance_chunks(slug: str, text: str, casts: list[dict],
             result.append({
                 "speaker": turn["speaker"], "text": part,
                 "voice_id": turn["voice_id"], "speed": turn["speed"],
+                "pitch_semitones": turn.get("pitch_semitones", 0.0),
+                "gain_db": turn.get("gain_db", 0.0),
+                "pause_after_ms": turn.get("pause_after_ms", 160),
+                "prosody_version": turn.get("prosody_version", PROSODY_VERSION),
                 "emotion": turn["emotion"], "delivery": turn["delivery"],
                 "source_start": turn["source_start"], "source_end": turn["source_end"],
                 "ipa_rules": [r for r in ipa_rules
@@ -190,6 +195,8 @@ def _reuse_verified_speech(slug: str, previous: dict | None, job: dict) -> int:
     def identity(part: dict) -> tuple:
         return (part.get("chapter"), part.get("speaker"), part.get("text"),
                 part.get("voice_id"), part.get("speed"),
+                part.get("pitch_semitones", 0.0), part.get("gain_db", 0.0),
+                part.get("prosody_version", 0),
                 json.dumps(part.get("ipa_rules", []), sort_keys=True, ensure_ascii=False),
                 part.get("pause_after_ms"))
     candidates = defaultdict(deque)
@@ -335,10 +342,12 @@ def _render_part(slug: str, job: dict, index: int):
                                                speed=part["speed"], lang=lang)
     if frequency != 24000 or not 0 < len(samples) <= 24000 * 180:
         raise ValueError("Speech engine returned empty or invalid audio")
+    shaped = apply_expression(samples, pitch_semitones=float(part.get("pitch_semitones", 0)),
+                              gain_db=float(part.get("gain_db", 0)))
     dest = _part_path(slug, job["id"], index)
     dest.parent.mkdir(parents=True, exist_ok=True)
     temp = dest.with_suffix(".tmp.wav")
-    sf.write(temp, np.asarray(samples, dtype=np.float32), 24000, subtype="PCM_16")
+    sf.write(temp, np.asarray(shaped, dtype=np.float32), 24000, subtype="PCM_16")
     temp.replace(dest)
     return hashlib.sha256(dest.read_bytes()).hexdigest()
 
