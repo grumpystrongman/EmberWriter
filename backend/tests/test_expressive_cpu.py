@@ -117,3 +117,57 @@ def test_expression_wave_audio_is_valid_and_pitch_changes(tmp_path):
         spectrum = np.abs(np.fft.rfft(data[:20000]))
         return np.fft.rfftfreq(20000, 1 / 24000)[np.argmax(spectrum)]
     assert peak_frequency(voiced) > peak_frequency(original) * 1.03
+
+
+@pytest.mark.asyncio
+async def test_complete_native_cpu_emotion_book_uses_existing_approval_gate(tmp_path, monkeypatch):
+    np = pytest.importorskip("numpy")
+    pytest.importorskip("soundfile")
+    from app import kokoro_book, kokoro_finishing
+
+    slug, path, chapter = _project(tmp_path)
+    state = audio_production.load(slug)
+    state["kitten_voices"] = {
+        "Narrator": {"voice_id": "Bruno"},
+        "Mira": {"voice_id": "Kiki"},
+    }
+    audio_production._write(slug, state)
+    from app.audio_director import load_or_compile, revise_direction, save_performance
+    cue_path = storage.project_root(slug) / ".ember" / "audio-director" / "scene.performance.json"
+    cue = load_or_compile(cue_path, chapter, ["Mira", "Narrator"])
+    actor = next(item for item in cue["spans"] if item["kind"] == "dialogue")
+    revise_direction(cue, actor["start"], actor["end"], "joy", "excited but restrained", 4)
+    save_performance(cue_path, cue)
+    folder = tmp_path / "kitten-model"
+    folder.mkdir()
+    (folder / "config.json").write_text('{"local":true}', encoding="utf-8")
+    monkeypatch.setenv("EMBERWRITER_KITTEN_MODEL_DIR", str(folder))
+
+    calls = []
+
+    class FakeModel:
+        available_voices = ["Kiki", "Bruno"]
+        sample_rate = 24000
+
+        def generate(self, text, voice, preset):
+            calls.append((text, voice, preset))
+            return np.full(4000, .06, dtype=np.float32)
+
+    documents = [{"path": path, "title": "The Promise", "content": chapter}]
+    with patch.object(kitten_local, "status", return_value={"installed": True}), patch.object(
+        kitten_local, "voice_ids", return_value=["Kiki", "Bruno"]
+    ), patch.object(kitten_local, "_engine", return_value=FakeModel()), patch(
+        "app.kokoro_book.compiled_documents", return_value=documents
+    ):
+        batch = kokoro_book.start(slug, "kitten-tts-2")
+        assert batch["engine"] == "kitten-tts-2"
+        assert not batch["publication_approved"]
+        while batch["status"] != "completed":
+            batch = await kokoro_book.advance(slug)
+        assert any(t[0].startswith("[joyful] ") and t[1] == "Kiki" and t[2] == "expressive"
+                   for t in calls)
+        assert all(t[1] in {"Kiki", "Bruno"} for t in calls)
+        assert not kokoro_finishing.proof_status(slug)["ready"]
+        recording = batch["chapters"][0]["filename"]
+        assert kokoro_book.chapter_audio(slug, recording).is_file()
+        assert storage.read_text(slug, path) == chapter
