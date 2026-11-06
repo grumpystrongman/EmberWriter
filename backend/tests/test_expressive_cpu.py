@@ -174,7 +174,7 @@ async def test_complete_native_cpu_emotion_book_uses_existing_approval_gate(tmp_
 
 
 def test_narrator_delivery_survives_reload_without_changing_source(tmp_path):
-    from app.audio_director import load_or_compile, revise_direction, save_performance, render_plan
+    from app.audio_director import load_or_compile, render_plan, revise_direction, save_performance
     source = "The old tower held its breath. Nothing moved."
     target = tmp_path / "narrator.performance.json"
     result = load_or_compile(target, source, ["Narrator"])
