@@ -1,8 +1,5 @@
 """No-GPU expressive speech contract tests. No model is downloaded."""
 import hashlib
-import io
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -60,7 +57,7 @@ def _project(tmp_path):
 
 def test_kitten_rehearsal_uses_author_cues_without_publishing(tmp_path, monkeypatch):
     np = pytest.importorskip("numpy")
-    sf = pytest.importorskip("soundfile")
+    pytest.importorskip("soundfile")
     slug, path, chapter = _project(tmp_path)
     model_folder = tmp_path / "kitten-model"
     model_folder.mkdir()
@@ -70,7 +67,7 @@ def test_kitten_rehearsal_uses_author_cues_without_publishing(tmp_path, monkeypa
 
     class FakeModel:
         sample_rate = 24000
-        available_voices = ["Kiki"]
+        available_voices = ("Kiki",)
 
         def generate(self, text, voice, preset):
             assert text == '[angry] "The door is open."'
@@ -146,7 +143,7 @@ async def test_complete_native_cpu_emotion_book_uses_existing_approval_gate(tmp_
     calls = []
 
     class FakeModel:
-        available_voices = ["Kiki", "Bruno"]
+        available_voices = ("Kiki", "Bruno")
         sample_rate = 24000
 
         def generate(self, text, voice, preset):
