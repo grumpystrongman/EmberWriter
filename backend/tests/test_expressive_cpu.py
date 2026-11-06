@@ -168,3 +168,22 @@ async def test_complete_native_cpu_emotion_book_uses_existing_approval_gate(tmp_
         recording = batch["chapters"][0]["filename"]
         assert kokoro_book.chapter_audio(slug, recording).is_file()
         assert storage.read_text(slug, path) == chapter
+        # A changed local model cannot be mistaken for the approved book edition.
+        (folder / "config.json").write_text('{"local":false}', encoding="utf-8")
+        assert kokoro_book.status(slug)["stale"] is True
+
+
+def test_narrator_delivery_survives_reload_without_changing_source(tmp_path):
+    from app.audio_director import load_or_compile, revise_direction, save_performance, render_plan
+    source = "The old tower held its breath. Nothing moved."
+    target = tmp_path / "narrator.performance.json"
+    result = load_or_compile(target, source, ["Narrator"])
+    narrator = next(x for x in result["spans"] if x["kind"] == "narration")
+    revise_direction(result, narrator["start"], narrator["end"],
+                     "awe", "wonder-struck, slow", 4)
+    save_performance(target, result)
+    reopened = load_or_compile(target, source, ["Narrator"])
+    assert reopened["spans"][0]["performance"]["emotion"] == "awe"
+    plan = render_plan(reopened, source, {"Narrator": {"voice_id": "af_heart", "speed": 1.0}})
+    assert "".join(part["source_text"] for part in plan) == source
+    assert plan[0]["pause_after_ms"] > 160
