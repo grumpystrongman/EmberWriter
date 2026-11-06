@@ -373,9 +373,9 @@ export default function WorkspaceShell() {
           </nav>
         </details>
         <div className="workspace-actions">
-          <button type="button" className="workspace-new-writing" disabled={!projectContext}
+          <button type="button" className="workspace-new-writing"
             onClick={() => setTemplateOpen(true)}
-            title={projectContext ? 'Create a new document from a writing template' : 'Open a story project first'}>
+            title="Start a new project or writing document">
             ＋ <span>New writing</span>
           </button>
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
@@ -409,7 +409,7 @@ export default function WorkspaceShell() {
       <ReferenceCapture project={projectContext} open={captureOpen} onClose={() => setCaptureOpen(false)} />
       {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace}
         onOpenSource={path => { void openSource(path) }}
-        onNewWriting={() => { if (projectContext) { setTemplateOpen(true) } else { openWorkspace('write') } }} />}
+        onNewWriting={() => setTemplateOpen(true)} />}
     </div>
   )
 }
