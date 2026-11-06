@@ -20,6 +20,7 @@ type SpeakerLibrary = {
   kokoro_voices?: Record<string, unknown>
   neural_voices?: Record<string, unknown>
   character_voices?: Record<string, unknown>
+  kitten_voices?: Record<string, unknown>
 }
 type Props = { apiBase: string; slug: string; path: string; disabled: boolean }
 
@@ -69,7 +70,8 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
       setKokoroSpeakers(Object.keys(library.kokoro_voices || {}))
       setFishSpeakers(Object.keys(library.neural_voices || {}))
       setNames(Array.from(new Set(['Narrator', ...Object.keys(library.character_voices || {}),
-        ...Object.keys(library.kokoro_voices || {}), ...Object.keys(library.neural_voices || {})])).sort())
+        ...Object.keys(library.kokoro_voices || {}), ...Object.keys(library.neural_voices || {}),
+        ...Object.keys(kittenProfilesResponse || {})])).sort())
     }).catch(e => { if (alive) setError(String(e)) })
     return () => { alive = false }
   }, [endpoint, path])
@@ -196,7 +198,7 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
         {kittenLoading ? 'Loading local voice library…' : 'Load available CPU expressive voices'}
       </button>
       {kittenVoiceIds.length > 0 && <div style={{display:'grid',gap:10,marginTop:12}}>
-        {names.filter(name => name !== 'Narrator').map(name => <div className="audiobook-editor-row" key={name}>
+        {names.map(name => <div className="audiobook-editor-row" key={name}>
           <label>{name} · Kitten voice
             <select value={kittenSelected[name] || kittenProfiles[name]?.voice_id || ''}
               onChange={e => setKittenSelected(prev => ({...prev,[name]:e.target.value}))}>
