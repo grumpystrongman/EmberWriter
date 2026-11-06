@@ -376,6 +376,19 @@ def compile_context(
     add_file("summaries/rolling-summary.md", "Rolling story summary", 9000)
     add_file("summaries/unresolved-threads.md", "Unresolved threads", 7000)
     if active_file:
+        # The author's chosen screenplay/play/essay/genre guide applies only
+        # to its matching document. It never overrides the global style profile.
+        index = project_root(slug) / ".ember" / "writing-templates.json"
+        if index.is_file():
+            try:
+                assigned = json.loads(index.read_text(encoding="utf-8"))
+                entry = assigned.get(active_file) if isinstance(assigned, dict) else None
+                guide = entry.get("style_guide", "") if isinstance(entry, dict) else ""
+                if (isinstance(guide, str) and guide.startswith("style/templates/")
+                        and guide.endswith(".md")):
+                    add_file(guide, "Author-selected writing format and genre guide", 3500)
+            except (ValueError, OSError):
+                pass
         add_file(active_file, "Active manuscript", 18000)
 
     search_query = " ".join(part for part in (prompt, selected_text or "") if part).strip()

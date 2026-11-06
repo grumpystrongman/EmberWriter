@@ -1,0 +1,29 @@
+.writing-picker-backdrop{position:fixed;inset:0;z-index:1950;display:grid;place-items:center;background:rgba(4,10,18,.78);padding:18px}
+.writing-picker{width:min(1060px,100%);max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;background:#101a24;color:#ecf2f8;border:1px solid #425567;border-radius:16px;box-shadow:0 24px 100px #000b;font:inherit}
+.writing-picker-header{display:flex;align-items:start;justify-content:space-between;padding:24px 28px 17px;border-bottom:1px solid #2c3e4e;gap:15px}
+.writing-picker-kicker{font-size:.71rem;font-weight:750;letter-spacing:.13em;color:#f0a76b;text-transform:uppercase}
+.writing-picker-header h2{font-family:Georgia,'Times New Roman',serif;font-size:1.75rem;margin:7px 0}
+.writing-picker-header p{margin:0;color:#bac8d6;line-height:1.5}.writing-picker button{cursor:pointer}
+.writing-picker-header>button{border:0;background:#233547;color:#f5f7fa;border-radius:8px;padding:8px 12px}
+.writing-picker-layout{display:grid;grid-template-columns:minmax(240px,370px) minmax(0,1fr);min-height:0;flex:1}
+.writing-picker-catalog{padding:20px;border-right:1px solid #2c3e4e;display:flex;flex-direction:column;min-height:0}
+.writing-picker-search,.writing-picker-title{display:grid;gap:7px;font-size:.85rem;font-weight:700}
+.writing-picker-search input,.writing-picker-title input{width:100%;box-sizing:border-box;border-radius:9px;border:1px solid #556b7e;background:#08121b;color:#f4f5f7;padding:11px;font:inherit}
+.writing-picker-cards{overflow-y:auto;min-height:0;padding-right:5px;margin-top:9px}
+.writing-picker-cards h3{margin:15px 0 8px;font-size:.74rem;color:#a9bed0;letter-spacing:.08em;text-transform:uppercase}
+.writing-picker-card{display:flex;align-items:center;text-align:left;gap:11px;width:100%;border:1px solid transparent;border-radius:10px;background:transparent;color:#d9e5ef;padding:10px;margin-bottom:5px}
+.writing-picker-card>span:first-child{font-size:1.35rem;width:30px;text-align:center;color:#f5a567}
+.writing-picker-card strong,.writing-picker-card small{display:block}.writing-picker-card strong{font-size:.9rem}
+.writing-picker-card small{font-size:.75rem;line-height:1.35;color:#a0b2c2;margin-top:3px}
+.writing-picker-card.selected{border-color:#d88c4b;background:#263545}.writing-picker-card:hover{background:#203345}
+.writing-picker-detail{padding:25px 28px;overflow-y:auto;min-height:0}
+.writing-picker-detail>h3{font-family:Georgia,serif;font-size:1.45rem;margin:9px 0}
+.writing-picker-detail>p{color:#bccbd9;line-height:1.5}
+.writing-picker-tabs{display:flex;gap:7px;margin-top:17px}.writing-picker-tabs button{padding:9px 13px;background:#1b2b39;color:#c1cfdd;border:1px solid #405568;border-radius:7px}.writing-picker-tabs button.selected{background:#d98545;color:#20140e;border-color:#d98545}
+.writing-picker-preview{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;max-height:230px;min-height:140px;background:#08131e;border:1px solid #354a5e;padding:15px;border-radius:9px;color:#d9e6f1;line-height:1.55;font-family:ui-monospace,Consolas,monospace;font-size:.83rem}
+.writing-picker-safety{font-size:.83rem}.writing-picker-detail footer{display:flex;justify-content:flex-end;gap:10px;margin-top:15px}
+.writing-picker-detail footer button{background:#243645;border:1px solid #45596b;color:#eaf0f6;border-radius:9px;padding:11px 16px}
+.writing-picker-detail footer button.writing-picker-primary{background:#ef964e;color:#1f1510;font-weight:800;border-color:#ef964e}
+.writing-picker button:disabled{opacity:.5;cursor:not-allowed}.writing-picker-error{color:#ffc1b2}
+.writing-picker :focus-visible{outline:3px solid #ffb277;outline-offset:3px}
+@media(max-width:720px){.writing-picker-backdrop{padding:8px}.writing-picker{max-height:97dvh}.writing-picker-layout{display:flex;flex-direction:column;overflow:auto}.writing-picker-catalog{flex:0 0 auto;max-height:255px;border-right:0;border-bottom:1px solid #2c3e4e}.writing-picker-detail{overflow:visible;padding:18px}.writing-picker-header{padding:16px 18px}.writing-picker-header h2{font-size:1.25rem}}

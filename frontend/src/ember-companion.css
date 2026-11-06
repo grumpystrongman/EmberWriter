@@ -19,3 +19,30 @@
 .ember-companion :focus-visible{outline:3px solid #f7c27d;outline-offset:2px}
 @media(max-width:700px){.ember-companion{right:12px;bottom:12px}.ember-companion-panel{height:min(500px,calc(100dvh - 90px))}}
 @media(prefers-reduced-motion:reduce){.ember-companion *{scroll-behavior:auto!important}}
+
+/* Warm, unobtrusive Clippy-style companion. Motion is decorative only. */
+.ember-companion-header{display:flex;align-items:center;gap:12px}
+.ember-mascot{display:inline-flex;position:relative;align-items:center;justify-content:center;flex:none;width:43px;height:49px;background:linear-gradient(160deg,#ffe7a1 7%,#f6a653 40%,#e45f36 88%);border-radius:58% 42% 55% 45% / 70% 75% 30% 30%;box-shadow:inset -6px -8px 0 #c84f3388,0 2px 9px #eb742c58;transform:rotate(-8deg);animation:ember-hello 4.6s ease-in-out infinite}
+.ember-mascot::before{content:'';position:absolute;top:-9px;left:17px;width:20px;height:22px;background:#f9bd62;border-radius:0 100% 15% 100%;transform:rotate(19deg);z-index:-1}
+.ember-mascot-eyes{font-size:21px;letter-spacing:5px;color:#3d231b;line-height:1;position:relative;top:4px;left:2px;transform:rotate(8deg)}
+.ember-mascot.small{width:25px;height:29px;margin-right:3px}
+.ember-mascot.small::before{width:10px;height:13px;top:-5px;left:10px}
+.ember-mascot.small .ember-mascot-eyes{font-size:12px;letter-spacing:2px;left:1px;top:2px}
+.ember-companion-launcher{display:flex;gap:5px;align-items:center;justify-content:center}
+.ember-companion-project{background:#172734;border:1px solid #5b6f7a;padding:11px 12px;border-radius:10px;margin:14px 0}
+.ember-companion-project strong,.ember-companion-project span,.ember-companion-project small{display:block}
+.ember-companion-project span{color:#c5d8e7;margin-top:3px}.ember-companion-project small{color:#a4bbc9;margin-top:6px;line-height:1.4}
+.ember-companion-welcome{line-height:1.58;margin-top:0}
+.ember-companion-message p{margin:5px 0 0;white-space:pre-wrap;line-height:1.5}
+.ember-companion-sources{margin-top:12px;padding-top:10px;border-top:1px solid #736453}
+.ember-companion-sources>strong{display:block;font-size:.79rem;color:#edc58f;margin-bottom:8px}
+.ember-companion-source{padding:9px;background:#1d2c35;border:1px solid #4b6272;border-radius:8px;margin:8px 0}
+.ember-companion-source span{color:#a6d2ef;font-size:.77rem;overflow-wrap:anywhere}
+.ember-companion-source p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.81rem}
+.ember-companion-source button{background:#223d50;border:1px solid #7290a5;color:#e2f0fb;border-radius:7px;padding:6px 9px;margin-top:8px}
+.ember-companion-permission{display:flex!important;align-items:start;gap:9px;line-height:1.4;font-weight:500}
+.ember-companion-permission input{width:17px;height:17px;flex:none;accent-color:#ea9d52;margin-top:2px}
+.ember-companion-permission em{font-style:normal;color:#deb991}
+.ember-companion-body{overscroll-behavior:contain}
+@keyframes ember-hello{0%,88%,100%{transform:translateY(0) rotate(-8deg)}92%{transform:translateY(-4px) rotate(0deg)}96%{transform:translateY(0) rotate(-9deg)}}
+@media(prefers-reduced-motion:reduce){.ember-mascot{animation:none}}
