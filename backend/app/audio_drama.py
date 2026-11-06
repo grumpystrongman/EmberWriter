@@ -156,7 +156,7 @@ def render_take(slug: str, path: str, start: int, port: int = 8080) -> dict:
     if direction:
         # Reject markup control and line breaks rather than constructing
         # arbitrary model tag nesting from imported story data.
-        if len(direction) > 500 or any(c in direction for c in "<>[]\\r\\n"):
+        if len(direction) > 500 or any(c in direction for c in "<>[]\r\n"):
             raise ValueError("Unsupported Fish direction markup")
         spoken = f"[{direction}] {spoken}"
     request = {"text": spoken, "references": [], "reference_id": setting["reference_id"],
