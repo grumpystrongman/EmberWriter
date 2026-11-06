@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import AppV2 from './AppV2'
 import EmberCompanion from './EmberCompanion'
 import ReferenceCapture from './ReferenceCapture'
+import WritingTemplatePicker from './WritingTemplatePicker'
 import CenterWorkspace from './CenterWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './workspace-shell.css'
@@ -142,6 +143,7 @@ export default function WorkspaceShell() {
   const [binderCollapsed, setBinderCollapsed] = useState(() => window.matchMedia('(max-width: 700px)').matches)
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [templateOpen, setTemplateOpen] = useState(false)
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
 
@@ -349,6 +351,11 @@ export default function WorkspaceShell() {
           </nav>
         </details>
         <div className="workspace-actions">
+          <button type="button" className="workspace-new-writing" disabled={!projectContext}
+            onClick={() => setTemplateOpen(true)}
+            title={projectContext ? 'Create a new document from a writing template' : 'Open a story project first'}>
+            ＋ <span>New writing</span>
+          </button>
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
           <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" className="workspace-reference-button" disabled={!projectContext}>▧ <span>Reference</span></button>
           <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note" className="workspace-sticky-button">▰ Note</button>
@@ -373,6 +380,9 @@ export default function WorkspaceShell() {
         <AppV2 />
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
+      <WritingTemplatePicker open={templateOpen} project={projectContext}
+        onClose={() => setTemplateOpen(false)}
+        onCreated={path => { void (async () => { await sleep(230); await openSource(path) })() }} />
       <ReferenceCapture project={projectContext} open={captureOpen} onClose={() => setCaptureOpen(false)} />
       {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace} />}
     </div>
