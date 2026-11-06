@@ -128,6 +128,7 @@ def render_plan(performance: dict, source: str, voices: dict,
     Fish cues use descriptive delivery tags. Kokoro has no equivalent native
     support; never feed its model a tag that it will read aloud.
     """
+    from .expressive_prosody import PRESETS, direction_settings
     if engine not in {"kokoro", "fish"}:
         raise ValueError("Unknown audiobook speech engine")
     validate(performance, source, voices)
@@ -148,15 +149,21 @@ def render_plan(performance: dict, source: str, voices: dict,
         energy = direction.get("energy", 3)
         if type(energy) is not int or not 1 <= energy <= 5:
             energy = 3
-        # Kokoro ONNX has no native emotion/energy conditioning. An author-selected
-        # energy cue can only approximate delivery through restrained tempo.
-        speed = float(profile.get("speed", 1.0))
-        if engine == "kokoro":
-            speed = round(max(0.7, min(1.4, speed * (1 + (energy - 3) * 0.04))), 3)
+        emotion = direction.get("emotion", "neutral")
+        # Legacy free-form labels are retained but cannot silently become a
+        # made-up emotion engine feature. They render neutrally on Kokoro.
+        acoustic = direction_settings(
+            emotion if emotion in PRESETS else "neutral", energy,
+            float(profile.get("speed", 1.0)))
+        speed = acoustic["speed"] if engine == "kokoro" else float(profile.get("speed", 1.0))
         result.append({"speaker": speaker, "source_start": span["start"],
                        "source_end": span["end"], "source_text": span["text"],
                        "tts_text": text, "voice_id": profile["voice_id"],
                        "speed": speed, "energy": energy,
+                       "pitch_semitones": acoustic["pitch_semitones"] if engine == "kokoro" else 0.0,
+                       "gain_db": acoustic["gain_db"] if engine == "kokoro" else 0.0,
+                       "pause_after_ms": acoustic["pause_after_ms"] if engine == "kokoro" else 160,
+                       "prosody_version": acoustic["prosody_version"],
                        "emotion": direction.get("emotion", "neutral"),
                        "delivery": direction.get("delivery", "natural"),
                        "engine": engine})
@@ -223,6 +230,9 @@ def revise_direction(performance: dict, start: int, end: int,
                      emotion: str, delivery: str, energy: int = 3) -> dict:
     if type(energy) is not int or not 1 <= energy <= 5:
         raise ValueError("Speech energy must be 1–5")
+    from .expressive_prosody import PRESETS
+    if emotion not in PRESETS:
+        raise ValueError("Choose a supported emotion preset")
     if not re.fullmatch(r"[a-z][a-z -]{0,39}", emotion):
         raise ValueError("Invalid emotion label")
     if not 1 <= len(delivery) <= 140 or any(c in delivery for c in "<>[]\r\n"):
