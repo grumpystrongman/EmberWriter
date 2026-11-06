@@ -350,8 +350,8 @@ export default function WorkspaceShell() {
         </details>
         <div className="workspace-actions">
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
-          <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" disabled={!projectContext}>▧ Reference</button>
-          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note">▰ Note</button>
+          <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" className="workspace-reference-button" disabled={!projectContext}>▧ <span>Reference</span></button>
+          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note" className="workspace-sticky-button">▰ Note</button>
           <button
             type="button"
             className={focusMode ? 'active' : ''}
