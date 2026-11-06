@@ -34,20 +34,27 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
   const [showAll, setShowAll] = useState(false)
   const [fishTakes, setFishTakes] = useState<Record<number, string>>({})
   const [fishSpeakers, setFishSpeakers] = useState<string[]>([])
+  const [kokoroSpeakers, setKokoroSpeakers] = useState<string[]>([])
+  const [kokoroTakes, setKokoroTakes] = useState<Record<number, string>>({})
+  const [capabilities, setCapabilities] = useState<{expressions: string[]; pitch_processing: string; native_emotion_conditioning: boolean} | null>(null)
 
   useEffect(() => {
     let alive = true
-    setScript(null); setError(''); setEdit({}); setShowAll(false); setFishTakes({}); setFishSpeakers([])
+    setScript(null); setError(''); setEdit({}); setShowAll(false); setFishTakes({}); setFishSpeakers([]); setKokoroTakes({}); setKokoroSpeakers([])
     if (!path) return
     void Promise.all([
       fetch(endpoint + '/performance?path=' + encodeURIComponent(path)),
       fetch(endpoint),
-    ]).then(async ([performance, library]) => {
+      fetch(endpoint + '/kokoro/expression-capabilities'),
+    ]).then(async ([performance, library, expressive]) => {
       if (!performance.ok || !library.ok) throw new Error('Could not open the audiobook performance manuscript.')
-      return [await performance.json() as Performance, await library.json() as SpeakerLibrary] as const
-    }).then(([performance, library]) => {
+      return [await performance.json() as Performance, await library.json() as SpeakerLibrary,
+        expressive.ok ? await expressive.json() as {expressions: string[]; pitch_processing: string; native_emotion_conditioning: boolean} : null] as const
+    }).then(([performance, library, expressive]) => {
       if (!alive) return
       setScript(performance)
+      setCapabilities(expressive)
+      setKokoroSpeakers(Object.keys(library.kokoro_voices || {}))
       setFishSpeakers(Object.keys(library.neural_voices || {}))
       setNames(Array.from(new Set(['Narrator', ...Object.keys(library.character_voices || {}),
         ...Object.keys(library.kokoro_voices || {}), ...Object.keys(library.neural_voices || {})])).sort())
@@ -90,12 +97,31 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
     finally { setBusy(false) }
   }
 
+  async function kokoroPreview(start: number, end: number) {
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const response = await fetch(endpoint + '/kokoro/rehearsals', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({path, start, end}),
+      })
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}))
+        throw new Error(detail.detail || 'CPU rehearsal unavailable. Install Kokoro and assign a local voice.')
+      }
+      const take = await response.json() as { filename: string }
+      setKokoroTakes(prev => ({...prev, [start]: endpoint + '/kokoro/rehearsals/' + encodeURIComponent(take.filename)}))
+      setMessage('CPU expression rehearsal recorded. Listen alongside any Fish take. Neither is approved book audio.')
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
+  }
+
   const dialogue = (script?.spans || []).filter(row => row.kind === 'dialogue')
   const shown = showAll ? dialogue : dialogue.filter(row => !row.speaker)
   return <details id="audio-director-tool" className="audiobook-direction" data-testid="audio-director">
     <summary>Audio Director · {script ? `${dialogue.length} spoken lines · ${script.unresolved_count} need review` : 'performance manuscript'}</summary>
     <p>The performance manuscript is a separate, lossless version of this chapter for narration. Every quotation gets its own voice and delivery direction. Unresolved voices block neural book production rather than defaulting to the narrator.</p>
-    <p><small>CPU-friendly Kokoro supports voice identity and pace; the energy control changes tempo slightly, not true emotion or acting. Fish rehearsal may respond to descriptive delivery cues when its separate server and model are available. Always listen and approve each take.</small></p>
+    <p><small>Direct the performance, then audition it. CPU Kokoro now applies subtle emotion-specific timing, pitch, volume and breath-space presets; this is DSP-based prosody, not Fish-style neural acting. Fish Speech offers model-conditioned expressive tags when its separate GPU server is installed. Every take remains a draft until you listen and approve.</small></p>
+    {capabilities && <p><small>Local expression: {capabilities.pitch_processing === 'rubberband' ? 'Pitch and dynamics available with FFmpeg Rubber Band' : 'Pitch unavailable — install FFmpeg with the Rubber Band filter for expressive cues'} · Native emotional acting: {capabilities.native_emotion_conditioning ? 'yes' : 'no, acoustic approximation'}.</small></p>}
     {!path && <p>Select a manuscript chapter first.</p>}
     {error && <p role="alert" className="audiobook-alert">{error}</p>}
     {message && <p role="status" className="audiobook-success">{message}</p>}
@@ -120,10 +146,10 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
             <label>Emotion
               <select value={current.emotion} disabled={disabled || busy}
                 onChange={e => setEdit(p => ({...p,[row.start]:{...current,emotion:e.target.value}}))}>
-                {['neutral','fear','sadness','joy','anger','urgency','relief','determination','uncertainty','tenderness'].map(v => <option key={v} value={v}>{v}</option>)}
+                {(capabilities?.expressions || ['neutral','joy','excitement','sadness','grief','anger','fear','urgency','relief','determination','uncertainty','tenderness','sarcasm','surprise','awe','exhaustion','soft']).map(v => <option key={v} value={v}>{v}</option>)}
               </select>
             </label>
-            <label>Energy / pace (1 = restrained, 5 = urgent)
+            <label>Performance intensity (1 = restrained, 5 = strong)
               <input type="range" min="1" max="5" step="1" value={current.energy}
                 disabled={disabled || busy} aria-label={`Energy for line ${row.start}`}
                 onChange={e => setEdit(p => ({...p,[row.start]:{...current,energy:Number(e.target.value)}}))} />
@@ -138,10 +164,18 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
               onClick={() => void save('/performance/direction', {start:row.start,end:row.end,...current})}>
               Save delivery
             </button>
+            {row.speaker && kokoroSpeakers.includes(row.speaker) && <button type="button"
+              disabled={disabled || busy || row.end - row.start > 1200 ||
+                current.emotion !== (row.performance?.emotion || 'neutral') ||
+                current.delivery !== (row.performance?.delivery || 'natural') ||
+                current.energy !== (row.performance?.energy || 3)}
+              title="Save delivery first, then listen to the CPU take with the chosen expression."
+              onClick={() => void kokoroPreview(row.start, row.end)}>▶ Hear CPU expression</button>}
             {row.speaker && fishSpeakers.includes(row.speaker) && <button type="button" disabled={disabled || busy}
-              onClick={() => void fishPreview(row.start)}>Rehearse with Fish (local)</button>}
+              onClick={() => void fishPreview(row.start)}>▶ Compare Fish take (GPU)</button>}
           </div>
-          {fishTakes[row.start] && <audio controls src={fishTakes[row.start]} aria-label={`Fish performance rehearsal for line ${row.start}`} />}
+          {kokoroTakes[row.start] && <div><small>CPU Kokoro take · unapproved</small><audio controls src={kokoroTakes[row.start]} aria-label={`Kokoro expressive rehearsal for line ${row.start}`} /></div>}
+          {fishTakes[row.start] && <div><small>Fish take · unapproved</small><audio controls src={fishTakes[row.start]} aria-label={`Fish performance rehearsal for line ${row.start}`} /></div>}
         </div>
       })}
     </>}
