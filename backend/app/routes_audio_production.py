@@ -255,6 +255,72 @@ def kokoro_expression_capabilities() -> dict:
     return capabilities()
 
 
+class KittenVoice(BaseModel):
+    character: str = Field(min_length=1, max_length=100)
+    voice_id: str = Field(min_length=1, max_length=80)
+
+
+class KittenProof(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+
+
+@router.get("/kitten/status")
+def kitten_status() -> dict:
+    from .kitten_local import status
+    return status()
+
+
+@router.get("/kitten/voices")
+def kitten_voices() -> dict:
+    from .kitten_local import voice_ids
+    try:
+        return {"voices": voice_ids()}
+    except (ImportError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.get("/kitten/profiles")
+def kitten_profiles(slug: str) -> dict:
+    from .kitten_local import library
+    try:
+        return library(slug)
+    except (OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/kitten/profiles")
+def kitten_save_profile(slug: str, payload: KittenVoice) -> dict:
+    from .kitten_local import save_profile
+    try:
+        return save_profile(slug, payload.character, payload.voice_id)
+    except (ImportError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.post("/kitten/rehearsals")
+async def kitten_rehearse(slug: str, payload: KittenProof) -> dict:
+    import asyncio
+    from .kitten_local import render_line
+    from .local_resources import reservation
+    try:
+        async with reservation():
+            return await asyncio.to_thread(render_line, slug, payload.path, payload.start)
+    except ImportError as exc:
+        raise HTTPException(503, "Optional KittenTTS 2 and audio dependencies are not installed") from exc
+    except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.get("/kitten/rehearsals/{filename}")
+def kitten_rehearsal_audio(slug: str, filename: str) -> FileResponse:
+    from .kitten_local import take_file
+    try:
+        return FileResponse(take_file(slug, filename), media_type="audio/wav")
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
 @router.get("/kokoro/status")
 def kokoro_status() -> dict:
     from .kokoro_local import status
