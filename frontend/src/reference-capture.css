@@ -1,0 +1,15 @@
+.reference-capture-backdrop{position:fixed;inset:0;z-index:1700;background:#000a;display:flex;align-items:center;justify-content:center;padding:14px}
+.reference-capture{width:min(580px,100%);max-height:94dvh;overflow-y:auto;box-sizing:border-box;padding:22px;border-radius:16px;border:1px solid #ae8b69;background:#292420;color:#f3eee4;box-shadow:0 18px 80px #0009}
+.reference-capture header{display:flex;justify-content:space-between;gap:16px;align-items:start}.reference-capture h2{margin:0 0 6px;color:#f0c391}.reference-capture p{line-height:1.45}
+.reference-capture button{background:#3a332c;color:#f2e7dc;border:1px solid #9a7858;border-radius:8px;padding:10px 12px;cursor:pointer}
+.reference-capture-drop{border:2px dashed #9e856e;border-radius:12px;padding:16px;text-align:center;margin:16px 0}
+.reference-capture-drop img{max-width:100%;max-height:200px;object-fit:contain;border-radius:8px;display:block;margin:0 auto 8px}
+.reference-capture-drop label{display:block;cursor:pointer}.reference-capture-drop input{max-width:100%;display:block;margin:6px auto}
+.reference-capture-fields{display:grid;gap:12px}.reference-capture-fields label{display:grid;gap:5px;font-weight:600}
+.reference-capture-fields input,.reference-capture-fields textarea,.reference-capture-fields select{box-sizing:border-box;min-width:0;width:100%;border:1px solid #8b745e;background:#171717;color:#faf2e7;padding:10px;border-radius:7px;font:inherit}
+.reference-capture-fields textarea{min-height:88px;resize:vertical}
+.reference-capture footer{display:flex;gap:10px;justify-content:flex-end;margin:16px 0 9px}
+.reference-capture footer button:last-child{background:#dba567;color:#281d14;font-weight:700}
+.reference-capture button:disabled{opacity:.55;cursor:not-allowed}
+.reference-capture small{color:#cfc1b3}.reference-capture-error{color:#ffb6a6}.reference-capture-linked{font-size:.9rem;overflow-wrap:anywhere}
+.reference-capture :focus-visible{outline:3px solid #f6c381;outline-offset:2px}
