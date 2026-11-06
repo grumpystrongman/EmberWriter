@@ -125,11 +125,11 @@ def render_plan(performance: dict, source: str, voices: dict,
                 engine: str = "kokoro") -> list[dict]:
     """Engine-independent acting directions; only validated turns can render.
 
-    Fish cues use descriptive delivery tags. Kokoro has no equivalent native
+    Fish cues use descriptive delivery tags. Kitten uses its native emotion tags. Kokoro has no equivalent native
     support; never feed its model a tag that it will read aloud.
     """
     from .expressive_prosody import PRESETS, direction_settings
-    if engine not in {"kokoro", "fish"}:
+    if engine not in {"kokoro", "fish", "kitten"}:
         raise ValueError("Unknown audiobook speech engine")
     validate(performance, source, voices)
     result = []
