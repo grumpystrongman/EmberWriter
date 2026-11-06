@@ -57,14 +57,17 @@ def _hash(value: object) -> str:
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _settings(slug: str) -> dict:
+def _settings(slug: str, engine: str = "kokoro-onnx") -> dict:
     state = audio_production.load(slug)
     cue_dir = project_root(slug) / ".ember" / "audio-director"
     cue_hashes = {
         item.name: hashlib.sha256(item.read_bytes()).hexdigest()
         for item in sorted(cue_dir.glob("*.performance.json"))
     } if cue_dir.is_dir() else {}
-    return {"prosody_version": PROSODY_VERSION, "voices": state.get("kokoro_voices", {}),
+    if engine not in {"kokoro-onnx", "kitten-tts-2"}:
+        raise ValueError("Unsupported local audiobook engine")
+    voices = "kitten_voices" if engine == "kitten-tts-2" else "kokoro_voices"
+    return {"engine": engine, "prosody_version": PROSODY_VERSION, "voices": state.get(voices, {}),
             "casts": state.get("chapter_casts", {}),
             "pronunciations": state.get("pronunciations", []),
             "ipa_pronunciations": state.get("ipa_pronunciations", []),
@@ -145,7 +148,8 @@ def _chapter_chunks(text: str, casts: list[dict], voices: dict, path: str,
 def _chapter_performance_chunks(slug: str, text: str, casts: list[dict],
                                 voices: dict, path: str,
                                 pronunciations: list[dict] | None = None,
-                                ipa_pronunciations: list[dict] | None = None) -> list[dict]:
+                                ipa_pronunciations: list[dict] | None = None,
+                                engine: str = "kokoro-onnx") -> list[dict]:
     """Lossless speaker-accurate turns, preserving CMU IPA and pauses."""
     from .audio_director import load_or_compile, render_plan
     performance = load_or_compile(
@@ -155,8 +159,13 @@ def _chapter_performance_chunks(slug: str, text: str, casts: list[dict],
         raise ValueError(
             f"{path}: Audio Director found {performance['unresolved_count']} "
             "unattributed dialogue passages. Review performance cues before rendering.")
-    turns = render_plan(performance, text, voices, engine="kokoro")
+    turns = render_plan(
+        performance, text, voices,
+        engine="kitten" if engine == "kitten-tts-2" else "kokoro")
     ipa_rules = ipa_pronunciations or []
+    if engine == "kitten-tts-2" and ipa_rules:
+        raise ValueError("The Kitten CPU engine cannot guarantee phonetic IPA overrides. "
+                         "Use Kokoro or remove IPA rules before native emotion generation.")
     author_ipa = {r["written"].casefold() for r in ipa_rules}
     plain_rules = [r for r in (pronunciations or [])
                    if r["written"].casefold() not in author_ipa]
@@ -197,6 +206,7 @@ def _reuse_verified_speech(slug: str, previous: dict | None, job: dict) -> int:
                 part.get("voice_id"), part.get("speed"),
                 part.get("pitch_semitones", 0.0), part.get("gain_db", 0.0),
                 part.get("prosody_version", 0),
+                part.get("emotion", "neutral"), part.get("energy", 3),
                 json.dumps(part.get("ipa_rules", []), sort_keys=True, ensure_ascii=False),
                 part.get("pause_after_ms"))
     candidates = defaultdict(deque)
@@ -221,22 +231,28 @@ def _reuse_verified_speech(slug: str, previous: dict | None, job: dict) -> int:
     return count
 
 
-def start(slug: str) -> dict:
+def start(slug: str, engine: str = "kokoro-onnx") -> dict:
     existing = _read(slug)
     if existing and existing["status"] in ("queued", "running"):
         raise ValueError("An unfinished neural batch already exists; resume it rather than replace it")
     documents = compiled_documents(slug)
     if not 1 <= len(documents) <= MAX_CHAPTERS:
         raise ValueError("Select 1–120 Draft chapters before starting neural production")
-    state = _settings(slug)
-    model_status = kokoro_local.status()
-    if not model_status["installed"]:
-        raise ValueError("Install optional Kokoro model files before neural production")
-    installed_voices = set(model_status.get("voice_ids", []))
+    state = _settings(slug, engine)
+    if engine == "kitten-tts-2":
+        from . import kitten_local
+        if not kitten_local.status()["installed"]:
+            raise ValueError("Install optional local KittenTTS 2 and review its separate model license")
+        installed_voices = set(kitten_local.voice_ids())
+    else:
+        model_status = kokoro_local.status()
+        if not model_status["installed"]:
+            raise ValueError("Install optional Kokoro model files before neural production")
+        installed_voices = set(model_status.get("voice_ids", []))
     unavailable = sorted({profile["voice_id"] for profile in state["voices"].values()
                           if profile["voice_id"] not in installed_voices})
     if unavailable:
-        raise ValueError("Kokoro voice styles are no longer installed: " + ", ".join(unavailable))
+        raise ValueError("Local audiobook voices are not installed: " + ", ".join(unavailable))
     chapters = []
     chunks = []
     for chapter in documents:
@@ -249,7 +265,7 @@ def start(slug: str) -> dict:
             raise ValueError(f"{path}: chapter is too short to narrate")
         selected = _chapter_performance_chunks(
             slug, text, state["casts"].get(path, []), state["voices"], path,
-            state["pronunciations"], state["ipa_pronunciations"])
+            state["pronunciations"], state["ipa_pronunciations"], engine)
         # Keep a real chapter heading as its own spoken turn. The deliberate
         # silence belongs to the audio, not to invented manuscript punctuation.
         heading = re.match(r"^#{1,6}\s+([^\n]+)", raw)
@@ -271,8 +287,8 @@ def start(slug: str) -> dict:
                          "filename": "", "status": "queued"})
         if len(chunks) > MAX_CHUNKS:
             raise ValueError("Novel exceeds maximum of 12,000 neural speech chunks")
-    record = {"id": uuid4().hex, "status": "queued", "engine": "kokoro-onnx",
-              "settings_sha256": _hash(_settings(slug)), "chapters": chapters, "chunks": chunks,
+    record = {"id": uuid4().hex, "status": "queued", "engine": engine,
+              "settings_sha256": _hash(_settings(slug, engine)), "chapters": chapters, "chunks": chunks,
               "created_at": datetime.now(UTC).isoformat(), "human_review_required": True,
               "publication_approved": False, "message": "Ready for author-controlled generation"}
     reused = _reuse_verified_speech(slug, existing, record)
@@ -294,6 +310,7 @@ def status(slug: str) -> dict:
     except (FileNotFoundError, OSError, ValueError) as exc:
         stale_reason = str(exc)
     return {"exists": True, "id": record["id"], "status": record["status"],
+            "engine": record["engine"],
             "stale": bool(stale_reason), "stale_reason": stale_reason,
             "total": len(record["chunks"]),
             "completed": sum(part["status"] == "rendered" for part in record["chunks"]),
@@ -303,7 +320,7 @@ def status(slug: str) -> dict:
 
 
 def _current(slug: str, job: dict):
-    if _hash(_settings(slug)) != job["settings_sha256"]:
+    if _hash(_settings(slug, job.get("engine", "kokoro-onnx"))) != job["settings_sha256"]:
         raise ValueError("Voice, dictionary, or casting settings changed. Start a new neural batch")
     for ch in job["chapters"]:
         if hashlib.sha256(read_text(slug, ch["path"]).encode("utf-8")).hexdigest() != ch["source_sha256"]:
@@ -319,27 +336,45 @@ def _render_part(slug: str, job: dict, index: int):
     import soundfile as sf
 
     part = job["chunks"][index]
-    model, voices = kokoro_local.model_paths()
-    voice_id = part["voice_id"]
-    lang = "en-gb" if voice_id.startswith(("bf_", "bm_")) else "en-us"
-    # The author may rehearse a scene while a book is being produced.
-    # Protect the shared in-process ONNX session from simultaneous use.
-    with kokoro_local._LOCK:
-        engine = kokoro_local._engine(str(model), str(voices))
-        rules = part.get("ipa_rules", [])
-        if rules:
-            from .pronunciation_lexicon import phonemize_author_text
+    if job.get("engine") == "kitten-tts-2":
+        from . import kitten_local
+        folder = kitten_local.model_directory()
+        if folder is None:
+            raise ValueError("Kitten local model folder is not configured")
+        spoken, preset = kitten_local.line_prompt(
+            part["text"].strip(), part.get("emotion", "neutral"),
+            part.get("energy", 3))
+        with kitten_local._LOCK:
+            engine = kitten_local._engine(str(folder))
+            if part["voice_id"] not in engine.available_voices:
+                raise ValueError("Selected Kitten voice is not available")
+            samples = engine.generate(spoken, voice=part["voice_id"], preset=preset)
+            frequency = engine.sample_rate
+        # Genuine Kitten model-conditioned expression; intensity changes the
+        # decoding preset and gentle gain, NOT a fabricated emotional signal.
+        part["expression_preset"] = preset
+        part["pitch_semitones"] = 0
+        part["gain_db"] = (part.get("energy", 3) - 3) * .30
+    else:
+        model, voices = kokoro_local.model_paths()
+        voice_id = part["voice_id"]
+        lang = "en-gb" if voice_id.startswith(("bf_", "bm_")) else "en-us"
+        # All Kokoro production/rehearsals share the same in-process session.
+        with kokoro_local._LOCK:
+            engine = kokoro_local._engine(str(model), str(voices))
+            rules = part.get("ipa_rules", [])
+            if rules:
+                from .pronunciation_lexicon import phonemize_author_text
 
-            # Direct IPA is fed to the Kokoro phoneme path. No unreliable
-            # respelling is sent back through grapheme-to-phoneme conversion.
-            phonemes = phonemize_author_text(part["text"].strip(), rules,
-                                             engine.tokenizer, lang)
-            samples, frequency = engine.create(phonemes, voice=voice_id,
-                                               speed=part["speed"], lang=lang,
-                                               is_phonemes=True)
-        else:
-            samples, frequency = engine.create(part["text"].strip(), voice=voice_id,
-                                               speed=part["speed"], lang=lang)
+                phonemes = phonemize_author_text(part["text"].strip(), rules,
+                                                 engine.tokenizer, lang)
+                samples, frequency = engine.create(
+                    phonemes, voice=voice_id, speed=part["speed"], lang=lang,
+                    is_phonemes=True)
+            else:
+                samples, frequency = engine.create(
+                    part["text"].strip(), voice=voice_id,
+                    speed=part["speed"], lang=lang)
     if frequency != 24000 or not 0 < len(samples) <= 24000 * 180:
         raise ValueError("Speech engine returned empty or invalid audio")
     shaped = apply_expression(samples, pitch_semitones=float(part.get("pitch_semitones", 0)),
@@ -393,7 +428,11 @@ async def advance(slug: str) -> dict:
         if job["status"] not in ("queued", "running", "paused"):
             raise ValueError("The neural batch is complete or blocked; start a new batch")
         _current(slug, job)
-        if not kokoro_local.status()["installed"]:
+        if job.get("engine") == "kitten-tts-2":
+            from . import kitten_local
+            if not kitten_local.status()["installed"]:
+                raise ValueError("Optional local KittenTTS 2 model is unavailable")
+        elif not kokoro_local.status()["installed"]:
             raise ValueError("Optional local Kokoro model files are unavailable")
         # Repair interrupted book assembly before starting the next segment.
         # A chapter can have all its speech chunks durably rendered while its
