@@ -182,7 +182,8 @@ def _chapter_performance_chunks(slug: str, text: str, casts: list[dict],
                 "speaker": turn["speaker"], "text": part,
                 "voice_id": turn["voice_id"], "speed": turn["speed"],
                 "pitch_semitones": turn.get("pitch_semitones", 0.0),
-                "gain_db": turn.get("gain_db", 0.0),
+                "gain_db": ((turn.get("energy", 3) - 3) * 0.30 if engine == "kitten-tts-2"
+                            else turn.get("gain_db", 0.0)),
                 "pause_after_ms": turn.get("pause_after_ms", 160),
                 "prosody_version": turn.get("prosody_version", PROSODY_VERSION),
                 "emotion": turn["emotion"], "delivery": turn["delivery"],
@@ -359,7 +360,6 @@ def _render_part(slug: str, job: dict, index: int):
         # decoding preset and gentle gain, NOT a fabricated emotional signal.
         part["expression_preset"] = preset
         part["pitch_semitones"] = 0
-        part["gain_db"] = (part.get("energy", 3) - 3) * .30
     else:
         model, voices = kokoro_local.model_paths()
         voice_id = part["voice_id"]
