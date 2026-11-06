@@ -47,6 +47,30 @@ def model_directory() -> Path | None:
     return directory if directory.is_absolute() else None
 
 
+def model_identity() -> str:
+    """Cheap installed-weight identity; prevents mixing editions across a batch.
+
+    File sizes and mtime protect the author from accidental model switches.
+    They are not a cryptographic guarantee that model weights were unmodified.
+    """
+    folder = model_directory()
+    if folder is None or not (folder / "config.json").is_file():
+        raise ValueError("Kitten model folder is missing")
+    manifests = []
+    for candidate in sorted(folder.rglob("*")):
+        if candidate.is_file() and candidate.suffix.lower() in {
+            ".safetensors", ".gguf", ".pt", ".bin", ".json",
+        }:
+            info = candidate.stat()
+            manifests.append((str(candidate.relative_to(folder)), info.st_size,
+                              info.st_mtime_ns))
+    if not manifests:
+        raise ValueError("Kitten model directory has no usable weights")
+    return hashlib.sha256(json.dumps({
+        "directory": str(folder.resolve()), "files": manifests,
+    }, sort_keys=True).encode("utf-8")).hexdigest()
+
+
 def status() -> dict:
     folder = model_directory()
     configured = bool(folder and (folder / "config.json").is_file())
