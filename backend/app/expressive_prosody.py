@@ -11,8 +11,6 @@ import shutil
 import subprocess
 from functools import lru_cache
 
-import numpy as np
-
 PROSODY_VERSION = 1
 
 # Tempo, pitch in semitones, gain dB, post-line silence in milliseconds.
@@ -79,13 +77,15 @@ def rubberband_available() -> bool:
         return False
 
 
-def apply_expression(samples: np.ndarray, pitch_semitones: float = 0.0,
-                     gain_db: float = 0.0, sample_rate: int = 24000) -> np.ndarray:
+def apply_expression(samples, pitch_semitones: float = 0.0,
+                     gain_db: float = 0.0, sample_rate: int = 24000):
     """Apply restrained CPU acoustics without adding or removing spoken text.
 
     If a pitch change was requested, require the quality-preserving Rubber Band
     FFmpeg filter; a pitch-destroying resampling fallback is intentionally absent.
     """
+    import numpy as np
+
     if sample_rate != 24000:
         raise ValueError("Expressive audiobook processor requires 24 kHz audio")
     if not -2.0 <= pitch_semitones <= 2.0 or not -6 <= gain_db <= 6:
