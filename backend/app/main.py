@@ -46,6 +46,7 @@ from .routes_book_revisions import router as book_revisions_router
 from .routes_book_studio import router as book_studio_router
 from .routes_canon_ripple import router as canon_ripple_router
 from .routes_chemistry import router as chemistry_router
+from .routes_companion import router as companion_router
 from .routes_cover import router as cover_router
 from .routes_craft import router as craft_router
 from .routes_development import router as development_router
@@ -167,6 +168,7 @@ async def writer_generation_guard(request: Request, call_next):
     return await guard_generation_request(request, call_next)
 
 
+app.include_router(companion_router)
 app.include_router(autopilot_router)
 app.include_router(canon_ripple_router)
 app.include_router(book_studio_router)
