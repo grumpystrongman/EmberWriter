@@ -82,7 +82,11 @@ def retrieve(slug: str, question: str) -> list[dict]:
         if remaining < 100 or len(evidence) >= MAX_EVIDENCE:
             break
         path = str(item.get("path", ""))
-        if path.startswith(("summaries/", "style/")):
+        # Keep the assistant focused on author-written story evidence; never
+        # quote project settings, credentials or unrelated local documents.
+        if not path.startswith(("manuscript/", "characters/", "world/", "scenes/")):
+            continue
+        if not path.endswith((".md", ".txt")):
             continue
         snippet = str(item.get("excerpt", "")).strip()
         if (path, snippet) in seen:
