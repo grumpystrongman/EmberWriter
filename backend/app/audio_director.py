@@ -208,14 +208,14 @@ def load_or_compile(path: Path, source: str, names: list[str],
         candidate = json.loads(path.read_text(encoding="utf-8"))
         if candidate.get("source_sha256") == hashlib.sha256(source.encode("utf-8")).hexdigest():
             old = {(s["start"], s["end"]): s for s in candidate.get("spans", [])
-                   if s.get("kind") == "dialogue"}
+                   if s.get("kind") in {"dialogue", "narration"}}
             for (start, end), row in old.items():
-                if row.get("attribution") in {"author_override", "editor_suggestion"} and row.get("speaker"):
+                if (row.get("kind") == "dialogue"
+                        and row.get("attribution") in {"author_override", "editor_suggestion"}
+                        and row.get("speaker")):
                     overrides.setdefault(f"{start}:{end}", row["speaker"])
     result = compile_performance(source, names, overrides)
     for row in result["spans"]:
-        if row["kind"] != "dialogue":
-            continue
         previous = old.get((row["start"], row["end"]))
         if (previous and previous.get("attribution") == "editor_suggestion"
                 and row["speaker"] == previous.get("speaker")):
@@ -238,9 +238,10 @@ def revise_direction(performance: dict, start: int, end: int,
     if not 1 <= len(delivery) <= 140 or any(c in delivery for c in "<>[]\r\n"):
         raise ValueError("Performance direction must be plain text of 1–140 characters")
     matches = [s for s in performance["spans"]
-               if s["start"] == start and s["end"] == end and s["kind"] == "dialogue"]
+               if s["start"] == start and s["end"] == end
+               and s["kind"] in {"dialogue", "narration"}]
     if len(matches) != 1:
-        raise ValueError("Dialogue selection does not match current manuscript")
+        raise ValueError("Spoken passage selection does not match current manuscript")
     matches[0]["performance"] = {"emotion": emotion, "delivery": delivery,
                                  "energy": energy, "confidence": "author_directed"}
     return performance
