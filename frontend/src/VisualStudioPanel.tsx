@@ -61,6 +61,7 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [draggingReference, setDraggingReference] = useState(false)
 
   const selectedAsset = assets.find((item) => item.asset_id === selectedAssetId) || null
   const canonicalAssets = useMemo(() => assets.filter((item) => item.canon_status === 'canonical'), [assets])
@@ -160,7 +161,8 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
   }
 
   async function uploadReference(file: File) {
-    const id = slugify(assetId || subject || file.name.replace(/\.[^.]+$/, ''))
+    // Each pasted or dropped image is a new reference; never overwrite an existing canon asset.
+    const id = `${slugify(subject || file.name.replace(/\.[^.]+$/, ''))}-${crypto.randomUUID().slice(0, 8)}`
     const body = new FormData()
     body.append('image', file)
     setBusy(true)
@@ -177,12 +179,28 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
       setSelectedAssetId(created.asset_id)
       setReferenceAssetId(created.asset_id)
       setAssetId(created.asset_id)
-      setNotice('Reference image added. You can now use it to anchor img2img generations.')
+      setNotice('Reference saved locally as a visual hint—not story canon. Add notes about what matters, or approve it as canonical later.')
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
       setBusy(false)
     }
+  }
+
+  function acceptReference(file: File | undefined) {
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setError('Choose a PNG, JPEG, or WebP reference image.')
+      return
+    }
+    void uploadReference(file)
+  }
+
+  function pastedImage(event: React.ClipboardEvent<HTMLElement>) {
+    const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith('image/'))
+    if (!file || busy) return
+    event.preventDefault()
+    acceptReference(file)
   }
 
   async function updateAsset(asset: VisualAsset, patch: Partial<Pick<VisualAsset, 'canon_status' | 'notes' | 'linked_entities' | 'title' | 'kind'>>) {
@@ -257,7 +275,29 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
           <label>Visual reference <select value={referenceAssetId} onChange={(event) => setReferenceAssetId(event.target.value)}><option value="">None — text to image</option>{assets.map((asset) => <option key={asset.asset_id} value={asset.asset_id}>{asset.title} · {asset.canon_status}</option>)}</select></label>
           {referenceAssetId && <label>Reference strength <input type="range" min="0.1" max="0.85" step="0.05" value={denoising} onChange={(event) => setDenoising(Number(event.target.value))} /><b>{denoising.toFixed(2)}</b><small>Lower preserves more of the reference; higher allows larger changes.</small></label>}
           <button type="button" className="primary visual-generate" onClick={() => void generateImage()} disabled={busy || !prompt.trim()}>{busy ? 'Working…' : referenceAssetId ? 'Generate referenced variation' : 'Generate concept'}</button>
-          <label className="visual-upload">Or add an existing reference<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadReference(file); event.currentTarget.value = '' }} /></label>
+          <div
+            role="group"
+            aria-label="Paste or drop a visual reference"
+            tabIndex={0}
+            onPaste={pastedImage}
+            onDragOver={(event) => { event.preventDefault(); if (!busy) setDraggingReference(true) }}
+            onDragLeave={() => setDraggingReference(false)}
+            onDrop={(event) => {
+              event.preventDefault()
+              setDraggingReference(false)
+              if (!busy) acceptReference(Array.from(event.dataTransfer.files).find((item) => item.type.startsWith('image/')))
+            }}
+            style={{ border: draggingReference ? '2px solid var(--accent, #cd8854)' : '1px dashed currentColor', borderRadius: 12, padding: 16, marginTop: 12 }}
+          >
+            <strong>Bring your inspiration here</strong>
+            <p>Copy an image from a website, click this box and press Ctrl+V (⌘V on Mac), or drag an image here. A visual hint is never treated as canon without your approval.</p>
+            <label className="visual-upload">Choose an image instead
+              <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(event) => {
+                acceptReference(event.target.files?.[0])
+                event.currentTarget.value = ''
+              }} />
+            </label>
+          </div>
           <p className="visual-policy-note"><b>Promotion is deliberate.</b> Generated images start as Concept. Uploads start as Reference. Only you can mark an image Canonical.</p>
         </aside>
       </div>
