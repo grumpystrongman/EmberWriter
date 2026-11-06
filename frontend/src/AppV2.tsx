@@ -359,6 +359,7 @@ export default function AppV2() {
     try {
       const data = await jsonFetch<{ path: string; content: string }>(`${API}/projects/${slug}/file?path=${encodeURIComponent(path)}`)
       setActiveFile(path)
+      window.dispatchEvent(new CustomEvent('emberwriter:document-opened', { detail: { slug, path } }))
       setContent(data.content)
       setDirty(false)
       lastAutoMemoryRef.current = ''
