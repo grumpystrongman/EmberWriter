@@ -1,8 +1,8 @@
 """Discover and instantiate author-selected writing format templates."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .writing_templates import catalog, create, preview
+from .writing_templates import assignment, catalog, create, preview
 
 router = APIRouter(prefix="/api")
 
@@ -21,6 +21,16 @@ def list_templates() -> list[dict]:
 def preview_template(payload: TemplatePreview) -> dict:
     try:
         return preview(payload.template_id, payload.title)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/projects/{slug}/writing-templates/assignment")
+def writing_assignment(slug: str, path: str = Query(min_length=1, max_length=500)) -> dict:
+    try:
+        return assignment(slug, path)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Project not found") from exc
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
