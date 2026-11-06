@@ -1,11 +1,11 @@
-from pathlib import Path
 import io
+from pathlib import Path
 
 import pytest
 from PIL import Image
 from starlette.datastructures import Headers, UploadFile
 
-from app import routes_visual_interpret, routes_media, storage
+from app import routes_media, routes_visual_interpret, storage
 from app.routes_visual_interpret import ImageInterpretRequest
 
 
