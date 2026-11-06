@@ -169,5 +169,6 @@ export type VisualAsset = {
   canon_status: 'reference' | 'concept' | 'canonical'
   linked_entities: string[]
   notes: string
+  source_url?: string
   reference_asset_id: string | null
 }
