@@ -62,6 +62,8 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [draggingReference, setDraggingReference] = useState(false)
+  const [referenceSourceUrl, setReferenceSourceUrl] = useState('')
+  const [referenceNote, setReferenceNote] = useState('')
 
   const selectedAsset = assets.find((item) => item.asset_id === selectedAssetId) || null
   const canonicalAssets = useMemo(() => assets.filter((item) => item.canon_status === 'canonical'), [assets])
@@ -169,6 +171,7 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
     setError('')
     try {
       const params = new URLSearchParams({ title: subject.trim() || file.name, kind })
+      if (referenceSourceUrl.trim()) params.set('source_url', referenceSourceUrl.trim())
       const response = await fetch(`${apiBase}/projects/${project.slug}/visual-assets/${id}/upload?${params}`, { method: 'POST', body })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
@@ -179,7 +182,10 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
       setSelectedAssetId(created.asset_id)
       setReferenceAssetId(created.asset_id)
       setAssetId(created.asset_id)
-      setNotice('Reference saved locally as a visual hint—not story canon. Add notes about what matters, or approve it as canonical later.')
+      if (referenceNote.trim()) await updateAsset(created, { notes: referenceNote.trim() })
+      setReferenceNote('')
+      setReferenceSourceUrl('')
+      setNotice('Reference saved locally as a visual hint—not story canon. Approve it as canonical only if you choose.')
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -203,7 +209,7 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
     acceptReference(file)
   }
 
-  async function updateAsset(asset: VisualAsset, patch: Partial<Pick<VisualAsset, 'canon_status' | 'notes' | 'linked_entities' | 'title' | 'kind'>>) {
+  async function updateAsset(asset: VisualAsset, patch: Partial<Pick<VisualAsset, 'canon_status' | 'notes' | 'source_url' | 'linked_entities' | 'title' | 'kind'>>) {
     setBusy(true)
     setError('')
     try {
@@ -291,6 +297,12 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
           >
             <strong>Bring your inspiration here</strong>
             <p>Copy an image from a website, click this box and press Ctrl+V (⌘V on Mac), or drag an image here. A visual hint is never treated as canon without your approval.</p>
+            <label>What should the story borrow from it?
+              <textarea value={referenceNote} onChange={event => setReferenceNote(event.target.value)} maxLength={4000} placeholder="The atmosphere and lighting, but not the clothing or architecture…" />
+            </label>
+            <label>Original website link (optional, for attribution)
+              <input type="url" value={referenceSourceUrl} onChange={event => setReferenceSourceUrl(event.target.value)} maxLength={2000} placeholder="https://example.com/your-reference" />
+            </label>
             <label className="visual-upload">Choose an image instead
               <input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={(event) => {
                 acceptReference(event.target.files?.[0])
@@ -311,7 +323,7 @@ export default function VisualStudioPanel({ apiBase, project }: Props) {
         </article>)}</div>
       </section>
 
-      {selectedAsset && <section className="visual-detail atlas-panel"><div className="atlas-panel-heading"><div><strong>{selectedAsset.title}</strong><small>{selectedAsset.asset_id}</small></div><span className={`visual-status ${selectedAsset.canon_status}`}>{selectedAsset.canon_status}</span></div><div className="visual-detail-grid"><img src={`${apiBase}/projects/${project.slug}/visual-assets/${selectedAsset.asset_id}?v=${encodeURIComponent(selectedAsset.generated_at)}`} alt={selectedAsset.title} /><div><label>Linked story entities <input value={selectedAsset.linked_entities.join(', ')} onChange={(event) => setAssets((current) => current.map((item) => item.asset_id === selectedAsset.asset_id ? { ...item, linked_entities: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) } : item))} onBlur={() => { const current = assets.find((item) => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { linked_entities: current.linked_entities }) }} /></label><label>Notes <textarea value={selectedAsset.notes} onChange={(event) => setAssets((current) => current.map((item) => item.asset_id === selectedAsset.asset_id ? { ...item, notes: event.target.value } : item))} onBlur={() => { const current = assets.find((item) => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { notes: current.notes }) }} placeholder="What this image establishes visually…" /></label><p><b>Source:</b> {selectedAsset.source}</p>{selectedAsset.reference_asset_id && <p><b>Derived from:</b> {selectedAsset.reference_asset_id}</p>}</div></div></section>}
+      {selectedAsset && <section className="visual-detail atlas-panel"><div className="atlas-panel-heading"><div><strong>{selectedAsset.title}</strong><small>{selectedAsset.asset_id}</small></div><span className={`visual-status ${selectedAsset.canon_status}`}>{selectedAsset.canon_status}</span></div><div className="visual-detail-grid"><img src={`${apiBase}/projects/${project.slug}/visual-assets/${selectedAsset.asset_id}?v=${encodeURIComponent(selectedAsset.generated_at)}`} alt={selectedAsset.title} /><div><label>Linked story entities <input value={selectedAsset.linked_entities.join(', ')} onChange={(event) => setAssets((current) => current.map((item) => item.asset_id === selectedAsset.asset_id ? { ...item, linked_entities: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) } : item))} onBlur={() => { const current = assets.find((item) => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { linked_entities: current.linked_entities }) }} /></label><label>Source website <input type="url" value={selectedAsset.source_url || ''} onChange={event => setAssets(current => current.map(item => item.asset_id === selectedAsset.asset_id ? { ...item, source_url: event.target.value } : item))} onBlur={() => { const current = assets.find(item => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { source_url: current.source_url }) }} placeholder="Link to where you found this image" /></label><label>Notes <textarea value={selectedAsset.notes} onChange={(event) => setAssets((current) => current.map((item) => item.asset_id === selectedAsset.asset_id ? { ...item, notes: event.target.value } : item))} onBlur={() => { const current = assets.find((item) => item.asset_id === selectedAsset.asset_id); if (current) void updateAsset(current, { notes: current.notes }) }} placeholder="What this image establishes visually…" /></label><p><b>Source:</b> {selectedAsset.source}</p>{selectedAsset.reference_asset_id && <p><b>Derived from:</b> {selectedAsset.reference_asset_id}</p>}</div></div></section>}
 
       {(error || notice) && <div className={error ? 'center-error' : 'atlas-notice'}>{error || notice}</div>}
     </div>
