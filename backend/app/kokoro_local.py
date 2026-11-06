@@ -15,8 +15,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from . import audio_production
-from .expressive_prosody import apply_expression, direction_settings, PRESETS
 from .audiobook_local import _spoken_text
+from .expressive_prosody import PRESETS, apply_expression, direction_settings
 from .storage import project_root, read_text
 
 TAKE_NAME = re.compile(r"^[0-9a-f]{32}\.wav$")
