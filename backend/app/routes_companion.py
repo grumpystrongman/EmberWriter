@@ -1,6 +1,8 @@
 """Optional local-model explanatory companion. Read-only; never authorizes story changes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -91,12 +93,15 @@ async def ask_companion(slug: str, payload: CompanionQuestion) -> dict:
         {"role": "user", "content": payload.question},
     ]
     try:
-        answer = await generate(
-            ProviderConfig(provider="ollama", base_url="http://127.0.0.1:11434",
-                           model=payload.model.strip()),
-            messages,
-            temperature=0.3,
-            max_output_tokens=350,
+        answer = await asyncio.wait_for(
+            generate(
+                ProviderConfig(provider="ollama", base_url="http://127.0.0.1:11434",
+                               model=payload.model.strip()),
+                messages,
+                temperature=0.3,
+                max_output_tokens=350,
+            ),
+            timeout=75.0,
         )
     except Exception as exc:
         # Do not expose provider exception contents (which may include sensitive request data).
