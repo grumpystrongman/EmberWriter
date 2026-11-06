@@ -38,7 +38,7 @@ TEMPLATES = [
      "format":"essay","genre":"personal_essay","guidance":"Begin with a genuine question or scene. Separate remembered fact from interpretation. Let reflection grow from concrete detail; avoid a forced inspirational moral. Preserve first-person authenticity.",
      "sections":[("Scene or question","A specific observation that troubles or interests you."),("Experience and inquiry","What happened, what you thought then, and what remains uncertain."),("Reflection","What changes in your understanding, without pretending everything is resolved.")]},
     {"id":"academic-essay","title":"Academic / argumentative essay","group":"Nonfiction","icon":"§","description":"Claim, evidence, counterargument and reasoned conclusion.",
-     "format":"essay","genre":"academic","guidance":"State an arguable thesis. Distinguish evidence from inference and clearly label any missing citations as TODOs. Address a serious counterargument fairly. Never invent academic sources, quotations or statistics.",
+     "format":"essay","genre":"academic","guidance":"State an arguable thesis. Distinguish evidence from inference and clearly label any missing citations as [CITATION NEEDED]. Address a serious counterargument fairly. Never invent academic sources, quotations or statistics.",
      "sections":[("Introduction and thesis","Context, research question and a contestable claim."),("Claim and evidence","Use verified evidence; add [CITATION NEEDED] where missing."),("Counterargument","State a strong opposing position and respond with evidence."),("Conclusion","Synthesize the reasoning and its limitations.")]},
     {"id":"screenplay","title":"Film / TV screenplay","group":"Scripts","icon":"▣","description":"Screen directions, visual action and speakable dialogue.",
      "format":"screenplay","genre":"screenplay","guidance":"Write filmable action in present tense. Use INT./EXT. sluglines, concise action blocks, uppercase character cues, natural dialogue and sparing parentheticals. Avoid unfilmable internal monologue and novel-style exposition. Plain text is a drafting aid, not industry-standard FDX/PDF pagination.",
@@ -129,3 +129,24 @@ def create(slug: str, template_id: str, title: str) -> dict:
     sync_binder(slug)
     return {"path": relative, "guide_path": guide_path.relative_to(root).as_posix(),
             "format": draft["format"], "genre": draft["genre"], "template_id": template_id}
+
+
+def assignment(slug: str, path: str) -> dict:
+    """Read-only active-document format lookup for editor presentation."""
+    root = project_root(slug)
+    if not (root / "project.json").is_file():
+        raise FileNotFoundError(slug)
+    if not path.startswith("manuscript/") or ".." in path:
+        raise ValueError("Select a manuscript document")
+    index = root / ".ember" / "writing-templates.json"
+    if not index.is_file():
+        return {"path": path, "format": "novel", "genre": "general", "guide_path": ""}
+    try:
+        state = json.loads(index.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"path": path, "format": "novel", "genre": "general", "guide_path": ""}
+    item = state.get(path) if isinstance(state, dict) else None
+    if not isinstance(item, dict):
+        return {"path": path, "format": "novel", "genre": "general", "guide_path": ""}
+    return {"path": path, "format": item.get("format", "novel"),
+            "genre": item.get("genre", "general"), "guide_path": item.get("style_guide", "")}
