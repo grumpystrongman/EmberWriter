@@ -57,3 +57,14 @@ For CPU-only Windows, Python inference may not meet real-time playback throughpu
 5. Run actual input/output audio tests on both engines. Mocked tests prove routing and safety, **not** model quality.
 
 Do not promote the beta ship gate based on a subset of synthetic tests.
+
+## Isolated Windows validation — 2026-11-06
+
+On BarnesPC in an isolated source checkout (not the author's live projects):
+
+- Frontend `npm run build`: **PASS**.
+- Focused backend suite across expression, Fish, Kokoro, audio casting, finishing and release safeguards: **39 passed**.
+- Focused Ruff lint on edited audio modules/tests: **PASS**.
+- Genuine local Kokoro ONNX model and FFmpeg Rubber Band: **four synthetic voice renders succeeded**. Using the same short source line and local `af_heart` voice at energy 4: neutral 3.05 s audio (5.32 s render, cold), joy 2.92 s (1.85 s), sadness 3.14 s (1.74 s), anger 2.89 s (1.66 s). These are illustrative measurements on a powerful developer Windows laptop, not CPU-only low-end benchmarks or evidence that emotion sounds natural. No unapproved author manuscript was used.
+- Optional Kitten weights and `kittenml` were **not installed**. Native expression integration and complete-book behavior were tested with a controlled fake engine, not with real Kitten recordings.
+- Human A/B listening, real-Kitten full-book rendering, CPU-only lower-end hardware, and final retailer audio mastering all remain **unverified**. The previously established public beta ship gates are unchanged.
