@@ -192,6 +192,19 @@ export default function AppV2() {
   const workspaceBusy = modelOccupied || binderBusy || importBusy
 
   useEffect(() => { void refreshProjects() }, [])
+  useEffect(() => {
+    const openNewDocument = (event: Event) => {
+      const detail = (event as CustomEvent<{slug: string; path: string}>).detail
+      if (!detail?.slug || !detail.path?.startsWith('manuscript/')) return
+      void (async () => {
+        await refreshProjects()
+        await openProject(detail.slug)
+        await openFile(detail.slug, detail.path)
+      })()
+    }
+    window.addEventListener('emberwriter:open-writing-document', openNewDocument)
+    return () => window.removeEventListener('emberwriter:open-writing-document', openNewDocument)
+  }, [])
   useEffect(() => { localStorage.setItem('emberwriter.provider', JSON.stringify(provider)) }, [provider])
   useEffect(() => { localStorage.setItem('emberwriter.craftControls', JSON.stringify(craftControls)) }, [craftControls])
   useEffect(() => { localStorage.setItem('emberwriter.autoMemory', String(autoMemory)) }, [autoMemory])
