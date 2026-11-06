@@ -17,6 +17,7 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -29,11 +30,28 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
       }).then(rows => { if (alive) { setTemplates(rows); setSelected(rows[0]?.id || '') } })
       .catch(cause => { if (alive) setError((cause as Error).message) })
     const timer = window.setTimeout(() => inputRef.current?.focus(), 50)
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) onClose()
+    return () => { alive = false; window.clearTimeout(timer) }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) { event.preventDefault(); onClose() }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]'
+      ))
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus()
+      }
     }
-    window.addEventListener('keydown', escape)
-    return () => { alive = false; window.clearTimeout(timer); window.removeEventListener('keydown', escape) }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
   }, [open, busy, onClose])
 
   useEffect(() => {
@@ -78,7 +96,7 @@ export default function WritingTemplatePicker({ open, project, onClose, onCreate
 
   if (!open) return null
   return <div className="writing-picker-backdrop">
-    <section className="writing-picker" role="dialog" aria-modal="true" aria-labelledby="writing-picker-title">
+    <section ref={dialogRef} className="writing-picker" role="dialog" aria-modal="true" aria-labelledby="writing-picker-title">
       <header className="writing-picker-header">
         <div><span className="writing-picker-kicker">YOUR NEXT PIECE</span>
           <h2 id="writing-picker-title">What would you like to write?</h2>
