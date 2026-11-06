@@ -67,7 +67,12 @@ def _settings(slug: str, engine: str = "kokoro-onnx") -> dict:
     if engine not in {"kokoro-onnx", "kitten-tts-2"}:
         raise ValueError("Unsupported local audiobook engine")
     voices = "kitten_voices" if engine == "kitten-tts-2" else "kokoro_voices"
-    return {"engine": engine, "prosody_version": PROSODY_VERSION, "voices": state.get(voices, {}),
+    model_identity = ""
+    if engine == "kitten-tts-2":
+        from .kitten_local import model_identity as installed_model_identity
+        model_identity = installed_model_identity()
+    return {"engine": engine, "model_identity": model_identity,
+            "prosody_version": PROSODY_VERSION, "voices": state.get(voices, {}),
             "casts": state.get("chapter_casts", {}),
             "pronunciations": state.get("pronunciations", []),
             "ipa_pronunciations": state.get("ipa_pronunciations", []),
