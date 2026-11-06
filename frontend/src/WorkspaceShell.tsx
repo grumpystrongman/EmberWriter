@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
-import AppV2 from './AppV2'
+const AppV2 = lazy(() => import('./AppV2'))
 import EmberCompanion from './EmberCompanion'
 import ReferenceCapture from './ReferenceCapture'
 import WritingTemplatePicker from './WritingTemplatePicker'
@@ -400,7 +400,9 @@ export default function WorkspaceShell() {
       </div>
 
       <div className="workspace-app">
-        <AppV2 />
+        <Suspense fallback={<div role="status" className="workspace-loading">Opening your writing desk…</div>}>
+          <AppV2 />
+        </Suspense>
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
       <WritingTemplatePicker open={templateOpen} project={projectContext}
