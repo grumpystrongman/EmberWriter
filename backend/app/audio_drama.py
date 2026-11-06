@@ -95,6 +95,22 @@ def _selected_dialogue(slug: str, path: str, start: int) -> tuple[dict, str]:
         span = {"start": candidate["start"], "end": candidate["end"],
                 "text": candidate["text"], "character": candidate["speaker"],
                 "performance": candidate.get("performance", {})}
+    # Manual chapter casts also need the newest Audio Director delivery.
+    # Previously only automatically attributed dialogue inherited expression.
+    if span is not None and not span.get("performance"):
+        cue_file = (project_root(slug) / ".ember" / "audio-director"
+                    / (Path(path).stem + ".performance.json"))
+        if cue_file.is_file():
+            record = json.loads(cue_file.read_text(encoding="utf-8"))
+            if record.get("source_sha256") == hashlib.sha256(text.encode("utf-8")).hexdigest():
+                for cue in record.get("spans", []):
+                    if (cue.get("kind") == "dialogue"
+                            and cue.get("start") == span["start"]
+                            and cue.get("end") == span["end"]
+                            and cue.get("text") == span["text"]
+                            and isinstance(cue.get("performance"), dict)):
+                        span = {**span, "performance": cue["performance"]}
+                        break
     if not (0 <= start < span["end"] <= len(text)) or text[start:span["end"]] != span["text"]:
         raise ValueError("Dialogue changed in the manuscript. Reassign the character before rendering")
     if len(span["text"].encode("utf-8")) > 2000:
@@ -117,9 +133,31 @@ def render_take(slug: str, path: str, start: int, port: int = 8080) -> dict:
     # selects voice timbre; seed alone does not make timbre reproducible.
     spoken = span["text"]
     cues = span.get("performance", {})
-    direction = (cues.get("delivery", "") if cues.get("emotion") not in ("neutral", None)
-                 else "") or setting["direction"]
+    # Fish S2/Drama 3 support natural-language [tags]. Model versions may
+    # interpret them differently. Use only author-saved cues, no invented speech.
+    emotion = str(cues.get("emotion", "neutral"))
+    energy = cues.get("energy", 3)
+    if type(energy) is not int or not 1 <= energy <= 5:
+        energy = 3
+    expressive = {
+        "joy": "joyful", "excitement": "excited", "sadness": "sad",
+        "grief": "grieving", "anger": "angry", "fear": "fearful",
+        "urgency": "urgent", "relief": "relieved",
+        "determination": "determined", "uncertainty": "uncertain",
+        "tenderness": "tender", "sarcasm": "sarcastic", "surprise": "surprised",
+        "awe": "in awe", "exhaustion": "exhausted", "soft": "soft voice",
+    }
+    mood = expressive.get(emotion, "")
+    if mood:
+        intensity = {1: "very restrained", 2: "subtle", 3: "", 4: "strong", 5: "very intense"}[energy]
+        mood = " ".join(item for item in [intensity, mood] if item)
+    delivery = str(cues.get("delivery", "")).strip() if mood else ""
+    direction = ", ".join(item for item in [mood, delivery] if item) or setting["direction"]
     if direction:
+        # Reject markup control and line breaks rather than constructing
+        # arbitrary model tag nesting from imported story data.
+        if len(direction) > 500 or any(c in direction for c in "<>[]\\r\\n"):
+            raise ValueError("Unsupported Fish direction markup")
         spoken = f"[{direction}] {spoken}"
     request = {"text": spoken, "references": [], "reference_id": setting["reference_id"],
                "format": "wav", "streaming": False}
@@ -161,6 +199,7 @@ def render_take(slug: str, path: str, start: int, port: int = 8080) -> dict:
               "source_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
               "text": span["text"], "start": start, "character": span["character"],
               "reference_id": setting["reference_id"], "direction": direction,
+              "emotion": emotion, "energy": energy,
               "seed": setting.get("seed"), "audio_sha256": hashlib.sha256(audio).hexdigest(),
               "bytes": len(audio), "status": "unapproved_rehearsal"}
     (folder / (identifier + ".json")).write_text(
