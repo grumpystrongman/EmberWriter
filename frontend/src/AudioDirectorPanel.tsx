@@ -7,7 +7,7 @@ type Cue = {
   text: string
   speaker: string | null
   attribution?: string
-  performance?: { emotion: string; delivery: string; confidence: string }
+  performance?: { emotion: string; delivery: string; energy?: number; confidence: string }
 }
 type Performance = {
   source_sha256: string
@@ -27,7 +27,7 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
   const endpoint = `${apiBase}/projects/${encodeURIComponent(slug)}/audiobook-production`
   const [script, setScript] = useState<Performance | null>(null)
   const [names, setNames] = useState<string[]>([])
-  const [edit, setEdit] = useState<Record<number, {emotion: string; delivery: string}>>({})
+  const [edit, setEdit] = useState<Record<number, {emotion: string; delivery: string; energy: number}>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -95,6 +95,7 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
   return <details id="audio-director-tool" className="audiobook-direction" data-testid="audio-director">
     <summary>Audio Director · {script ? `${dialogue.length} spoken lines · ${script.unresolved_count} need review` : 'performance manuscript'}</summary>
     <p>The performance manuscript is a separate, lossless version of this chapter for narration. Every quotation gets its own voice and delivery direction. Unresolved voices block neural book production rather than defaulting to the narrator.</p>
+    <p><small>CPU-friendly Kokoro supports voice identity and pace; the energy control changes tempo slightly, not true emotion or acting. Fish rehearsal may respond to descriptive delivery cues when its separate server and model are available. Always listen and approve each take.</small></p>
     {!path && <p>Select a manuscript chapter first.</p>}
     {error && <p role="alert" className="audiobook-alert">{error}</p>}
     {message && <p role="status" className="audiobook-success">{message}</p>}
@@ -104,7 +105,7 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
       {shown.length === 0 && <p>Every identified quotation has a voice assignment. Review the emotional delivery before rendering.</p>}
       {shown.map(row => {
         const current = edit[row.start] || {emotion: row.performance?.emotion || 'neutral',
-                                          delivery: row.performance?.delivery || 'natural'}
+                                          delivery: row.performance?.delivery || 'natural', energy: row.performance?.energy || 3}
         return <div key={row.start} className="audiobook-job-chapter" style={{display:'block',margin:'0.7rem 0',padding:'0.7rem'}}>
           <blockquote style={{whiteSpace:'pre-wrap',margin:'0 0 0.5rem'}}>{row.text}</blockquote>
           <small>Characters {row.start}–{row.end} · {row.attribution || 'unresolved'}</small>
@@ -121,6 +122,12 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
                 onChange={e => setEdit(p => ({...p,[row.start]:{...current,emotion:e.target.value}}))}>
                 {['neutral','fear','sadness','joy','anger','urgency','relief','determination','uncertainty','tenderness'].map(v => <option key={v} value={v}>{v}</option>)}
               </select>
+            </label>
+            <label>Energy / pace (1 = restrained, 5 = urgent)
+              <input type="range" min="1" max="5" step="1" value={current.energy}
+                disabled={disabled || busy} aria-label={`Energy for line ${row.start}`}
+                onChange={e => setEdit(p => ({...p,[row.start]:{...current,energy:Number(e.target.value)}}))} />
+              <span>{current.energy} / 5</span>
             </label>
             <label>Delivery cue
               <input aria-label={`Delivery for line ${row.start}`} maxLength={140} value={current.delivery}

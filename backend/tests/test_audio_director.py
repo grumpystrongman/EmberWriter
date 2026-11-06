@@ -31,6 +31,30 @@ class AudioDirectorTests(unittest.TestCase):
         cue = compile_performance(source, ["Mara"], {f"{start}:{end}": "Mara"})
         validate(cue, source, {"Narrator": {}, "Mara": {}})
 
+    def test_author_energy_changes_only_kokoro_tempo_not_manuscript(self):
+        source = 'Mara said, "Run!"'
+        performance = compile_performance(source, ["Mara"])
+        dialogue = next(row for row in performance["spans"] if row["kind"] == "dialogue")
+        module.revise_direction(performance, dialogue["start"], dialogue["end"],
+                                "urgency", "urgent, clipped", energy=5)
+        voices = {"Narrator": {"voice_id": "af_sarah", "speed": 1.0},
+                  "Mara": {"voice_id": "af_sarah", "speed": 1.0}}
+        plan = module.render_plan(performance, source, voices, engine="kokoro")
+        acted = next(row for row in plan if row["speaker"] == "Mara")
+        self.assertEqual(acted["source_text"], '"Run!"')
+        self.assertEqual(acted["tts_text"], '"Run!"')
+        self.assertAlmostEqual(acted["speed"], 1.08)
+        self.assertEqual(acted["energy"], 5)
+        self.assertEqual("".join(row["source_text"] for row in plan), source)
+
+    def test_invalid_energy_is_rejected(self):
+        source = 'Mara said, "Run!"'
+        performance = compile_performance(source, ["Mara"])
+        dialogue = next(row for row in performance["spans"] if row["kind"] == "dialogue")
+        with self.assertRaisesRegex(ValueError, "energy"):
+            module.revise_direction(performance, dialogue["start"], dialogue["end"],
+                                    "urgency", "fast", energy=9)
+
     def test_conflicting_attribution_requires_review(self):
         source = 'Mara said, "Hello," Ivo replied.'
         cue = compile_performance(source, ["Mara", "Ivo"])
