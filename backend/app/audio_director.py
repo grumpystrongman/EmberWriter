@@ -28,7 +28,7 @@ def _match_name(fragment: str, names: list[str], *, before: bool) -> str | None:
             pattern = rf'\b{escaped}\s+{VERBS}\s*[,;:]?\s*$'
         else:
             pattern = rf'^\s*[,;]?\s*{escaped}\s+{VERBS}\b'
-        if re.search(pattern, fragment, re.I):
+        if re.search(pattern, fragment, re.IGNORECASE):
             return name
     return None
 
@@ -36,7 +36,7 @@ def _match_name(fragment: str, names: list[str], *, before: bool) -> str | None:
 def _emotion(context: str) -> dict:
     # Conservative cue suggestions, not a claim of emotional understanding.
     matches = [name for name, (pattern, _) in FEELINGS.items()
-               if re.search(pattern, context, re.I)]
+               if re.search(pattern, context, re.IGNORECASE)]
     if len(matches) != 1:
         return {"emotion": "neutral", "delivery": "natural", "energy": 3, "confidence": "low"}
     emotion = matches[0]
