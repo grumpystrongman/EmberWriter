@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import AppV2 from './AppV2'
+import EmberCompanion from './EmberCompanion'
 import CenterWorkspace from './CenterWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './workspace-shell.css'
@@ -369,6 +370,7 @@ export default function WorkspaceShell() {
         <AppV2 />
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
+      {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace} />}
     </div>
   )
 }
