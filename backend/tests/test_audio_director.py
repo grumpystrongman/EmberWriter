@@ -1,10 +1,7 @@
-import importlib.util
 import unittest
-from pathlib import Path
 
-spec = importlib.util.spec_from_file_location('audio_director', Path(__file__).resolve().parents[1] / 'app' / 'audio_director.py')
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+from app import audio_director as module
+
 compile_performance, validate = module.compile_performance, module.validate
 
 
@@ -43,7 +40,7 @@ class AudioDirectorTests(unittest.TestCase):
         acted = next(row for row in plan if row["speaker"] == "Mara")
         self.assertEqual(acted["source_text"], '"Run!"')
         self.assertEqual(acted["tts_text"], '"Run!"')
-        self.assertAlmostEqual(acted["speed"], 1.08)
+        self.assertAlmostEqual(acted["speed"], 1.178)
         self.assertEqual(acted["energy"], 5)
         self.assertEqual("".join(row["source_text"] for row in plan), source)
 

@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from . import audio_production
 from .audiobook_local import _spoken_text
+from .expressive_prosody import PRESETS, apply_expression, direction_settings
 from .storage import project_root, read_text
 
 TAKE_NAME = re.compile(r"^[0-9a-f]{32}\.wav$")
@@ -89,7 +90,34 @@ def scene_plan(slug: str, path: str, start: int, end: int) -> dict:
     if not 0 <= start < end <= len(text) or end - start > MAX_SCENE_CHARS:
         raise ValueError("Select a contiguous 1-1200 character scene in the spoken manuscript")
     settings = audio_production.load(slug)
-    spans = sorted(settings.get("chapter_casts", {}).get(path, []), key=lambda s: s["start"])
+    spans = list(settings.get("chapter_casts", {}).get(path, []))
+    # Read-only proof of author-edited Audio Director cues. Do not allow
+    # heuristic suggestions to overwrite an explicit manual cast.
+    performance_file = project_root(slug) / ".ember" / "audio-director" / (
+        Path(path).stem + ".performance.json")
+    if performance_file.is_file():
+        record = json.loads(performance_file.read_text(encoding="utf-8"))
+        if record.get("source_sha256") == hashlib.sha256(text.encode("utf-8")).hexdigest():
+            for row in record.get("spans", []):
+                if row.get("kind") != "dialogue" or not row.get("speaker"):
+                    continue
+                if not (0 <= row["start"] < row["end"] <= len(text)):
+                    continue
+                if text[row["start"]:row["end"]] != row.get("text"):
+                    continue
+                existing = next((item for item in spans
+                                 if item["start"] == row["start"] and item["end"] == row["end"]), None)
+                if existing is not None:
+                    existing = dict(existing)
+                    existing["performance"] = row.get("performance", {})
+                    spans = [existing if (item["start"], item["end"]) ==
+                             (row["start"], row["end"]) else item for item in spans]
+                elif not any(item["start"] < row["end"] and item["end"] > row["start"]
+                             for item in spans):
+                    spans.append({"start": row["start"], "end": row["end"],
+                                  "text": row["text"], "character": row["speaker"],
+                                  "performance": row.get("performance", {})})
+    spans.sort(key=lambda item: item["start"])
     if any(s["start"] < end and s["end"] > start and
            (s["start"] < start or s["end"] > end) for s in spans):
         raise ValueError("Scene boundaries must not split a manually cast dialogue line")
@@ -101,13 +129,15 @@ def scene_plan(slug: str, path: str, start: int, end: int) -> dict:
         if not cursor <= span["start"] < span["end"] or text[span["start"]:span["end"]] != span["text"]:
             raise ValueError("A cast line changed: review the manuscript and reassign it")
         if cursor < span["start"]:
-            planned.append({"speaker": "Narrator", "text": text[cursor:span["start"]]})
+            planned.append({"speaker": "Narrator", "text": text[cursor:span["start"]],
+                            "performance": {}})
         if not span.get("character"):
             raise ValueError("Scene rehearsal requires named characters, not one-off Windows voices")
-        planned.append({"speaker": span["character"], "text": span["text"]})
+        planned.append({"speaker": span["character"], "text": span["text"],
+                        "performance": span.get("performance", {})})
         cursor = span["end"]
     if cursor < end:
-        planned.append({"speaker": "Narrator", "text": text[cursor:end]})
+        planned.append({"speaker": "Narrator", "text": text[cursor:end], "performance": {}})
     planned = [item for item in planned if item["text"].strip()]
     if len(planned) > MAX_SCENE_SEGMENTS:
         raise ValueError("Limit a single rehearsal to 32 voice segments")
@@ -117,6 +147,13 @@ def scene_plan(slug: str, path: str, start: int, end: int) -> dict:
         raise ValueError("Assign Kokoro voices to: " + ", ".join(missing))
     for item in planned:
         item.update(voices[item["speaker"]])
+        direction = item.pop("performance")
+        emotion = direction.get("emotion", "neutral")
+        energy = direction.get("energy", 3)
+        if type(energy) is not int or not 1 <= energy <= 5:
+            energy = 3
+        item.update(direction_settings(emotion if emotion in PRESETS else "neutral",
+                                       energy, float(item["speed"])))
     identity = hashlib.sha256(json.dumps({
         "source": text, "start": start, "end": end, "parts": planned,
     }, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
@@ -144,8 +181,10 @@ def render_scene(slug: str, path: str, start: int, end: int) -> dict:
             )
             if sample_rate != 24000 or len(samples) == 0:
                 raise ValueError("Kokoro produced empty or unexpected-rate speech")
-            pieces.append(np.asarray(samples, dtype=np.float32))
-            pieces.append(np.zeros(2400, dtype=np.float32))  # 100ms between turns
+            shaped = apply_expression(samples, item.get("pitch_semitones", 0),
+                                      item.get("gain_db", 0))
+            pieces.append(np.asarray(shaped, dtype=np.float32))
+            pieces.append(np.zeros(round(24 * item.get("pause_after_ms", 160)), dtype=np.float32))
         if not pieces:
             raise ValueError("No spoken scene material")
         if scene_plan(slug, path, start, end)["plan_sha256"] != plan["plan_sha256"]:
