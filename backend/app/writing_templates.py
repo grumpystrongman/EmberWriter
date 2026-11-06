@@ -6,7 +6,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .storage import project_root, save_text
+from .storage import project_root
 
 # Complete, editable conventions rather than a genre keyword slapped onto prose.
 TEMPLATES = [
