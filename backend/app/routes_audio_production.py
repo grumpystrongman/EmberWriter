@@ -249,6 +249,12 @@ class KokoroScene(BaseModel):
     end: int = Field(gt=0)
 
 
+@router.get("/kokoro/expression-capabilities")
+def kokoro_expression_capabilities() -> dict:
+    from .expressive_prosody import capabilities
+    return capabilities()
+
+
 @router.get("/kokoro/status")
 def kokoro_status() -> dict:
     from .kokoro_local import status
