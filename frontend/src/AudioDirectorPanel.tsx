@@ -92,7 +92,7 @@ export default function AudioDirectorPanel({ apiBase, slug, path, disabled }: Pr
 
   const dialogue = (script?.spans || []).filter(row => row.kind === 'dialogue')
   const shown = showAll ? dialogue : dialogue.filter(row => !row.speaker)
-  return <details className="audiobook-direction" data-testid="audio-director">
+  return <details id="audio-director-tool" className="audiobook-direction" data-testid="audio-director">
     <summary>Audio Director · {script ? `${dialogue.length} spoken lines · ${script.unresolved_count} need review` : 'performance manuscript'}</summary>
     <p>The performance manuscript is a separate, lossless version of this chapter for narration. Every quotation gets its own voice and delivery direction. Unresolved voices block neural book production rather than defaulting to the narrator.</p>
     {!path && <p>Select a manuscript chapter first.</p>}

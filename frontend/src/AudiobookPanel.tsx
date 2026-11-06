@@ -349,14 +349,52 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
     finally { setBusy(false) }
   }
 
+  function jumpToAudioTool(id: string) {
+    const section = document.getElementById(id)
+    if (!section) return
+    if (section instanceof HTMLDetailsElement) section.open = true
+    section.scrollIntoView({behavior: 'smooth', block: 'start'})
+    const focusTarget = section.querySelector<HTMLElement>('summary, h3, button, select')
+    if (focusTarget) {
+      if (!focusTarget.hasAttribute('tabindex') && focusTarget.tagName === 'H3') focusTarget.tabIndex = -1
+      focusTarget.focus({preventScroll:true})
+    }
+  }
+
   return <section className="authoring-panel audiobook-panel">
     <header className="audiobook-heading"><h2>Audiobook Workshop</h2><small>OFFLINE · LOCAL NARRATION · MP3/WAV</small></header>
     <div className="authoring-panel-body">
+      <nav className="audio-studio-launcher" aria-label="Audiobook production tools">
+        <div className="audio-studio-launcher-title">
+          <div><span className="audio-studio-eyebrow">AUDIO PRODUCTION STUDIO · RC2</span>
+            <h3>Make your audiobook</h3>
+            <p>Choose a tool below. Everything from character casting to production, listening and mastering is here.</p>
+          </div>
+          <span className="audio-studio-local">Local-first · Author-approved</span>
+        </div>
+        <div className="audio-studio-tool-grid">
+          <button type="button" onClick={()=>jumpToAudioTool('audio-director-tool')}><strong>01 · Direct the performance</strong><span>Cast dialogue · emotions · delivery</span></button>
+          <button type="button" onClick={()=>jumpToAudioTool('audio-voice-lab-tool')}><strong>02 · Choose voices</strong><span>Kokoro voices · Fish rehearsals</span></button>
+          <button type="button" onClick={()=>jumpToAudioTool('audio-neural-render-tool')}><strong>03 · Produce audiobook</strong><span>Neural rendering · restart-safe queue</span></button>
+          <button type="button" onClick={()=>jumpToAudioTool('audio-pronunciation-tool')}><strong>04 · Tune pronunciation</strong><span>CMU/IPA · chapter settings · character library</span></button>
+          <button type="button" onClick={()=>jumpToAudioTool('audio-listening-tool')}><strong>05 · Proof and correct</strong><span>Listening notes · correction log</span></button>
+          <button type="button" onClick={()=>jumpToAudioTool('audio-export-tool')}><strong>06 · Master and export</strong><span>Quality checks · chapter-marked M4B</span></button>
+          <button type="button" onClick={()=>jumpToAudioTool('audio-sapi-render-tool')}><strong>07 · Windows narration</strong><span>Classic SAPI · offline WAV/MP3</span></button>
+        </div>
+      </nav>
+      <div className="audio-studio-chapter-select">
+        <label htmlFor="audio-studio-chapter">Performance manuscript chapter</label>
+        <select id="audio-studio-chapter" value={selected} disabled={disabled || !!job?.active}
+          onChange={e=>setSelected(e.target.value)}>
+          {chapters.map(ch=><option key={ch.path} value={ch.path}>{ch.path.replace(/^manuscript\//,'').replace(/\.md$/,'').replace(/-/g,' ')}</option>)}
+        </select>
+        <button type="button" onClick={()=>jumpToAudioTool('audio-director-tool')} disabled={!selected}>Edit this chapter's performance →</button>
+      </div>
       <details className="audiobook-intro">
         <summary>About offline narration and current limitations</summary>
         <p>Generate narrated chapters using installed Windows voices without uploading manuscript text. Select explicit character dialogue spans and assign installed Windows voices. Audio Director identifies explicitly attributed dialogue and prepares performance cues; ambiguous speakers require review. Emotional acting depends on the selected speech engine, and ACX remains an advisory technical preflight, not retail approval.</p>
       </details>
-      <AuthorProductionDesk endpoint={productionEndpoint} />
+      <div id="audio-production-overview"><AuthorProductionDesk endpoint={productionEndpoint} /></div>
       <AudioDirectorPanel apiBase={apiBase} slug={slug} path={selected} disabled={disabled || !!job?.active} />
       {error && <p role="alert" className="audiobook-alert">{error}</p>}
       {message && <p role="status" className="audiobook-success">{message}</p>}
@@ -369,7 +407,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
       <input id="audio-rate" type="range" min="-5" max="5" step="1" value={rate}
         disabled={disabled || busy || !!job?.active} onChange={e => setRate(Number(e.target.value))} />
       <p className="audiobook-rate-hint">Slower −5 · default −1 · faster +5. Changing speed creates a new track; existing audio is not altered.</p>
-      <div className="audiobook-job-panel">
+      <div id="audio-sapi-render-tool" className="audiobook-job-panel">
         <div><h3>Whole-book narration queue</h3>
           <p>Use the current Binder Draft order to narrate all selected manuscript chapters. This offline job persists while you close the browser, and can pause or recover after restarting the app.</p></div>
         <div className="audiobook-job-buttons">
@@ -390,7 +428,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           </details>}
         </div>}
       </div>
-      <details className="audiobook-direction">
+      <details id="audio-pronunciation-tool" className="audiobook-direction">
         <summary>Advanced: pronunciation and chapter narrator direction ({production?.pronunciations.length || 0} terms)</summary>
         <p>Replace unusual names with natural spoken spellings in local TTS only. The manuscript is never edited. Review the result by listening.</p>
         <div className="audiobook-editor-row">
@@ -518,9 +556,12 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         </div>}
         {(castSuggestions.length > 0 || castUnassigned > 0) && <p role="status">{castSuggestions.length} explicit attributions suggested · {castUnassigned} quotations ambiguous or not attributed.</p>}
       </details>
+      <div id="audio-neural-render-tool" className="audio-studio-tool-section"><h3>Neural audiobook production</h3><p>Choose your character voices and build an author-reviewed book narration draft.</p>
       <Suspense fallback={<p>Opening neural audiobook production…</p>}>
         <NeuralBookQueue endpoint={productionEndpoint} disabled={disabled || busy || !!job?.active} />
       </Suspense>
+      </div>
+      <div id="audio-voice-lab-tool" className="audio-studio-tool-section"><h3>Voice studio &amp; rehearsals</h3>
       <LocalKokoroPanel endpoint={productionEndpoint} selected={selected}
         selectionStart={castingStart} selectionEnd={castingEnd}
         characters={Object.keys(production?.character_voices || {})}
@@ -529,7 +570,8 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         casts={production?.chapter_casts?.[selected] || []}
         characters={Object.keys(production?.character_voices || {})}
         disabled={disabled || busy || !!job?.active} />
-      <details className="audiobook-direction">
+      </div>
+      <details id="audio-listening-tool" className="audiobook-direction">
         <summary>Proof listening & correction notes ({production?.proof_notes.filter(n=>n.status==='open').length || 0} open)</summary>
         <p>Play a chapter below, record the approximate time and what the narrator should correct. Open notes prevent the audiobook from passing technical readiness until resolved.</p>
         <div className="audiobook-editor-row">
@@ -584,6 +626,8 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
         {renders.length > 0 && <a href={endpoint + '/export'} download>Download chapter audiobook ZIP</a>}
       </div>
       </details>
+      <div id="audio-export-tool" className="audio-studio-tool-section"><h3>Audio quality, mastering &amp; exports</h3>
+      <div className="audiobook-job-buttons"><button type="button" disabled={disabled || busy} onClick={()=>void inspectAudio()}>Run audiobook readiness check</button><button type="button" onClick={()=>jumpToAudioTool('audio-sapi-render-tool')}>Go to narration queue</button></div>
       {quality && <section className="audiobook-quality" aria-live="polite">
         <h3>{quality.ready ? 'Audio technical checks passed' : 'Audio needs review'}</h3>
         <p>{quality.verified_tracks}/{quality.total_tracks} verified tracks · {Math.round(quality.duration_seconds / 60)} minutes detected</p>
@@ -650,6 +694,7 @@ export default function AudiobookPanel({ apiBase, slug, disabled }: Props) {
           <a href={endpoint + '/files/' + encodeURIComponent(track.filename)} download>Download</a>
         </div>)}
       </details>}
+      </div>
       <p className="audiobook-note">Each track stays inside this project. MP3 is produced when FFmpeg is installed; otherwise EmberWriter delivers WAV. The exported ZIP contains chapter audio and a manifest, not a mastered M4B retail audiobook.</p>
     </div>
   </section>
