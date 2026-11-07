@@ -24,6 +24,10 @@ class SeriesCreate(BaseModel):
     description: str = Field(default="", max_length=2000)
 
 
+class SeriesDelete(BaseModel):
+    confirmation: str = Field(min_length=1, max_length=160)
+
+
 class AttachProject(BaseModel):
     project_slug: str = Field(min_length=1, max_length=120)
     ordinal: int = Field(ge=1, le=9999)
@@ -139,6 +143,14 @@ def download_vault(series_id: str, background_tasks: BackgroundTasks) -> FileRes
         archive, filename="emberwriter-series-backup.zip",
         media_type="application/zip", background=background_tasks,
     )
+
+
+@router.post("/{series_id}/delete")
+def remove_series(series_id: str, payload: SeriesDelete) -> dict:
+    try:
+        return vault.delete_series(series_id, payload.confirmation)
+    except (ValueError, FileNotFoundError, sqlite3.IntegrityError) as exc:
+        _fail(exc)
 
 
 @router.get("/{series_id}")
