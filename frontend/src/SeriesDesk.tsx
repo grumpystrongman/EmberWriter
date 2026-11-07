@@ -12,6 +12,9 @@ type Fact = { id: string; subject_name: string; subject_id: string; predicate: s
 type AsOf = { answer?: string; facts: Fact[]; conflicts: { subject: string; predicate: string; assertion_ids: string[] }[]; sources?: Reference[]; evidence_only?: boolean }
 type Excerpt = { found: boolean; excerpt: string; excerpt_start: number; excerpt_end: number; total_characters: number }
 type Project = { slug: string; name: string }
+type Suggestion = { subject_id: string; subject_name: string; predicate: string; object_text: string;
+  scope: 'world' | 'character_belief' | 'reader_reveal'; knower_id: string | null;
+  quote: string; quote_start: number; quote_end: number; start_book: number }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(API + path, options)
@@ -76,6 +79,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [answer, setAnswer] = useState<AsOf | null>(null)
   const [timeline, setTimeline] = useState<Fact[]>([])
   const [showPending, setShowPending] = useState(true)
+  const [localModels, setLocalModels] = useState<string[]>([])
+  const [suggestionModel, setSuggestionModel] = useState('')
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [discardedSuggestions, setDiscardedSuggestions] = useState(0)
 
   const sources = useMemo(() => (series?.volumes || []).flatMap(volume =>
     volume.sources.map(source => ({ ...source, ordinal: volume.ordinal, volumeTitle: volume.title }))),
@@ -124,6 +131,22 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     setSourceId(sources[0]?.id || '')
   }, [sourceId, sources])
   useEffect(() => {
+    if (view !== 'canon' || !selectedId) return
+    let alive = true
+    void fetch(API + '/models', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider:'ollama', base_url:'http://127.0.0.1:11434', model:''}),
+    }).then(r => r.ok ? r.json() : {models: []})
+      .then((data: {models?: string[]}) => {
+        if (!alive) return
+        const available = (data.models || []).filter(name => !/(?:-cloud|:cloud)(?:$|[-:])/i.test(name))
+        setLocalModels(available)
+      }).catch(() => { if (alive) setLocalModels([]) })
+    return () => { alive = false }
+  }, [view, selectedId])
+
+  useEffect(() => {
+    setSuggestions([])
     if (!sourceId || !selectedId) { setExcerpt(null); return }
     let active = true
     const query = new URLSearchParams({ query: sourceQuery, limit: '4000' })
@@ -206,6 +229,33 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       setEntityName(''); setEntityAliases('')
       await loadSelected(series.id)
     }, 'Entity saved in the series index. Its facts still require source evidence and approval.')
+  }
+
+  async function suggestFromSource() {
+    if (!series || !selectedSource || !excerpt?.found || !suggestionModel) return
+    await execute(async () => {
+      const selectionStart = quoteStart >= 0 ? quoteStart : excerpt.excerpt_start
+      const selectionEnd = quoteEnd >= 0 ? quoteEnd :
+        Math.min(excerpt.excerpt_end, selectionStart + 1900)
+      const response = await request<{suggestions: Suggestion[]; discarded: number}>(
+        `/series/${series.id}/sources/${selectedSource.id}/suggest`,
+        json({model: suggestionModel, start: selectionStart, end: selectionEnd}))
+      setSuggestions(response.suggestions)
+      setDiscardedSuggestions(response.discarded)
+    }, 'Local AI suggestions are ready for inspection. No assertion was saved or approved.')
+  }
+
+  function useSuggestion(item: Suggestion) {
+    setSubjectId(item.subject_id)
+    setPredicate(item.predicate)
+    setObjectText(item.object_text)
+    setObjectEntityId('')
+    setScope(item.scope)
+    setKnowerId(item.knower_id || '')
+    setStartBook(item.start_book)
+    setStartSequence(0)
+    setQuote(item.quote)
+    setNotice('Review the filled form and exact citation, then explicitly save the proposal.')
   }
 
   async function proposeFact() {
@@ -402,6 +452,24 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 }}>Use my highlighted text as evidence</button>
                 <small>Showing characters {excerpt.excerpt_start + 1}–{excerpt.excerpt_end} of {excerpt.total_characters}. Search another phrase to reach later pages.</small>
               </> : <p>No matching passage. Try a different phrase.</p>}
+            </div>}
+            {excerpt?.found && <div className="series-desk-suggest">
+              <strong>Optional · let local AI suggest possible canon facts</strong>
+              <p className="series-desk-hint">This sends only your selected quote—or up to 1,900 characters of the visible excerpt—to your installed local Ollama model. The model cannot save or approve canon. Its suggested quotes must match your source exactly.</p>
+              <label>Local model <select value={suggestionModel} onChange={event => setSuggestionModel(event.target.value)}>
+                <option value="">Choose an installed local AI model</option>
+                {localModels.map(item => <option key={item} value={item}>{item}</option>)}
+              </select></label>
+              <button type="button" disabled={busy || !suggestionModel ||
+                (quoteStart >= 0 && quote.length > 2000)}
+                onClick={() => void suggestFromSource()}>Suggest facts from this passage</button>
+              {discardedSuggestions > 0 && <p className="series-desk-hint">{discardedSuggestions} unverified or unsupported suggestion(s) discarded.</p>}
+              {suggestions.map((candidate, index) => <div className="series-desk-candidate" key={index}>
+                <strong>{candidate.subject_name} — {candidate.predicate.replaceAll('_',' ')} — {candidate.object_text}</strong>
+                <small>{candidate.scope.replaceAll('_',' ')}</small>
+                <blockquote>“{candidate.quote}”</blockquote>
+                <button type="button" onClick={() => useSuggestion(candidate)}>Use this in the proposal form</button>
+              </div>)}
             </div>}
             <label>Exact quote (copy from the excerpt above) <textarea rows={3} maxLength={2000}
               value={quote} onChange={event => setQuote(event.target.value)} /></label>
