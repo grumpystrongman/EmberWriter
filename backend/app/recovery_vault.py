@@ -241,6 +241,8 @@ def _read_manifest(root: Path, identifier: str) -> dict:
             or manifest.get("id") != identifier or not isinstance(manifest.get("files"), list)):
         raise ValueError("Recovery manifest is invalid")
     entries = manifest["files"]
+    if not isinstance(manifest.get("total_bytes"), int):
+        raise ValueError("Recovery manifest has no valid total size")
     if len(entries) > MAX_FILES:
         raise ValueError("Recovery manifest contains too many files")
     paths = set()
@@ -260,6 +262,10 @@ def _read_manifest(root: Path, identifier: str) -> dict:
             raise ValueError("Recovery entry digest is invalid")
         if type(item.get("size")) is not int or item["size"] < 0:
             raise ValueError("Recovery entry size is invalid")
+    if sum(item["size"] for item in entries) != manifest["total_bytes"]:
+        raise ValueError("Recovery manifest file totals do not match")
+    if manifest["total_bytes"] > MAX_TOTAL_BYTES:
+        raise ValueError("Recovery generation exceeds the supported storage limit")
     return manifest
 
 
@@ -297,6 +303,11 @@ def status() -> dict:
         "snapshot_count": len(valid), "last_snapshot": valid[0] if valid else None,
         "latest_manifest_invalid": bool(items and items[0].get("invalid_manifest")),
         "drive_isolation_verified": False,
+        "free_bytes": shutil.disk_usage(root if root.exists() else root.parent).free,
+        "mirror_free_bytes": (
+            shutil.disk_usage(mirror if mirror.exists() else mirror.parent).free
+            if mirror and (mirror.exists() or mirror.parent.exists()) else None
+        ),
         "mirror_directory": str(mirror) if mirror else None,
         "mirror_latest_present": mirror_latest,
         "last_mirror_error": LAST_MIRROR_ERROR,
@@ -584,6 +595,8 @@ def backup_due() -> bool:
 
 def backup_if_due() -> dict | None:
     global LAST_AUTOMATIC_ERROR, LAST_AUTOMATIC_ATTEMPT
+    if not _config()["automatic"]:
+        return None
     repair_mirror()
     if not backup_due():
         return None
