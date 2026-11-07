@@ -133,7 +133,10 @@ export default function WorkspaceShell() {
   const visibleWorkspaces = narrow ? NARROW_WORKSPACES : PRIMARY_WORKSPACES
   useEffect(() => {
     const media = window.matchMedia('(max-width: 700px)')
-    const update = () => setNarrow(media.matches)
+    const update = () => {
+      setNarrow(media.matches)
+      if (media.matches) setBinderCollapsed(true)
+    }
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
