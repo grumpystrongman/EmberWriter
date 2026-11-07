@@ -147,6 +147,14 @@ export default function SeriesProfessionalTools({mode, seriesId, volumes, entiti
       setScan(refreshed); setExceptionKey(''); setExceptionNote('')
     }, 'Your intent is recorded; the scene and approved canon have not changed.')
   }
+  async function clearIntentionalException(claimKey: string) {
+    await run(async () => {
+      await api(`/series/${seriesId}/continuity/exceptions/${claimKey}`, {method:'DELETE'})
+      setScan(await api<Scan>(`/series/${seriesId}/continuity/check`,
+        json({scene, book, assertions:claims})))
+    }, 'Exception cleared. The possible conflict is visible again for your review.')
+  }
+
   async function previewImpact() {
     await run(async () => {
       const result = await api<Impact>(`/series/${seriesId}/consequences/preview`,
@@ -347,7 +355,11 @@ export default function SeriesProfessionalTools({mode, seriesId, volumes, entiti
             {scan.findings.map(finding => <article className="series-pro-finding" key={finding.claim_key}>
               <strong>{finding.subject_name} · {finding.predicate.replaceAll('_',' ')}</strong>
               <p>Scene says: <b>{finding.proposed_value}</b>. Approved canon says: <b>{finding.existing_values.join(' / ')}</b>.</p>
-              {finding.suppressed_by_author && <p className="series-pro-ok">Author-marked intentional: {finding.exception?.reason} · {finding.exception?.note}</p>}
+              {finding.suppressed_by_author && <div className="series-pro-review">
+                <p className="series-pro-ok">Author-marked intentional: {finding.exception?.reason} · {finding.exception?.note}</p>
+                <button type="button" disabled={busy}
+                  onClick={() => void clearIntentionalException(finding.claim_key)}>Reopen this finding</button>
+              </div>}
               {finding.evidence.map((source, index) => <SourceCard key={index} evidence={source} />)}
               {!finding.suppressed_by_author && <>
                 <button type="button" onClick={() => { setExceptionKey(finding.claim_key); setExceptionNote('') }}>
@@ -428,9 +440,18 @@ export default function SeriesProfessionalTools({mode, seriesId, volumes, entiti
             <small>Book {reply.spoiler_limit} · {reply.mode.replaceAll('_',' ')} · Read-only</small>
             {reply.uncertain && <p className="series-pro-note">Not enough approved evidence to establish every requested detail. Try reviewing source passages or proposing a missing fact.</p>}
             {reply.sources.map((source,index) => <SourceCard key={index} evidence={source} />)}
-            {reply.actions.filter(item => item.panel === 'guardian' || item.panel === 'consequences').map(item =>
+            {reply.actions.map(item =>
               <button key={item.panel} type="button"
-                onClick={() => onOpenPanel(item.panel as ProMode)}>{item.label} →</button>)}
+                onClick={() => {
+                  if (item.panel === 'guardian' || item.panel === 'consequences' || item.panel === 'ember') {
+                    onOpenPanel(item.panel as ProMode)
+                  } else if (item.panel === 'recovery') {
+                    window.dispatchEvent(new CustomEvent('emberwriter:open-recovery'))
+                  } else {
+                    window.dispatchEvent(new CustomEvent('emberwriter:series-panel',
+                      {detail:{panel:item.panel}}))
+                  }
+                }}>{item.label} →</button>)}
           </div>}
         </>}
       </div>
