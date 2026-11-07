@@ -8,6 +8,7 @@ type Status = {
   last_automatic_error: string | null; last_automatic_attempt: string | null
   mirror_directory: string | null; mirror_latest_present: boolean
   last_mirror_error: string | null; warning: string; latest_manifest_invalid: boolean
+  free_bytes: number; mirror_free_bytes: number | null
 }
 type Generation = { id: string; created_at?: string; files?: number; bytes?: number; reason?: string; invalid_manifest?: boolean }
 type Preview = { id: string; created_at: string; total_files: number; bytes: number; projects: string[];
@@ -178,6 +179,12 @@ export default function RecoveryCenter({ open, onClose }: Props) {
             {status?.latest_manifest_invalid && <p className="recovery-error">A recovery manifest cannot be read. Verify another generation before relying on it.</p>}
             <button type="button" className="recovery-primary-button" disabled={busy}
               onClick={() => void backup()}>{busy ? 'Working with your recovery data…' : 'Create verified backup now'}</button>
+            {status && <p className="recovery-note">
+              Backup storage free: {size(status.free_bytes)}
+              {status.mirror_free_bytes != null && ` · Independent mirror free: ${size(status.mirror_free_bytes)}`}
+            </p>}
+            {status && status.free_bytes < 4 * 1024 ** 3 &&
+              <p className="recovery-error">Recovery storage is low. Older generations are never discarded automatically; arrange additional capacity before writing data grows.</p>}
             <p className="recovery-note">Automatic recovery is {automatic ? 'enabled (approximately every 15 minutes while EmberWriter is running)' : 'disabled'}. Earlier generations are retained; they are never overwritten by a later backup.</p>
           </section>
           <section className="recovery-card">
