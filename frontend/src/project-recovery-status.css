@@ -307,3 +307,24 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Keep essential import access without covering Ember or the manuscript on phones. */
+@media (max-width: 720px) {
+  .project-recovery-status:not(:has(.project-recovery-card)) {
+    right: auto;
+    width: auto;
+    max-width: calc(100vw - 94px);
+  }
+  .project-recovery-status:not(:has(.project-recovery-card)) .load-import-launcher {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 178px;
+    padding: 8px 11px;
+  }
+  .project-recovery-status:not(:has(.project-recovery-card)) .load-import-launcher small {
+    display: none;
+  }
+  .project-recovery-status:has(.project-recovery-card) {
+    z-index: 1850;
+  }
+}

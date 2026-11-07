@@ -385,3 +385,8 @@ body:has(.workspace-shell .project-card.active) .load-import-launcher { display:
   font-family:Georgia,"Times New Roman",serif;line-height:1.85;max-width:39rem;margin-inline:auto;
 }
 @media(max-width:700px){.workspace-format-chip{max-width:105px;overflow:hidden;text-overflow:ellipsis}}
+
+.workspace-actions .workspace-recovery-button{display:inline-flex;align-items:center;gap:5px;background:#29473d;color:#d9f0e3;border-left:1px solid #62816f;font-weight:750;min-width:95px;padding:0 11px}.workspace-actions .workspace-recovery-button:hover{background:#38664f;color:#fff}
+@media(max-width:920px){.workspace-actions .workspace-recovery-button{min-width:38px;padding:0 9px}.workspace-actions .workspace-recovery-button span:nth-child(2){display:none}}
+
+.workspace-actions .workspace-recovery-button.needs-attention{background:#593c28;color:#ffe2b9;border-color:#a77b4c}.workspace-actions .workspace-recovery-button.needs-attention:hover{background:#735039;color:#fff2e3}

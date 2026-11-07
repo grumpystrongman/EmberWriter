@@ -156,11 +156,25 @@ def _metadata(slug: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Never partially replace a manuscript or project metadata on a write error."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid4().hex + ".partial")
+    try:
+        with temporary.open("x", encoding="utf-8") as target:
+            target.write(content)
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _touch_project(slug: str) -> None:
     path = project_root(slug) / "project.json"
     meta = json.loads(path.read_text(encoding="utf-8"))
     meta["updated_at"] = utc_now()
-    path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    _atomic_write_text(path, json.dumps(meta, indent=2))
 
 
 def _iter_story_files(slug: str):
@@ -257,6 +271,10 @@ def delete_text(slug: str, relative_path: str) -> dict:
     path = safe_project_path(slug, relative_path)
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(relative_path)
+    # Never delete an author document without an independently verified generation.
+    from .recovery_vault import before_destructive_action
+
+    before_destructive_action("delete document", [f"projects/{slug}/{relative_path}"])
     path.unlink()
     _touch_project(slug)
     return {"path": relative_path, "deleted": True}
@@ -266,6 +284,9 @@ def delete_project(slug: str) -> dict:
     root = project_root(slug)
     if not root.exists() or not (root / "project.json").exists():
         raise FileNotFoundError(slug)
+    from .recovery_vault import before_destructive_action
+
+    before_destructive_action("delete project", [f"projects/{slug}"])
     shutil.rmtree(root)
     return {"slug": slug, "deleted": True}
 
@@ -288,9 +309,7 @@ def save_text(slug: str, relative_path: str, content: str) -> dict:
                 (snapshot_id, utc_now(), relative_path, str(snapshot_rel).replace("\\", "/")),
             )
 
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    temp_path.write_text(content, encoding="utf-8")
-    temp_path.replace(path)
+    _atomic_write_text(path, content)
     _touch_project(slug)
     return {"path": relative_path, "snapshot_id": snapshot_id}
 

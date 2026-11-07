@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { WorkspaceProject } from './workspace-types'
+import SeriesProfessionalTools, { type ProMode } from './SeriesProfessionalTools'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -39,7 +40,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [selectedId, setSelectedId] = useState('')
   const [series, setSeries] = useState<Series | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
-  const [view, setView] = useState<'vault' | 'canon' | 'timeline'>('vault')
+  const [view, setView] = useState<'vault' | 'canon' | 'timeline' | ProMode>('vault')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -123,6 +124,17 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     void loadSelected(selectedId).catch(cause => setError(String(cause)))
     setAnswer(null)
   }, [selectedId, loadSelected])
+  useEffect(() => {
+    const onOpenPanel = (event: Event) => {
+      const panel = (event as CustomEvent<{panel: string}>).detail?.panel
+      if (['vault','canon','timeline','guardian','consequences','ember'].includes(panel)) {
+        setView(panel as typeof view)
+      }
+    }
+    window.addEventListener('emberwriter:series-panel', onOpenPanel)
+    return () => window.removeEventListener('emberwriter:series-panel', onOpenPanel)
+  }, [])
+
   useEffect(() => {
     if (!series?.volumes?.length) return
     setVolumeOrdinal(Math.max(...series.volumes.map(item => item.ordinal)) + 1)
@@ -377,7 +389,14 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         <button type="button" className={view === 'vault' ? 'active' : ''} onClick={() => setView('vault')}>01 · Series Vault</button>
         <button type="button" className={view === 'canon' ? 'active' : ''} onClick={() => setView('canon')}>02 · Canon Graph <small>{facts.filter(item => item.status === 'proposed').length} waiting</small></button>
         <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>03 · Time & Knowledge</button>
+        <button type="button" className={view === 'guardian' ? 'active' : ''} onClick={() => setView('guardian')}>04 · Continuity</button>
+        <button type="button" className={view === 'consequences' ? 'active' : ''} onClick={() => setView('consequences')}>05 · Consequences</button>
+        <button type="button" className={view === 'ember' ? 'active' : ''} onClick={() => setView('ember')}>06 · Ask Ember</button>
       </nav>
+      {(view === 'guardian' || view === 'consequences' || view === 'ember') &&
+        <SeriesProfessionalTools mode={view} seriesId={series.id}
+          volumes={series.volumes || []} entities={entities}
+          onOpenPanel={panel => setView(panel)} />}
       {view === 'vault' && <div className="series-desk-content">
         <div className="series-desk-card">
           <h2>Books in {series.title}</h2>

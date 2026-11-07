@@ -4,6 +4,7 @@ const AppV2 = lazy(() => import('./AppV2'))
 import EmberCompanion from './EmberCompanion'
 import ReferenceCapture from './ReferenceCapture'
 import WritingTemplatePicker from './WritingTemplatePicker'
+import RecoveryCenter from './RecoveryCenter'
 import CenterWorkspace from './CenterWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './workspace-shell.css'
@@ -132,7 +133,10 @@ export default function WorkspaceShell() {
   const visibleWorkspaces = narrow ? NARROW_WORKSPACES : PRIMARY_WORKSPACES
   useEffect(() => {
     const media = window.matchMedia('(max-width: 700px)')
-    const update = () => setNarrow(media.matches)
+    const update = () => {
+      setNarrow(media.matches)
+      if (media.matches) setBinderCollapsed(true)
+    }
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
@@ -145,7 +149,52 @@ export default function WorkspaceShell() {
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
+  const [recoveryOpen, setRecoveryOpen] = useState(false)
+  const [recoveryHealth, setRecoveryHealth] = useState<'unknown'|'setup'|'attention'|'local'|'mirrored'>('unknown')
   const [writingFormat, setWritingFormat] = useState('novel')
+
+  useEffect(() => {
+    const openRecovery = () => setRecoveryOpen(true)
+    window.addEventListener('emberwriter:open-recovery', openRecovery)
+    return () => window.removeEventListener('emberwriter:open-recovery', openRecovery)
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    async function checkRecovery() {
+      try {
+        const response = await fetch(`${API}/recovery/status`)
+        if (!response.ok) throw new Error('Recovery status unavailable')
+        const current = await response.json() as {
+          snapshot_count: number; latest_manifest_invalid: boolean;
+          last_automatic_error: string | null; last_mirror_error: string | null;
+          mirror_directory: string | null; mirror_latest_present: boolean;
+          last_snapshot: {created_at: string}|null;
+        }
+        if (!alive) return
+        const age = current.last_snapshot
+          ? Date.now() - Date.parse(current.last_snapshot.created_at) : Infinity
+        setRecoveryHealth(
+          !current.snapshot_count ? 'setup'
+            : current.latest_manifest_invalid || current.last_automatic_error ||
+              current.last_mirror_error || age > 45 * 60 * 1000 ||
+              (current.mirror_directory && !current.mirror_latest_present)
+              ? 'attention'
+            : current.mirror_directory ? 'mirrored' : 'local'
+        )
+      } catch {
+        if (alive) setRecoveryHealth('attention')
+      }
+    }
+    void checkRecovery()
+    const timer = window.setInterval(() => void checkRecovery(), 60_000)
+    window.addEventListener('emberwriter:recovery-changed', checkRecovery)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      window.removeEventListener('emberwriter:recovery-changed', checkRecovery)
+    }
+  }, [])
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
 
@@ -379,6 +428,20 @@ export default function WorkspaceShell() {
             title="Start a new project or writing document">
             ＋ <span>New writing</span>
           </button>
+          <button type="button"
+            className={`workspace-recovery-button${recoveryHealth === 'setup' || recoveryHealth === 'attention' ? ' needs-attention' : ''}`}
+            onClick={() => setRecoveryOpen(true)}
+            title={recoveryHealth === 'mirrored' ? 'Recent local and mirrored backup · open Recovery Center'
+              : recoveryHealth === 'local' ? 'Recent local backup · set up a second independent copy'
+              : 'Recovery needs attention · open Recovery Center'}
+            aria-label="Open Recovery Center to check and protect your writing">
+            <span aria-hidden="true">{recoveryHealth === 'setup' || recoveryHealth === 'attention' ? '⚠' : '◈'}</span>
+            <span>{recoveryHealth === 'setup' ? 'Set up backup'
+              : recoveryHealth === 'attention' ? 'Backup warning'
+              : recoveryHealth === 'mirrored' ? 'Backups current'
+              : recoveryHealth === 'local' ? 'Local backup'
+              : 'Protect work'}</span>
+          </button>
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
           <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" className="workspace-reference-button" disabled={!projectContext}>▧ <span>Reference</span></button>
           <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note" className="workspace-sticky-button">▰ Note</button>
@@ -406,6 +469,7 @@ export default function WorkspaceShell() {
         </Suspense>
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
+      <RecoveryCenter open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />
       <WritingTemplatePicker open={templateOpen} project={projectContext}
         onClose={() => setTemplateOpen(false)}
         onCreated={path => { void (async () => { await sleep(230); await openSource(path) })() }} />
