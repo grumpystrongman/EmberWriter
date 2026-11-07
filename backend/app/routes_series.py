@@ -72,6 +72,12 @@ class Review(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
 
 
+class SourceSuggestion(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+
+
 class TemporalQuestion(BaseModel):
     question: str = Field(min_length=3, max_length=1500)
     book: int = Field(ge=1, le=9999)
@@ -165,6 +171,21 @@ def list_volume_sources(series_id: str, volume_id: str) -> list[dict]:
         return vault.volume_sources(series_id, volume_id)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
+
+
+@router.post("/{series_id}/sources/{source_id}/suggest")
+async def propose_source_suggestions(series_id: str, source_id: str,
+                                      payload: SourceSuggestion) -> dict:
+    from .series_suggestions import suggest_facts
+    try:
+        return await suggest_facts(
+            series_id, source_id, payload.start, payload.end, payload.model)
+    except TimeoutError as exc:
+        raise HTTPException(503, "Local model did not finish. Try a smaller selection.") from exc
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+    except (ImportError, OSError, RuntimeError) as exc:
+        raise HTTPException(503, "Local Ollama is unavailable. Use manual source review.") from exc
 
 
 @router.get("/{series_id}/sources/{source_id}/excerpt")
