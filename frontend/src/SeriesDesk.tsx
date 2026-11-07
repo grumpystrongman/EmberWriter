@@ -45,6 +45,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [notice, setNotice] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const [restoreRights, setRestoreRights] = useState(false)
   const [volumeTitle, setVolumeTitle] = useState('')
@@ -179,6 +180,18 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       setNewTitle(''); setNewDescription('')
       await loadSeries(created.id)
     }, 'Your private series has been created. Add books when you are ready.')
+  }
+
+  async function deleteSelectedSeries() {
+    if (!series || deleteConfirmation !== series.title) return
+    const oldTitle = series.title
+    await execute(async () => {
+      await request<{deleted: boolean}>(`/series/${series.id}/delete`,
+        json({confirmation: deleteConfirmation}))
+      setDeleteConfirmation('')
+      setSeries(null); setSelectedId('')
+      await loadSeries()
+    }, `The Series Vault for "${oldTitle}" was deleted. Linked writing projects were left untouched.`)
   }
 
   async function restoreSeries() {
@@ -372,6 +385,16 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
             download="emberwriter-series-backup.zip">↓ Download private series backup (.zip)</a></p>
           <p className="series-desk-hint">This portable archive includes your source snapshots, approved and pending canon, and book structure. Keep it private: it contains manuscript text.</p>
           <p className="series-desk-hint">The vault preserves a source snapshot when a book is added. Later edits to a linked project are flagged rather than silently replacing the evidence.</p>
+          <details className="series-desk-danger">
+            <summary>Delete this series vault (does not delete manuscript projects)</summary>
+            <p>Permanent: removes this series, its archived source snapshots and canon facts. Your original linked books remain separate and untouched. Download a backup first if you may need the vault again.</p>
+            <label>Type the full series title: <strong>{series.title}</strong>
+              <input value={deleteConfirmation} maxLength={160}
+                onChange={event => setDeleteConfirmation(event.target.value)}
+                placeholder="Type the exact series title" /></label>
+            <button type="button" disabled={busy || deleteConfirmation !== series.title}
+              onClick={() => void deleteSelectedSeries()}>Permanently delete this series vault</button>
+          </details>
           {series.volumes?.length ? <div className="series-desk-books">
             {series.volumes.map(book => <article key={book.id}>
               <div className="series-desk-book-index">{String(book.ordinal).padStart(2, '0')}</div>
