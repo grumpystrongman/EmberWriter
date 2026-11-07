@@ -204,7 +204,7 @@ def test_import_docx_and_api_rights_confirmation(tmp_path, monkeypatch):
 
 
 def test_temporal_queries_cannot_leak_future_books(series_fixture):
-    series_id, books, first, second = series_fixture
+    series_id, books, _first, second = series_fixture
     moon = canon.add_entity(series_id, "Moon Key", "artifact")
     phrase = "Lyra moved the Moon Key to the sunlit tower."
     later = _add_fact(series_id, books[1]["sources"], None, moon, second, phrase, 2,
