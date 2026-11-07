@@ -14,6 +14,7 @@ from .storage import project_root
 router = APIRouter(prefix="/api")
 
 WORKSPACE_HELP = {
+    "series": "Series Desk organizes your own books and short stories. Its source-backed Canon Graph keeps proposed facts separate from author-approved canon; Time and Knowledge answers as-of-book questions with citations without revealing later books.",
     "write": "Write is the manuscript editor; select a chapter in the Binder. Your text is the source of truth.",
     "plan": "Plan contains Book Studio, the Production Guide, outlines, and editorial planning. AI draft candidates require author approval.",
     "studio": "Studio offers scene writing and brainstorming. Review generated prose before adding it to your manuscript.",
