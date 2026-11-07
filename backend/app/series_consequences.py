@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections import defaultdict
 
 from .series_canon import list_entities, list_facts
 from .series_vault import _connect, _id, _one, now, series_detail, source_text
@@ -45,9 +44,11 @@ def preview_change(series_id: str, *, subject_id: str, predicate: str,
     related: list[dict] = []
     seen = set()
     for fact in facts:
-        if fact["start_book"] < effective_book and not include_past:
-            # Earlier source facts can still be affected by a retroactive retcon;
-            # include_past is an explicit user-controlled choice.
+        if (fact["start_book"] < effective_book and not include_past
+                and fact["end_book"] is not None
+                and fact["end_book"] < effective_book):
+            # An earlier ended fact cannot be directly affected by a future
+            # change, unless the author explicitly asks for a retroactive map.
             continue
         if fact["subject_id"] == subject_id:
             level = "direct" if fact["predicate"] == predicate and fact["scope"] == scope else "related"
@@ -115,7 +116,11 @@ def preview_change(series_id: str, *, subject_id: str, predicate: str,
     # Deterministic preview hash for detecting the same proposal in future.
     signature = hashlib.sha256(
         repr((series_id, subject_id, predicate, proposed_value.strip(),
-              effective_book, scope, include_past)).encode("utf-8")).hexdigest()
+              effective_book, scope, include_past,
+              tuple((item["fact_id"], item["reference"]["sha256"])
+                    for item in direct + related),
+              tuple((item["source_id"], item["hit_count"]) for item in mentions)))
+        .encode("utf-8")).hexdigest()
     return {
         "series_id": series_id, "proposal_id": signature,
         "proposal": {
@@ -195,6 +200,7 @@ def change_reviews(series_id: str) -> list[dict]:
 
 
 def dismiss_change(series_id: str, review_id: str) -> dict:
+    change_reviews(series_id)
     with _connect() as con:
         _one(con, "SELECT id FROM series WHERE id=?", (series_id,))
         row = con.execute(
