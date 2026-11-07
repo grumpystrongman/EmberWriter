@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 
-from .series_vault import _connect, _id, _one, now, series_detail, source_text
+from .series_vault import _connect, _id, _one, now, source_text
 
 KINDS = {"character", "place", "artifact", "faction", "species", "rule", "event", "concept"}
 SCOPES = {"world", "character_belief", "reader_reveal"}
@@ -237,10 +237,8 @@ def at_book(series_id: str, book: int, sequence: int = 999999, *,
         terms = [
             "assertions.series_id=?", "assertions.status='approved'",
             "assertions.scope=?", "v.ordinal<=?",
-            "(assertions.start_book < ? OR "
-            "(assertions.start_book=? AND assertions.start_sequence<=?))",
-            "(assertions.end_book IS NULL OR assertions.end_book > ? OR "
-            "(assertions.end_book=? AND assertions.end_sequence>=?))",
+            "(assertions.start_book < ? OR (assertions.start_book=? AND assertions.start_sequence<=?))",
+            "(assertions.end_book IS NULL OR assertions.end_book > ? OR (assertions.end_book=? AND assertions.end_sequence>=?))",
         ]
         args: list[str | int] = [series_id, scope, book, book, book, sequence,
                                  book, book, sequence]
