@@ -21,6 +21,7 @@ const workspaces: { id: Workspace; label: string; icon: string }[] = [
   { id: 'tools', label: 'Tools', icon: '⚙' },
   { id: 'publish', label: 'Publish', icon: '▤' },
   { id: 'submit', label: 'Submit', icon: '⇧' },
+  { id: 'series', label: 'Series', icon: '◈' },
 ]
 
 type ProjectSummary = {
@@ -119,11 +120,11 @@ function highlightEditorText(anchor: string) {
 }
 
 function workspaceShortcut(index: number) {
-  return index === 9 ? '0' : String(index + 1)
+  return index >= 10 ? '—' : index === 9 ? '0' : String(index + 1)
 }
 
-const PRIMARY_WORKSPACES: Workspace[] = ['write', 'studio', 'plan', 'analyze', 'publish']
-const NARROW_WORKSPACES: Workspace[] = ['write', 'plan', 'publish']
+const PRIMARY_WORKSPACES: Workspace[] = ['write', 'studio', 'plan', 'series', 'analyze', 'publish']
+const NARROW_WORKSPACES: Workspace[] = ['write', 'plan', 'series', 'publish']
 
 export default function WorkspaceShell() {
   const moreRef = useRef<HTMLDetailsElement | null>(null)
@@ -353,7 +354,7 @@ export default function WorkspaceShell() {
               className={workspace === item.id ? 'active' : ''}
               aria-current={workspace === item.id ? 'page' : undefined}
               onClick={() => openWorkspace(item.id)}
-              title={`${item.label} · Ctrl/Cmd+${workspaceShortcut(index)}`}
+              title={index >= 10 ? `${item.label} workspace` : `${item.label} · Ctrl/Cmd+${workspaceShortcut(index)}`}
             >
               <span>{item.icon}</span>{item.label}
             </button>
@@ -367,7 +368,7 @@ export default function WorkspaceShell() {
               return <button key={item.id} type="button" onClick={() => openWorkspace(item.id)}
                 className={workspace === item.id ? 'active' : ''}
                 aria-current={workspace === item.id ? 'page' : undefined}>
-                <span>{item.icon} {item.label}</span><small>Ctrl/Cmd+{workspaceShortcut(index)}</small>
+                <span>{item.icon} {item.label}</span><small>{index >= 10 ? 'Click to open' : `Ctrl/Cmd+${workspaceShortcut(index)}`}</small>
               </button>
             })}
           </nav>
