@@ -16,7 +16,7 @@ import pytest
 from docx import Document
 from ebooklib import ITEM_DOCUMENT, epub
 
-from app import audio_production, book_studio, kokoro_book, publishing, storage
+from app import audio_production, book_studio, kokoro_book, publishing, recovery_vault, storage
 from app.models import ProviderConfig
 
 CHAPTERS = 20
@@ -203,3 +203,62 @@ def test_original_author_edited_starter_chapter_is_never_silently_excluded(long_
     paths = [item["path"] for item in publishing.compiled_documents(slug)]
     assert "manuscript/chapter-001.md" in paths
     assert "manuscript/book-studio/chapter-001.md" in paths
+
+
+
+def test_full_synthetic_series_with_audio_media_mirrors_and_recovers_without_rewrite(
+    long_book,
+):
+    slug, temp = long_book
+    for index in range(1, CHAPTERS + 1):
+        storage.save_text(
+            slug, f"manuscript/book-studio/chapter-{index:03d}.md",
+            f"# Chapter {index:02d} Test Data\n\n" + _synthetic_chapter(index),
+        )
+    from app.binder import sync_binder
+
+    sync_binder(slug)
+    library = storage.PROJECTS_ROOT.parent
+    binary = library / "assets" / "voice rehearsal.wav"
+    binary.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(binary), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(24000)
+        audio.writeframes(bytes(48000))
+    source_path = "manuscript/book-studio/chapter-010.md"
+    original = storage.read_text(slug, source_path)
+    digest = hashlib.sha256(original.encode("utf-8")).hexdigest()
+
+    recovery_vault.configure(
+        str(temp / "separate backup store"),
+        mirror_directory=str(temp / "separate mirrored store"),
+    )
+    generation = recovery_vault.create_backup("full book with audio QA")
+    assert generation["verified"]
+    assert generation["mirror_healthy"]
+    assert recovery_vault.verify(generation["id"])["healthy"]
+    storage.save_text(slug, source_path, original + "\nAuthor-simulated correction.")
+    destination = temp / "verified old edition"
+    result = recovery_vault.restore(generation["id"], destination=str(destination))
+    assert not result["current_library_changed"]
+    restored = (
+        destination / "projects" / slug / source_path
+    )
+    assert hashlib.sha256(restored.read_bytes()).hexdigest() == digest
+    assert (
+        destination / "assets" / "voice rehearsal.wav"
+    ).read_bytes() == binary.read_bytes()
+    assert "correction" in storage.read_text(slug, source_path)
+    # Independent mirror is a separate recovery source; the original data
+    # directory remains untouched even when switching to that copy.
+    recovery_vault.configure(str(temp / "separate mirrored store"), automatic=False)
+    mirrored = recovery_vault.restore(
+        generation["id"], destination=str(temp / "restored from independent mirror")
+    )
+    assert not mirrored["current_library_changed"]
+    assert hashlib.sha256(
+        (
+            Path(mirrored["directory"]) / "projects" / slug / source_path
+        ).read_bytes()
+    ).hexdigest() == digest
