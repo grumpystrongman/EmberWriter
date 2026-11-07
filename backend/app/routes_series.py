@@ -5,9 +5,8 @@ rights-confirmed series sources; no AI text ingestion or automatic canon changes
 """
 from __future__ import annotations
 
-from typing import Annotated
-
 import sqlite3
+from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
