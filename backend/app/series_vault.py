@@ -7,9 +7,9 @@ files are reported as stale and must be explicitly re-snapshotted in a new editi
 from __future__ import annotations
 
 import hashlib
+import io
 import re
 import shutil
-import io
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
