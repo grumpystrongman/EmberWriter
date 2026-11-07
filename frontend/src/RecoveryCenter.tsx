@@ -57,6 +57,7 @@ export default function RecoveryCenter({ open, onClose }: Props) {
     ])
     setStatus(latest)
     setGenerations(history)
+    window.dispatchEvent(new CustomEvent('emberwriter:recovery-changed'))
     setDirectory(latest.directory)
     setMirror(latest.mirror_directory || '')
     setAutomatic(latest.automatic)
