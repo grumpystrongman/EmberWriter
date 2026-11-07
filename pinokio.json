@@ -1,0 +1,14 @@
+{
+  "title": "EmberWriter — Author-First Fiction Studio",
+  "description": "Local-first novel writing, source-cited series canon, continuity, audiobook proofing, and recovery. Preview release: author approval required.",
+  "links": [
+    {
+      "title": "Source code",
+      "url": "https://github.com/grumpystrongman/EmberWriter"
+    },
+    {
+      "title": "10-minute demo",
+      "url": "https://github.com/grumpystrongman/EmberWriter/releases/tag/emberwriter-author-first-demo-2026-11-07"
+    }
+  ]
+}
