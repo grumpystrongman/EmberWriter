@@ -242,7 +242,7 @@ def _read_manifest(root: Path, identifier: str) -> dict:
         raise ValueError("Recovery manifest is invalid")
     entries = manifest["files"]
     if not isinstance(manifest.get("total_bytes"), int):
-        raise ValueError("Recovery manifest has no valid total size")
+        raise TypeError("Recovery manifest has no valid total size")
     if len(entries) > MAX_FILES:
         raise ValueError("Recovery manifest contains too many files")
     paths = set()
@@ -286,7 +286,7 @@ def list_generations() -> list[dict]:
                 "files": len(entry["files"]), "bytes": entry["total_bytes"],
                 "reason": entry.get("reason", "scheduled"),
             })
-        except (ValueError, OSError, KeyError, json.JSONDecodeError):
+        except (ValueError, TypeError, OSError, KeyError, json.JSONDecodeError):
             summaries.append({"id": identifier, "invalid_manifest": True})
     return summaries
 
