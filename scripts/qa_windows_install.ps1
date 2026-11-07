@@ -26,7 +26,11 @@ function Invoke-QAProcess([string]$Executable, [string[]]$Arguments, [string]$Lo
     # Build tools may write nonfatal warnings to stderr even with exit code 0.
     # Start-Process avoids turning those messages into PowerShell exceptions.
     $stderr = "$Log.stderr.log"
-    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WorkingDirectory $Application -RedirectStandardOutput $Log -RedirectStandardError $stderr -Wait -PassThru
+    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WorkingDirectory $Application -RedirectStandardOutput $Log -RedirectStandardError $stderr -PassThru
+    if (-not $process.WaitForExit(300000)) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "QA process exceeded five-minute stage deadline: $Executable"
+    }
     if ($process.ExitCode -ne 0) {
         Get-Content $Log -Tail 20 -ErrorAction SilentlyContinue
         Get-Content $stderr -Tail 20 -ErrorAction SilentlyContinue
@@ -36,14 +40,17 @@ function Invoke-QAProcess([string]$Executable, [string[]]$Arguments, [string]$Lo
 try {
     Push-Location $Application
     try {
+        Write-Output "QA_STAGE=Install dependencies (no AI models)"
         Invoke-QAProcess "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\install.ps1", "-SkipModelDownload", "-SkipImageEngineInstall", "-SkipImageModelDownload") $InstallLog
         $Python = Join-Path $Application "backend\.venv\Scripts\python.exe"
         if (-not (Test-Path $Python)) { throw "Installed Python environment missing" }
         if (-not (Test-Path (Join-Path $Application "frontend\node_modules\.bin\vite.cmd"))) { throw "Installed Vite missing" }
+        Write-Output "QA_STAGE=Writer offline and verified recovery"
         Invoke-QAProcess $Python @("scripts\qa_writer_only_install.py") $QaLog
         $Source = Join-Path $DataDir "projects\synthetic-fresh-install-qa\manuscript\chapter-001.md"
         if (-not (Test-Path $Source)) { throw "Manuscript not persisted" }
         $Before = (Get-FileHash -Algorithm SHA256 $Source).Hash
+        Write-Output "QA_STAGE=Repeat install without replacing manuscript"
         Invoke-QAProcess "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\install.ps1", "-SkipModelDownload", "-SkipImageEngineInstall", "-SkipImageModelDownload") (Join-Path $EvidenceRoot "repeat-install.log")
         $After = (Get-FileHash -Algorithm SHA256 $Source).Hash
         if ($Before -ne $After) { throw "Repair unexpectedly modified an author's manuscript" }
