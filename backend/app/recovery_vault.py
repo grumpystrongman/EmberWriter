@@ -35,6 +35,7 @@ ID_PATTERN = re.compile(r"\d{8}T\d{6}Z-[a-f0-9]{12}")
 CONFIG_NAME = ".ember-recovery-config.json"
 MAX_FILES = 200_000
 MAX_TOTAL_BYTES = 500 * 1024**3
+MIN_FREE_BYTES = 2 * 1024**3
 
 
 def _data_root() -> Path:
@@ -328,6 +329,13 @@ def create_backup(reason: str = "manual") -> dict:
         items = []
         count = 0
         total = 0
+        earlier = next((row for row in list_generations()
+                        if not row.get("invalid_manifest")), None)
+        previous: dict[str, dict] = {}
+        if earlier:
+            previous = {
+                item["path"]: item for item in _read_manifest(root, earlier["id"])["files"]
+            }
         with tempfile.TemporaryDirectory(prefix="ember-sqlite-stage-") as staging:
             temp_dir = Path(staging)
             for file in _iter_files(base):
@@ -336,26 +344,43 @@ def create_backup(reason: str = "manual") -> dict:
                 if count > MAX_FILES:
                     raise ValueError("Too many files for one recovery generation")
                 is_db = file.suffix.lower() in {".db", ".sqlite", ".sqlite3"}
-                if is_db:
+                before = file.stat()
+                cached = previous.get(relative)
+                unchanged = (
+                    not is_db and cached is not None
+                    and cached.get("mtime_ns") == before.st_mtime_ns
+                    and cached["size"] == before.st_size
+                    and _object(root, cached["sha256"]).is_file()
+                    and _object(root, cached["sha256"]).stat().st_size == before.st_size
+                )
+                if unchanged:
+                    digest, size = cached["sha256"], cached["size"]
+                elif is_db:
                     staged = _stage_sqlite(file, temp_dir)
                     try:
                         digest, size = _store_object(root, staged)
                     finally:
                         staged.unlink(missing_ok=True)
                 else:
-                    before = file.stat()
-                    digest, size = _store_object(root, file)
-                    after = file.stat()
-                    if (before.st_mtime_ns != after.st_mtime_ns
-                            or before.st_size != after.st_size):
+                    if shutil.disk_usage(root).free < MIN_FREE_BYTES:
                         raise ValueError(
-                            "A file changed while backing up. No incomplete generation "
-                            "was published; retry when the file is stable."
-                        )
+                            "Recovery storage is low on free space; existing backups "
+                            "were preserved and no incomplete generation published.")
+                    digest, size = _store_object(root, file)
+                after = file.stat()
+                if not is_db and (
+                    before.st_mtime_ns != after.st_mtime_ns
+                    or before.st_size != after.st_size
+                ):
+                    raise ValueError(
+                        "A file changed during backup. No incomplete generation was "
+                        "published; retry when author data is stable."
+                    )
                 total += size
                 if total > MAX_TOTAL_BYTES:
                     raise ValueError("Library exceeds current per-generation backup size limit")
                 items.append({"path": relative, "sha256": digest, "size": size,
+                              "mtime_ns": before.st_mtime_ns,
                               "sqlite_consistent": is_db})
         identifier = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:12]
         manifest = {"version": FORMAT, "id": identifier,
@@ -454,6 +479,33 @@ def verify(identifier: str) -> dict:
                 "status": "verified" if not bad else "damaged"}
 
 
+def verify_paths(identifier: str, protected_paths: list[str] | None = None) -> dict:
+    """Verify the exact material about to be deleted; full verification remains available."""
+    with LOCK:
+        root = _backup_root()
+        manifest = _read_manifest(root, identifier)
+        allowed = protected_paths or []
+        items = [item for item in manifest["files"]
+                 if not allowed or any(
+                     item["path"] == requested.rstrip("/")
+                     or item["path"].startswith(requested.rstrip("/") + "/")
+                     for requested in allowed
+                 )]
+        if allowed and not items:
+            raise ValueError("Backup contains none of the material to be deleted")
+        bad = []
+        for row in items:
+            path = _object(root, row["sha256"])
+            if not path.is_file():
+                bad.append(row["path"])
+                continue
+            sha, size = _sha(path)
+            if sha != row["sha256"] or size != row["size"]:
+                bad.append(row["path"])
+        return {"healthy": not bad, "checked_files": len(items),
+                "corrupted_files": bad[:100]}
+
+
 def preview_restore(identifier: str) -> dict:
     root = _backup_root()
     record = _read_manifest(root, identifier)
@@ -545,10 +597,10 @@ def backup_if_due() -> dict | None:
         raise
 
 
-def before_destructive_action(action: str) -> dict:
+def before_destructive_action(action: str, protected_paths: list[str] | None = None) -> dict:
     """Fail closed: do not delete original writing unless a verified backup exists."""
     result = create_backup("before " + action[:90])
-    report = verify(result["id"])
+    report = verify_paths(result["id"], protected_paths)
     if not report["healthy"] or result["mirror_healthy"] is False:
         raise ValueError("Pre-delete backup or configured mirror failed verification. Original work was preserved.")
     return result
