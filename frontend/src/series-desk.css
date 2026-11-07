@@ -63,3 +63,5 @@
 .series-desk-empty{background:#273743;border:1px dashed #778a9d;border-radius:12px;padding:22px;color:#d9e5ee;line-height:1.5}
 @media(max-width:1000px){.series-desk-content{grid-template-columns:minmax(0,1fr)}.series-desk-review{grid-column:auto}}
 @media(max-width:700px){.series-desk{padding:16px 12px 60px}.series-desk-card{padding:15px}.series-desk-heading h1{font-size:1.9rem}.series-desk-tabs button{flex:1 1 auto;font-size:.84rem;padding:10px 8px}}
+
+.series-desk-edit-volume{padding:10px 0}.series-desk-edit-volume label{margin-top:9px}.series-desk-edit-volume button{margin-top:12px}
