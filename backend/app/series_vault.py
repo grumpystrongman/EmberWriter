@@ -7,6 +7,8 @@ files are reported as stale and must be explicitly re-snapshotted in a new editi
 from __future__ import annotations
 
 import hashlib
+import re
+import shutil
 import io
 import sqlite3
 from collections.abc import Iterator
@@ -136,6 +138,35 @@ def create_series(title: str, description: str = "") -> dict:
         con.execute("INSERT INTO series (id,title,description,created_at) VALUES (?,?,?,?)",
                     (identifier, title, description.strip(), now()))
     return series_detail(identifier)
+
+
+def delete_series(series_id: str, confirmation: str) -> dict:
+    """Explicitly delete only vault-owned series records and source snapshots.
+
+    Never touches the original linked EmberWriter project, manuscripts, global
+    style guides or independent series. Requires the exact series title.
+    """
+    with _connect() as con:
+        entry = _one(con, "SELECT id,title FROM series WHERE id=?", (series_id,))
+        if not confirmation or confirmation != entry["title"]:
+            raise ValueError("Type the exact series title to confirm permanent deletion")
+        volumes = [row["id"] for row in con.execute(
+            "SELECT id FROM volumes WHERE series_id=?", (series_id,))]
+        # Assertions refer to series-local entities and source IDs. Delete in
+        # dependency order inside one SQLite transaction before touching files.
+        con.execute("DELETE FROM assertions WHERE series_id=?", (series_id,))
+        con.execute("DELETE FROM entities WHERE series_id=?", (series_id,))
+        for volume_id in volumes:
+            con.execute("DELETE FROM sources WHERE volume_id=?", (volume_id,))
+        con.execute("DELETE FROM volumes WHERE series_id=?", (series_id,))
+        con.execute("DELETE FROM series WHERE id=?", (series_id,))
+    # Files are snapshots this vault created, under a validated generated ID.
+    # Never recursively delete anything outside the controlled snapshots root.
+    for volume_id in volumes:
+        if re.fullmatch(r"[0-9a-f]{32}", volume_id):
+            shutil.rmtree(_root() / "snapshots" / volume_id, ignore_errors=True)
+    return {"deleted": True, "series_id": series_id,
+            "linked_projects_deleted": False}
 
 
 def _check_volume(ordinal: int, kind: str, edition_status: str, title: str) -> None:
