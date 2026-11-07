@@ -43,9 +43,6 @@ def _synthetic_chapter(index: int) -> str:
 def long_book(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(storage, "PROJECTS_ROOT", tmp_path / "author-library" / "projects")
     slug = storage.create_project("RELEASE QA Synthetic 20 Chapter Novel")["slug"]
-    # Remove the project-template scratch chapter from this *isolated test fixture*.
-    # It is not a Book Studio approved chapter and must never enter export/audio.
-    (storage.project_root(slug) / "manuscript" / "chapter-001.md").unlink()
     book_studio.configure(
         slug, premise="A synthetic archive of invented checkpoints.",
         voice="Synthetic QA text only. Not a creative work.",
@@ -90,6 +87,7 @@ async def test_sixty_thousand_word_book_drafts_are_never_auto_approved_and_expor
     assert all(c["status"] == "approved" for c in state["chapters"])
     documents = publishing.compiled_documents(slug)
     assert len(documents) == CHAPTERS
+    assert (storage.project_root(slug) / "manuscript/chapter-001.md").exists()
     assert [item["title"] for item in documents] == [
         f"Chapter {i:02d} Test Data" for i in range(1, CHAPTERS + 1)
     ]
@@ -148,6 +146,7 @@ async def test_twenty_chapter_neural_queue_maintains_provenance_and_author_gate(
         started = kokoro_book.start(slug)
         job = kokoro_book._read(slug)
         assert len(job["chapters"]) == CHAPTERS
+        assert all(ch["path"] != "manuscript/chapter-001.md" for ch in job["chapters"])
         assert started["completed"] == 0
         assert len(job["chunks"]) > 1000
         assert not started["publication_approved"]
