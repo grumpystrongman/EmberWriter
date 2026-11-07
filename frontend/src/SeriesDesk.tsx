@@ -286,7 +286,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         source_id: sourceId, quote_start: quoteStart, quote_end: quoteEnd,
         quote, note: 'Author-created evidence proposal; not canon until reviewed.',
       }))
-      setQuote(''); setObjectText(''); setObjectEntityId('')
+      setQuote(''); setObjectText(''); setObjectEntityId(''); setEndBook('')
       await loadSelected(series.id)
     }, 'Proposed fact saved. Review and approve it before it becomes canon.')
   }
@@ -469,7 +469,9 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
           <p className="series-desk-hint">Select an exact passage in one of your books. A proposal is not canon until you approve it.</p>
           <div className="series-desk-form">
             <label>Source document
-              <select value={sourceId} onChange={event => { setSourceId(event.target.value); setQuote(''); setSourceQuery('') }}>
+              <select value={sourceId} onChange={event => { setSourceId(event.target.value); setQuote(''); setSourceQuery('');
+                setStartBook(sources.find(item => item.id === event.target.value)?.ordinal || 1)
+                setStartSequence(0); setEndBook('') }}>
                 {!sources.length && <option value="">Add a book first</option>}
                 {sources.map(row => <option key={row.id} value={row.id}>Book {row.ordinal} · {row.volumeTitle} · {row.title}</option>)}
               </select></label>
