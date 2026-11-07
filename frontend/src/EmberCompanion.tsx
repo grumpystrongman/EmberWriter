@@ -24,6 +24,7 @@ const guides: { label: string; workspace: Workspace; answer: string; triggers: s
   { label: 'Choose a format', workspace: 'write', answer: 'Choose New writing in the top toolbar. Pick horror, science fiction, short story, essay, screenplay, stage play or another format. Preview it, then create a new page without touching existing writing.', triggers: ['template', 'horror', 'sci-fi', 'science fiction', 'screenplay', 'script', 'essay', 'genre', 'format', 'short story'] },
   { label: 'Use visual references', workspace: 'world', answer: 'Use Reference in the toolbar to paste a picture and describe what you want to borrow. In World → Visual Studio, an optional local vision model can study it. Images do not change story canon automatically.', triggers: ['photo', 'image', 'picture', 'visual', 'reference'] },
   { label: 'Get editing help', workspace: 'analyze', answer: 'In Analyze, review continuity and editorial findings. You decide whether to incorporate suggestions; Ember never overwrites approved prose.', triggers: ['analyze', 'critique', 'editing', 'edit my', 'proofread', 'continuity'] },
+  { label: 'Explore my series', workspace: 'series', answer: 'Open Series to import or link your own books, create source-backed canon facts, and research what was true or known by a chosen book. No AI promotes canon automatically.', triggers: ['series', 'canon graph', 'timeline', 'universe', 'world bible', 'multi-book', 'continuity across books'] },
   { label: 'Create an audiobook', workspace: 'publish', answer: 'In Publish → Audiobook, cast narrator and character voices, set delivery emotion, generate local proof takes, and listen before approving a chapter.', triggers: ['audiobook', 'narrate', 'speech', 'voice', 'audio'] },
 ]
 function helpfulAnswer(question: string, workspace: Workspace) {
@@ -152,7 +153,7 @@ export default function EmberCompanion({ workspace, project, onNavigate, onOpenS
               <button type="button" onClick={() => { onNewWriting(); setOpen(false) }}>＋ Start something new</button>
               {(workspace === 'publish' ? [guides[5], guides[2], guides[4]] :
                 workspace === 'plan' ? [guides[1], guides[2], guides[4]] :
-                [guides[0], guides[2], guides[4]]).map(item =>
+                [guides[0], guides[6], guides[2]]).map(item =>
                 <button type="button" key={item.label} onClick={() => void ask(item.label)}>{item.label} →</button>)}
             </div>
           </>}
