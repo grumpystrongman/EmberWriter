@@ -58,7 +58,7 @@ def _config() -> dict:
     except (OSError, ValueError) as exc:
         raise ValueError("Recovery settings are unreadable; refusing unsafe backup") from exc
     if not isinstance(record, dict) or not isinstance(record.get("directory"), str):
-        raise ValueError("Invalid recovery settings")
+        raise TypeError("Invalid recovery settings")
     return {"directory": record["directory"], "automatic": record.get("automatic", True) is True}
 
 
@@ -227,7 +227,7 @@ def _read_manifest(root: Path, identifier: str) -> dict:
     paths = set()
     for item in entries:
         if not isinstance(item, dict) or not isinstance(item.get("path"), str):
-            raise ValueError("Recovery entry is malformed")
+            raise TypeError("Recovery entry is malformed")
         relative = PurePosixPath(item["path"])
         if ("\\" in item["path"] or ":" in item["path"]
                 or relative.is_absolute() or not relative.parts
