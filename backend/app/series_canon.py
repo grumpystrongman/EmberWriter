@@ -285,7 +285,8 @@ def timeline(series_id: str, *, subject_id: str | None = None) -> dict:
 
 def ask_temporal(series_id: str, question: str, book: int, *,
                  sequence: int = 999999, scope: str = "world",
-                 knower_id: str | None = None) -> dict:
+                 knower_id: str | None = None,
+                 subject_id: str | None = None) -> dict:
     """Deterministic evidence-first answers: no generated claim or citation."""
     if not 3 <= len(question.strip()) <= 1500:
         raise ValueError("Ask a question between 3 and 1,500 characters")
@@ -299,10 +300,26 @@ def ask_temporal(series_id: str, question: str, book: int, *,
                 mentions.append((len(name), entity))
                 break
     mentions.sort(key=lambda row: -row[0])
-    subject_id = mentions[0][1]["id"] if mentions else None
     if scope == "character_belief" and knower_id:
         mentions = [row for row in mentions if row[1]["id"] != knower_id]
-        subject_id = mentions[0][1]["id"] if mentions else None
+    if not subject_id and mentions:
+        best_length = mentions[0][0]
+        tied = [row[1] for row in mentions if row[0] == best_length]
+        if len(tied) > 1:
+            # A real ambiguity should be surfaced to the author, not resolved
+            # by arbitrary sorted order or generative speculation.
+            return {
+                "answer": "This question mentions several equally likely subjects. "
+                          "Choose the specific character, artifact or place to research.",
+                "question": question, "matched_entity_id": None,
+                "ambiguous_entities": [
+                    {"id": item["id"], "name": item["name"]} for item in tied
+                ],
+                "sources": [], "facts": [], "conflicts": [],
+                "scope": scope, "book": book, "sequence": sequence,
+                "evidence_only": True, "read_only": True,
+            }
+        subject_id = tied[0]["id"]
     state = at_book(series_id, book, sequence, scope=scope,
                     subject_id=subject_id, knower_id=knower_id)
     tokens = set(WORD.findall(lower)) - STOP
