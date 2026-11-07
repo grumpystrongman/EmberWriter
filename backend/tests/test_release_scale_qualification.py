@@ -182,3 +182,24 @@ async def test_twenty_chapter_neural_queue_maintains_provenance_and_author_gate(
         assert kokoro_book.status(slug)["stale"]
         with pytest.raises(ValueError, match="manuscript changed"):
             kokoro_book.chapter_audio(slug, completed["chapters"][0]["filename"])
+
+
+
+def test_original_author_edited_starter_chapter_is_never_silently_excluded(long_book):
+    slug, _ = long_book
+    original = storage.read_text(slug, "manuscript/chapter-001.md")
+    assert "Begin " in original
+    from app.binder import sync_binder
+
+    storage.save_text(slug, "manuscript/book-studio/chapter-001.md",
+                      "# Actual Book Studio Chapter\n\nThis is a drafted chapter.")
+    sync_binder(slug)
+    paths = [item["path"] for item in publishing.compiled_documents(slug)]
+    assert "manuscript/chapter-001.md" not in paths
+    assert "manuscript/book-studio/chapter-001.md" in paths
+    storage.save_text(slug, "manuscript/chapter-001.md",
+                      original + "\nThe author consciously wrote a new paragraph.")
+    sync_binder(slug)
+    paths = [item["path"] for item in publishing.compiled_documents(slug)]
+    assert "manuscript/chapter-001.md" in paths
+    assert "manuscript/book-studio/chapter-001.md" in paths
