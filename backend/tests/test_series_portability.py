@@ -115,3 +115,19 @@ def test_series_backup_and_restore_http_routes(portable_fixture):
                                files={"file": ("archive.zip", download.content, "application/zip")})
         assert restored.status_code == 201, restored.text
         assert restored.json()["id"] != series_id
+
+
+def test_series_removal_requires_exact_title_and_never_deletes_linked_book(portable_fixture):
+    series_id, slug, original = portable_fixture
+    before = vault.series_detail(series_id)
+    with pytest.raises(ValueError, match="exact series title"):
+        vault.delete_series(series_id, "incorrect")
+    assert len(vault.list_series()) == 1
+    result = vault.delete_series(series_id, before["title"])
+    assert result["deleted"] is True
+    assert result["linked_projects_deleted"] is False
+    assert storage.read_text(slug, "manuscript/chapter-001.md") == original
+    assert not vault.list_series()
+    for volume in before["volumes"]:
+        with pytest.raises(FileNotFoundError):
+            vault.source_text(series_id, volume["sources"][0]["id"])
