@@ -4,6 +4,7 @@ const AppV2 = lazy(() => import('./AppV2'))
 import EmberCompanion from './EmberCompanion'
 import ReferenceCapture from './ReferenceCapture'
 import WritingTemplatePicker from './WritingTemplatePicker'
+import RecoveryCenter from './RecoveryCenter'
 import CenterWorkspace from './CenterWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './workspace-shell.css'
@@ -145,6 +146,7 @@ export default function WorkspaceShell() {
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
+  const [recoveryOpen, setRecoveryOpen] = useState(false)
   const [writingFormat, setWritingFormat] = useState('novel')
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
@@ -379,6 +381,10 @@ export default function WorkspaceShell() {
             title="Start a new project or writing document">
             ＋ <span>New writing</span>
           </button>
+          <button type="button" className="workspace-recovery-button"
+            onClick={() => setRecoveryOpen(true)} title="Back up and recover all your writing">
+            <span aria-hidden="true">◈</span> <span>Protect work</span>
+          </button>
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
           <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" className="workspace-reference-button" disabled={!projectContext}>▧ <span>Reference</span></button>
           <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note" className="workspace-sticky-button">▰ Note</button>
@@ -406,6 +412,7 @@ export default function WorkspaceShell() {
         </Suspense>
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
+      <RecoveryCenter open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />
       <WritingTemplatePicker open={templateOpen} project={projectContext}
         onClose={() => setTemplateOpen(false)}
         onCreated={path => { void (async () => { await sleep(230); await openSource(path) })() }} />
