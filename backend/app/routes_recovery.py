@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -40,7 +38,7 @@ def _error(exc: Exception):
 def status() -> dict:
     try:
         return vault.status()
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, TypeError) as exc:
         _error(exc)
 
 
