@@ -20,6 +20,7 @@ const workspaces: { id: Workspace; label: string; icon: string }[] = [
   { id: 'analyze', label: 'Analyze', icon: '◫' },
   { id: 'tools', label: 'Tools', icon: '⚙' },
   { id: 'publish', label: 'Publish', icon: '▤' },
+  { id: 'series', label: 'Series', icon: '◈' },
   { id: 'submit', label: 'Submit', icon: '⇧' },
 ]
 
@@ -122,8 +123,8 @@ function workspaceShortcut(index: number) {
   return index === 9 ? '0' : String(index + 1)
 }
 
-const PRIMARY_WORKSPACES: Workspace[] = ['write', 'studio', 'plan', 'analyze', 'publish']
-const NARROW_WORKSPACES: Workspace[] = ['write', 'plan', 'publish']
+const PRIMARY_WORKSPACES: Workspace[] = ['write', 'studio', 'plan', 'series', 'analyze', 'publish']
+const NARROW_WORKSPACES: Workspace[] = ['write', 'plan', 'series', 'publish']
 
 export default function WorkspaceShell() {
   const moreRef = useRef<HTMLDetailsElement | null>(null)
