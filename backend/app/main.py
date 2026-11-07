@@ -66,7 +66,8 @@ from .routes_prose_editor import router as prose_editor_router
 from .routes_provenance import router as provenance_router
 from .routes_quality_clinic import router as quality_clinic_router
 from .routes_reader import router as reader_router
-from .routes_recovery import automatic_recovery_loop, router as recovery_router
+from .routes_recovery import automatic_recovery_loop
+from .routes_recovery import router as recovery_router
 from .routes_review import router as review_router
 from .routes_sd import router as sd_router
 from .routes_series import router as series_router
