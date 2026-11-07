@@ -32,6 +32,13 @@ class AttachProject(BaseModel):
     rights_confirmed: bool = False
 
 
+class VolumeEdit(BaseModel):
+    title: str = Field(min_length=1, max_length=180)
+    ordinal: int = Field(ge=1, le=9999)
+    kind: str
+    edition_status: str
+
+
 class EntityCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     kind: str = "character"
@@ -112,6 +119,14 @@ def add_existing_project(series_id: str, payload: AttachProject) -> dict:
             edition_status=payload.edition_status,
             rights_confirmed=payload.rights_confirmed,
         )
+    except (ValueError, FileNotFoundError, sqlite3.IntegrityError) as exc:
+        _fail(exc)
+
+
+@router.put("/{series_id}/volumes/{volume_id}")
+def edit_volume(series_id: str, volume_id: str, payload: VolumeEdit) -> dict:
+    try:
+        return vault.update_volume(series_id, volume_id, **payload.model_dump())
     except (ValueError, FileNotFoundError, sqlite3.IntegrityError) as exc:
         _fail(exc)
 
