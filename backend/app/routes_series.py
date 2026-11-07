@@ -5,6 +5,8 @@ rights-confirmed series sources; no AI text ingestion or automatic canon changes
 """
 from __future__ import annotations
 
+from typing import Annotated
+
 import sqlite3
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
@@ -117,7 +119,7 @@ def add_existing_project(series_id: str, payload: AttachProject) -> dict:
 @router.post("/{series_id}/volumes/import", status_code=201)
 async def import_document(
     series_id: str,
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File()],
     ordinal: int = Form(...),
     title: str = Form(default=""),
     kind: str = Form(default="novel"),
