@@ -21,7 +21,6 @@ from .series_vault import (
     _id,
     _root,
     _snapshot,
-    create_series,
     now,
     series_detail,
     source_text,
