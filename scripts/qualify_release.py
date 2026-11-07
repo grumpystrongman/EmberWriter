@@ -259,9 +259,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
-            raise ValueError("Evidence must be a JSON object")
+            raise TypeError("Evidence must be a JSON object")
         failures = evaluate(data, path.parent)
-    except (ValueError, OSError, UnicodeError) as exc:
+    except (ValueError, TypeError, OSError, UnicodeError) as exc:
         print(f"RELEASE HOLD: unreadable or invalid evidence: {exc}")
         return 1
     if failures:
