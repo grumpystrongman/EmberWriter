@@ -68,6 +68,7 @@ from .routes_quality_clinic import router as quality_clinic_router
 from .routes_reader import router as reader_router
 from .routes_review import router as review_router
 from .routes_sd import router as sd_router
+from .routes_series import router as series_router
 from .routes_story import router as story_router
 from .routes_story_arcs import router as story_arcs_router
 from .routes_style_bible import router as style_bible_router
@@ -171,6 +172,7 @@ async def writer_generation_guard(request: Request, call_next):
 
 
 app.include_router(visual_interpret_router)
+app.include_router(series_router)
 app.include_router(writing_templates_router)
 app.include_router(companion_router)
 app.include_router(autopilot_router)
