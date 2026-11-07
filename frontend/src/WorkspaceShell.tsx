@@ -151,6 +151,12 @@ export default function WorkspaceShell() {
   const [writingFormat, setWritingFormat] = useState('novel')
 
   useEffect(() => {
+    const openRecovery = () => setRecoveryOpen(true)
+    window.addEventListener('emberwriter:open-recovery', openRecovery)
+    return () => window.removeEventListener('emberwriter:open-recovery', openRecovery)
+  }, [])
+
+  useEffect(() => {
     let alive = true
     async function checkRecovery() {
       try {
