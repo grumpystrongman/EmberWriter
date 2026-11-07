@@ -76,7 +76,7 @@ def compiled_documents(slug: str) -> list[dict]:
                 node.path == "manuscript/chapter-001.md"
                 and (project_root(slug) / "manuscript/book-studio/chapter-001.md").is_file()
                 and content.strip() == (
-                    f"# Chapter 1\\n\\nBegin {get_project(slug)['name']} here."
+                    f"# Chapter 1\n\nBegin {get_project(slug)['name']} here."
                 )
             ):
                 continue
