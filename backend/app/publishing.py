@@ -67,6 +67,19 @@ def compiled_documents(slug: str) -> list[dict]:
                 content = read_text(slug, node.path)
             except (FileNotFoundError, OSError, ValueError, UnicodeError):
                 continue
+            # The untouched starter paragraph is not a novel chapter. When
+            # Book Studio has created the *first* actual chapter, avoid
+            # silently compiling the example scratch page as an extra Book 1
+            # chapter. Any author-edited starter remains in the Binder and
+            # must be explicitly managed by the author.
+            if (
+                node.path == "manuscript/chapter-001.md"
+                and (project_root(slug) / "manuscript/book-studio/chapter-001.md").is_file()
+                and content.strip() == (
+                    f"# Chapter 1\\n\\nBegin {get_project(slug)['name']} here."
+                )
+            ):
+                continue
             result.append(
                 {
                     "id": node.id,
