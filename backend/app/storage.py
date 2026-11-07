@@ -260,7 +260,7 @@ def delete_text(slug: str, relative_path: str) -> dict:
     # Never delete an author document without an independently verified generation.
     from .recovery_vault import before_destructive_action
 
-    before_destructive_action("delete document")
+    before_destructive_action("delete document", [f"projects/{slug}/{relative_path}"])
     path.unlink()
     _touch_project(slug)
     return {"path": relative_path, "deleted": True}
@@ -272,7 +272,7 @@ def delete_project(slug: str) -> dict:
         raise FileNotFoundError(slug)
     from .recovery_vault import before_destructive_action
 
-    before_destructive_action("delete project")
+    before_destructive_action("delete project", [f"projects/{slug}"])
     shutil.rmtree(root)
     return {"slug": slug, "deleted": True}
 
