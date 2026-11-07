@@ -45,6 +45,8 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [notice, setNotice] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
+  const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const [restoreRights, setRestoreRights] = useState(false)
   const [volumeTitle, setVolumeTitle] = useState('')
   const [volumeOrdinal, setVolumeOrdinal] = useState(1)
   const [volumeKind, setVolumeKind] = useState('novel')
@@ -171,6 +173,20 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       setNewTitle(''); setNewDescription('')
       await loadSeries(created.id)
     }, 'Your private series has been created. Add books when you are ready.')
+  }
+
+  async function restoreSeries() {
+    if (!restoreFile) return
+    await execute(async () => {
+      const data = new FormData()
+      data.append('file', restoreFile)
+      data.append('rights_confirmed', String(restoreRights))
+      const created = await request<Series>('/series/restore', {
+        method: 'POST', body: data,
+      })
+      setRestoreFile(null); setRestoreRights(false)
+      await loadSeries(created.id)
+    }, 'Backup verified and restored as a separate series. Existing manuscripts were not changed.')
   }
 
   async function addVolume() {
@@ -320,6 +336,22 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
             Create series</button>
         </div>
       </details>
+      <details>
+        <summary>↥ Restore a private Series Vault backup (.zip)</summary>
+        <div className="series-desk-inline">
+          <label>Series Vault backup
+            <input type="file" accept=".zip,application/zip"
+              onChange={event => setRestoreFile(event.target.files?.[0] || null)} />
+          </label>
+          <label className="series-desk-check">
+            <input type="checkbox" checked={restoreRights}
+              onChange={event => setRestoreRights(event.target.checked)} />
+            <span>I own or have permission to restore the manuscripts in this backup.</span>
+          </label>
+          <button type="button" disabled={busy || !restoreFile || !restoreRights}
+            onClick={() => void restoreSeries()}>Restore as a new series</button>
+        </div>
+      </details>
     </div>
     {series && <>
       <nav className="series-desk-tabs" aria-label="Series Desk views">
@@ -330,6 +362,9 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       {view === 'vault' && <div className="series-desk-content">
         <div className="series-desk-card">
           <h2>Books in {series.title}</h2>
+          <p><a className="series-desk-backup" href={`${API}/series/${series.id}/backup`}
+            download="emberwriter-series-backup.zip">↓ Download private series backup (.zip)</a></p>
+          <p className="series-desk-hint">This portable archive includes your source snapshots, approved and pending canon, and book structure. Keep it private: it contains manuscript text.</p>
           <p className="series-desk-hint">The vault preserves a source snapshot when a book is added. Later edits to a linked project are flagged rather than silently replacing the evidence.</p>
           {series.volumes?.length ? <div className="series-desk-books">
             {series.volumes.map(book => <article key={book.id}>
