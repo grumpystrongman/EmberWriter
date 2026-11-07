@@ -152,7 +152,7 @@ def delete_series(series_id: str, confirmation: str) -> dict:
             raise ValueError("Type the exact series title to confirm permanent deletion")
         from .recovery_vault import before_destructive_action
 
-        before_destructive_action("delete series")
+        before_destructive_action("delete series", ["series/series-vault.sqlite3", "series/snapshots"])
         volumes = [row["id"] for row in con.execute(
             "SELECT id FROM volumes WHERE series_id=?", (series_id,))]
         # Assertions refer to series-local entities and source IDs. Delete in
