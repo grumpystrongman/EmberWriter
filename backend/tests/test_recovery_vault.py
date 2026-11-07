@@ -116,7 +116,7 @@ def test_destructive_operations_require_backup_before_deletion(library: Path,
     project = _make_project()
     path = "manuscript/chapter-001.md"
     before = storage.read_text(project["slug"], path)
-    def fail_backup(action):
+    def fail_backup(action, protected_paths=None):
         raise OSError("recovery drive unavailable")
     with monkeypatch.context() as guarded:
         guarded.setattr(recovery, "before_destructive_action", fail_backup)
