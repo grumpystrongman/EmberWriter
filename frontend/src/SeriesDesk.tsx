@@ -48,6 +48,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [editionStatus, setEditionStatus] = useState('draft')
   const [linkProject, setLinkProject] = useState('')
   const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [volumeEdits, setVolumeEdits] = useState<Record<string, {title: string; ordinal: number; kind: string; edition_status: string}>>({})
   const [rightsConfirmed, setRightsConfirmed] = useState(false)
   const [addMode, setAddMode] = useState<'project' | 'document'>('project')
   const [entities, setEntities] = useState<Entity[]>([])
@@ -71,6 +72,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [pointBook, setPointBook] = useState(1)
   const [pointSequence, setPointSequence] = useState(999999)
   const [question, setQuestion] = useState('Where is the artifact now?')
+  const [querySubjectId, setQuerySubjectId] = useState('')
   const [answer, setAnswer] = useState<AsOf | null>(null)
   const [timeline, setTimeline] = useState<Fact[]>([])
   const [showPending, setShowPending] = useState(true)
@@ -174,6 +176,26 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     }, 'Book added to the Series Vault. Its source snapshot is preserved and no canon was approved automatically.')
   }
 
+  async function saveVolume(book: Volume) {
+    if (!series) return
+    await execute(async () => {
+      const edit = volumeEdits[book.id] || {
+        title: book.title, ordinal: book.ordinal, kind: book.kind,
+        edition_status: book.edition_status,
+      }
+      await request<Series>(`/series/${series.id}/volumes/${book.id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(edit),
+      })
+      setVolumeEdits(previous => {
+        const result = {...previous}
+        delete result[book.id]
+        return result
+      })
+      await loadSelected(series.id)
+    }, 'Book metadata updated. Historical canon assertions were not rewritten.')
+  }
+
   async function createEntity() {
     if (!series) return
     await execute(async () => {
@@ -217,7 +239,8 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     await execute(async () => {
       const response = await request<AsOf>(`/series/${series.id}/ask`,
         json({ question, book: pointBook, sequence: pointSequence,
-          scope, knower_id: scope === 'character_belief' ? knowerId : null }))
+          scope, knower_id: scope === 'character_belief' ? knowerId : null,
+          subject_id: querySubjectId || null }))
       setAnswer(response)
     }, 'The answer is assembled from approved facts available at the selected story point.')
   }
@@ -267,6 +290,35 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                   {book.sources.map(src => <button key={src.id} type="button"
                     onClick={() => { setSourceId(src.id); setView('canon') }}>
                     {src.title} · inspect evidence →</button>)}
+                </details>
+                <details className="series-desk-edit-volume"><summary>Edit book details</summary>
+                  <label>Book title <input value={volumeEdits[book.id]?.title ?? book.title}
+                    onChange={event => setVolumeEdits(prev => ({
+                      ...prev, [book.id]: {title: event.target.value,
+                        ordinal: prev[book.id]?.ordinal ?? book.ordinal,
+                        kind: prev[book.id]?.kind ?? book.kind,
+                        edition_status: prev[book.id]?.edition_status ?? book.edition_status},
+                    }))} /></label>
+                  <label>Book order <input type="number" min={1} max={9999}
+                    value={volumeEdits[book.id]?.ordinal ?? book.ordinal}
+                    onChange={event => setVolumeEdits(prev => ({
+                      ...prev, [book.id]: {title: prev[book.id]?.title ?? book.title,
+                        ordinal: Number(event.target.value),
+                        kind: prev[book.id]?.kind ?? book.kind,
+                        edition_status: prev[book.id]?.edition_status ?? book.edition_status},
+                    }))} /></label>
+                  <label>Edition status <select
+                    value={volumeEdits[book.id]?.edition_status ?? book.edition_status}
+                    onChange={event => setVolumeEdits(prev => ({
+                      ...prev, [book.id]: {title: prev[book.id]?.title ?? book.title,
+                        ordinal: prev[book.id]?.ordinal ?? book.ordinal,
+                        kind: prev[book.id]?.kind ?? book.kind,
+                        edition_status: event.target.value},
+                    }))}>
+                    {statuses.map(item => <option value={item.value} key={item.value}>{item.label}</option>)}
+                  </select></label>
+                  <button type="button" disabled={busy || !volumeEdits[book.id]}
+                    onClick={() => void saveVolume(book)}>Save book details</button>
                 </details>
               </div>
             </article>)}
@@ -448,6 +500,12 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
               <label>As-of scene sequence <input type="number" min={0} max={999999}
                 value={pointSequence} onChange={event => setPointSequence(Number(event.target.value))} /></label>
             </details>
+            <label>Specific character, place or artifact (optional)
+              <select value={querySubjectId} onChange={event => setQuerySubjectId(event.target.value)}>
+                <option value="">Recognize entity from question</option>
+                {entities.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
             <label>Ask the universe <textarea rows={3} value={question}
               onChange={event => setQuestion(event.target.value)}
               placeholder="What does Lyra know about the Moon Key?" /></label>
