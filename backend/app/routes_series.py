@@ -9,6 +9,8 @@ import sqlite3
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.background import BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from . import series_canon as canon
@@ -106,6 +108,37 @@ def new_series(payload: SeriesCreate) -> dict:
         return vault.create_series(payload.title, payload.description)
     except (ValueError, OSError) as exc:
         _fail(exc)
+
+
+@router.post("/restore", status_code=201)
+async def restore_vault(
+    file: Annotated[UploadFile, File()],
+    rights_confirmed: bool = Form(default=False),
+) -> dict:
+    from .series_portability import MAX_ARCHIVE_BYTES, restore
+    try:
+        if not rights_confirmed:
+            raise ValueError("Confirm that you are authorized to restore these books")
+        data = await file.read(MAX_ARCHIVE_BYTES + 1)
+        if len(data) > MAX_ARCHIVE_BYTES:
+            raise ValueError("Series archive exceeds the 250 MB upload limit")
+        return restore(data, rights_confirmed)
+    except (ValueError, OSError, sqlite3.IntegrityError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/backup")
+def download_vault(series_id: str, background_tasks: BackgroundTasks) -> FileResponse:
+    from .series_portability import backup
+    try:
+        archive = backup(series_id)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        _fail(exc)
+    background_tasks.add_task(archive.unlink, missing_ok=True)
+    return FileResponse(
+        archive, filename="emberwriter-series-backup.zip",
+        media_type="application/zip", background=background_tasks,
+    )
 
 
 @router.get("/{series_id}")
