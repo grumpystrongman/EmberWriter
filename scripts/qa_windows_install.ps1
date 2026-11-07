@@ -22,27 +22,29 @@ $Original = $env:EMBER_DATA_DIR
 $env:EMBER_DATA_DIR = $DataDir
 $InstallLog = Join-Path $EvidenceRoot "writer-only-install.log"
 $QaLog = Join-Path $EvidenceRoot "writer-only-contract.json"
+function Invoke-QAProcess([string]$Executable, [string[]]$Arguments, [string]$Log) {
+    # Build tools may write nonfatal warnings to stderr even with exit code 0.
+    # Start-Process avoids turning those messages into PowerShell exceptions.
+    $stderr = "$Log.stderr.log"
+    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WorkingDirectory $Application -RedirectStandardOutput $Log -RedirectStandardError $stderr -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        Get-Content $Log -Tail 20 -ErrorAction SilentlyContinue
+        Get-Content $stderr -Tail 20 -ErrorAction SilentlyContinue
+        throw "QA child exited with $($process.ExitCode): $Executable"
+    }
+}
 try {
     Push-Location $Application
     try {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\install.ps1" -SkipModelDownload -SkipImageEngineInstall -SkipImageModelDownload *> $InstallLog
-        if ($LASTEXITCODE -ne 0) {
-            Get-Content $InstallLog -Tail 30
-            throw "Writer-only installer failed; do not release"
-        }
+        Invoke-QAProcess "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\install.ps1", "-SkipModelDownload", "-SkipImageEngineInstall", "-SkipImageModelDownload") $InstallLog
         $Python = Join-Path $Application "backend\.venv\Scripts\python.exe"
         if (-not (Test-Path $Python)) { throw "Installed Python environment missing" }
         if (-not (Test-Path (Join-Path $Application "frontend\node_modules\.bin\vite.cmd"))) { throw "Installed Vite missing" }
-        & $Python "scripts\qa_writer_only_install.py" *> $QaLog
-        if ($LASTEXITCODE -ne 0) {
-            Get-Content $QaLog -Tail 30
-            throw "Offline writer contract failed"
-        }
+        Invoke-QAProcess $Python @("scripts\qa_writer_only_install.py") $QaLog
         $Source = Join-Path $DataDir "projects\synthetic-fresh-install-qa\manuscript\chapter-001.md"
         if (-not (Test-Path $Source)) { throw "Manuscript not persisted" }
         $Before = (Get-FileHash -Algorithm SHA256 $Source).Hash
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\install.ps1" -SkipModelDownload -SkipImageEngineInstall -SkipImageModelDownload *> (Join-Path $EvidenceRoot "repeat-install.log")
-        if ($LASTEXITCODE -ne 0) { throw "Writer-only install repair failed" }
+        Invoke-QAProcess "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\install.ps1", "-SkipModelDownload", "-SkipImageEngineInstall", "-SkipImageModelDownload") (Join-Path $EvidenceRoot "repeat-install.log")
         $After = (Get-FileHash -Algorithm SHA256 $Source).Hash
         if ($Before -ne $After) { throw "Repair unexpectedly modified an author's manuscript" }
         $Report = @{
