@@ -65,3 +65,5 @@
 @media(max-width:700px){.series-desk{padding:16px 12px 60px}.series-desk-card{padding:15px}.series-desk-heading h1{font-size:1.9rem}.series-desk-tabs button{flex:1 1 auto;font-size:.84rem;padding:10px 8px}}
 
 .series-desk-edit-volume{padding:10px 0}.series-desk-edit-volume label{margin-top:9px}.series-desk-edit-volume button{margin-top:12px}
+
+.series-desk-suggest{background:#172d32;border:1px solid #4b7779;border-radius:10px;padding:14px;display:grid;gap:11px}.series-desk-suggest>strong{color:#a9e0d7}.series-desk-suggest p{margin:0}.series-desk-suggest button{justify-self:start}.series-desk-candidate{padding:10px;border:1px solid #46656d;background:#12222b;border-radius:9px;display:grid;gap:6px}.series-desk-candidate small{color:#b4c4ca}.series-desk-candidate blockquote{margin:4px 0}
