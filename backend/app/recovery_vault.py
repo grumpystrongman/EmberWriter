@@ -27,6 +27,7 @@ from . import storage
 LOCK = threading.RLock()
 LAST_AUTOMATIC_ERROR: str | None = None
 LAST_AUTOMATIC_ATTEMPT: str | None = None
+LAST_MIRROR_ERROR: str | None = None
 FORMAT = 1
 CHUNK = 1024 * 1024
 INTERVAL_SECONDS = 15 * 60
@@ -52,7 +53,8 @@ def _config_path() -> Path:
 def _config() -> dict:
     path = _config_path()
     if not path.exists():
-        return {"directory": str(_default_backup_root()), "automatic": True}
+        return {"directory": str(_default_backup_root()), "automatic": True,
+                "mirror_directory": None}
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -79,8 +81,12 @@ def _backup_root() -> Path:
     return _safe_root(_config()["directory"])
 
 
-def configure(directory: str, automatic: bool = True) -> dict:
+def configure(directory: str, automatic: bool = True,
+              mirror_directory: str | None = None) -> dict:
     location = _safe_root(directory)
+    mirror = _safe_root(mirror_directory) if mirror_directory else None
+    if mirror and (mirror == location or mirror in location.parents or location in mirror.parents):
+        raise ValueError("Backup and mirror must be separate folders")
     if location.exists() and not location.is_dir():
         raise ValueError("Backup location must be a directory")
     location.mkdir(parents=True, exist_ok=True)
@@ -92,10 +98,20 @@ def configure(directory: str, automatic: bool = True) -> dict:
         _atomic_bytes(marker, b"EmberWriter Recovery Vault v1\n")
     elif marker.read_bytes() != b"EmberWriter Recovery Vault v1\n":
         raise ValueError("The selected folder is not a valid Recovery Vault")
+    if mirror:
+        mirror.mkdir(parents=True, exist_ok=True)
+        mirror_mark = mirror / ".ember-recovery-store"
+        if not mirror_mark.exists():
+            if any(mirror.iterdir()):
+                raise ValueError("Select a new, empty mirror folder")
+            _atomic_bytes(mirror_mark, b"EmberWriter Recovery Vault v1\n")
+        elif mirror_mark.read_bytes() != b"EmberWriter Recovery Vault v1\n":
+            raise ValueError("Recovery mirror marker is invalid")
     path = _config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     _atomic_bytes(path, json.dumps({
         "directory": str(location), "automatic": bool(automatic),
+        "mirror_directory": str(mirror) if mirror else None,
     }, indent=2).encode())
     return status()
 
@@ -271,11 +287,16 @@ def status() -> dict:
     root = _safe_root(config["directory"])
     items = list_generations()
     valid = [item for item in items if not item.get("invalid_manifest")]
+    mirror = _safe_root(config["mirror_directory"]) if config["mirror_directory"] else None
+    mirror_latest = bool(mirror and valid and _snapshot_path(mirror, valid[0]["id"]).exists())
     return {
         "directory": str(root), "automatic": config["automatic"],
         "snapshot_count": len(valid), "last_snapshot": valid[0] if valid else None,
         "latest_manifest_invalid": bool(items and items[0].get("invalid_manifest")),
         "drive_isolation_verified": False,
+        "mirror_directory": str(mirror) if mirror else None,
+        "mirror_latest_present": mirror_latest,
+        "last_mirror_error": LAST_MIRROR_ERROR,
         "last_automatic_error": LAST_AUTOMATIC_ERROR,
         "last_automatic_attempt": LAST_AUTOMATIC_ATTEMPT,
         "warning": ("Backups in a second local folder may be lost with the same disk. "
@@ -289,6 +310,7 @@ def create_backup(reason: str = "manual") -> dict:
     """Never publish a backup manifest until every source object is durable."""
     if not 1 <= len(reason.strip()) <= 120:
         raise ValueError("Give this backup a short reason")
+    global LAST_MIRROR_ERROR
     with LOCK:
         root = _backup_root()
         root.mkdir(parents=True, exist_ok=True)
@@ -342,10 +364,70 @@ def create_backup(reason: str = "manual") -> dict:
         _atomic_bytes(destination, json.dumps(
             manifest, ensure_ascii=False, sort_keys=True, indent=2
         ).encode("utf-8"))
+        mirror_healthy = None
+        config = _config()
+        if config["mirror_directory"]:
+            try:
+                _replicate(root, _safe_root(config["mirror_directory"]), identifier)
+                mirror_healthy = True
+                LAST_MIRROR_ERROR = None
+            except (OSError, ValueError) as exc:
+                mirror_healthy = False
+                LAST_MIRROR_ERROR = f"{type(exc).__name__}: {exc}"
         return {"id": identifier, "created_at": manifest["created_at"],
                 "files": count, "bytes": total,
                 "verified": True, "destination": str(root),
+                "mirror_healthy": mirror_healthy,
                 "reason": reason.strip()}
+
+
+def _replicate(primary: Path, mirror: Path, identifier: str) -> None:
+    """Publish a mirror snapshot only after all content objects are durable."""
+    if mirror == primary or mirror in primary.parents or primary in mirror.parents:
+        raise ValueError("Recovery mirror cannot overlap the primary store")
+    mirror.mkdir(parents=True, exist_ok=True)
+    marker = mirror / ".ember-recovery-store"
+    if not marker.is_file() or marker.read_bytes() != b"EmberWriter Recovery Vault v1\n":
+        raise ValueError("Mirror is missing its Recovery Vault marker")
+    manifest = _read_manifest(primary, identifier)
+    for record in manifest["files"]:
+        source = _object(primary, record["sha256"])
+        if not source.is_file():
+            raise ValueError("Primary object missing during mirror replication")
+        digest, size = _store_object(mirror, source)
+        if digest != record["sha256"] or size != record["size"]:
+            raise ValueError("Mirror object does not match source")
+    origin = _snapshot_path(primary, identifier)
+    target = _snapshot_path(mirror, identifier)
+    if target.exists():
+        if target.read_bytes() != origin.read_bytes():
+            raise ValueError("Mirrored manifest conflicts with primary generation")
+    else:
+        _atomic_bytes(target, origin.read_bytes())
+
+
+def repair_mirror() -> dict:
+    global LAST_MIRROR_ERROR
+    with LOCK:
+        config = _config()
+        if not config["mirror_directory"]:
+            return {"configured": False, "synced": 0}
+        primary = _backup_root()
+        mirror = _safe_root(config["mirror_directory"])
+        missing = [row["id"] for row in list_generations()
+                   if not row.get("invalid_manifest")
+                   and not _snapshot_path(mirror, row["id"]).exists()]
+        synced = 0
+        for identifier in reversed(missing):
+            try:
+                _replicate(primary, mirror, identifier)
+                synced += 1
+                LAST_MIRROR_ERROR = None
+            except (ValueError, OSError) as exc:
+                LAST_MIRROR_ERROR = f"{type(exc).__name__}: {exc}"
+                break
+        return {"configured": True, "synced": synced,
+                "remaining": len(missing) - synced, "error": LAST_MIRROR_ERROR}
 
 
 def verify(identifier: str) -> dict:
@@ -448,6 +530,7 @@ def backup_due() -> bool:
 
 def backup_if_due() -> dict | None:
     global LAST_AUTOMATIC_ERROR, LAST_AUTOMATIC_ATTEMPT
+    repair_mirror()
     if not backup_due():
         return None
     LAST_AUTOMATIC_ATTEMPT = datetime.now(UTC).isoformat()
@@ -464,6 +547,6 @@ def before_destructive_action(action: str) -> dict:
     """Fail closed: do not delete original writing unless a verified backup exists."""
     result = create_backup("before " + action[:90])
     report = verify(result["id"])
-    if not report["healthy"]:
-        raise ValueError("Pre-delete backup failed verification. Original work was preserved.")
+    if not report["healthy"] or result["mirror_healthy"] is False:
+        raise ValueError("Pre-delete backup or configured mirror failed verification. Original work was preserved.")
     return result
