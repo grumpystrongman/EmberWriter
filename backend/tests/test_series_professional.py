@@ -7,9 +7,8 @@ from fastapi.testclient import TestClient
 from app import series_canon as canon
 from app import series_consequences as consequences
 from app import series_continuity as continuity
-from app import series_ember
+from app import series_ember, storage
 from app import series_vault as vault
-from app import storage
 from app.main import app
 
 
