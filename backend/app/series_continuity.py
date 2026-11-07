@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
 
 from .series_canon import at_book, list_entities, list_facts
 from .series_vault import _connect, _id, _one, now, series_detail, source_text
@@ -77,7 +76,7 @@ def list_exceptions(series_id: str) -> list[dict]:
 
 
 def annotate_exception(series_id: str, claim_key: str, reason: str, note: str) -> dict:
-    _setup()
+    _scan_setup()
     if not re.fullmatch(r"[a-f0-9]{64}", claim_key):
         raise ValueError("Invalid finding identifier")
     if reason not in REASONS or not 1 <= len(note.strip()) <= 1000:
