@@ -79,6 +79,7 @@ class TemporalQuestion(BaseModel):
     sequence: int = Field(default=999999, ge=0, le=999999)
     scope: str = "world"
     knower_id: str | None = None
+    subject_id: str | None = None
 
 
 def _fail(exc: Exception):
@@ -255,7 +256,7 @@ def temporal_answer(series_id: str, payload: TemporalQuestion) -> dict:
         return canon.ask_temporal(
             series_id, payload.question, payload.book,
             sequence=payload.sequence, scope=payload.scope,
-            knower_id=payload.knower_id,
+            knower_id=payload.knower_id, subject_id=payload.subject_id,
         )
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
