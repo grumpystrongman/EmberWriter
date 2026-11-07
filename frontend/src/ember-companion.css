@@ -46,3 +46,16 @@
 .ember-companion-body{overscroll-behavior:contain}
 @keyframes ember-hello{0%,88%,100%{transform:translateY(0) rotate(-8deg)}92%{transform:translateY(-4px) rotate(0deg)}96%{transform:translateY(0) rotate(-9deg)}}
 @media(prefers-reduced-motion:reduce){.ember-mascot{animation:none}}
+
+/* On compact screens the floating assistant must not hide the Import control. */
+@media (max-width: 720px) {
+  .ember-companion:not(:has(.ember-companion-panel)) .ember-companion-launcher {
+    width: 49px;
+    height: 49px;
+    padding: 7px;
+    border-radius: 50%;
+  }
+  .ember-companion:not(:has(.ember-companion-panel)) .ember-companion-launcher > span:last-child {
+    display: none;
+  }
+}
