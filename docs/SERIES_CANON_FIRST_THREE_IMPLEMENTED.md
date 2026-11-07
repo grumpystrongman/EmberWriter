@@ -13,6 +13,7 @@ On the existing isolated Windows preview, open `http://127.0.0.1:5173` and choos
 - Assign book/novella/short-story/companion/notes type and published/approved/draft/reference edition status. Modify these fields later without altering already established book chronology.
 - Evidence is stored as immutable, SHA-256-checked **local snapshots**. If a linked project's text changes, the original evidence stays stable and is marked stale; re-import/new-edition workflow is intentionally explicit rather than silently replacing citations.
 - Download a private series ZIP including texts, source locations, approved/proposed canon, and book structure. Restore creates a **new independent series** with remapped IDs, never overwriting the author's existing series or manuscript projects. Keep ZIP private: it contains the author's original manuscript text.
+- Remove a mistakenly created vault using the secondary **Delete this series vault** action and an exact typed-title confirmation. Deletion removes its copied evidence and canon records, **never** any linked original book projects.
 
 ### 2. Canon Graph
 
@@ -38,7 +39,7 @@ On the existing isolated Windows preview, open `http://127.0.0.1:5173` and choos
 - Exact quote matching, status transitions, chronology and author consent are enforced in backend APIs, not merely by UI text.
 - The series is browsable even when no individual book project is selected.
 - TypeScript/Vite build and focused backend tests passed; full CI and headless browser workflow are run before acceptance.
-- Headless Edge verified this exact chain on synthetic manuscripts: create series → import two books → create Moon Key entity → approve separate location facts for Book 1/Book 2 → ask as of Book 1 without leaking Book 2 → ask as of Book 2 → download ZIP → restore a new series → inspect mobile-width layout (390 px). **PASS**, with no relevant resource errors after fixing a stale source-selection race.
+- Headless Edge verified this exact chain on synthetic manuscripts: create series → import two books → create Moon Key entity → approve separate location facts for Book 1/Book 2 → ask as of Book 1 without leaking Book 2 → ask as of Book 2 → download ZIP → restore a new series → inspect mobile-width layout (390 px). **PASS**, with no relevant resource errors after fixing a stale source-selection race. The isolated demo has been tidied to a single **Demo - The Lantern Cycle (synthetic)** series with two sample books and approved source-backed facts.
 
 ## Limits and next stage
 
