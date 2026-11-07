@@ -249,6 +249,34 @@ def import_volume(series_id: str, filename: str, blob: bytes, ordinal: int, *,
     return series_detail(series_id)
 
 
+def update_volume(series_id: str, volume_id: str, *, title: str,
+                  ordinal: int, kind: str, edition_status: str) -> dict:
+    """Edit book organization without silently shifting established canon dates."""
+    _check_volume(ordinal, kind, edition_status, title)
+    with _connect() as con:
+        volume = _one(con, "SELECT * FROM volumes WHERE id=? AND series_id=?",
+                      (volume_id, series_id))
+        if ordinal != volume["ordinal"]:
+            linked_facts = con.execute("""
+                SELECT 1 FROM assertions a
+                LEFT JOIN sources s ON s.id=a.source_id
+                LEFT JOIN volumes v ON v.id=s.volume_id
+                WHERE a.series_id=? AND (
+                    a.start_book=? OR a.end_book=? OR v.id=?
+                ) LIMIT 1
+            """, (series_id, volume["ordinal"], volume["ordinal"], volume_id)).fetchone()
+            if linked_facts:
+                raise ValueError(
+                    "This volume is part of recorded canon history. Preserve its book order "
+                    "or review the dependent assertions in a new series edition."
+                )
+        con.execute(
+            "UPDATE volumes SET title=?, ordinal=?, kind=?, edition_status=? WHERE id=?",
+            (title.strip(), ordinal, kind, edition_status, volume_id),
+        )
+    return series_detail(series_id)
+
+
 def source_text(series_id: str, source_id: str) -> tuple[dict, str]:
     with _connect() as con:
         item = _one(con, """
