@@ -237,7 +237,7 @@ def test_volume_metadata_edit_and_safe_reorder(series_fixture):
 
 
 def test_ambiguous_entities_require_specific_choice(series_fixture):
-    series_id, books, first, _ = series_fixture
+    series_id, _, _, _ = series_fixture
     canon.add_entity(series_id, "Lyra", "character")
     canon.add_entity(series_id, "Aria", "character")
     result = canon.ask_temporal(series_id, "What do Lyra and Aria know?", 1)
