@@ -12,7 +12,7 @@ import re
 
 from .generation import generate
 from .models import ProviderConfig
-from .series_canon import KINDS, SCOPES, list_entities
+from .series_canon import SCOPES, list_entities
 from .series_vault import source_text
 
 MAX_SELECTION_CHARS = 2000
