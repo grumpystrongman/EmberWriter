@@ -9,6 +9,8 @@ from __future__ import annotations
 import hashlib
 import io
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -38,11 +40,13 @@ def _id() -> str:
     return uuid4().hex
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
     con = sqlite3.connect(_root() / "series-vault.sqlite3", timeout=15)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA foreign_keys = ON")
-    con.executescript("""
+    try:
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+        con.executescript("""
         CREATE TABLE IF NOT EXISTS series (
             id TEXT PRIMARY KEY, title TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
@@ -87,8 +91,11 @@ def _connect() -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS assertion_lookup_idx ON assertions(
             series_id, subject_id, status, start_book, start_sequence
         );
-    """)
-    return con
+        """)
+        with con:
+            yield con
+    finally:
+        con.close()
 
 
 def _one(con: sqlite3.Connection, sql: str, args: tuple) -> dict:
