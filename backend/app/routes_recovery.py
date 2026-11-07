@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/recovery", tags=["Author Recovery"])
 class RecoveryConfig(BaseModel):
     directory: str = Field(min_length=3, max_length=2000)
     automatic: bool = True
+    mirror_directory: str | None = Field(default=None, max_length=2000)
 
 
 class BackupRequest(BaseModel):
@@ -45,8 +46,17 @@ def status() -> dict:
 @router.post("/settings")
 def settings(payload: RecoveryConfig) -> dict:
     try:
-        return vault.configure(payload.directory, payload.automatic)
+        return vault.configure(payload.directory, payload.automatic,
+                               mirror_directory=payload.mirror_directory)
     except (OSError, ValueError) as exc:
+        _error(exc)
+
+
+@router.post("/mirror/synchronize")
+async def synchronize_mirror() -> dict:
+    try:
+        return await asyncio.to_thread(vault.repair_mirror)
+    except (OSError, ValueError, TypeError) as exc:
         _error(exc)
 
 
@@ -99,7 +109,7 @@ async def automatic_recovery_loop() -> None:
     while True:
         try:
             await asyncio.to_thread(vault.backup_if_due)
-        except (OSError, ValueError):
+        except (OSError, ValueError, TypeError):
             # Status errors remain visible from the Recovery Center. Previous
             # verified snapshots are retained; no pruning on failure.
             pass
