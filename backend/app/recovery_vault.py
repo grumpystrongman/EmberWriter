@@ -61,7 +61,9 @@ def _config() -> dict:
         raise ValueError("Recovery settings are unreadable; refusing unsafe backup") from exc
     if not isinstance(record, dict) or not isinstance(record.get("directory"), str):
         raise TypeError("Invalid recovery settings")
-    return {"directory": record["directory"], "automatic": record.get("automatic", True) is True}
+    return {"directory": record["directory"],
+            "automatic": record.get("automatic", True) is True,
+            "mirror_directory": record.get("mirror_directory") or None}
 
 
 def _safe_root(location: str) -> Path:
