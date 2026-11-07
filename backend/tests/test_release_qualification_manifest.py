@@ -57,9 +57,7 @@ def test_automated_mocked_audio_or_toggled_boolean_can_never_certify_beta(tmp_pa
     assert any("simulated or automated" in line for line in failures)
     assert any("reused" in line or "fresh supported" in line for line in failures)
     assert any("60,000" in line for line in failures)
-    assert any("4" in line and "hour" in line for line in failures) if False else (
-        any("too short" in line for line in failures)
-    )
+    assert any("too short" in line for line in failures)
 
 
 def test_source_checksum_tampering_fails_closed(tmp_path: Path):
