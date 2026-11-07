@@ -10,8 +10,8 @@ import hashlib
 import json
 import re
 
-from .series_canon import at_book, list_entities, list_facts
-from .series_vault import _connect, _id, _one, now, series_detail, source_text
+from .series_canon import at_book, list_entities
+from .series_vault import _connect, _id, _one, now, series_detail
 
 MAX_SCENE = 35_000
 REASONS = {"intentional_retcon", "unreliable_narrator", "false_belief",
