@@ -118,13 +118,13 @@ def test_destructive_operations_require_backup_before_deletion(library: Path,
     before = storage.read_text(project["slug"], path)
     def fail_backup(action):
         raise OSError("recovery drive unavailable")
-    monkeypatch.setattr(recovery, "before_destructive_action", fail_backup)
-    with pytest.raises(OSError, match="unavailable"):
-        storage.delete_text(project["slug"], path)
-    with pytest.raises(OSError, match="unavailable"):
-        storage.delete_project(project["slug"])
-    assert storage.read_text(project["slug"], path) == before
-    monkeypatch.undo()
+    with monkeypatch.context() as guarded:
+        guarded.setattr(recovery, "before_destructive_action", fail_backup)
+        with pytest.raises(OSError, match="unavailable"):
+            storage.delete_text(project["slug"], path)
+        with pytest.raises(OSError, match="unavailable"):
+            storage.delete_project(project["slug"])
+        assert storage.read_text(project["slug"], path) == before
     deleted = storage.delete_text(project["slug"], path)
     assert deleted["deleted"]
     assert recovery.list_generations()
