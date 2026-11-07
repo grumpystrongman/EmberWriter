@@ -25,7 +25,7 @@ from reportlab.platypus import (
 )
 
 from .binder import get_binder
-from .storage import project_root, read_text
+from .storage import get_project, project_root, read_text
 
 
 def _slug(value: str) -> str:
