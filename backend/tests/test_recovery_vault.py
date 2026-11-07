@@ -188,3 +188,41 @@ def test_recovery_http_status_create_preview_verify_restore(library: Path):
                                json={"confirmed": True})
         assert restored.status_code == 201
         assert restored.json()["current_library_changed"] is False
+
+
+def test_mirror_redundancy_and_offline_drive_repair(library: Path):
+    project = _make_project()
+    primary = library.parent / "primary-recovery"
+    external = library.parent / "external-encrypted-drive-simulation"
+    recovery.configure(str(primary), automatic=True, mirror_directory=str(external))
+    first = recovery.create_backup("important chapter")
+    assert first["mirror_healthy"] is True
+    assert recovery._snapshot_path(external, first["id"]).exists()
+    assert recovery.status()["mirror_latest_present"] is True
+    manuscript = storage.read_text(project["slug"], "manuscript/chapter-001.md")
+    # Repoint primary to its independent mirror and recover from the mirrored
+    # generation after the original primary has been made unavailable.
+    recovery.configure(str(external), automatic=False)
+    result = recovery.restore(first["id"], destination=str(library.parent / "from-external-mirror"))
+    recovered = Path(result["directory"]) / "projects" / project["slug"] / "manuscript" / "chapter-001.md"
+    assert recovered.read_text(encoding="utf-8") == manuscript
+    assert recovery.verify(first["id"])["healthy"]
+
+
+def test_predelete_blocks_if_configured_mirror_is_unavailable(library: Path):
+    project = _make_project()
+    primary = library.parent / "primary-for-mirror-outage"
+    external = library.parent / "external-temporarily-offline"
+    recovery.configure(str(primary), mirror_directory=str(external))
+    mirror_marker = external / ".ember-recovery-store"
+    mirror_marker.unlink()
+    # Primary may still save the generation, but required redundancy is not
+    # considered verified; a destructive operation must fail closed.
+    with pytest.raises(ValueError, match="mirror failed"):
+        storage.delete_project(project["slug"])
+    assert (storage.project_root(project["slug"]) / "project.json").exists()
+    assert recovery.list_generations()
+    recovery._atomic_bytes(mirror_marker, b"EmberWriter Recovery Vault v1\n")
+    sync = recovery.repair_mirror()
+    assert sync["configured"] and sync["remaining"] == 0
+    assert recovery.status()["mirror_latest_present"]
