@@ -150,6 +150,9 @@ def delete_series(series_id: str, confirmation: str) -> dict:
         entry = _one(con, "SELECT id,title FROM series WHERE id=?", (series_id,))
         if not confirmation or confirmation != entry["title"]:
             raise ValueError("Type the exact series title to confirm permanent deletion")
+        from .recovery_vault import before_destructive_action
+
+        before_destructive_action("delete series")
         volumes = [row["id"] for row in con.execute(
             "SELECT id FROM volumes WHERE series_id=?", (series_id,))]
         # Assertions refer to series-local entities and source IDs. Delete in
