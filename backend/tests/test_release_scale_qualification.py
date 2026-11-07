@@ -19,7 +19,6 @@ from ebooklib import ITEM_DOCUMENT, epub
 from app import audio_production, book_studio, kokoro_book, publishing, storage
 from app.models import ProviderConfig
 
-
 CHAPTERS = 20
 TARGET_WORDS = 3100
 
@@ -44,6 +43,9 @@ def _synthetic_chapter(index: int) -> str:
 def long_book(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(storage, "PROJECTS_ROOT", tmp_path / "author-library" / "projects")
     slug = storage.create_project("RELEASE QA Synthetic 20 Chapter Novel")["slug"]
+    # Remove the project-template scratch chapter from this *isolated test fixture*.
+    # It is not a Book Studio approved chapter and must never enter export/audio.
+    (storage.project_root(slug) / "manuscript" / "chapter-001.md").unlink()
     book_studio.configure(
         slug, premise="A synthetic archive of invented checkpoints.",
         voice="Synthetic QA text only. Not a creative work.",
