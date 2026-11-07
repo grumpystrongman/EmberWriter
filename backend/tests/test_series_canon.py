@@ -215,3 +215,37 @@ def test_temporal_queries_cannot_leak_future_books(series_fixture):
                   predicate="located_in", object_text="future spoiler")
     assert not canon.at_book(series_id, 1)["facts"]
     assert canon.ask_temporal(series_id, "Where is the Moon Key?", 1)["sources"] == []
+
+
+def test_volume_metadata_edit_and_safe_reorder(series_fixture):
+    series_id, books, first, _ = series_fixture
+    second = books[1]
+    updated = vault.update_volume(series_id, second["id"], title="Retitled Lantern",
+                                  ordinal=2, kind="novella",
+                                  edition_status="approved")
+    assert updated["volumes"][1]["title"] == "Retitled Lantern"
+    assert updated["volumes"][1]["edition_status"] == "approved"
+    subject = canon.add_entity(series_id, "Moon Key", "artifact")
+    phrase = "Lyra placed the Moon Key in the glass vault."
+    claim = _add_fact(series_id, books[0]["sources"], None, subject, first,
+                      phrase, 1, object_text="glass vault")
+    canon.review_fact(series_id, claim["id"], "approved")
+    with pytest.raises(ValueError, match="histor"):
+        vault.update_volume(series_id, books[0]["id"], title="Retitled Book 1",
+                            ordinal=4, kind="novel", edition_status="published")
+    assert vault.series_detail(series_id)["volumes"][0]["ordinal"] == 1
+
+
+def test_ambiguous_entities_require_specific_choice(series_fixture):
+    series_id, books, first, _ = series_fixture
+    canon.add_entity(series_id, "Lyra", "character")
+    canon.add_entity(series_id, "Aria", "character")
+    result = canon.ask_temporal(series_id, "What do Lyra and Aria know?", 1)
+    assert "ambiguous" in result["answer"].casefold() or "several" in result["answer"].casefold()
+    assert len(result["ambiguous_entities"]) == 2
+    chosen = canon.ask_temporal(
+        series_id, "What do Lyra and Aria know?", 1,
+        subject_id=next(row["id"] for row in canon.list_entities(series_id)
+                        if row["name"] == "Lyra"))
+    assert chosen["matched_entity_id"] is not None
+    assert chosen["read_only"]
