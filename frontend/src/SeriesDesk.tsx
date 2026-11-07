@@ -149,14 +149,20 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
 
   useEffect(() => {
     setSuggestions([])
-    if (!sourceId || !selectedId) { setExcerpt(null); return }
+    // On series switch, React may briefly retain the prior book's source ID.
+    // Never issue a cross-series fetch or expose a stale excerpt as evidence.
+    if (!sourceId || !selectedId || series?.id !== selectedId
+        || !sources.some(item => item.id === sourceId)) {
+      setExcerpt(null)
+      return
+    }
     let active = true
     const query = new URLSearchParams({ query: sourceQuery, limit: '4000' })
     void request<Excerpt>(`/series/${selectedId}/sources/${sourceId}/excerpt?${query}`)
       .then(result => { if (active) setExcerpt(result) })
       .catch(cause => { if (active) { setExcerpt(null); setError(String(cause)) } })
     return () => { active = false }
-  }, [sourceId, sourceQuery, selectedId])
+  }, [sourceId, sourceQuery, selectedId, series?.id, sources])
 
   async function execute(operation: () => Promise<void>, success: string) {
     setBusy(true); setError(''); setNotice('')
