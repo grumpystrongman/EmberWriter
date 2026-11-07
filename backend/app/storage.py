@@ -257,6 +257,10 @@ def delete_text(slug: str, relative_path: str) -> dict:
     path = safe_project_path(slug, relative_path)
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(relative_path)
+    # Never delete an author document without an independently verified generation.
+    from .recovery_vault import before_destructive_action
+
+    before_destructive_action("delete document")
     path.unlink()
     _touch_project(slug)
     return {"path": relative_path, "deleted": True}
@@ -266,6 +270,9 @@ def delete_project(slug: str) -> dict:
     root = project_root(slug)
     if not root.exists() or not (root / "project.json").exists():
         raise FileNotFoundError(slug)
+    from .recovery_vault import before_destructive_action
+
+    before_destructive_action("delete project")
     shutil.rmtree(root)
     return {"slug": slug, "deleted": True}
 
