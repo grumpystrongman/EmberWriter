@@ -82,6 +82,27 @@ async function inspect(width, label) {
   await pause(80)
   assert(!(await js("document.querySelector('.workspace-more').open")), label + ': Escape must close More')
   await capture(label + '-plan')
+  if (width < 600) {
+    const mobileChrome = await js(`(() => {
+      const importButton = document.querySelector('.load-import-launcher')
+      const emberButton = document.querySelector('.ember-companion-launcher')
+      const shell = document.querySelector('.workspace-shell')
+      const a = importButton?.getBoundingClientRect()
+      const b = emberButton?.getBoundingClientRect()
+      const overlap = !!(a && b && a.left < b.right && a.right > b.left &&
+        a.top < b.bottom && a.bottom > b.top)
+      return {
+        binderHidden: shell?.classList.contains('binder-collapsed'),
+        importPresent: !!a, emberPresent: !!b, overlap,
+        importRect: a ? {left:a.left,right:a.right,top:a.top,bottom:a.bottom} : null,
+        emberRect: b ? {left:b.left,right:b.right,top:b.top,bottom:b.bottom} : null
+      }
+    })()`)
+    assert(mobileChrome.binderHidden, 'Mobile Binder must not obscure the editor')
+    assert(mobileChrome.importPresent && mobileChrome.emberPresent && !mobileChrome.overlap,
+      'Mobile Import and Ember assistant controls must not overlap: ' + JSON.stringify(mobileChrome))
+    console.log('MOBILE_AUTHOR_CONTROLS_UX_PASSED', JSON.stringify(mobileChrome))
+  }
   await js("([...document.querySelectorAll('.planning-groups button')].find(x=>x.innerText.includes('Edit & review')))?.click()")
   await pause(350)
   const editor = await js("({toolCount:document.querySelectorAll('.planning-tool-tabs button').length,scrollWidth:document.documentElement.scrollWidth})")
