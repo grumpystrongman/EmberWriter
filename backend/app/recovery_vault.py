@@ -25,6 +25,8 @@ from uuid import uuid4
 from . import storage
 
 LOCK = threading.RLock()
+LAST_AUTOMATIC_ERROR: str | None = None
+LAST_AUTOMATIC_ATTEMPT: str | None = None
 FORMAT = 1
 CHUNK = 1024 * 1024
 INTERVAL_SECONDS = 15 * 60
@@ -39,7 +41,8 @@ def _data_root() -> Path:
 
 
 def _default_backup_root() -> Path:
-    return (_data_root().parent / "EmberWriter-Recovery").resolve()
+    data = _data_root()
+    return data.with_name(data.name + "-Recovery").resolve()
 
 
 def _config_path() -> Path:
@@ -226,7 +229,8 @@ def _read_manifest(root: Path, identifier: str) -> dict:
         if not isinstance(item, dict) or not isinstance(item.get("path"), str):
             raise ValueError("Recovery entry is malformed")
         relative = PurePosixPath(item["path"])
-        if (relative.is_absolute() or not relative.parts
+        if ("\\" in item["path"] or ":" in item["path"]
+                or relative.is_absolute() or not relative.parts
                 or any(part in ("", ".", "..") for part in relative.parts)
                 or str(relative) != item["path"]):
             raise ValueError("Recovery entry attempts an unsafe path")
@@ -272,6 +276,8 @@ def status() -> dict:
         "snapshot_count": len(valid), "last_snapshot": valid[0] if valid else None,
         "latest_manifest_invalid": bool(items and items[0].get("invalid_manifest")),
         "drive_isolation_verified": False,
+        "last_automatic_error": LAST_AUTOMATIC_ERROR,
+        "last_automatic_attempt": LAST_AUTOMATIC_ATTEMPT,
         "warning": ("Backups in a second local folder may be lost with the same disk. "
                     "Select an independent encrypted external drive or replicated location "
                     "and periodically perform a test restore. Snapshots are NOT encrypted "
@@ -441,9 +447,17 @@ def backup_due() -> bool:
 
 
 def backup_if_due() -> dict | None:
+    global LAST_AUTOMATIC_ERROR, LAST_AUTOMATIC_ATTEMPT
     if not backup_due():
         return None
-    return create_backup("automatic")
+    LAST_AUTOMATIC_ATTEMPT = datetime.now(UTC).isoformat()
+    try:
+        result = create_backup("automatic")
+        LAST_AUTOMATIC_ERROR = None
+        return result
+    except (ValueError, OSError, sqlite3.Error) as exc:
+        LAST_AUTOMATIC_ERROR = f"{type(exc).__name__}: {exc}"
+        raise
 
 
 def before_destructive_action(action: str) -> dict:
