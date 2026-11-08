@@ -361,3 +361,27 @@ body:has(.workspace-shell .project-card.active) .load-import-launcher { display:
 .workspace-brand { background: transparent; border: 0; border-right: 1px solid var(--ember-border); border-radius: 0; color: var(--ember-text); text-align: left; }
 .workspace-brand:hover { background: #172431; }
 .workspace-brand:focus-visible { outline: 3px solid #ffa865; outline-offset: -3px; }
+
+/* A single approachable creation action, rather than another advanced workspace tab. */
+.workspace-actions .workspace-new-writing{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#e98741;color:#221306;font-weight:800;border-left:1px solid #f6a266;font-size:.76rem;padding:0 13px;min-width:100px}
+.workspace-actions .workspace-new-writing:hover{background:#ffad68;color:#170f09}
+.workspace-actions .workspace-new-writing:disabled{opacity:.42;cursor:not-allowed}
+.workspace-actions button:focus-visible{outline:3px solid #ffa85f;outline-offset:-3px}
+@media(max-width:840px){.workspace-actions .workspace-new-writing{min-width:39px;padding:0 9px}.workspace-actions .workspace-new-writing span{display:none}}
+
+.workspace-format-chip{margin-left:auto;padding:3px 8px;border:1px solid #6f5541;border-radius:999px;color:#ffca96;background:#2f241e;text-transform:capitalize;white-space:nowrap;font-size:.64rem;letter-spacing:.025em}
+.workspace-contextbar:has(.workspace-format-chip) .workspace-shortcut{margin-left:0}
+.workspace-shell[data-writing-format="screenplay"] .prose-editor,
+.workspace-shell[data-writing-format="stage_play"] .prose-editor,
+.workspace-shell[data-writing-format="audio_script"] .prose-editor{
+  font-family:"Courier New",Consolas,monospace;font-size:1rem;line-height:1.48;max-width:54rem;margin-inline:auto;
+}
+.workspace-shell[data-writing-format="essay"] .prose-editor,
+.workspace-shell[data-writing-format="short_story"] .prose-editor,
+.workspace-shell[data-writing-format="flash_fiction"] .prose-editor{
+  font-family:Georgia,"Times New Roman",serif;line-height:1.78;max-width:54rem;margin-inline:auto;
+}
+.workspace-shell[data-writing-format="poetry"] .prose-editor{
+  font-family:Georgia,"Times New Roman",serif;line-height:1.85;max-width:39rem;margin-inline:auto;
+}
+@media(max-width:700px){.workspace-format-chip{max-width:105px;overflow:hidden;text-overflow:ellipsis}}

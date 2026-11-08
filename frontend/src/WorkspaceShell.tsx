@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
-import AppV2 from './AppV2'
+const AppV2 = lazy(() => import('./AppV2'))
 import EmberCompanion from './EmberCompanion'
 import ReferenceCapture from './ReferenceCapture'
+import WritingTemplatePicker from './WritingTemplatePicker'
 import CenterWorkspace from './CenterWorkspace'
 import type { Workspace, WorkspaceProject } from './workspace-types'
 import './workspace-shell.css'
@@ -142,8 +143,30 @@ export default function WorkspaceShell() {
   const [binderCollapsed, setBinderCollapsed] = useState(() => window.matchMedia('(max-width: 700px)').matches)
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [writingFormat, setWritingFormat] = useState('novel')
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
+
+  useEffect(() => {
+    let latest = 0
+    async function documentChanged(event: Event) {
+      const detail = (event as CustomEvent<{slug:string;path:string}>).detail
+      if (!detail?.slug || !detail?.path) { setWritingFormat('novel'); return }
+      const current = ++latest
+      try {
+        const query = new URLSearchParams({ path: detail.path })
+        const response = await fetch(`${API}/projects/${encodeURIComponent(detail.slug)}/writing-templates/assignment?${query}`)
+        if (!response.ok) throw new Error('No writing style')
+        const data = await response.json() as {format:string}
+        if (current === latest) setWritingFormat(
+          ['novel','short_story','flash_fiction','essay','screenplay','stage_play','audio_script','poetry'].includes(data.format)
+            ? data.format : 'novel')
+      } catch { if (current === latest) setWritingFormat('novel') }
+    }
+    window.addEventListener('emberwriter:document-opened', documentChanged)
+    return () => { latest += 1; window.removeEventListener('emberwriter:document-opened', documentChanged) }
+  }, [])
 
   useEffect(() => {
     localStorage.setItem('emberwriter.workspace', workspace)
@@ -313,6 +336,7 @@ export default function WorkspaceShell() {
     <div
       className={`workspace-shell workspace-${workspace}${focusMode ? ' focus-mode' : ''}${binderCollapsed ? ' binder-collapsed' : ''}`}
       data-workspace={workspace}
+      data-writing-format={writingFormat}
     >
       <header className="workspace-topbar">
         <button type="button" className="workspace-brand" onClick={() => openWorkspace('write')} aria-label="EmberWriter home: Write">
@@ -349,6 +373,11 @@ export default function WorkspaceShell() {
           </nav>
         </details>
         <div className="workspace-actions">
+          <button type="button" className="workspace-new-writing"
+            onClick={() => setTemplateOpen(true)}
+            title="Start a new project or writing document">
+            ＋ <span>New writing</span>
+          </button>
           <button type="button" onClick={() => setBinderCollapsed((value) => !value)} title="Toggle Binder">☰</button>
           <button type="button" onClick={() => setCaptureOpen(true)} title="Save a picture as story inspiration" className="workspace-reference-button" disabled={!projectContext}>▧ <span>Reference</span></button>
           <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('emberwriter:new-sticky-note'))} title="New sticky note" className="workspace-sticky-button">▰ Note</button>
@@ -366,15 +395,23 @@ export default function WorkspaceShell() {
       <div className="workspace-contextbar">
         <span className="workspace-context-label">{active.icon} {active.label}</span>
         <span>{projectContext ? `${projectContext.name} · ${workspace === 'write' ? projectContext.activePath || 'Manuscript' : `${active.label} workspace`}` : workspace === 'write' ? 'Manuscript-first writing workspace' : `Working in ${active.label}`}</span>
+        {workspace === 'write' && writingFormat !== 'novel' && <span className="workspace-format-chip">{writingFormat.replaceAll('_', ' ')} draft</span>}
         <span className="workspace-shortcut">Ctrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus</span>
       </div>
 
       <div className="workspace-app">
-        <AppV2 />
+        <Suspense fallback={<div role="status" className="workspace-loading">Opening your writing desk…</div>}>
+          <AppV2 />
+        </Suspense>
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
+      <WritingTemplatePicker open={templateOpen} project={projectContext}
+        onClose={() => setTemplateOpen(false)}
+        onCreated={path => { void (async () => { await sleep(230); await openSource(path) })() }} />
       <ReferenceCapture project={projectContext} open={captureOpen} onClose={() => setCaptureOpen(false)} />
-      {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace} />}
+      {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace}
+        onOpenSource={path => { void openSource(path) }}
+        onNewWriting={() => setTemplateOpen(true)} />}
     </div>
   )
 }
