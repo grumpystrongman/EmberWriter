@@ -249,6 +249,79 @@ class KokoroScene(BaseModel):
     end: int = Field(gt=0)
 
 
+@router.get("/kokoro/expression-capabilities")
+def kokoro_expression_capabilities() -> dict:
+    from .expressive_prosody import capabilities
+    return capabilities()
+
+
+class KittenVoice(BaseModel):
+    character: str = Field(min_length=1, max_length=100)
+    voice_id: str = Field(min_length=1, max_length=80)
+
+
+class KittenProof(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    start: int = Field(ge=0)
+
+
+@router.get("/kitten/status")
+def kitten_status() -> dict:
+    from .kitten_local import status
+    return status()
+
+
+@router.get("/kitten/voices")
+def kitten_voices() -> dict:
+    from .kitten_local import voice_ids
+    try:
+        return {"voices": voice_ids()}
+    except (ImportError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.get("/kitten/profiles")
+def kitten_profiles(slug: str) -> dict:
+    from .kitten_local import library
+    try:
+        return library(slug)
+    except (OSError, ValueError) as exc:
+        fail(exc)
+
+
+@router.put("/kitten/profiles")
+def kitten_save_profile(slug: str, payload: KittenVoice) -> dict:
+    from .kitten_local import save_profile
+    try:
+        return save_profile(slug, payload.character, payload.voice_id)
+    except (ImportError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.post("/kitten/rehearsals")
+async def kitten_rehearse(slug: str, payload: KittenProof) -> dict:
+    import asyncio
+
+    from .kitten_local import render_line
+    from .local_resources import reservation
+    try:
+        async with reservation():
+            return await asyncio.to_thread(render_line, slug, payload.path, payload.start)
+    except ImportError as exc:
+        raise HTTPException(503, "Optional KittenTTS 2 and audio dependencies are not installed") from exc
+    except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
+        fail(exc)
+
+
+@router.get("/kitten/rehearsals/{filename}")
+def kitten_rehearsal_audio(slug: str, filename: str) -> FileResponse:
+    from .kitten_local import take_file
+    try:
+        return FileResponse(take_file(slug, filename), media_type="audio/wav")
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        fail(exc)
+
+
 @router.get("/kokoro/status")
 def kokoro_status() -> dict:
     from .kokoro_local import status
@@ -310,12 +383,18 @@ def neural_book_status(slug: str) -> dict:
         fail(exc)
 
 
+class NeuralBatchStart(BaseModel):
+    engine: str = Field(default="kokoro-onnx", pattern=r"^(kokoro-onnx|kitten-tts-2)$")
+
+
 @router.post("/kokoro/book")
-def neural_book_start(slug: str) -> dict:
+def neural_book_start(slug: str, payload: NeuralBatchStart | None = None) -> dict:
     from .kokoro_book import start
     try:
-        return start(slug)
-    except (FileNotFoundError, OSError, ValueError) as exc:
+        return start(slug, engine=payload.engine if payload is not None else "kokoro-onnx")
+    except ImportError as exc:
+        raise HTTPException(503, "Selected optional local speech engine is not installed") from exc
+    except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
         fail(exc)
 
 
@@ -325,7 +404,7 @@ async def neural_book_next(slug: str) -> dict:
     try:
         return await advance(slug)
     except ImportError as exc:
-        raise HTTPException(503, "Optional local Kokoro ONNX dependencies are not installed") from exc
+        raise HTTPException(503, "Optional local neural speech engine dependencies are not installed") from exc
     except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
         fail(exc)
 
@@ -495,6 +574,7 @@ class PerformanceDirectionEdit(BaseModel):
 
 def _performance_source(slug: str, path: str):
     from pathlib import Path
+
     from . import audio_director
     from .audiobook_local import _spoken_text, available_chapters
     from .storage import project_root, read_text
@@ -502,9 +582,10 @@ def _performance_source(slug: str, path: str):
         raise FileNotFoundError("Select an existing manuscript chapter")
     source = _spoken_text(read_text(slug, path))
     data = audio_production.load(slug)
-    names = sorted(set(["Narrator"])
+    names = sorted({"Narrator"}
                    | set(data.get("kokoro_voices", {}))
                    | set(data.get("neural_voices", {}))
+                   | set(data.get("kitten_voices", {}))
                    | set(data.get("character_voices", {}))
                    | {row["character"] for row in data.get("chapter_casts", {}).get(path, [])
                       if row.get("character")})
@@ -518,7 +599,7 @@ def _performance_source(slug: str, path: str):
 def get_performance_script(slug: str, path: str) -> dict:
     """Read the lossless audiobook-only cue sheet and unresolved speaker list."""
     try:
-        performance, _, names = _performance_source(slug, path)
+        performance, _, _names = _performance_source(slug, path)
         return performance
     except (FileNotFoundError, OSError, ValueError) as exc:
         fail(exc)

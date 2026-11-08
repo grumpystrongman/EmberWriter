@@ -28,7 +28,7 @@ def _match_name(fragment: str, names: list[str], *, before: bool) -> str | None:
             pattern = rf'\b{escaped}\s+{VERBS}\s*[,;:]?\s*$'
         else:
             pattern = rf'^\s*[,;]?\s*{escaped}\s+{VERBS}\b'
-        if re.search(pattern, fragment, re.I):
+        if re.search(pattern, fragment, re.IGNORECASE):
             return name
     return None
 
@@ -36,7 +36,7 @@ def _match_name(fragment: str, names: list[str], *, before: bool) -> str | None:
 def _emotion(context: str) -> dict:
     # Conservative cue suggestions, not a claim of emotional understanding.
     matches = [name for name, (pattern, _) in FEELINGS.items()
-               if re.search(pattern, context, re.I)]
+               if re.search(pattern, context, re.IGNORECASE)]
     if len(matches) != 1:
         return {"emotion": "neutral", "delivery": "natural", "energy": 3, "confidence": "low"}
     emotion = matches[0]
@@ -125,10 +125,11 @@ def render_plan(performance: dict, source: str, voices: dict,
                 engine: str = "kokoro") -> list[dict]:
     """Engine-independent acting directions; only validated turns can render.
 
-    Fish cues use descriptive delivery tags. Kokoro has no equivalent native
+    Fish cues use descriptive delivery tags. Kitten uses its native emotion tags. Kokoro has no equivalent native
     support; never feed its model a tag that it will read aloud.
     """
-    if engine not in {"kokoro", "fish"}:
+    from .expressive_prosody import PRESETS, direction_settings
+    if engine not in {"kokoro", "fish", "kitten"}:
         raise ValueError("Unknown audiobook speech engine")
     validate(performance, source, voices)
     result = []
@@ -148,15 +149,21 @@ def render_plan(performance: dict, source: str, voices: dict,
         energy = direction.get("energy", 3)
         if type(energy) is not int or not 1 <= energy <= 5:
             energy = 3
-        # Kokoro ONNX has no native emotion/energy conditioning. An author-selected
-        # energy cue can only approximate delivery through restrained tempo.
-        speed = float(profile.get("speed", 1.0))
-        if engine == "kokoro":
-            speed = round(max(0.7, min(1.4, speed * (1 + (energy - 3) * 0.04))), 3)
+        emotion = direction.get("emotion", "neutral")
+        # Legacy free-form labels are retained but cannot silently become a
+        # made-up emotion engine feature. They render neutrally on Kokoro.
+        acoustic = direction_settings(
+            emotion if emotion in PRESETS else "neutral", energy,
+            float(profile.get("speed", 1.0)))
+        speed = acoustic["speed"] if engine == "kokoro" else float(profile.get("speed", 1.0))
         result.append({"speaker": speaker, "source_start": span["start"],
                        "source_end": span["end"], "source_text": span["text"],
                        "tts_text": text, "voice_id": profile["voice_id"],
                        "speed": speed, "energy": energy,
+                       "pitch_semitones": acoustic["pitch_semitones"] if engine == "kokoro" else 0.0,
+                       "gain_db": acoustic["gain_db"] if engine == "kokoro" else 0.0,
+                       "pause_after_ms": acoustic["pause_after_ms"] if engine == "kokoro" else 160,
+                       "prosody_version": acoustic["prosody_version"],
                        "emotion": direction.get("emotion", "neutral"),
                        "delivery": direction.get("delivery", "natural"),
                        "engine": engine})
@@ -201,14 +208,14 @@ def load_or_compile(path: Path, source: str, names: list[str],
         candidate = json.loads(path.read_text(encoding="utf-8"))
         if candidate.get("source_sha256") == hashlib.sha256(source.encode("utf-8")).hexdigest():
             old = {(s["start"], s["end"]): s for s in candidate.get("spans", [])
-                   if s.get("kind") == "dialogue"}
+                   if s.get("kind") in {"dialogue", "narration"}}
             for (start, end), row in old.items():
-                if row.get("attribution") in {"author_override", "editor_suggestion"} and row.get("speaker"):
+                if (row.get("kind") == "dialogue"
+                        and row.get("attribution") in {"author_override", "editor_suggestion"}
+                        and row.get("speaker")):
                     overrides.setdefault(f"{start}:{end}", row["speaker"])
     result = compile_performance(source, names, overrides)
     for row in result["spans"]:
-        if row["kind"] != "dialogue":
-            continue
         previous = old.get((row["start"], row["end"]))
         if (previous and previous.get("attribution") == "editor_suggestion"
                 and row["speaker"] == previous.get("speaker")):
@@ -223,14 +230,18 @@ def revise_direction(performance: dict, start: int, end: int,
                      emotion: str, delivery: str, energy: int = 3) -> dict:
     if type(energy) is not int or not 1 <= energy <= 5:
         raise ValueError("Speech energy must be 1–5")
+    from .expressive_prosody import PRESETS
+    if emotion not in PRESETS:
+        raise ValueError("Choose a supported emotion preset")
     if not re.fullmatch(r"[a-z][a-z -]{0,39}", emotion):
         raise ValueError("Invalid emotion label")
     if not 1 <= len(delivery) <= 140 or any(c in delivery for c in "<>[]\r\n"):
         raise ValueError("Performance direction must be plain text of 1–140 characters")
     matches = [s for s in performance["spans"]
-               if s["start"] == start and s["end"] == end and s["kind"] == "dialogue"]
+               if s["start"] == start and s["end"] == end
+               and s["kind"] in {"dialogue", "narration"}]
     if len(matches) != 1:
-        raise ValueError("Dialogue selection does not match current manuscript")
+        raise ValueError("Spoken passage selection does not match current manuscript")
     matches[0]["performance"] = {"emotion": emotion, "delivery": delivery,
                                  "energy": energy, "confidence": "author_directed"}
     return performance

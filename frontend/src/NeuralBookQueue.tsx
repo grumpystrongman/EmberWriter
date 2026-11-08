@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 type Chapter = { path: string; title: string; status: string; filename: string }
-type Batch = { exists: boolean; status: string; id?: string; total: number; completed: number;
+type Batch = { exists: boolean; status: string; id?: string; engine?: string; total: number; completed: number;
   chapters?: Chapter[]; message?: string; stale?: boolean; stale_reason?: string }
 type ProofChapter = { path: string; title: string; approved: boolean; reason: string; filename: string }
 type Proof = { exists: boolean; approved: number; total: number; ready: boolean;
@@ -11,6 +11,8 @@ type Export = { filename: string; chapters: number; format: string }
 
 export default function NeuralBookQueue({ endpoint, disabled }: { endpoint: string; disabled: boolean }) {
   const [batch, setBatch] = useState<Batch | null>(null)
+  const [chosenEngine, setChosenEngine] = useState("kokoro-onnx")
+  const [kittenAvailable, setKittenAvailable] = useState(false)
   const [proof, setProof] = useState<Proof | null>(null)
   const [working, setWorking] = useState(false)
   const [running, setRunning] = useState(false)
@@ -37,10 +39,11 @@ export default function NeuralBookQueue({ endpoint, disabled }: { endpoint: stri
   }
 
   async function refresh() {
-    const [job, approvals] = await Promise.all([
-      request('/kokoro/book'), request('/kokoro/book/proof'),
+    const [job, approvals, kitten] = await Promise.all([
+      request('/kokoro/book'), request('/kokoro/book/proof'), request('/kitten/status'),
     ])
-    if (live.current) { setBatch(job as Batch); setProof(approvals as Proof) }
+    if (live.current) { setBatch(job as Batch); setProof(approvals as Proof)
+      setKittenAvailable(!!(kitten as {installed?: boolean}).installed) }
   }
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function NeuralBookQueue({ endpoint, disabled }: { endpoint: stri
 
   async function start() {
     await action(async () => {
-      setBatch(await request('/kokoro/book', 'POST') as Batch)
+      setBatch(await request('/kokoro/book', 'POST', {engine: chosenEngine}) as Batch)
       setParts({}); setConfirmed({}); setListened({}); setDurations({}); playhead.current = {}
       setNotice('New draft prepared. The original manuscript was not changed.')
     })
@@ -146,6 +149,16 @@ export default function NeuralBookQueue({ endpoint, disabled }: { endpoint: stri
       <progress aria-label="Neural audiobook production" max={Math.max(total, 1)} value={completed} />
       <p role="status">{batch?.message || 'No neural audiobook job started.'}</p>
       {batch?.stale && <p role="alert" className="audiobook-alert">Source or casting changed: {batch.stale_reason}. Start a fresh batch after reviewing your edits.</p>}
+    </div>
+    <div className="neural-book-progress">
+      <label>Voice engine for the next audiobook draft
+        <select value={chosenEngine} disabled={disabled || working || running || batch?.status === 'queued' || batch?.status === 'running'}
+          onChange={event => setChosenEngine(event.target.value)}>
+          <option value="kokoro-onnx">Lightweight CPU · Kokoro (acoustic emotion)</option>
+          <option value="kitten-tts-2" disabled={!kittenAvailable}>Native CPU emotion · KittenTTS 2 (optional licensed model)</option>
+        </select>
+      </label>
+      <p><small>KittenTTS 2 needs separately installed CPU weights and author-assigned Kitten voices in Audio Director. Its model license has commercial conditions. No model is downloaded automatically. Current batch: <strong>{batch?.engine || 'none'}</strong>.</small></p>
     </div>
     <div className="audiobook-job-buttons">
       <button disabled={disabled || working || running || batch?.status === 'queued' || batch?.status === 'running'}
