@@ -23,18 +23,22 @@ $env:EMBER_DATA_DIR = $DataDir
 $InstallLog = Join-Path $EvidenceRoot "writer-only-install.log"
 $QaLog = Join-Path $EvidenceRoot "writer-only-contract.json"
 function Invoke-QAProcess([string]$Executable, [string[]]$Arguments, [string]$Log) {
-    # Build tools may write nonfatal warnings to stderr even with exit code 0.
-    # Start-Process avoids turning those messages into PowerShell exceptions.
+    # Windows PowerShell can surface innocent npm/pip stderr as an error
+    # record under Stop. Preserve logs and judge the true native exit code.
     $stderr = "$Log.stderr.log"
-    $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WorkingDirectory $Application -RedirectStandardOutput $Log -RedirectStandardError $stderr -PassThru
-    if (-not $process.WaitForExit(300000)) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        throw "QA process exceeded five-minute stage deadline: $Executable"
+    $previousAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Executable @Arguments 1> $Log 2> $stderr
+        $exit = $LASTEXITCODE
     }
-    if ($process.ExitCode -ne 0) {
+    finally {
+        $ErrorActionPreference = $previousAction
+    }
+    if ($exit -ne 0) {
         Get-Content $Log -Tail 20 -ErrorAction SilentlyContinue
         Get-Content $stderr -Tail 20 -ErrorAction SilentlyContinue
-        throw "QA child exited with $($process.ExitCode): $Executable"
+        throw "QA child exited with $exit : $Executable"
     }
 }
 try {
