@@ -66,6 +66,8 @@ from .routes_prose_editor import router as prose_editor_router
 from .routes_provenance import router as provenance_router
 from .routes_quality_clinic import router as quality_clinic_router
 from .routes_reader import router as reader_router
+from .routes_recovery import automatic_recovery_loop
+from .routes_recovery import router as recovery_router
 from .routes_review import router as review_router
 from .routes_sd import router as sd_router
 from .routes_series import router as series_router
@@ -140,6 +142,7 @@ async def lifespan(_: FastAPI):
     await recover_audio_on_startup()
     await recover_m4b_on_startup()
     await recover_conductor()
+    recovery_task = asyncio.create_task(automatic_recovery_loop(), name="ember-automatic-recovery")
     refresh_task = asyncio.create_task(
         knowledge_refresh_loop(), name="ember-knowledge-refresh"
     )
@@ -151,8 +154,11 @@ async def lifespan(_: FastAPI):
         await stop_audio_on_shutdown()
         await stop_on_shutdown()
         refresh_task.cancel()
+        recovery_task.cancel()
         with suppress(asyncio.CancelledError):
             await refresh_task
+        with suppress(asyncio.CancelledError):
+            await recovery_task
 
 
 app = FastAPI(title="EmberWriter API", version="0.15.0rc1", lifespan=lifespan)
@@ -173,6 +179,7 @@ async def writer_generation_guard(request: Request, call_next):
 
 app.include_router(visual_interpret_router)
 app.include_router(series_router)
+app.include_router(recovery_router)
 app.include_router(writing_templates_router)
 app.include_router(companion_router)
 app.include_router(autopilot_router)

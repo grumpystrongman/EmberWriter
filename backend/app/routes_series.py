@@ -84,6 +84,54 @@ class SourceSuggestion(BaseModel):
     end: int = Field(gt=0)
 
 
+class SceneClaim(BaseModel):
+    subject_id: str
+    predicate: str = Field(min_length=1, max_length=60)
+    object_text: str = Field(default="", max_length=500)
+    object_entity_id: str | None = None
+    scope: str = "world"
+    knower_id: str | None = None
+
+
+class SceneCheck(BaseModel):
+    scene: str = Field(min_length=1, max_length=35000)
+    book: int = Field(ge=1, le=9999)
+    sequence: int = Field(default=999999, ge=0, le=999999)
+    assertions: list[SceneClaim] = Field(default_factory=list, max_length=100)
+
+
+class ContinuityException(BaseModel):
+    claim_key: str = Field(min_length=64, max_length=64)
+    reason: str = Field(min_length=1, max_length=80)
+    note: str = Field(min_length=1, max_length=1000)
+
+
+class ConsequencePreview(BaseModel):
+    subject_id: str
+    predicate: str = Field(min_length=1, max_length=60)
+    proposed_value: str = Field(min_length=1, max_length=500)
+    effective_book: int = Field(ge=1, le=9999)
+    scope: str = "world"
+    include_past: bool = False
+
+
+class ConsequenceSave(ConsequencePreview):
+    proposal_id: str = Field(min_length=64, max_length=64)
+    note: str = Field(min_length=1, max_length=1500)
+
+
+class EmberSeriesQuestion(BaseModel):
+    question: str = Field(min_length=3, max_length=1500)
+    book: int = Field(default=0, ge=0, le=9999)
+    sequence: int = Field(default=999999, ge=0, le=999999)
+    scope: str = "world"
+    knower_id: str | None = None
+    subject_id: str | None = None
+    use_local_model: bool = False
+    allow_sources: bool = False
+    model: str = Field(default="", max_length=200)
+
+
 class TemporalQuestion(BaseModel):
     question: str = Field(min_length=3, max_length=1500)
     book: int = Field(ge=1, le=9999)
@@ -305,6 +353,96 @@ def state_at(series_id: str, book: int = Query(ge=1, le=9999),
                              subject_id=subject_id, knower_id=knower_id)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
+
+
+@router.post("/{series_id}/continuity/check")
+def check_scene_continuity(series_id: str, payload: SceneCheck) -> dict:
+    from .series_continuity import scan_scene
+    try:
+        return scan_scene(
+            series_id, scene=payload.scene, book=payload.book,
+            sequence=payload.sequence,
+            assertions=[x.model_dump() for x in payload.assertions],
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/continuity/exceptions")
+def get_continuity_exceptions(series_id: str) -> list[dict]:
+    from .series_continuity import list_exceptions
+    try:
+        return list_exceptions(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/continuity/exceptions", status_code=201)
+def save_continuity_exception(series_id: str, payload: ContinuityException) -> dict:
+    from .series_continuity import annotate_exception
+    try:
+        return annotate_exception(
+            series_id, payload.claim_key, payload.reason, payload.note)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.delete("/{series_id}/continuity/exceptions/{claim_key}")
+def remove_continuity_exception(series_id: str, claim_key: str) -> dict:
+    from .series_continuity import clear_exception
+    try:
+        return clear_exception(series_id, claim_key)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/consequences/preview")
+def preview_series_consequences(series_id: str, payload: ConsequencePreview) -> dict:
+    from .series_consequences import preview_change
+    try:
+        return preview_change(series_id, **payload.model_dump())
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/consequences/reviews")
+def series_change_reviews(series_id: str) -> list[dict]:
+    from .series_consequences import change_reviews
+    try:
+        return change_reviews(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/consequences/reviews", status_code=201)
+def save_series_change_review(series_id: str, payload: ConsequenceSave) -> dict:
+    from .series_consequences import save_change_note
+    try:
+        return save_change_note(series_id, **payload.model_dump())
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/consequences/reviews/{review_id}/dismiss")
+def dismiss_series_change_review(series_id: str, review_id: str) -> dict:
+    from .series_consequences import dismiss_change
+    try:
+        return dismiss_change(series_id, review_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/ember/ask")
+async def professional_series_ember(series_id: str, payload: EmberSeriesQuestion) -> dict:
+    from .series_ember import ask
+    try:
+        return await ask(series_id, **payload.model_dump())
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+    except TimeoutError as exc:
+        raise HTTPException(503, "Local model timed out; try offline series research.") from exc
+    except (ImportError, OSError, RuntimeError) as exc:
+        raise HTTPException(503, "Local model unavailable; use offline series research.") from exc
 
 
 @router.get("/{series_id}/timeline")
