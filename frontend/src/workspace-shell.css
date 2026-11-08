@@ -293,13 +293,13 @@
     --workspace-library-width: 220px;
   }
   .workspace-shell.binder-collapsed { --workspace-library-width: 0px; }
-  .workspace-topbar { grid-template-columns: 185px minmax(0, 1fr) auto; }
+  .workspace-topbar { grid-template-columns: 185px minmax(0, 1fr) auto auto; }
   .workspace-nav button { min-width: 58px; padding-inline: .35rem; }
 }
 
 @media (max-width: 1050px) {
   .workspace-topbar {
-    grid-template-columns: 165px minmax(0, 1fr) auto;
+    grid-template-columns: 165px minmax(0, 1fr) auto auto;
   }
 
   .workspace-nav button {
@@ -332,7 +332,8 @@
   .workspace-shortcut { display: none; }
 }
 @media (max-width: 700px) {
-  .workspace-actions button:nth-child(2) { display: none; }
+  .workspace-actions .workspace-sticky-button { display: none; }
+  .workspace-actions .workspace-reference-button span { display: none; }
   .workspace-nav button { min-width: 62px; }
   .workspace-more > summary { min-width: 61px; padding: 0 .4rem; }
   .workspace-actions button { min-width: 39px; padding: 0 .35rem; }

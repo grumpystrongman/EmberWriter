@@ -1,0 +1,21 @@
+.ember-companion{position:fixed;right:20px;bottom:20px;z-index:1800;font-family:inherit;color:var(--text,#e9e5df)}
+.ember-companion-launcher{border:1px solid #ca985a;border-radius:30px;background:#503424;color:#fff3df;box-shadow:0 6px 24px #0006;padding:12px 18px;font-weight:700;cursor:pointer}
+.ember-companion-panel{width:min(380px,calc(100vw - 32px));height:min(560px,calc(100dvh - 110px));display:flex;flex-direction:column;background:#242220;color:#f5eee3;border:1px solid #a8845d;border-radius:17px;box-shadow:0 16px 54px #0009;margin-bottom:12px;overflow:hidden}
+.ember-companion-panel header{padding:14px 16px;background:#342c27;display:flex;align-items:center;justify-content:space-between}
+.ember-companion-panel header strong{font-size:1.18rem}.ember-companion-panel header small{display:block;color:#d6c9b9;margin-top:2px}
+.ember-companion button{cursor:pointer}.ember-companion-panel header button{background:transparent;color:inherit;border:0;font-size:1.1rem;padding:6px}
+.ember-companion-body{padding:16px;overflow-y:auto;flex:1;line-height:1.5}
+.ember-companion-suggestions{display:flex;flex-wrap:wrap;gap:8px}
+.ember-companion-suggestions button,.ember-companion-go{border:1px solid #8b745f;border-radius:14px;background:#3b322e;color:#f6eada;padding:8px 12px;text-align:left}
+.ember-companion-message{white-space:pre-wrap;border-radius:12px;padding:10px 12px;background:#3c332d;overflow-wrap:anywhere}
+.ember-companion-message.author{background:#333e3b}.ember-companion-message b{display:block;margin-bottom:4px;color:#e7ba7c}
+.ember-companion-panel form{padding:12px 14px 14px;border-top:1px solid #655548}
+.ember-companion-panel form>label{display:block;font-size:.85rem;margin-bottom:6px}
+.ember-companion-compose{display:flex;gap:6px}.ember-companion-compose input{min-width:0;flex:1}
+.ember-companion-compose input,.ember-companion-model select{background:#191918;color:white;border:1px solid #8b7765;border-radius:8px;padding:9px}
+.ember-companion-compose button{background:#d69b5b;color:#241c16;border:0;border-radius:8px;font-weight:700;padding:8px 12px}
+.ember-companion-model{margin-top:10px}.ember-companion-model select{display:block;width:100%;margin-top:4px}
+.ember-companion-panel form>small{display:block;margin-top:8px;color:#c9beb0;line-height:1.4}
+.ember-companion :focus-visible{outline:3px solid #f7c27d;outline-offset:2px}
+@media(max-width:700px){.ember-companion{right:12px;bottom:12px}.ember-companion-panel{height:min(500px,calc(100dvh - 90px))}}
+@media(prefers-reduced-motion:reduce){.ember-companion *{scroll-behavior:auto!important}}

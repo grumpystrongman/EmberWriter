@@ -38,10 +38,10 @@ def _emotion(context: str) -> dict:
     matches = [name for name, (pattern, _) in FEELINGS.items()
                if re.search(pattern, context, re.I)]
     if len(matches) != 1:
-        return {"emotion": "neutral", "delivery": "natural", "confidence": "low"}
+        return {"emotion": "neutral", "delivery": "natural", "energy": 3, "confidence": "low"}
     emotion = matches[0]
     return {"emotion": emotion, "delivery": FEELINGS[emotion][1],
-            "confidence": "medium"}
+            "energy": 3, "confidence": "medium"}
 
 
 def compile_performance(text: str, cast: dict[str, dict] | list[str],
@@ -145,10 +145,18 @@ def render_plan(performance: dict, source: str, voices: dict,
         # canonical source and character attribution never change.
         if engine == "fish" and span["kind"] == "dialogue" and direction.get("emotion") not in (None, "neutral"):
             text = f"[{direction.get('delivery', direction['emotion'])}] {text}"
+        energy = direction.get("energy", 3)
+        if type(energy) is not int or not 1 <= energy <= 5:
+            energy = 3
+        # Kokoro ONNX has no native emotion/energy conditioning. An author-selected
+        # energy cue can only approximate delivery through restrained tempo.
+        speed = float(profile.get("speed", 1.0))
+        if engine == "kokoro":
+            speed = round(max(0.7, min(1.4, speed * (1 + (energy - 3) * 0.04))), 3)
         result.append({"speaker": speaker, "source_start": span["start"],
                        "source_end": span["end"], "source_text": span["text"],
                        "tts_text": text, "voice_id": profile["voice_id"],
-                       "speed": profile.get("speed", 1.0),
+                       "speed": speed, "energy": energy,
                        "emotion": direction.get("emotion", "neutral"),
                        "delivery": direction.get("delivery", "natural"),
                        "engine": engine})
@@ -212,7 +220,9 @@ def load_or_compile(path: Path, source: str, names: list[str],
 
 
 def revise_direction(performance: dict, start: int, end: int,
-                     emotion: str, delivery: str) -> dict:
+                     emotion: str, delivery: str, energy: int = 3) -> dict:
+    if type(energy) is not int or not 1 <= energy <= 5:
+        raise ValueError("Speech energy must be 1–5")
     if not re.fullmatch(r"[a-z][a-z -]{0,39}", emotion):
         raise ValueError("Invalid emotion label")
     if not 1 <= len(delivery) <= 140 or any(c in delivery for c in "<>[]\r\n"):
@@ -222,5 +232,5 @@ def revise_direction(performance: dict, start: int, end: int,
     if len(matches) != 1:
         raise ValueError("Dialogue selection does not match current manuscript")
     matches[0]["performance"] = {"emotion": emotion, "delivery": delivery,
-                                 "confidence": "author_directed"}
+                                 "energy": energy, "confidence": "author_directed"}
     return performance

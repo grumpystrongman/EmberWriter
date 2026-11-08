@@ -77,6 +77,7 @@ class VisualAssetUpdate(BaseModel):
     canon_status: VisualCanonStatus | None = None
     linked_entities: list[str] | None = Field(default=None, max_length=50)
     notes: str | None = Field(default=None, max_length=4000)
+    source_url: str | None = Field(default=None, max_length=2000, pattern=r"^(https?://|$)")
     reference_asset_id: str | None = Field(
         default=None, max_length=120, pattern=r"^[a-z0-9][a-z0-9-]*$"
     )
@@ -96,4 +97,5 @@ class VisualAssetResponse(BaseModel):
     canon_status: VisualCanonStatus = "concept"
     linked_entities: list[str] = Field(default_factory=list)
     notes: str = ""
+    source_url: str = Field(default="", max_length=2000, pattern=r"^(https?://|$)")
     reference_asset_id: str | None = None

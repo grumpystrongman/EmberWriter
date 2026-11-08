@@ -161,6 +161,7 @@ def _save_visual_asset(
     canon_status: str = "concept",
     linked_entities: list[str] | None = None,
     notes: str = "",
+    source_url: str = "",
     reference_asset_id: str | None = None,
 ) -> dict:
     _ensure_visual_id_available(slug, asset_id)
@@ -184,6 +185,7 @@ def _save_visual_asset(
             )
         ),
         "notes": notes,
+        "source_url": source_url,
         "reference_asset_id": reference_asset_id,
     }
     metadata_path.write_text(
@@ -557,8 +559,11 @@ async def upload_visual_asset(
     image: Annotated[UploadFile, File()],
     title: str = Query(default="", max_length=240),
     kind: str = Query(default="reference", max_length=80),
+    source_url: str = "",
 ) -> dict:
     try:
+        if len(source_url) > 2000 or (source_url and not source_url.startswith(("https://", "http://"))):
+            raise ValueError("Source link must be an http(s) URL of at most 2000 characters")
         _ensure_visual_id_available(slug, asset_id)
         raw = await image.read(_MAX_UPLOAD_BYTES + 1)
         visual = _load_image(raw)
@@ -570,6 +575,7 @@ async def upload_visual_asset(
             kind=kind,
             source="upload",
             canon_status="reference",
+            source_url=source_url,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc

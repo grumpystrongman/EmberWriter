@@ -490,6 +490,7 @@ class PerformanceDirectionEdit(BaseModel):
     end: int = Field(gt=0)
     emotion: str = Field(min_length=1, max_length=40)
     delivery: str = Field(min_length=1, max_length=140)
+    energy: int = Field(default=3, ge=1, le=5)
 
 
 def _performance_source(slug: str, path: str):
@@ -542,7 +543,8 @@ def save_performance_direction(slug: str, payload: PerformanceDirectionEdit) -> 
     try:
         performance, dest, _ = _performance_source(slug, payload.path)
         performance = revise_direction(
-            performance, payload.start, payload.end, payload.emotion, payload.delivery)
+            performance, payload.start, payload.end, payload.emotion, payload.delivery,
+            payload.energy)
         save_performance(dest, performance)
         return performance
     except (FileNotFoundError, OSError, ValueError) as exc:

@@ -2,6 +2,7 @@
 import './book-studio.css'
 import BookReviewPanel from './BookReviewPanel'
 import RevisionWorkbench from './RevisionWorkbench'
+import StoryConversationGuide from './StoryConversationGuide'
 
 type Chapter = { number: number; title: string; brief: string; status: string; candidate_words: number; attempts: number; error?: string }
 type BookPlan = { configured: boolean; premise?: string; voice?: string; target_words?: number; chapters: Chapter[]; running?: boolean }
@@ -209,6 +210,7 @@ export default function BookStudio({ apiBase, projectSlug, onOpenSource }: Props
     {error && <p role="alert" className="book-studio-error">{error}</p>}
     {message && <p role="status" className="book-studio-message">{message}</p>}
     {!plan && !error && <p>Loading project book planâ€¦</p>}
+    {plan && !plan.configured && <StoryConversationGuide projectSlug={projectSlug} onUseBrief={brief => { setPremise(brief.premise); setVoice(brief.voice); setChapterCount(brief.chapterCount); setWordTarget(brief.wordsPerChapter); setMessage('Your direction is now in the blueprint below. Review it, ask your local model for chapter suggestions, and save only when ready.') }} />}
     {plan && !plan.configured && <form className="book-studio-form" onSubmit={e => void createPlan(e)}>
       <h3>1. Direct your book</h3>
       <p>Book Studio also reads existing character, worldbuilding, timeline, relationship and style files from this project. Add them in the other writing workspaces whenever you like.</p>
