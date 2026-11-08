@@ -9,7 +9,10 @@ function apiBaseRewrite(apiBase: string): Plugin {
     name: 'emberwriter-api-base',
     enforce: 'pre',
     transform(code, id) {
-      if (!id.includes('/src/') || !code.includes(LOCAL_API_BASE)) return null
+      // Vite plugin ids use Windows backslashes on some installations.
+      // A platform-specific check silently skips the same-origin API rewrite
+      // in Pinokio's production build and leaks requests to port 8000.
+      if (!id.replace(/\\/g, '/').includes('/src/') || !code.includes(LOCAL_API_BASE)) return null
       return {
         code: code.split(LOCAL_API_BASE).join(apiBase),
         map: null,
