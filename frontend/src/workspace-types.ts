@@ -1,4 +1,4 @@
-export type Workspace = 'write' | 'studio' | 'notes' | 'plan' | 'characters' | 'world' | 'analyze' | 'tools' | 'publish' | 'submit'
+export type Workspace = 'write' | 'studio' | 'notes' | 'plan' | 'characters' | 'world' | 'analyze' | 'tools' | 'publish' | 'submit' | 'series'
 
 export type WorkspaceProject = {
   slug: string

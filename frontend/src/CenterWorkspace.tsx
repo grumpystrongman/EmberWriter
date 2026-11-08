@@ -15,6 +15,7 @@ const PlanningHub = lazy(() => import('./PlanningHub'))
 const ProvenanceVoicePanel = lazy(() => import('./ProvenanceVoicePanel'))
 const ToolsWorkspace = lazy(() => import('./ToolsWorkspace'))
 const WorldWorkspace = lazy(() => import('./WorldWorkspace'))
+const SeriesDesk = lazy(() => import('./SeriesDesk'))
 
 type Props = {
   workspace: Workspace
@@ -36,6 +37,11 @@ function LoadingWorkspace() {
 
 export default function CenterWorkspace({ workspace, project, onOpenSource }: Props) {
   if (workspace === 'write') return null
+  if (workspace === 'series') return (
+    <div className="center-workspace-overlay center-workspace-series">
+      <Suspense fallback={<LoadingWorkspace />}><SeriesDesk project={project} /></Suspense>
+    </div>
+  )
 
   if (!project) {
     return (
