@@ -262,3 +262,14 @@ def test_full_synthetic_series_with_audio_media_mirrors_and_recovers_without_rew
             Path(mirrored["directory"]) / "projects" / slug / source_path
         ).read_bytes()
     ).hexdigest() == digest
+
+
+def test_atomic_manuscript_write_preserves_exact_utf8_lf_bytes_on_windows(long_book):
+    slug, _ = long_book
+    path = "manuscript/chapter-001.md"
+    material = "# LF Proof\n\nFirst scene.\nSecond scene.\n"
+    storage.save_text(slug, path, material)
+    saved = storage.project_root(slug) / path
+    assert saved.read_bytes() == material.encode("utf-8")
+    assert storage.read_text(slug, path) == material
+    assert b"\r\n" not in saved.read_bytes()
