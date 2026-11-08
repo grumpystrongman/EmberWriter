@@ -11,12 +11,11 @@ import json
 import os
 from pathlib import Path
 
+from app import publishing, storage
+from app.main import app
 from docx import Document
 from ebooklib import epub
 from fastapi.testclient import TestClient
-
-from app import publishing, storage
-from app.main import app
 
 MARKER = "SYNTHETIC_OFFLINE_WRITER_QA_NO_CUSTOMER_DATA"
 
