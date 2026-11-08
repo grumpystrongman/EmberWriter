@@ -133,3 +133,47 @@ jobs:
           done
           curl -fsS http://127.0.0.1:4173/ > /tmp/emberwriter-index.html
           grep -q '<div id="root"></div>' /tmp/emberwriter-index.html
+
+
+  windows-author-safety:
+    name: Windows manuscript, recovery and install acceptance
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend test requirements
+        run: python -m pip install -e "./backend[dev]"
+      - name: Exercise large synthetic novel and protected recovery on NTFS
+        run: python -m pytest backend/tests/test_release_scale_qualification.py backend/tests/test_recovery_vault.py backend/tests/test_recovery_windows_junction.py backend/tests/test_release_qualification_manifest.py -q -rs
+      - name: Validate release qualification rules and source integrity
+        run: python -m ruff check backend/app backend/tests scripts/qualify_release.py scripts/qa_writer_only_install.py
+      - name: Build the actual Pinokio-style same-origin Windows frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: /api
+        run: |
+          npm ci
+          npm run build
+      - name: Refuse hosted bundles that connect to another local API port
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem frontend/dist/assets -Recurse -Filter '*.js'
+          foreach ($file in $files) {
+            if ([System.IO.File]::ReadAllText($file.FullName).Contains('http://127.0.0.1:8000/api')) {
+              throw "Unsafe hosted API URL survived Windows rewrite: $($file.Name)"
+            }
+          }
+          Write-Host "Windows hosted bundle uses same-origin API"
+      - name: Clean-archive Windows writer-only install, export and restore
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/qa_windows_install.ps1

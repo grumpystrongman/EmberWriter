@@ -161,7 +161,7 @@ def _atomic_write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + "." + uuid4().hex + ".partial")
     try:
-        with temporary.open("x", encoding="utf-8") as target:
+        with temporary.open("x", encoding="utf-8", newline="\n") as target:
             target.write(content)
             target.flush()
             os.fsync(target.fileno())
