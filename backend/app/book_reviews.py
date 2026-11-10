@@ -14,6 +14,7 @@ from pathlib import Path
 from .book_studio import _local_model, candidate
 from .generation import generate
 from .models import ProviderConfig
+from .provenance_store import record_assistance_event
 from .storage import project_root
 
 PERSONAS = {
@@ -147,6 +148,11 @@ async def evaluate(slug: str, number: int, persona: str, config: ProviderConfig,
         "findings": findings, "stale": False, "focus": focus.strip(),
         "unverified_findings_rejected": rejected,
     }
+    record_assistance_event(
+        slug, mode="editorial_feedback", active_file=f"manuscript/book-studio/chapter-{number:03d}.md",
+        prompt=prompt, selected_text=content, output_text=raw,
+        context_files=[], refined=False, provider=config.provider, model=config.model,
+    )
     data = _load(slug, number)
     data["reviews"] = [record, *data["reviews"]][:80]
     _write(slug, number, data)

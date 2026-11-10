@@ -21,6 +21,7 @@ from .editorial_models import (
     EditorialFixRequest,
 )
 from .generation import generate
+from .provenance_store import record_assistance_event
 from .revisions import record_revision
 from .storage import project_root, read_text, save_text, utc_now
 
@@ -338,6 +339,11 @@ AUTHOR / BOOK STYLE CONTEXT
     if len(replacement) > max(4000, len(original) * 5):
         raise ValueError("Editorial fix proposal was unexpectedly large; no change was applied")
 
+    record_assistance_event(
+        slug, mode="editorial_wording", active_file=finding["path"],
+        prompt=user, selected_text=original, output_text=replacement,
+        context_files=[], refined=False, provider=request.provider.provider, model=request.provider.model,
+    )
     return EditorialFixProposal(
         finding_id=request.finding_id,
         path=finding["path"],

@@ -36,6 +36,7 @@ type SubmissionRecord = {
   destination_id: string
   status: SubmissionStatus
   package_id: string
+  authorship_review_path?: string
   submitted_at: string
   follow_up_on: string
   response_at: string
@@ -86,11 +87,22 @@ type PackageArtifact = {
   bytes: number
 }
 
+type AuthorshipReview = {
+  coverage: string
+  matched_events: number
+  legacy_events_without_wording: number
+  recorded_assistance: Record<string, number>
+  excerpts: { file: string; source: string | null; mode: string; event_id: string; excerpt: string; original_excerpt: string }[]
+  excerpts_omitted: number
+}
+
 type BuildResult = {
   package_id: string
   validation: Validation
   artifacts: PackageArtifact[]
   included_files: string[]
+  authorship_review?: AuthorshipReview
+  authorship_review_path?: string
   profile: SubmissionProfile | null
 }
 
@@ -415,7 +427,38 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
 
         {result && (
           <div className="publish-result submission-result">
-            <strong>Package {result.package_id} ready</strong>
+            <strong>Package {result.package_id} built</strong>
+            {result.authorship_review && (
+              <details className="submission-history" open>
+                <summary>Private authorship review ({result.authorship_review.matched_events} matched AI events)</summary>
+                <p>{result.authorship_review.coverage}</p>
+                <p>Check the recipient’s current AI rules before sending. Review these excerpts, revise in the manuscript or submission fields, then rebuild the packet.</p>
+                <ul>
+                  {Object.entries(result.authorship_review.recorded_assistance).map(([mode, count]) => (
+                    <li key={mode}>{mode.replaceAll('_', ' ')} · {count} recorded</li>
+                  ))}
+                </ul>
+                {result.authorship_review.legacy_events_without_wording > 0 && (
+                  <p>{result.authorship_review.legacy_events_without_wording} older writing events lack text evidence.</p>
+                )}
+                {result.authorship_review.excerpts.map((item, index) => (
+                  <article key={`${item.file}-${item.event_id}-${index}`}>
+                    <div>
+                      <strong>{item.file}</strong>
+                      <small>{item.source || item.mode.replaceAll('_', ' ')}</small>
+                      <p>{item.excerpt}</p>
+                      {item.original_excerpt && <details><summary>Source text supplied for this suggestion</summary><p>{item.original_excerpt}</p></details>}
+                    </div>
+                  </article>
+                ))}
+                {result.authorship_review.excerpts_omitted > 0 && (
+                  <p>{result.authorship_review.excerpts_omitted} additional file passages beyond the review display limit.</p>
+                )}
+                {result.authorship_review_path && (
+                  <a href={`${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(result.authorship_review_path)}`} download="private-authorship-review.json">Download private review and file fingerprints</a>
+                )}
+              </details>
+            )}
             {result.artifacts.map((artifact) => {
               const url = `${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(artifact.relative_path)}`
               return <a key={artifact.relative_path} href={url} download={artifact.filename}>Download {artifact.filename} <small>{humanBytes(artifact.bytes)}</small></a>
@@ -428,7 +471,12 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
             <summary>Submission history ({destinationRecords.length})</summary>
             {destinationRecords.slice().reverse().map((record) => (
               <article key={record.id}>
-                <div><strong>{record.status.replaceAll('_', ' ')}</strong><small>{record.package_id}</small></div>
+                <div>
+                  <strong>{record.status.replaceAll('_', ' ')}</strong><small>{record.package_id}</small>
+                  {record.authorship_review_path && (
+                    <a href={`${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(record.authorship_review_path)}`} download="private-authorship-review.json">Private authorship review</a>
+                  )}
+                </div>
                 <select value={record.status} onChange={(event) => void updateRecord(record, { status: event.target.value as SubmissionStatus })} disabled={disabled || busy}>
                   {(['ready', 'sent', 'partial_requested', 'full_requested', 'revision_requested', 'offer', 'pass', 'withdrawn'] as SubmissionStatus[]).map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}
                 </select>

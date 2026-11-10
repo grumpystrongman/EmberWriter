@@ -51,6 +51,7 @@ class SubmissionRecord(BaseModel):
     destination_id: str
     status: SubmissionStatus = "draft"
     package_id: str = ""
+    authorship_review_path: str = ""
     submitted_at: str = ""
     follow_up_on: str = ""
     response_at: str = ""
@@ -120,6 +121,8 @@ class SubmissionBuildResponse(BaseModel):
     artifacts: list[SubmissionPackageArtifact] = Field(default_factory=list)
     included_files: list[str] = Field(default_factory=list)
     profile: SubmissionProfile | None = None
+    authorship_review: dict = Field(default_factory=dict)
+    authorship_review_path: str = ""
 
 
 class SubmissionMaterialDraftRequest(BaseModel):

@@ -28,6 +28,7 @@ from .distribution import load_release_profile
 from .generation import generate
 from .memory import chapter_order
 from .models import ProviderConfig
+from .provenance_store import record_assistance_event
 from .publishing import (
     _append_docx_inline,
     _clean_chapter_content,
@@ -36,6 +37,7 @@ from .publishing import (
     compiled_documents,
 )
 from .storage import _connect, project_root, utc_now
+from .submission_authorship import submission_authorship
 from .submission_models import (
     SubmissionBuildResponse,
     SubmissionDestination,
@@ -625,7 +627,20 @@ async def draft_submission_material(
         },
     ]
     text = await generate(provider, messages, temperature=0.45, top_p=0.9)
-    return text.strip(), document_count, used_summaries
+    text = text.strip()
+    record_assistance_event(
+        slug,
+        mode="submission_wording",
+        active_file={"query": "query-letter", "bio": "author-bio"}.get(kind, kind),
+        prompt=messages[-1]["content"],
+        selected_text=None,
+        output_text=text,
+        context_files=[],
+        refined=False,
+        provider=provider.provider,
+        model=provider.model,
+    )
+    return text, document_count, used_summaries
 
 
 def _follow_up_from_sent(
@@ -780,6 +795,16 @@ def build_submission_package(
                 "sha256": _hash(path),
             }
         )
+    audit = {
+        "package_id": package_id,
+        "guidelines_url": destination.guidelines_url,
+        **submission_authorship(slug, included, manifest_entries),
+    }
+    audit_path = directory / "private-authorship-review.json"
+    audit_path.write_text(
+        json.dumps(audit, indent=2, ensure_ascii=False) + "\n", encoding="utf-8",
+    )
+
     manifest = {
         "schema_version": 1,
         "package_id": package_id,
@@ -830,6 +855,7 @@ def build_submission_package(
         destination_id=destination.id,
         status="ready",
         package_id=package_id,
+        authorship_review_path=audit_path.relative_to(root).as_posix(),
         follow_up_on="",
         created_at=now,
         updated_at=now,
@@ -867,5 +893,7 @@ def build_submission_package(
         validation=validation,
         artifacts=artifacts,
         included_files=[path.name for path in included],
+        authorship_review=audit,
+        authorship_review_path=audit_path.relative_to(root).as_posix(),
     )
     return response, updated_profile

@@ -18,6 +18,7 @@ from .book_reviews import brief
 from .book_studio import _local_model, candidate, edit_candidate, load_state
 from .generation import generate
 from .models import ProviderConfig
+from .provenance_store import record_assistance_event
 from .quality_clinic import check_text
 from .storage import project_root
 
@@ -146,6 +147,11 @@ async def propose(slug: str, number: int, config: ProviderConfig, author_directi
     # Check again after the model request: author may have edited the candidate meanwhile.
     if _hash(candidate(slug, number)["content"]) != _hash(source):
         raise ValueError("Candidate changed during generation; revision discarded to preserve author edits")
+    record_assistance_event(
+        slug, mode="editorial_wording", active_file=f"manuscript/book-studio/chapter-{number:03d}.md",
+        prompt="\n\n".join(instructions), selected_text=source, output_text=proposed,
+        context_files=[], refined=False, provider=config.provider, model=config.model,
+    )
     history = _load(slug, number)
     identifier = uuid4().hex
     path = _proposal_path(slug, number, identifier)

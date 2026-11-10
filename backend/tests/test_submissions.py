@@ -243,3 +243,55 @@ async def test_ai_submission_draft_uses_story_context_without_requiring_full_man
     assert used_summaries is False
     assert "STORY CONTEXT" in captured["messages"][1]["content"]
     assert "Never fabricate" in captured["messages"][0]["content"]
+
+
+def test_authorship_review_tracks_rendered_packet_and_preserves_privacy(tmp_path: Path) -> None:
+    from app.provenance_store import record_assistance_event
+
+    slug = use_temp_data(tmp_path)
+    target = destination(sample_kind="none")
+    profile = profile_for(slug, target)
+    retained = "The lantern only burns when a forgotten passenger speaks."
+    excluded = "Mara crossed the silent station. She carried the key her brother died to protect."
+
+    def record(mode: str, output: str, original: str | None = None) -> None:
+        record_assistance_event(
+            slug, mode=mode, active_file="manuscript/chapter-001.md",
+            prompt="fixture", selected_text=original, output_text=output,
+            context_files=[], refined=False, provider="ollama", model="fixture",
+        )
+
+    record("write", excluded)
+    record("editorial_feedback", retained)
+    record("editorial_wording", excluded, original=excluded)
+    record("submission_wording", retained)
+
+    def build(query_letter: str):
+        return submissions.build_submission_package(
+            slug, profile=profile.model_copy(update={"query_letter": query_letter}),
+            destination_id=target.id,
+        )[0]
+
+    first = build(retained + " The author added this sentence.")
+    review = first.authorship_review
+    assert review["matched_events"] == 1
+    assert review["recorded_assistance"]["editorial_feedback"] == 1
+    assert {item["file"] for item in review["excerpts"]} == {
+        "query-letter.txt", "query-letter.docx", "submission-body.txt",
+    }
+    assert all(item["mode"] == "submission_wording" for item in review["excerpts"])
+    root = storage.project_root(slug)
+    private_report = root / first.authorship_review_path
+    assert json.loads(private_report.read_text(encoding="utf-8")) == review
+    zip_path = next(item.relative_path for item in first.artifacts if item.format == "zip")
+    with zipfile.ZipFile(root / zip_path) as archive:
+        assert private_report.name not in archive.namelist()
+        manifest = json.loads(archive.read("submission-manifest.json"))
+        assert "authorship_review" not in manifest
+        assert all(file in manifest["files"] for file in (
+            {key: row[key] for key in ("path", "bytes", "sha256")} for row in review["files"]
+        ))
+
+    rewritten = build("A broken signal light draws Mara out to the empty platform.")
+    assert rewritten.authorship_review["matched_events"] == 0
+    assert rewritten.authorship_review["recorded_assistance"]["submission_wording"] == 1
