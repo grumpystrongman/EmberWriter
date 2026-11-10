@@ -117,6 +117,7 @@ type Props = {
   apiBase: string
   slug: string
   disabled: boolean
+  onOpenSource?: (path: string, anchor?: string) => void
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -174,7 +175,7 @@ function providerFromStorage(): Provider | null {
   }
 }
 
-export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
+export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource }: Props) {
   const [profile, setProfile] = useState<SubmissionProfile | null>(null)
   const [selectedDestinationId, setSelectedDestinationId] = useState('')
   const [validation, setValidation] = useState<Validation | null>(null)
@@ -447,6 +448,9 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
                       <strong>{item.file}</strong>
                       <small>{item.source || item.mode.replaceAll('_', ' ')}</small>
                       <p>{item.excerpt}</p>
+                      {onOpenSource && item.source?.startsWith('manuscript/') && (
+                        <button type="button" disabled={disabled || busy} onClick={() => onOpenSource(item.source!, item.excerpt)}>Open manuscript source</button>
+                      )}
                       {item.original_excerpt && <details><summary>Source text supplied for this suggestion</summary><p>{item.original_excerpt}</p></details>}
                     </div>
                   </article>
