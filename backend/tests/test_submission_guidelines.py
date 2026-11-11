@@ -59,3 +59,12 @@ def test_weekly_market_refresh_retains_last_success(tmp_path, monkeypatch):
     offline = submission_market.market_listings()[0]
     assert offline["error"]
     assert offline["guidelines"] == changed["guidelines"]
+
+
+def test_book_publisher_catalog_contains_thousands_of_distinct_records():
+    from app.submission_market import book_publisher_catalog
+
+    publishers = book_publisher_catalog()
+    assert len(publishers) >= 2800
+    assert len({publisher["wikidata_id"] for publisher in publishers}) == len(publishers)
+    assert sum(bool(publisher["website"]) for publisher in publishers) >= 1600

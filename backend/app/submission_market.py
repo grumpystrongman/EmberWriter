@@ -1,11 +1,14 @@
 """Local directory snapshots of publishers' official submission rules."""
 import asyncio
+import csv
 import json
 import logging
 import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from http.client import HTTPException
+from pathlib import Path
 
 from . import storage
 from .submission_guidelines import extract_guidelines, fetch_html
@@ -19,6 +22,16 @@ PUBLISHERS = {
     "Ransom Publishing": "https://ransomlit.com/submissions/",
     "Rowan Prose Publishing": "https://www.rowanprosepublishing.com/submissions",
 }
+
+
+@lru_cache(maxsize=1)
+def book_publisher_catalog() -> list[dict]:
+    resources = Path(__file__).with_name("resources")
+    entries = []
+    for shard in sorted(resources.glob("book-publishers-*.csv")):
+        with shard.open(encoding="utf-8", newline="") as source:
+            entries.extend(csv.DictReader(source))
+    return entries
 
 
 def _connect() -> sqlite3.Connection:
@@ -35,14 +48,31 @@ def _connect() -> sqlite3.Connection:
                 error TEXT
             )
         """)
+        db.execute("CREATE TABLE IF NOT EXISTS watched_publishers (url TEXT PRIMARY KEY, name TEXT NOT NULL)")
     return db
+
+
+def watch_publisher(name: str, url: str, guidelines: dict) -> None:
+    with closing(_connect()) as db, db:
+        db.execute("INSERT OR IGNORE INTO watched_publishers VALUES (?, ?)", (url, name))
+        db.execute(
+            "INSERT OR IGNORE INTO publisher_rules VALUES (?, ?, ?, NULL, NULL)",
+            (url, json.dumps(guidelines, sort_keys=True), storage.utc_now()),
+        )
+
+
+def _sources(db: sqlite3.Connection) -> dict[str, str]:
+    sources = {url: name for name, url in PUBLISHERS.items()}
+    sources.update({row["url"]: row["name"] for row in db.execute("SELECT * FROM watched_publishers")})
+    return sources
 
 
 def market_listings() -> list[dict]:
     with closing(_connect()) as db:
+        sources = _sources(db)
         snapshots = {row["url"]: dict(row) for row in db.execute("SELECT * FROM publisher_rules")}
     listings = []
-    for name, url in PUBLISHERS.items():
+    for url, name in sources.items():
         record = snapshots.get(url, {})
         listings.append({
             "name": name,
@@ -58,7 +88,7 @@ def market_listings() -> list[dict]:
 def refresh_due_publishers() -> None:
     cutoff = (datetime.now(UTC) - timedelta(days=7)).isoformat()
     with closing(_connect()) as db:
-        for name, url in PUBLISHERS.items():
+        for url, name in _sources(db).items():
             previous = db.execute("SELECT * FROM publisher_rules WHERE url = ?", (url,)).fetchone()
             if previous and previous["checked_at"] >= cutoff:
                 continue

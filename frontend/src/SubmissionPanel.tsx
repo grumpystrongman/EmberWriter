@@ -93,6 +93,8 @@ type PackageArtifact = {
   bytes: number
 }
 
+type CatalogPublisher = { wikidata_id: string; name: string; website: string }
+
 type PublisherListing = {
   name: string
   url: string
@@ -231,12 +233,23 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
   const [drafting, setDrafting] = useState<DraftKind | ''>('')
   const [draftEvidence, setDraftEvidence] = useState('')
   const [publishers, setPublishers] = useState<PublisherListing[]>([])
+  const [catalog, setCatalog] = useState<CatalogPublisher[]>([])
+  const [catalogLimit, setCatalogLimit] = useState(40)
   const [marketSearch, setMarketSearch] = useState('')
+  const catalogResults = useMemo(() => {
+    const query = marketSearch.trim().toLowerCase()
+    const listed = new Set(publishers.map((publisher) => publisher.name.toLowerCase()))
+    return catalog.filter((publisher) => !listed.has(publisher.name.toLowerCase())
+      && `${publisher.name} ${publisher.website}`.toLowerCase().includes(query))
+  }, [catalog, marketSearch, publishers])
   const [marketError, setMarketError] = useState('')
   useEffect(() => {
     void request<PublisherListing[]>(`${apiBase}/submissions/market`)
       .then(setPublishers)
-      .catch(() => setMarketError('The publisher directory could not be loaded.'))
+      .catch(() => setMarketError('The monitored publisher list could not be loaded.'))
+    void request<CatalogPublisher[]>(`${apiBase}/submissions/publisher-catalog`)
+      .then(setCatalog)
+      .catch(() => setMarketError('The book publisher catalog could not be loaded.'))
   }, [apiBase])
   const [guidelinesImport, setGuidelinesImport] = useState<{
     text: string; settings: Partial<Destination>; destinationId: string; url: string
@@ -299,7 +312,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
     try {
       const result = await request<{ text: string; settings: Partial<Destination> }>(
         `${apiBase}/submissions/import-guidelines`, {
-          method: 'POST', body: JSON.stringify({ url: selectedDestination.guidelines_url.trim() }),
+          method: 'POST', body: JSON.stringify({ url: selectedDestination.guidelines_url.trim(), publisher_name: selectedDestination.name.slice(0, 200) }),
         },
       )
       setGuidelinesImport({ ...result, destinationId: selectedDestination.id, url: selectedDestination.guidelines_url })
@@ -466,7 +479,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
 
         <details className="submission-history">
           <summary>Market Directory</summary>
-          <label>Search publishers or requirements<input type="search" value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} /></label>
+          <label>Search publishers or requirements<input type="search" value={marketSearch} onChange={(event) => { setMarketSearch(event.target.value); setCatalogLimit(40) }} /></label>
           {marketError && <p role="status">{marketError}</p>}
           {publishers.filter((item) => `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
             <article key={item.url}>
@@ -491,6 +504,23 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
               <button type="button" onClick={() => addDestination(listing)} disabled={disabled || busy}>Use listing</button>
             </article>
           ))}
+          <p>{catalogResults.length.toLocaleString()} discovery results from {catalog.length.toLocaleString()} book publishers. Verify current submission status with the publisher. <a href="https://www.wikidata.org/wiki/Q1320047" target="_blank" rel="noreferrer">Wikidata source</a></p>
+          {catalogResults.slice(0, catalogLimit).map((publisher) => (
+            <article key={publisher.wikidata_id}>
+              <div>
+                <strong>{publisher.name}</strong>
+                <small>Submission rules unverified</small>
+                {publisher.website && <a href={publisher.website} target="_blank" rel="noreferrer">Listed website</a>}
+                <a href={`https://www.wikidata.org/wiki/${publisher.wikidata_id}`} target="_blank" rel="noreferrer">Source record</a>
+              </div>
+              <button type="button" disabled={disabled || busy} onClick={() => addDestination({
+                name: publisher.name.slice(0, 240), settings: { kind: 'publisher' },
+              })}>Add target</button>
+            </article>
+          ))}
+          {catalogLimit < catalogResults.length && (
+            <button type="button" onClick={() => setCatalogLimit((limit) => limit + 40)}>Show more publishers</button>
+          )}
         </details>
 
         {selectedDestination && (

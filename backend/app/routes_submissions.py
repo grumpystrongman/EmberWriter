@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .submission_guidelines import extract_guidelines, fetch_html
-from .submission_market import market_listings
+from .submission_market import book_publisher_catalog, market_listings, watch_publisher
 from .submission_models import (
     SubmissionBuildRequest,
     SubmissionBuildResponse,
@@ -34,14 +34,23 @@ def get_market() -> list[dict]:
     return market_listings()
 
 
+@router.get("/submissions/publisher-catalog")
+def publisher_catalog() -> list[dict]:
+    return book_publisher_catalog()
+
+
 class GuidelinesImport(BaseModel):
+    publisher_name: str = Field(default="", max_length=200)
     url: str = Field(min_length=1, max_length=2000)
 
 
 @router.post("/submissions/import-guidelines")
 def import_guidelines(payload: GuidelinesImport) -> dict:
     try:
-        return extract_guidelines(fetch_html(payload.url))
+        guidelines = extract_guidelines(fetch_html(payload.url))
+        if payload.publisher_name.strip():
+            watch_publisher(payload.publisher_name.strip(), payload.url, guidelines)
+        return guidelines
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (OSError, HTTPClientError) as exc:
