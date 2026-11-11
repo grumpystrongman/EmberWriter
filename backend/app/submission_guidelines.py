@@ -2,8 +2,8 @@
 import ipaddress
 import re
 import socket
-from http.client import HTTPSConnection
-from urllib.parse import urlsplit
+from http.client import HTTPException, HTTPSConnection
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -15,7 +15,11 @@ RULES = re.compile(
 )
 
 
-def fetch_html(url: str) -> bytes:
+def _publisher_host(host: str | None) -> str:
+    return (host or "").casefold().removeprefix("www.")
+
+
+def fetch_html(url: str, redirects: int = 2) -> bytes:
     parsed = urlsplit(url)
     if (
         parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
@@ -42,6 +46,11 @@ def fetch_html(url: str) -> bytes:
         connection.request("GET", path, headers={"Accept": "text/html"})
         response = connection.getresponse()
         if 300 <= response.status < 400:
+            location = response.getheader("Location")
+            target = urljoin(url, location) if location else ""
+            if redirects and target and _publisher_host(urlsplit(target).hostname) == _publisher_host(host):
+                connection.close()
+                return fetch_html(target, redirects - 1)
             raise ValueError("Open the redirected page and import its final HTTPS URL.")
         if response.status != 200 or response.headers.get_content_type() != "text/html":
             raise ValueError("This page could not be imported. Paste its requirements manually.")
@@ -77,3 +86,41 @@ def extract_guidelines(body: bytes) -> dict:
         if int(count) > 0:
             settings = {"sample_kind": unit.lower().rstrip("s") + "s", "sample_count": int(count)}
     return {"text": text, "settings": settings}
+
+
+SUBMISSION_LINK = re.compile(
+    r"\b(submissions?|submit (?:your|a) (?:book|manuscript)|publish with us|"
+    r"manuscript guidelines|for authors)\b", re.IGNORECASE,
+)
+MANUSCRIPT_RULE = re.compile(
+    r"\b(manuscripts?|synopsis|query letter|sample (?:pages|chapters)|"
+    r"unsolicited|literary agent|submission window)\b", re.IGNORECASE,
+)
+
+
+def discover_guidelines(website: str) -> list[dict]:
+    """Return evidence from relevant public pages on the publisher's own site."""
+    parsed = urlsplit(website)
+    homepage = urlunsplit(("https", parsed.netloc, parsed.path, parsed.query, ""))
+    soup = BeautifulSoup(fetch_html(homepage), "html.parser")
+    candidates: dict[str, str] = {}
+    for link in soup.find_all("a", href=True):
+        title = link.get_text(" ", strip=True)
+        target = urlsplit(urljoin(homepage, link["href"]))
+        if (
+            not SUBMISSION_LINK.search(title)
+            or target.scheme != "https"
+            or _publisher_host(target.hostname) != _publisher_host(parsed.hostname)
+        ):
+            continue
+        candidates[target._replace(fragment="").geturl()] = title
+
+    results = []
+    for url, title in list(candidates.items())[:4]:
+        try:
+            guidelines = extract_guidelines(fetch_html(url))
+        except (OSError, ValueError, HTTPException):
+            continue
+        if MANUSCRIPT_RULE.search(guidelines["text"]):
+            results.append({"url": url, "title": title, **guidelines})
+    return results

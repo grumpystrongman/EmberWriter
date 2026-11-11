@@ -93,6 +93,8 @@ type PackageArtifact = {
   bytes: number
 }
 
+type DiscoveredGuidelines = { url: string; title: string; text: string; settings: Partial<Destination> }
+
 type CatalogPublisher = { wikidata_id: string; name: string; website: string }
 
 type PublisherListing = {
@@ -235,7 +237,9 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
   const [publishers, setPublishers] = useState<PublisherListing[]>([])
   const [catalog, setCatalog] = useState<CatalogPublisher[]>([])
   const [catalogLimit, setCatalogLimit] = useState(40)
+  const [discovery, setDiscovery] = useState<{ id: string; results: DiscoveredGuidelines[] } | null>(null)
   const [marketSearch, setMarketSearch] = useState('')
+  const [rulesOnly, setRulesOnly] = useState(false)
   const catalogResults = useMemo(() => {
     const query = marketSearch.trim().toLowerCase()
     const listed = new Set(publishers.map((publisher) => publisher.name.toLowerCase()))
@@ -304,6 +308,22 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
     setResult(null)
   }
 
+  async function findPublisherGuidelines(publisher: CatalogPublisher) {
+    setBusy(true)
+    setError('')
+    setDiscovery(null)
+    try {
+      const results = await request<DiscoveredGuidelines[]>(`${apiBase}/submissions/discover-guidelines`, {
+        method: 'POST', body: JSON.stringify({ url: publisher.website }),
+      })
+      setDiscovery({ id: publisher.wikidata_id, results })
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function importGuidelines() {
     if (!selectedDestination?.guidelines_url.trim()) return
     setBusy(true)
@@ -316,6 +336,8 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
         },
       )
       setGuidelinesImport({ ...result, destinationId: selectedDestination.id, url: selectedDestination.guidelines_url })
+      void request<PublisherListing[]>(`${apiBase}/submissions/market`).then(setPublishers).catch(() => {})
+
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -480,8 +502,9 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
         <details className="submission-history">
           <summary>Market Directory</summary>
           <label>Search publishers or requirements<input type="search" value={marketSearch} onChange={(event) => { setMarketSearch(event.target.value); setCatalogLimit(40) }} /></label>
+          <label><input type="checkbox" checked={rulesOnly} onChange={(event) => setRulesOnly(event.target.checked)} /> Show only listings with submission guidelines</label>
           {marketError && <p role="status">{marketError}</p>}
-          {publishers.filter((item) => `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
+          {publishers.filter((item) => (!rulesOnly || item.guidelines) && `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
             <article key={item.url}>
               <div>
                 <a href={item.url} target="_blank" rel="noreferrer">{item.name} · official submission page</a>
@@ -504,7 +527,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
               <button type="button" onClick={() => addDestination(listing)} disabled={disabled || busy}>Use listing</button>
             </article>
           ))}
-          <p>{catalogResults.length.toLocaleString()} discovery results from {catalog.length.toLocaleString()} book publishers. Verify current submission status with the publisher. <a href="https://www.wikidata.org/wiki/Q1320047" target="_blank" rel="noreferrer">Wikidata source</a></p>
+          {!rulesOnly && <><p>{catalogResults.length.toLocaleString()} discovery results from {catalog.length.toLocaleString()} book publishers. Verify current submission status with the publisher. <a href="https://www.wikidata.org/wiki/Q1320047" target="_blank" rel="noreferrer">Wikidata source</a></p>
           {catalogResults.slice(0, catalogLimit).map((publisher) => (
             <article key={publisher.wikidata_id}>
               <div>
@@ -516,11 +539,29 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
               <button type="button" disabled={disabled || busy} onClick={() => addDestination({
                 name: publisher.name.slice(0, 240), settings: { kind: 'publisher' },
               })}>Add target</button>
+              {publisher.website && (
+                <button type="button" disabled={disabled || busy} onClick={() => void findPublisherGuidelines(publisher)}>Find submission guidelines</button>
+              )}
+              {discovery?.id === publisher.wikidata_id && (
+                <section aria-label="Guidelines found on publisher website">
+                  {discovery.results.length === 0 && <p>No submission page was found in the site’s links. You can still add the target and enter its guidelines URL.</p>}
+                  {discovery.results.map((candidate) => (
+                    <div key={candidate.url}>
+                      <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.title}</a>
+                      <p>{candidate.text.slice(0, 300)}</p>
+                      <button type="button" disabled={disabled || busy} onClick={() => addDestination({
+                        name: publisher.name.slice(0, 240),
+                        settings: { kind: 'publisher', guidelines_url: candidate.url, guidelines_text: candidate.text },
+                      })}>Prepare submission using this source</button>
+                    </div>
+                  ))}
+                </section>
+              )}
             </article>
           ))}
           {catalogLimit < catalogResults.length && (
             <button type="button" onClick={() => setCatalogLimit((limit) => limit + 40)}>Show more publishers</button>
-          )}
+          )}</>}
         </details>
 
         {selectedDestination && (
@@ -613,6 +654,9 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
                     <ul>{result.authorship_review.ai_policy_lines.map((line, index) => <li key={index}>{line}</li>)}</ul>
                   </div>
                 ) : <p>AI policy still needs verification against the official guidelines.</p>}
+                {selectedDestination && /^https?:\/\//i.test(selectedDestination.submission_url) && (
+                  <a href={selectedDestination.submission_url} target="_blank" rel="noreferrer">Open recipient’s submission portal</a>
+                )}
                 <p>Check the recipient’s current AI rules before sending. Review these excerpts, revise in the manuscript or submission fields, then rebuild the packet.</p>
                 <ul>
                   {Object.entries(result.authorship_review.recorded_assistance).map(([mode, count]) => (

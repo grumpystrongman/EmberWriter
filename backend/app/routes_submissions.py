@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from .submission_guidelines import extract_guidelines, fetch_html
+from .submission_guidelines import discover_guidelines, extract_guidelines, fetch_html
 from .submission_market import book_publisher_catalog, market_listings, watch_publisher
 from .submission_models import (
     SubmissionBuildRequest,
@@ -42,6 +42,17 @@ def publisher_catalog() -> list[dict]:
 class GuidelinesImport(BaseModel):
     publisher_name: str = Field(default="", max_length=200)
     url: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/submissions/discover-guidelines")
+def discover_publisher_guidelines(payload: GuidelinesImport) -> list[dict]:
+    try:
+        return discover_guidelines(payload.url)
+    except (ValueError, OSError, HTTPClientError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="The publisher website could not be searched. Open it and import the official guidelines URL.",
+        ) from exc
 
 
 @router.post("/submissions/import-guidelines")

@@ -11,11 +11,16 @@ from http.client import HTTPException
 from pathlib import Path
 
 from . import storage
-from .submission_guidelines import extract_guidelines, fetch_html
+from .submission_guidelines import discover_guidelines, extract_guidelines, fetch_html
 
 LOGGER = logging.getLogger(__name__)
 PUBLISHERS = {
     "Fenn & Fable": "https://fennandfable.com/pages/submit",
+    "Angry Robot": "https://angryrobotbooks.com/submissions/",
+    "Baen Books": "https://www.baen.com/submit",
+    "Dzanc Books": "https://www.dzancbooks.org/general-submissions",
+    "Graywolf Press": "https://books-events.graywolfpress.org/about-us/submissions",
+    "Tor Publishing Group": "https://us.macmillan.com/torpublishinggroup/about/faq/",
     "Asteria Press": "https://www.asteriapress.com/submissions-guidelines",
     "Dark Brew Press": "https://www.darkbrewpress.com/submissions",
     "New Cross Press": "https://newcrosspress.com/submissions",
@@ -49,6 +54,13 @@ def _connect() -> sqlite3.Connection:
             )
         """)
         db.execute("CREATE TABLE IF NOT EXISTS watched_publishers (url TEXT PRIMARY KEY, name TEXT NOT NULL)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS publisher_discovery (
+                publisher_id TEXT PRIMARY KEY,
+                checked_at TEXT NOT NULL,
+                candidate_count INTEGER NOT NULL
+            )
+        """)
     return db
 
 
@@ -111,11 +123,47 @@ def refresh_due_publishers() -> None:
                 )
 
 
+def discover_due_publishers(limit: int = 12) -> None:
+    """Discover candidate submission pages in bounded batches across the catalog."""
+    cutoff = (datetime.now(UTC) - timedelta(days=90)).isoformat()
+    with closing(_connect()) as db:
+        checked = {
+            row["publisher_id"] for row in db.execute(
+                "SELECT publisher_id FROM publisher_discovery WHERE checked_at >= ?", (cutoff,),
+            )
+        }
+        sources = {name.casefold() for name in _sources(db).values()}
+        due = [
+            publisher for publisher in book_publisher_catalog()
+            if publisher["website"] and publisher["wikidata_id"] not in checked
+            and publisher["name"].casefold() not in sources
+        ]
+        for publisher in due[:limit]:
+            try:
+                candidates = discover_guidelines(publisher["website"])
+            except (OSError, ValueError, HTTPException):
+                candidates = []
+            with db:
+                for candidate in candidates:
+                    url = candidate["url"]
+                    snapshot = {key: candidate[key] for key in ("text", "settings")}
+                    db.execute("INSERT OR IGNORE INTO watched_publishers VALUES (?, ?)", (url, publisher["name"]))
+                    db.execute(
+                        "INSERT OR IGNORE INTO publisher_rules VALUES (?, ?, ?, NULL, NULL)",
+                        (url, json.dumps(snapshot, sort_keys=True), storage.utc_now()),
+                    )
+                db.execute(
+                    "INSERT OR REPLACE INTO publisher_discovery VALUES (?, ?, ?)",
+                    (publisher["wikidata_id"], storage.utc_now(), len(candidates)),
+                )
+
+
 async def market_refresh_loop() -> None:
     await asyncio.sleep(20)
     while True:
         try:
             await asyncio.to_thread(refresh_due_publishers)
+            await asyncio.to_thread(discover_due_publishers)
         except sqlite3.Error:
             LOGGER.exception("Publisher directory refresh failed")
         await asyncio.sleep(60 * 60)

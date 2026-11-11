@@ -68,3 +68,45 @@ def test_book_publisher_catalog_contains_thousands_of_distinct_records():
     assert len(publishers) >= 2800
     assert len({publisher["wikidata_id"] for publisher in publishers}) == len(publishers)
     assert sum(bool(publisher["website"]) for publisher in publishers) >= 1600
+
+
+def test_discovery_reads_only_same_publisher_submission_pages(monkeypatch):
+    from app import submission_guidelines
+
+    pages = {
+        "https://publisher.example/": b"""
+            <a href="/submissions">Submissions</a>
+            <a href="https://elsewhere.example/apply">Submit your book</a>
+            <a href="/newsletter">Newsletter</a>
+        """,
+        "https://publisher.example/submissions": b"<main><p>Submit the first 10 manuscript pages.</p></main>",
+    }
+    monkeypatch.setattr(submission_guidelines, "fetch_html", pages.__getitem__)
+    results = submission_guidelines.discover_guidelines("http://publisher.example/")
+    assert [entry["url"] for entry in results] == ["https://publisher.example/submissions"]
+    assert "10 manuscript pages" in results[0]["text"]
+
+
+def test_catalog_discovery_batches_and_schedules_found_sources(tmp_path, monkeypatch):
+    from app import storage, submission_market
+
+    monkeypatch.setattr(storage, "DATA_ROOT", tmp_path)
+    monkeypatch.setattr(submission_market, "PUBLISHERS", {})
+    monkeypatch.setattr(submission_market, "book_publisher_catalog", lambda: [
+        {"wikidata_id": "Q1", "name": "First Press", "website": "https://first.example"},
+        {"wikidata_id": "Q2", "name": "Second Press", "website": "https://second.example"},
+    ])
+    seen = []
+
+    def discover(site):
+        seen.append(site)
+        return [{"url": site + "/submit", "text": "Submit your manuscript.", "settings": {}}]
+
+    monkeypatch.setattr(submission_market, "discover_guidelines", discover)
+    submission_market.discover_due_publishers(limit=1)
+    assert seen == ["https://first.example"]
+    submission_market.discover_due_publishers(limit=1)
+    assert seen == ["https://first.example", "https://second.example"]
+    assert {row["url"] for row in submission_market.market_listings()} == {
+        "https://first.example/submit", "https://second.example/submit",
+    }
