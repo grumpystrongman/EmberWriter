@@ -43,6 +43,10 @@ class SubmissionDestination(BaseModel):
     accepted_formats: list[str] = Field(default_factory=lambda: ["docx"])
     simultaneous_submissions_allowed: bool | None = None
     expected_response_days: int | None = Field(default=None, ge=1, le=730)
+    guidelines_text: str = Field(default="", max_length=24000)
+    guidelines_reviewed: bool = False
+    blind_review: bool = False
+    combine_synopsis: bool = False
     notes: str = Field(default="", max_length=12000)
 
 
@@ -101,6 +105,8 @@ class SubmissionValidationResponse(BaseModel):
     issues: list[SubmissionValidationIssue] = Field(default_factory=list)
     destination_id: str
     sample_description: str = ""
+    guideline_checklist: list[str] = Field(default_factory=list)
+    ai_policy_lines: list[str] = Field(default_factory=list)
 
 
 class SubmissionBuildRequest(BaseModel):

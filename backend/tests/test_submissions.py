@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import zipfile
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -295,3 +296,58 @@ def test_authorship_review_tracks_rendered_packet_and_preserves_privacy(tmp_path
     rewritten = build("A broken signal light draws Mara out to the empty platform.")
     assert rewritten.authorship_review["matched_events"] == 0
     assert rewritten.authorship_review["recorded_assistance"]["submission_wording"] == 1
+
+
+def test_one_manuscript_produces_three_recipient_specific_packets(tmp_path: Path) -> None:
+    slug = use_temp_data(tmp_path)
+    root = storage.project_root(slug)
+    for number in range(2, 5):
+        storage.save_text(
+            slug, f"manuscript/chapter-{number:03d}.md",
+            f"# Chapter {number}\n\nDistinct chapter marker number {number}.\n",
+        )
+    targets = [
+        destination(
+            name="Susan Schulman Literary Agency", sample_count=10, accepted_formats=[],
+            guidelines_url="https://www.schulmanagency.com/submissions",
+            guidelines_text="Query and brief synopsis in the email body.\nPaste the first ten pages.\nAI-created projects are ineligible.",
+        ),
+        destination(
+            name="Fenn & Fable", sample_kind="chapters", sample_count=3, attachment_mode="mixed",
+            accepted_formats=["docx"], combine_synopsis=True,
+            guidelines_url="https://fennandfable.com/pages/submit",
+            guidelines_text="Put a short query in the email.\nAttach a one-page synopsis and first three chapters in a single document.",
+        ),
+        destination(
+            name="Ninth Letter Literary Awards", kind="contest", sample_kind="full", sample_count=0,
+            attachment_mode="attachments", accepted_formats=["pdf"], blind_review=True,
+            query_required=False, synopsis_required=False,
+            guidelines_url="https://ninthletter.com/contestguidelines/",
+            guidelines_text="Submit an anonymous manuscript.\nAI-generated writing is ineligible.",
+        ),
+    ]
+    for index, target in enumerate(targets):
+        profile = profile_for(slug, target)
+        assert not submissions.validate_submission(slug, profile, target.id).valid
+        reviewed = target.model_copy(update={"guidelines_reviewed": True})
+        profile = profile.model_copy(update={"destinations": [reviewed]})
+        result, _ = submissions.build_submission_package(slug, profile=profile, destination_id=target.id)
+        zip_path = next(artifact.relative_path for artifact in result.artifacts if artifact.format == "zip")
+        with zipfile.ZipFile(root / zip_path) as packet:
+            assert "private-authorship-review.json" not in packet.namelist()
+            if index == 0:
+                assert result.authorship_review["ai_policy_lines"]
+                assert "SYNOPSIS" in packet.read("submission-body.txt").decode()
+                assert not any(name.endswith((".pdf", ".docx")) for name in packet.namelist())
+            elif index == 1:
+                manuscript = Document(BytesIO(packet.read("manuscript-sample.docx")))
+                content = "\n".join(paragraph.text for paragraph in manuscript.paragraphs)
+                assert profile.synopsis in content
+                assert "Distinct chapter marker number 3" in content
+                assert "Distinct chapter marker number 4" not in content
+                assert "synopsis.docx" not in packet.namelist()
+            else:
+                assert packet.namelist() == ["manuscript-sample.pdf"]
+                reader = PdfReader(BytesIO(packet.read("manuscript-sample.pdf")))
+                assert not reader.metadata.author
+                assert all(profile.author_name not in page.extract_text() for page in reader.pages)

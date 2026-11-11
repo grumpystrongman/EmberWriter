@@ -24,7 +24,7 @@ def _windows(words: list[str], size: int):
         yield tuple(words[start:start + size])
 
 
-def _rendered_text(path: Path) -> str:
+def rendered_text(path: Path) -> str:
     if path.suffix == ".pdf":
         return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
     if path.suffix == ".docx":
@@ -53,7 +53,7 @@ def submission_authorship(slug: str, paths: list[Path], fingerprints: list[dict]
     for path, fingerprint in zip(paths, fingerprints, strict=True):
         if path.suffix not in {".pdf", ".docx", ".txt"}:
             continue
-        text = _rendered_text(path)
+        text = rendered_text(path)
         tokens = list(WORD.finditer(text))
         words = [token.group().casefold() for token in tokens]
         hits: dict[str, list[tuple[int, int, dict]]] = {}
