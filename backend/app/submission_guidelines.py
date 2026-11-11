@@ -3,6 +3,7 @@ import ipaddress
 import re
 import socket
 from http.client import HTTPException, HTTPSConnection
+from time import monotonic
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
@@ -28,7 +29,7 @@ def fetch_html(url: str, redirects: int = 2) -> bytes:
         raise ValueError("Enter a public HTTPS guidelines URL.")
     host = parsed.hostname.encode("idna").decode("ascii")
     addresses = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-    ips = [address[4][0] for address in addresses]
+    ips = list(dict.fromkeys(address[4][0] for address in addresses))
     if not ips or any(not ipaddress.ip_address(ip).is_global for ip in ips):
         raise ValueError("The guidelines URL must resolve to a public address.")
 
@@ -36,7 +37,16 @@ def fetch_html(url: str, redirects: int = 2) -> bytes:
 
     # Pin the validated address while preserving TLS verification for the hostname.
     def connect_to_public_address(_address, timeout, source_address):
-        return socket.create_connection((ips[0], 443), timeout, source_address)
+        deadline = monotonic() + timeout
+        for ip in ips:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                break
+            try:
+                return socket.create_connection((ip, 443), min(remaining, 2), source_address)
+            except OSError:
+                continue
+        raise TimeoutError("Could not connect to a public address for this publisher.")
 
     connection._create_connection = connect_to_public_address
     path = parsed.path or "/"

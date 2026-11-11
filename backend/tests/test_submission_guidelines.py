@@ -110,3 +110,44 @@ def test_catalog_discovery_batches_and_schedules_found_sources(tmp_path, monkeyp
     assert {row["url"] for row in submission_market.market_listings()} == {
         "https://first.example/submit", "https://second.example/submit",
     }
+
+
+def test_public_fetch_falls_back_to_another_validated_address(monkeypatch):
+    from email.message import Message
+    from types import SimpleNamespace
+
+    from app import submission_guidelines
+
+    ips = ["2606:4700::1111", "1.1.1.1"]
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *args, **kwargs: [
+        (socket.AF_INET6, socket.SOCK_STREAM, 0, "", (ips[0], 443, 0, 0)),
+        (socket.AF_INET, socket.SOCK_STREAM, 0, "", (ips[1], 443)),
+    ])
+    attempts = []
+
+    def connect(address, timeout, source_address):
+        attempts.append(address[0])
+        if address[0] == ips[0]:
+            raise OSError("IPv6 unavailable")
+
+    headers = Message()
+    headers["Content-Type"] = "text/html"
+
+    class Connection:
+        def __init__(self, host, timeout):
+            assert host == "publisher.example"
+
+        def request(self, method, path, headers):
+            assert method == "GET" and path == "/submissions"
+            self._create_connection(("publisher.example", 443), 8, None)
+
+        def getresponse(self):
+            return SimpleNamespace(status=200, headers=headers, read=lambda _: b"<p>Rules</p>")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    monkeypatch.setattr(submission_guidelines, "HTTPSConnection", Connection)
+    assert fetch_html("https://publisher.example/submissions") == b"<p>Rules</p>"
+    assert attempts == ips
