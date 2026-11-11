@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .generation import generate
 from .models import ProviderConfig
+from .provenance_store import record_assistance_event
 from .publishing import compiled_documents
 from .reader_models import ReaderRunCreate, ReaderVerdict
 from .storage import project_root, read_text, utc_now
@@ -310,6 +311,12 @@ PATH: {document['path']}
         payload[key] = [str(item).strip() for item in value if str(item).strip()] if isinstance(value, list) else []
     for key in ("reaction", "favorite_moment", "keep_reading"):
         payload[key] = str(payload.get(key, "")).strip()
+    record_assistance_event(
+        slug, mode="editorial_feedback", active_file=document["path"],
+        prompt=user, selected_text=None, output_text=raw,
+        context_files=[document["path"]], refined=False,
+        provider=provider.provider, model=provider.model,
+    )
     note_id = uuid4().hex
     now = utc_now()
     digest = _hash(source)
@@ -400,6 +407,12 @@ CHAPTER-BY-CHAPTER READER NOTES
     for key in ("overall_reaction", "audience_fit", "genre_fit", "would_recommend"):
         payload[key] = str(payload.get(key, "")).strip()
     verdict = ReaderVerdict.model_validate(payload).model_dump()
+    record_assistance_event(
+        slug, mode="manuscript_feedback", active_file=None,
+        prompt=user, selected_text=None, output_text=raw,
+        context_files=[note["path"] for note in run["notes"]], refined=False,
+        provider=provider.provider, model=provider.model,
+    )
     now = utc_now()
     with _connect(slug) as con:
         con.execute(

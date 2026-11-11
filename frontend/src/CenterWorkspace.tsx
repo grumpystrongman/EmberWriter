@@ -95,7 +95,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
               <div><small>PUBLISH · {project.name}</small><h1>Publishing Studio</h1><p>Compile interiors, design the cover, validate release metadata, and build retailer-ready handoff packages without leaving the center workspace.</p></div>
             </header>
             <div className="center-existing-tools publish-existing-tools">
-              <PublishPanel apiBase={API} slug={project.slug} projectName={project.name} disabled={false} />
+              <PublishPanel apiBase={API} slug={project.slug} projectName={project.name} disabled={false} onOpenSource={onOpenSource} />
             </div>
           </section>
         )}
@@ -105,7 +105,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
               <div><small>SUBMIT · {project.name}</small><h1>Traditional Submission Studio</h1><p>Build and edit your query package, destination-specific requirements, samples, synopsis, pitch, bio, and submission tracker.</p></div>
             </header>
             <div className="center-existing-tools">
-              <SubmissionPanel apiBase={API} slug={project.slug} disabled={false} />
+              <SubmissionPanel apiBase={API} slug={project.slug} disabled={false} onOpenSource={onOpenSource} />
             </div>
           </section>
         )}

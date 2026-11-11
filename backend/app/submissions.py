@@ -28,6 +28,7 @@ from .distribution import load_release_profile
 from .generation import generate
 from .memory import chapter_order
 from .models import ProviderConfig
+from .provenance_store import record_assistance_event
 from .publishing import (
     _append_docx_inline,
     _clean_chapter_content,
@@ -36,6 +37,7 @@ from .publishing import (
     compiled_documents,
 )
 from .storage import _connect, project_root, utc_now
+from .submission_authorship import rendered_text, submission_authorship
 from .submission_models import (
     SubmissionBuildResponse,
     SubmissionDestination,
@@ -158,7 +160,7 @@ def validate_submission(
         add("error", "synopsis-required", f"{destination.name} requires a synopsis.")
     if destination.bio_required and not profile.bio.strip():
         add("error", "bio-required", f"{destination.name} requires an author bio.")
-    if destination.sample_kind != "none" and destination.sample_count <= 0:
+    if destination.sample_kind in {"pages", "chapters", "words"} and destination.sample_count <= 0:
         add("error", "sample-count", "The requested sample amount must be greater than zero.")
     if destination.sample_kind == "pages":
         add(
@@ -187,6 +189,27 @@ def validate_submission(
             "Save the destination's current guidelines URL. Individual agent/publisher "
             "requirements override Ember's manuscript preset.",
         )
+    guideline_lines = [
+        line.strip(" \t•") for line in destination.guidelines_text.splitlines() if line.strip()
+    ]
+    ai_policy_lines = [
+        line for line in guideline_lines
+        if re.search(r"\bAI\b|artificial intelligence|machine.generated|ChatGPT", line, re.IGNORECASE)
+    ]
+    if guideline_lines and not destination.guidelines_reviewed:
+        add("error", "guidelines-unreviewed", "Review the source checklist against the destination settings.")
+    if destination.combine_synopsis and (
+        destination.blind_review or not profile.synopsis.strip()
+        or destination.sample_kind not in {"chapters", "words", "full"}
+        or destination.attachment_mode == "body"
+        or "docx" not in {value.casefold().lstrip(".") for value in destination.accepted_formats}
+    ):
+        add("error", "combined-synopsis", "A combined synopsis needs a DOCX attachment and a chapter, word, or full sample.")
+    if destination.blind_review and (
+        destination.query_required or destination.bio_required or destination.synopsis_required
+        or destination.sample_kind == "none"
+    ):
+        add("error", "blind-materials", "For a blind packet, send identity details separately and select a manuscript sample.")
     if not destination.accepted_formats and destination.attachment_mode != "body":
         add("error", "formats-required", "Attachment submissions need at least one accepted file format.")
     unsupported = {
@@ -227,6 +250,8 @@ def validate_submission(
         issues=issues,
         destination_id=destination.id,
         sample_description=sample_description,
+        guideline_checklist=guideline_lines,
+        ai_policy_lines=ai_policy_lines,
     )
 
 
@@ -277,9 +302,15 @@ def _write_manuscript_docx(
     profile: SubmissionProfile,
     documents: list[dict],
     include_title_page: bool,
+    synopsis: str = "",
 ) -> None:
     doc = Document()
-    _configure_submission_doc(doc, profile=profile, include_header=True)
+    _configure_submission_doc(doc, profile=profile, include_header=bool(profile.author_name))
+    if synopsis:
+        doc.add_heading("Synopsis", level=1)
+        for block in re.split(r"\n\s*\n", synopsis.strip()):
+            doc.add_paragraph(block.strip())
+        doc.add_page_break()
     if include_title_page:
         contact = doc.add_paragraph()
         contact.paragraph_format.first_line_indent = Inches(0)
@@ -344,7 +375,7 @@ def _pdf_page_header(canvas, document, *, profile: SubmissionProfile) -> None:
     font = "Courier" if profile.manuscript_preset == "shunn_classic" else "Times-Roman"
     canvas.setFont(font, 9)
     surname = profile.author_name.strip().split()[-1] if profile.author_name.strip() else "AUTHOR"
-    label = f"{surname} / {_short_title(profile.title)} / {document.page}"
+    label = f"{surname} / {_short_title(profile.title)} / {document.page}" if profile.author_name else str(document.page)
     canvas.drawRightString(LETTER[0] - inch, LETTER[1] - 0.55 * inch, label)
     canvas.restoreState()
 
@@ -625,7 +656,20 @@ async def draft_submission_material(
         },
     ]
     text = await generate(provider, messages, temperature=0.45, top_p=0.9)
-    return text.strip(), document_count, used_summaries
+    text = text.strip()
+    record_assistance_event(
+        slug,
+        mode="submission_wording",
+        active_file={"query": "query-letter", "bio": "author-bio"}.get(kind, kind),
+        prompt=messages[-1]["content"],
+        selected_text=None,
+        output_text=text,
+        context_files=[],
+        refined=False,
+        provider=provider.provider,
+        model=provider.model,
+    )
+    return text, document_count, used_summaries
 
 
 def _follow_up_from_sent(
@@ -717,19 +761,24 @@ def build_submission_package(
     )
     included.append(destination_path)
 
-    if profile.query_letter.strip():
+    tailored = destination.guidelines_reviewed or destination.blind_review or destination.combine_synopsis
+    attachments = {value.casefold().lstrip(".") for value in destination.accepted_formats}
+    render_profile = profile
+    if destination.blind_review:
+        render_profile = profile.model_copy(update={"author_name": "", "email": "", "phone": "", "address": "", "website": ""})
+    if not destination.blind_review and profile.query_letter.strip() and (not tailored or destination.query_required):
         query_txt = directory / "query-letter.txt"
         query_docx = directory / "query-letter.docx"
         query_txt.write_text(profile.query_letter.strip() + "\n", encoding="utf-8")
         _document_material(query_docx, profile.query_letter, profile)
         included.extend([query_txt, query_docx])
-    if profile.synopsis.strip():
+    if not destination.blind_review and not destination.combine_synopsis and profile.synopsis.strip() and (not tailored or destination.synopsis_required):
         synopsis_txt = directory / "synopsis.txt"
         synopsis_docx = directory / "synopsis.docx"
         synopsis_txt.write_text(profile.synopsis.strip() + "\n", encoding="utf-8")
         _document_material(synopsis_docx, profile.synopsis, profile)
         included.extend([synopsis_txt, synopsis_docx])
-    if profile.bio.strip():
+    if not destination.blind_review and profile.bio.strip() and (not tailored or destination.bio_required):
         bio_txt = directory / "author-bio.txt"
         bio_txt.write_text(profile.bio.strip() + "\n", encoding="utf-8")
         included.append(bio_txt)
@@ -738,7 +787,7 @@ def build_submission_package(
     if destination.sample_kind == "pages":
         page_files, sample_text = _write_page_sample(
             directory,
-            profile=profile,
+            profile=render_profile,
             documents=documents,
             page_count=destination.sample_count,
         )
@@ -749,27 +798,53 @@ def build_submission_package(
         sample_pdf = directory / "manuscript-sample.pdf"
         _write_manuscript_docx(
             sample_docx,
-            profile=profile,
+            profile=render_profile,
             documents=sample_documents,
-            include_title_page=destination.sample_kind == "full",
+            include_title_page=(
+                destination.sample_kind == "full"
+                and not destination.blind_review and not destination.combine_synopsis
+            ),
+            synopsis=profile.synopsis if destination.combine_synopsis else "",
         )
-        _write_manuscript_pdf(sample_pdf, profile=profile, documents=sample_documents)
+        _write_manuscript_pdf(sample_pdf, profile=render_profile, documents=sample_documents)
         sample_text = "\n\n\n".join(_plain_document(item) for item in sample_documents)
         sample_txt = directory / "manuscript-sample.txt"
         sample_txt.write_text(sample_text + ("\n" if sample_text else ""), encoding="utf-8")
         included.extend([sample_docx, sample_pdf, sample_txt])
 
+    if tailored:
+        included = [
+            path for path in included
+            if path.suffix == ".json"
+            or (destination.attachment_mode != "body" and path.suffix[1:] in attachments)
+        ]
+        if destination.combine_synopsis:
+            included = [path for path in included if path.name != "manuscript-sample.pdf"]
     if destination.attachment_mode in {"body", "mixed"}:
         body_parts = []
-        if destination.query_required and profile.query_letter.strip():
+        if not destination.blind_review and destination.query_required and profile.query_letter.strip():
             body_parts.append(profile.query_letter.strip())
-        if destination.synopsis_required and profile.synopsis.strip():
+        if not destination.blind_review and not destination.combine_synopsis and destination.synopsis_required and profile.synopsis.strip():
             body_parts.append("SYNOPSIS\n\n" + profile.synopsis.strip())
-        if sample_text.strip():
+        if not destination.blind_review and destination.bio_required and profile.bio.strip():
+            body_parts.append("AUTHOR BIO\n\n" + profile.bio.strip())
+        if not destination.combine_synopsis and sample_text.strip():
             body_parts.append(sample_text.strip())
         email_body = directory / "submission-body.txt"
         email_body.write_text("\n\n---\n\n".join(body_parts) + "\n", encoding="utf-8")
         included.append(email_body)
+
+    if destination.blind_review:
+        included = [path for path in included if path.suffix != ".json"]
+        identifiers = [
+            re.sub(r"\s+", " ", value.strip().casefold())
+            for value in (profile.author_name, profile.email, profile.phone, profile.address, profile.website)
+            if len(value.strip()) >= 4
+        ]
+        for path in included:
+            content = re.sub(r"\s+", " ", rendered_text(path).casefold())
+            if any(re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", content) for value in identifiers):
+                raise ValueError(f"Possible author identification in {path.name}. Review the sample for blind submission.")
 
     manifest_entries = []
     for path in included:
@@ -780,12 +855,23 @@ def build_submission_package(
                 "sha256": _hash(path),
             }
         )
+    audit = {
+        "package_id": package_id,
+        "guidelines_url": destination.guidelines_url,
+        "ai_policy_lines": validation.ai_policy_lines,
+        **submission_authorship(slug, included, manifest_entries),
+    }
+    audit_path = directory / "private-authorship-review.json"
+    audit_path.write_text(
+        json.dumps(audit, indent=2, ensure_ascii=False) + "\n", encoding="utf-8",
+    )
+
     manifest = {
         "schema_version": 1,
         "package_id": package_id,
         "generated_at": datetime.now(UTC).isoformat(),
         "rules_reviewed": RULES_REVIEWED,
-        "destination": destination.model_dump(),
+        "destination": destination.model_dump(exclude={"guidelines_text"}),
         "manuscript_preset": profile.manuscript_preset,
         "preset_reference": SHUNN_FORMAT_URL,
         "files": manifest_entries,
@@ -822,7 +908,8 @@ def build_submission_package(
         compresslevel=9,
     ) as archive:
         for path in included:
-            archive.write(path, path.name)
+            if not destination.blind_review or path.name.startswith(("manuscript-sample.", "sample-first-", "submission-body.")):
+                archive.write(path, path.name)
 
     now = utc_now()
     record = SubmissionRecord(
@@ -830,6 +917,7 @@ def build_submission_package(
         destination_id=destination.id,
         status="ready",
         package_id=package_id,
+        authorship_review_path=audit_path.relative_to(root).as_posix(),
         follow_up_on="",
         created_at=now,
         updated_at=now,
@@ -867,5 +955,7 @@ def build_submission_package(
         validation=validation,
         artifacts=artifacts,
         included_files=[path.name for path in included],
+        authorship_review=audit,
+        authorship_review_path=audit_path.relative_to(root).as_posix(),
     )
     return response, updated_profile

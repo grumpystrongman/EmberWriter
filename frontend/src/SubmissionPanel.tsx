@@ -18,6 +18,10 @@ type Destination = {
   email: string
   submission_url: string
   guidelines_url: string
+  guidelines_text?: string
+  guidelines_reviewed?: boolean
+  blind_review?: boolean
+  combine_synopsis?: boolean
   method: SubmissionMethod
   query_required: boolean
   synopsis_required: boolean
@@ -36,6 +40,7 @@ type SubmissionRecord = {
   destination_id: string
   status: SubmissionStatus
   package_id: string
+  authorship_review_path?: string
   submitted_at: string
   follow_up_on: string
   response_at: string
@@ -77,6 +82,8 @@ type Validation = {
   issues: ValidationIssue[]
   destination_id: string
   sample_description: string
+  guideline_checklist: string[]
+  ai_policy_lines: string[]
 }
 
 type PackageArtifact = {
@@ -86,11 +93,23 @@ type PackageArtifact = {
   bytes: number
 }
 
+type AuthorshipReview = {
+  coverage: string
+  ai_policy_lines?: string[]
+  matched_events: number
+  legacy_events_without_wording: number
+  recorded_assistance: Record<string, number>
+  excerpts: { file: string; source: string | null; mode: string; event_id: string; excerpt: string; original_excerpt: string }[]
+  excerpts_omitted: number
+}
+
 type BuildResult = {
   package_id: string
   validation: Validation
   artifacts: PackageArtifact[]
   included_files: string[]
+  authorship_review?: AuthorshipReview
+  authorship_review_path?: string
   profile: SubmissionProfile | null
 }
 
@@ -105,6 +124,7 @@ type Props = {
   apiBase: string
   slug: string
   disabled: boolean
+  onOpenSource?: (path: string, anchor?: string) => void
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -151,6 +171,37 @@ function newDestination(): Destination {
   }
 }
 
+const marketListings: { name: string; settings: Partial<Destination> }[] = [
+  {
+    name: 'Susan Schulman Literary Agency',
+    settings: {
+      guidelines_url: 'https://www.schulmanagency.com/submissions',
+      guidelines_text: 'Address your query to the individual agent.\nPaste a brief synopsis and the first ten pages below the query.\nThe agency excludes projects created wholly or partly using AI.',
+      synopsis_required: true, sample_count: 10, accepted_formats: [],
+    },
+  },
+  {
+    name: 'Fenn & Fable',
+    settings: {
+      kind: 'publisher', email: 'submissions@fennandfable.com',
+      guidelines_url: 'https://fennandfable.com/pages/submit',
+      guidelines_text: 'Check the open submission window.\nSend a short query.\nInclude a one-page synopsis and the opening three chapters in a single Word or PDF file.',
+      synopsis_required: true, sample_kind: 'chapters', sample_count: 3,
+      attachment_mode: 'mixed', combine_synopsis: true,
+    },
+  },
+  {
+    name: 'Ninth Letter Literary Awards',
+    settings: {
+      kind: 'contest', method: 'web_form',
+      guidelines_url: 'https://ninthletter.com/contestguidelines/',
+      guidelines_text: 'Check the active contest window, category, and entry fee.\nSubmit a single prose piece of at most 8,000 words for the standard prose entry.\nRemove identifying information from the manuscript.\nPreviously published and AI-generated writing are ineligible.',
+      query_required: false, sample_kind: 'full', attachment_mode: 'attachments',
+      accepted_formats: ['pdf'], blind_review: true,
+    },
+  },
+]
+
 function providerFromStorage(): Provider | null {
   try {
     const raw = localStorage.getItem('emberwriter.provider')
@@ -162,7 +213,7 @@ function providerFromStorage(): Provider | null {
   }
 }
 
-export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
+export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource }: Props) {
   const [profile, setProfile] = useState<SubmissionProfile | null>(null)
   const [selectedDestinationId, setSelectedDestinationId] = useState('')
   const [validation, setValidation] = useState<Validation | null>(null)
@@ -214,15 +265,15 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
     setProfile({
       ...profile,
       destinations: profile.destinations.map((item) =>
-        item.id === selectedDestination.id ? { ...item, ...patch } : item,
+        item.id === selectedDestination.id ? { ...item, guidelines_reviewed: false, ...patch } : item,
       ),
     })
     setResult(null)
   }
 
-  function addDestination() {
+  function addDestination(listing?: typeof marketListings[number]) {
     if (!profile) return
-    const next = newDestination()
+    const next = listing ? { ...newDestination(), ...listing.settings, name: listing.name } : newDestination()
     setProfile({ ...profile, destinations: [...profile.destinations, next] })
     setSelectedDestinationId(next.id)
     setResult(null)
@@ -370,9 +421,20 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
             <option value="">Choose an agent / publisher…</option>
             {profile.destinations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <button type="button" onClick={addDestination} disabled={disabled || busy}>+ Target</button>
+          <button type="button" onClick={() => addDestination()} disabled={disabled || busy}>+ Target</button>
           {selectedDestination && <button type="button" onClick={removeDestination} disabled={disabled || busy}>Remove</button>}
         </div>
+
+        <details className="submission-history">
+          <summary>Market Directory · starter listings</summary>
+          <p>Start with a recipient’s published requirements. Check the official page for current eligibility and dates.</p>
+          {marketListings.map((listing) => (
+            <article key={listing.name}>
+              <a href={listing.settings.guidelines_url} target="_blank" rel="noreferrer">{listing.name}</a>
+              <button type="button" onClick={() => addDestination(listing)} disabled={disabled || busy}>Use listing</button>
+            </article>
+          ))}
+        </details>
 
         {selectedDestination && (
           <section className="submission-target-card">
@@ -396,6 +458,20 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
               <label><input type="checkbox" checked={selectedDestination.synopsis_required} onChange={(event) => updateDestination({ synopsis_required: event.target.checked })} disabled={disabled || busy} /> Synopsis required</label>
               <label><input type="checkbox" checked={selectedDestination.bio_required} onChange={(event) => updateDestination({ bio_required: event.target.checked })} disabled={disabled || busy} /> Bio required</label>
             </div>
+            <label className="submission-notes">Official requirements<textarea rows={5} maxLength={24000} value={selectedDestination.guidelines_text ?? ''} onChange={(event) => updateDestination({ guidelines_text: event.target.value })} placeholder="Paste the requirements for your category from the official page, one item per line." disabled={disabled || busy} /></label>
+            {/^https?:\/\//i.test(selectedDestination.guidelines_url) && (
+              <a href={selectedDestination.guidelines_url} target="_blank" rel="noreferrer">Open official submission guidelines</a>
+            )}
+            <div className="submission-requirements">
+              <label><input type="checkbox" checked={selectedDestination.blind_review ?? false} onChange={(event) => updateDestination({ blind_review: event.target.checked })} disabled={disabled || busy} /> Blind manuscript only</label>
+              <label><input type="checkbox" checked={selectedDestination.combine_synopsis ?? false} onChange={(event) => updateDestination({ combine_synopsis: event.target.checked })} disabled={disabled || busy} /> Combine synopsis and sample in one Word attachment</label>
+            </div>
+            {Boolean(selectedDestination.guidelines_text?.trim()) && (
+              <div className="submission-requirements">
+                <ul>{validation?.guideline_checklist?.map((line, index) => <li key={index}>{line}</li>)}</ul>
+                <label><input type="checkbox" checked={selectedDestination.guidelines_reviewed ?? false} onChange={(event) => updateDestination({ guidelines_reviewed: event.target.checked })} disabled={disabled || busy} /> I checked these requirements against the packet settings</label>
+              </div>
+            )}
             <label className="submission-notes">Guideline notes<textarea rows={5} value={selectedDestination.notes} onChange={(event) => updateDestination({ notes: event.target.value })} placeholder="Exact subject line, pasted pages, no attachments, one agent at a time, response window…" disabled={disabled || busy} /></label>
           </section>
         )}
@@ -415,7 +491,46 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
 
         {result && (
           <div className="publish-result submission-result">
-            <strong>Package {result.package_id} ready</strong>
+            <strong>Package {result.package_id} built</strong>
+            {result.authorship_review && (
+              <details className="submission-history" open>
+                <summary>Private authorship review ({result.authorship_review.matched_events} matched AI events)</summary>
+                <p>{result.authorship_review.coverage}</p>
+                {result.authorship_review.ai_policy_lines?.length ? (
+                  <div><strong>Recipient AI policy from the supplied guidelines</strong>
+                    <ul>{result.authorship_review.ai_policy_lines.map((line, index) => <li key={index}>{line}</li>)}</ul>
+                  </div>
+                ) : <p>AI policy still needs verification against the official guidelines.</p>}
+                <p>Check the recipient’s current AI rules before sending. Review these excerpts, revise in the manuscript or submission fields, then rebuild the packet.</p>
+                <ul>
+                  {Object.entries(result.authorship_review.recorded_assistance).map(([mode, count]) => (
+                    <li key={mode}>{mode.replaceAll('_', ' ')} · {count} recorded</li>
+                  ))}
+                </ul>
+                {result.authorship_review.legacy_events_without_wording > 0 && (
+                  <p>{result.authorship_review.legacy_events_without_wording} older writing events lack text evidence.</p>
+                )}
+                {result.authorship_review.excerpts.map((item, index) => (
+                  <article key={`${item.file}-${item.event_id}-${index}`}>
+                    <div>
+                      <strong>{item.file}</strong>
+                      <small>{item.source || item.mode.replaceAll('_', ' ')}</small>
+                      <p>{item.excerpt}</p>
+                      {onOpenSource && item.source?.startsWith('manuscript/') && (
+                        <button type="button" disabled={disabled || busy} onClick={() => onOpenSource(item.source!, item.excerpt)}>Open manuscript source</button>
+                      )}
+                      {item.original_excerpt && <details><summary>Source text supplied for this suggestion</summary><p>{item.original_excerpt}</p></details>}
+                    </div>
+                  </article>
+                ))}
+                {result.authorship_review.excerpts_omitted > 0 && (
+                  <p>{result.authorship_review.excerpts_omitted} additional file passages beyond the review display limit.</p>
+                )}
+                {result.authorship_review_path && (
+                  <a href={`${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(result.authorship_review_path)}`} download="private-authorship-review.json">Download private review and file fingerprints</a>
+                )}
+              </details>
+            )}
             {result.artifacts.map((artifact) => {
               const url = `${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(artifact.relative_path)}`
               return <a key={artifact.relative_path} href={url} download={artifact.filename}>Download {artifact.filename} <small>{humanBytes(artifact.bytes)}</small></a>
@@ -428,7 +543,12 @@ export default function SubmissionPanel({ apiBase, slug, disabled }: Props) {
             <summary>Submission history ({destinationRecords.length})</summary>
             {destinationRecords.slice().reverse().map((record) => (
               <article key={record.id}>
-                <div><strong>{record.status.replaceAll('_', ' ')}</strong><small>{record.package_id}</small></div>
+                <div>
+                  <strong>{record.status.replaceAll('_', ' ')}</strong><small>{record.package_id}</small>
+                  {record.authorship_review_path && (
+                    <a href={`${apiBase}/projects/${slug}/exports/download?path=${encodeURIComponent(record.authorship_review_path)}`} download="private-authorship-review.json">Private authorship review</a>
+                  )}
+                </div>
                 <select value={record.status} onChange={(event) => void updateRecord(record, { status: event.target.value as SubmissionStatus })} disabled={disabled || busy}>
                   {(['ready', 'sent', 'partial_requested', 'full_requested', 'revision_requested', 'offer', 'pass', 'withdrawn'] as SubmissionStatus[]).map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}
                 </select>

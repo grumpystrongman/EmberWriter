@@ -43,6 +43,10 @@ class SubmissionDestination(BaseModel):
     accepted_formats: list[str] = Field(default_factory=lambda: ["docx"])
     simultaneous_submissions_allowed: bool | None = None
     expected_response_days: int | None = Field(default=None, ge=1, le=730)
+    guidelines_text: str = Field(default="", max_length=24000)
+    guidelines_reviewed: bool = False
+    blind_review: bool = False
+    combine_synopsis: bool = False
     notes: str = Field(default="", max_length=12000)
 
 
@@ -51,6 +55,7 @@ class SubmissionRecord(BaseModel):
     destination_id: str
     status: SubmissionStatus = "draft"
     package_id: str = ""
+    authorship_review_path: str = ""
     submitted_at: str = ""
     follow_up_on: str = ""
     response_at: str = ""
@@ -100,6 +105,8 @@ class SubmissionValidationResponse(BaseModel):
     issues: list[SubmissionValidationIssue] = Field(default_factory=list)
     destination_id: str
     sample_description: str = ""
+    guideline_checklist: list[str] = Field(default_factory=list)
+    ai_policy_lines: list[str] = Field(default_factory=list)
 
 
 class SubmissionBuildRequest(BaseModel):
@@ -120,6 +127,8 @@ class SubmissionBuildResponse(BaseModel):
     artifacts: list[SubmissionPackageArtifact] = Field(default_factory=list)
     included_files: list[str] = Field(default_factory=list)
     profile: SubmissionProfile | None = None
+    authorship_review: dict = Field(default_factory=dict)
+    authorship_review_path: str = ""
 
 
 class SubmissionMaterialDraftRequest(BaseModel):

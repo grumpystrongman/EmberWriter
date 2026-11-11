@@ -40,6 +40,7 @@ type Props = {
   slug: string
   projectName: string
   disabled: boolean
+  onOpenSource?: (path: string, anchor?: string) => void
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -54,7 +55,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export default function PublishPanel({ apiBase, slug, projectName, disabled }: Props) {
+export default function PublishPanel({ apiBase, slug, projectName, disabled, onOpenSource }: Props) {
   const [stage, setStage] = useState<PublishStage>('readiness')
   const navRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
@@ -251,7 +252,7 @@ export default function PublishPanel({ apiBase, slug, projectName, disabled }: P
           {error && <small className="panel-error">{error}</small>}
         </div>
       </details>)}
-        {stage === 'distribution' && <SubmissionPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} />}
+        {stage === 'distribution' && <SubmissionPanel apiBase={apiBase} slug={slug} disabled={disabled || busy} onOpenSource={onOpenSource} />}
         {stage === 'distribution' && <DistributionPanel apiBase={apiBase} slug={slug} projectName={projectName} disabled={disabled || busy} />}
       </div>
     </section>

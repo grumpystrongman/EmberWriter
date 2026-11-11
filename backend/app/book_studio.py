@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from .binder import sync_binder
 from .generation import generate, generate_complete_prose
 from .models import ProviderConfig
+from .provenance_store import record_assistance_event
 from .storage import get_project, project_root, read_text, save_text
 
 MAX_CHAPTERS = 80
@@ -323,6 +324,12 @@ async def draft_next(slug: str, config: ProviderConfig) -> dict:
             if words < state["target_words"] * .6:
                 raise ValueError(f"Generated only {words} words; chapter is too short for the requested target")
             result = f"# {chapter['title']}\n\n{prose.strip()}\n"
+            record_assistance_event(
+                slug, mode="write",
+                active_file=f"manuscript/book-studio/chapter-{index + 1:03d}.md",
+                prompt=prompt, selected_text=None, output_text=prose.strip(),
+                context_files=[], refined=False, provider=config.provider, model=config.model,
+            )
             file = _output(slug, index + 1)
             file.parent.mkdir(parents=True, exist_ok=True)
             tmp = file.with_suffix(".md.tmp")

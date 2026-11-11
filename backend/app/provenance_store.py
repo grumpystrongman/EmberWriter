@@ -58,6 +58,15 @@ def connect(slug: str) -> sqlite3.Connection:
         """
     )
     con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS writing_assistance_wording (
+            event_id TEXT PRIMARY KEY REFERENCES writing_assistance_events(id),
+            output_text TEXT NOT NULL,
+            original_text TEXT
+        )
+        """
+    )
+    con.execute(
         "CREATE INDEX IF NOT EXISTS idx_writing_assistance_created "
         "ON writing_assistance_events(created_at DESC)"
     )
@@ -115,7 +124,25 @@ def record_assistance_event(
                 int(event["refined"]), event["provider"], event["model"],
             ),
         )
+        if mode in {"write", "continue", "rewrite", "editorial_wording", "submission_wording"}:
+            con.execute(
+                "INSERT INTO writing_assistance_wording VALUES (?, ?, ?)",
+                (event["id"], output_text, selected_text),
+            )
     return event
+
+
+def authorship_evidence(slug: str) -> list[dict[str, Any]]:
+    with connect(slug) as con:
+        rows = con.execute(
+            "SELECT e.id, e.created_at, e.mode, e.active_file, e.model, d.decision, "
+            "w.output_text, w.original_text "
+            "FROM writing_assistance_events e "
+            "LEFT JOIN writing_assistance_wording w ON w.event_id = e.id "
+            "LEFT JOIN writing_assistance_decisions d ON d.assistance_event_id = e.id "
+            "ORDER BY e.created_at, e.id"
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def record_assistance_decision(
