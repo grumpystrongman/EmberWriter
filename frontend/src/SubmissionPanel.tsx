@@ -93,6 +93,15 @@ type PackageArtifact = {
   bytes: number
 }
 
+type PublisherListing = {
+  name: string
+  url: string
+  checked_at: string | null
+  changed_at: string | null
+  error: string | null
+  guidelines: { text: string; settings: Partial<Destination> } | null
+}
+
 type AuthorshipReview = {
   coverage: string
   ai_policy_lines?: string[]
@@ -221,6 +230,17 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
   const [busy, setBusy] = useState(false)
   const [drafting, setDrafting] = useState<DraftKind | ''>('')
   const [draftEvidence, setDraftEvidence] = useState('')
+  const [publishers, setPublishers] = useState<PublisherListing[]>([])
+  const [marketSearch, setMarketSearch] = useState('')
+  const [marketError, setMarketError] = useState('')
+  useEffect(() => {
+    void request<PublisherListing[]>(`${apiBase}/submissions/market`)
+      .then(setPublishers)
+      .catch(() => setMarketError('The publisher directory could not be loaded.'))
+  }, [apiBase])
+  const [guidelinesImport, setGuidelinesImport] = useState<{
+    text: string; settings: Partial<Destination>; destinationId: string; url: string
+  } | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -269,6 +289,25 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
       ),
     })
     setResult(null)
+  }
+
+  async function importGuidelines() {
+    if (!selectedDestination?.guidelines_url.trim()) return
+    setBusy(true)
+    setError('')
+    setGuidelinesImport(null)
+    try {
+      const result = await request<{ text: string; settings: Partial<Destination> }>(
+        `${apiBase}/submissions/import-guidelines`, {
+          method: 'POST', body: JSON.stringify({ url: selectedDestination.guidelines_url.trim() }),
+        },
+      )
+      setGuidelinesImport({ ...result, destinationId: selectedDestination.id, url: selectedDestination.guidelines_url })
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function addDestination(listing?: typeof marketListings[number]) {
@@ -426,9 +465,27 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
         </div>
 
         <details className="submission-history">
-          <summary>Market Directory · starter listings</summary>
+          <summary>Market Directory</summary>
+          <label>Search publishers or requirements<input type="search" value={marketSearch} onChange={(event) => setMarketSearch(event.target.value)} /></label>
+          {marketError && <p role="status">{marketError}</p>}
+          {publishers.filter((item) => `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
+            <article key={item.url}>
+              <div>
+                <a href={item.url} target="_blank" rel="noreferrer">{item.name} · official submission page</a>
+                {item.checked_at && <small>Last checked {new Date(item.checked_at).toLocaleDateString()}</small>}
+                {item.changed_at && <small>Rules changed {new Date(item.changed_at).toLocaleDateString()}</small>}
+                {item.error && <small>{item.error}</small>}
+              </div>
+              <button type="button" disabled={disabled || busy} onClick={() => addDestination({
+                name: item.name, settings: {
+                  kind: 'publisher', guidelines_url: item.url,
+                  guidelines_text: item.guidelines?.text ?? '', ...item.guidelines?.settings,
+                },
+              })}>Prepare submission</button>
+            </article>
+          ))}
           <p>Start with a recipient’s published requirements. Check the official page for current eligibility and dates.</p>
-          {marketListings.map((listing) => (
+          {marketListings.filter((listing) => !publishers.some((publisher) => publisher.name === listing.name) && listing.name.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((listing) => (
             <article key={listing.name}>
               <a href={listing.settings.guidelines_url} target="_blank" rel="noreferrer">{listing.name}</a>
               <button type="button" onClick={() => addDestination(listing)} disabled={disabled || busy}>Use listing</button>
@@ -458,6 +515,31 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
               <label><input type="checkbox" checked={selectedDestination.synopsis_required} onChange={(event) => updateDestination({ synopsis_required: event.target.checked })} disabled={disabled || busy} /> Synopsis required</label>
               <label><input type="checkbox" checked={selectedDestination.bio_required} onChange={(event) => updateDestination({ bio_required: event.target.checked })} disabled={disabled || busy} /> Bio required</label>
             </div>
+            {publishers.some((item) => item.url === selectedDestination.guidelines_url && item.guidelines && item.guidelines.text !== selectedDestination.guidelines_text) && (
+              <button type="button" disabled={disabled || busy} onClick={() => {
+                const cached = publishers.find((item) => item.url === selectedDestination.guidelines_url)?.guidelines
+                if (cached) setGuidelinesImport({ ...cached, destinationId: selectedDestination.id, url: selectedDestination.guidelines_url })
+              }}>Review latest directory rules</button>
+            )}
+            <button type="button" disabled={disabled || busy || !selectedDestination.guidelines_url.trim()} onClick={() => void importGuidelines()}>
+              Import guidelines from URL
+            </button>
+            {guidelinesImport && guidelinesImport.destinationId === selectedDestination.id && guidelinesImport.url === selectedDestination.guidelines_url && (
+              <section aria-label="Imported guidelines preview">
+                <label>Source excerpts<textarea readOnly rows={8} value={guidelinesImport.text} /></label>
+                {guidelinesImport.settings.sample_count && <p>Suggested sample: first {guidelinesImport.settings.sample_count} {guidelinesImport.settings.sample_kind}. Verify the applicable category and any exceptions.</p>}
+                <button type="button" disabled={disabled || busy} onClick={() => {
+                  updateDestination({ guidelines_text: guidelinesImport.text })
+                  setGuidelinesImport(null)
+                }}>Use excerpts</button>
+                {guidelinesImport.settings.sample_count && (
+                  <button type="button" disabled={disabled || busy} onClick={() => {
+                    updateDestination({ guidelines_text: guidelinesImport.text, ...guidelinesImport.settings })
+                    setGuidelinesImport(null)
+                  }}>Use excerpts and sample setting</button>
+                )}
+              </section>
+            )}
             <label className="submission-notes">Official requirements<textarea rows={5} maxLength={24000} value={selectedDestination.guidelines_text ?? ''} onChange={(event) => updateDestination({ guidelines_text: event.target.value })} placeholder="Paste the requirements for your category from the official page, one item per line." disabled={disabled || busy} /></label>
             {/^https?:\/\//i.test(selectedDestination.guidelines_url) && (
               <a href={selectedDestination.guidelines_url} target="_blank" rel="noreferrer">Open official submission guidelines</a>

@@ -95,6 +95,7 @@ from .storage import (
     save_text,
     search_story,
 )
+from .submission_market import market_refresh_loop
 
 MAX_PROJECT_RESTORE_FILE_BYTES = 250 * 1024 * 1024
 MAX_PROJECT_RESTORE_TOTAL_BYTES = 1024 * 1024 * 1024
@@ -146,6 +147,7 @@ async def lifespan(_: FastAPI):
     refresh_task = asyncio.create_task(
         knowledge_refresh_loop(), name="ember-knowledge-refresh"
     )
+    market_task = asyncio.create_task(market_refresh_loop(), name="ember-market-refresh")
     try:
         yield
     finally:
@@ -153,6 +155,9 @@ async def lifespan(_: FastAPI):
         await stop_m4b_on_shutdown()
         await stop_audio_on_shutdown()
         await stop_on_shutdown()
+        market_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await market_task
         refresh_task.cancel()
         recovery_task.cancel()
         with suppress(asyncio.CancelledError):

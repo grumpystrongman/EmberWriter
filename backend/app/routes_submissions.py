@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from http.client import HTTPException as HTTPClientError
+
 import httpx
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
+from .submission_guidelines import extract_guidelines, fetch_html
+from .submission_market import market_listings
 from .submission_models import (
     SubmissionBuildRequest,
     SubmissionBuildResponse,
@@ -22,6 +27,27 @@ from .submissions import (
 )
 
 router = APIRouter(prefix="/api")
+
+
+@router.get("/submissions/market")
+def get_market() -> list[dict]:
+    return market_listings()
+
+
+class GuidelinesImport(BaseModel):
+    url: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/submissions/import-guidelines")
+def import_guidelines(payload: GuidelinesImport) -> dict:
+    try:
+        return extract_guidelines(fetch_html(payload.url))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OSError, HTTPClientError) as exc:
+        raise HTTPException(
+            status_code=400, detail="The guidelines page could not be reached. Paste its requirements manually.",
+        ) from exc
 
 
 @router.get("/projects/{slug}/submissions/profile", response_model=SubmissionProfile)
