@@ -8,6 +8,7 @@ import VoiceprintLab from './VoiceprintLab'
 import StyleBible from './StyleBible'
 import ProseEditor from './ProseEditor'
 import EditorialBoard from './EditorialBoard'
+import DevelopmentalStudio from './DevelopmentalStudio'
 import ProductionConductor from './ProductionConductor'
 import DevelopmentWorkspace from './DevelopmentWorkspace'
 import PlanWorkspace from './PlanWorkspace'
@@ -21,7 +22,7 @@ type Props = {
 type PlanHubTab =
   | 'production_conductor' | 'book_studio'
   | 'timeline' | 'story_map' | 'manuscript_intelligence' | 'story_arcs'
-  | 'editorial_board' | 'prose_editor' | 'style_bible' | 'voiceprint'
+  | 'editorial_board' | 'developmental_studio' | 'prose_editor' | 'style_bible' | 'voiceprint'
   | 'autopilot'
 type Group = 'produce' | 'develop' | 'edit' | 'advanced'
 type Tool = { id: PlanHubTab; name: string; detail: string }
@@ -50,6 +51,7 @@ export const PLANNING_GROUPS: GroupSpec[] = [
     id: 'edit', label: 'Edit & review',
     description: 'Prioritize issues across the manuscript and retain every deliberate writing decision.',
     tools: [
+      { id: 'developmental_studio', name: 'Developmental studio', detail: 'Visual manuscript health, arc atlas, and selective revision workbench' },
       { id: 'editorial_board', name: 'Editorial overview', detail: 'Find outstanding work across all chapters' },
       { id: 'prose_editor', name: 'Prose editor', detail: 'Review specific grammar and style suggestions' },
       { id: 'style_bible', name: 'Style Bible', detail: 'Preferred spellings and invented terminology' },
@@ -112,6 +114,9 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
         return <StyleBible apiBase={apiBase} projectSlug={project.slug} initialPath={editorialTarget} onOpenSource={onOpenSource} />
       case 'prose_editor':
         return <ProseEditor apiBase={apiBase} projectSlug={project.slug} initialPath={editorialTarget} onOpenSource={onOpenSource} />
+      case 'developmental_studio':
+        return <DevelopmentalStudio apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource}
+          onOpenEditorTool={(tool,path)=>{setEditorialTarget(path);selectTool(tool)}} />
       case 'editorial_board':
         return <EditorialBoard apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource} onNavigate={navigateEditorial} />
       case 'autopilot':

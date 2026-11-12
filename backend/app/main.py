@@ -50,6 +50,7 @@ from .routes_companion import router as companion_router
 from .routes_cover import router as cover_router
 from .routes_craft import router as craft_router
 from .routes_development import router as development_router
+from .routes_developmental_editor import router as developmental_editor_router
 from .routes_distribution import router as distribution_router
 from .routes_editorial import router as editorial_router
 from .routes_editorial_board import router as editorial_board_router
@@ -194,6 +195,7 @@ app.include_router(book_jobs_router)
 app.include_router(book_reviews_router)
 app.include_router(book_revisions_router)
 app.include_router(manuscript_intelligence_router)
+app.include_router(developmental_editor_router)
 app.include_router(story_arcs_router)
 app.include_router(production_preflight_router)
 app.include_router(voiceprint_router)
