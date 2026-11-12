@@ -12,7 +12,7 @@ The application should feel like a professional creative studio, **not a workflo
 - Plot thread/promise-payoff graph with manuscript anchors.
 - Non-negotiable engineering: provenance, race-safe data fetching, deliberate privacy boundaries, keyboard use, screen-reader names, 390/900/1440 viewport checks, reduced motion and large-series load tests.
 
-**Current PR scope:** A working front-end slice of the Observatory based on existing Series Vault APIs. It does not yet implement automatic whole-manuscript fact extraction, psychology evolution, plot graph or model benchmark runner. Those remain Part 1 follow-on tasks.
+**Current PR scope (review build):** The Observatory now provides five interactive lenses (Universe, Character Minds, Plot Threads, Story History, Model Lab) backed by a unified read-only series-state API and explicitly approved manuscript evidence. A synthetic-only local model benchmark runner, progress, results, browser screenshots and 23 focused backend tests have been implemented. This is not full production acceptance: live Ollama evaluation timed out, automatic whole-book fact extraction and manuscript-to-canon reconciliation remain unimplemented, and accessibility/large-series stress gates remain unverified. See `docs/PART1_IMPLEMENTATION_REVIEW.md` for actual screenshots, test results and remaining work.
 
 **Definition of done for Part 1:**
 1. Import a synthetic multi-volume series and navigate its universe visually with no duplicate data entry.
