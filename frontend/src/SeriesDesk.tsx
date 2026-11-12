@@ -396,9 +396,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         <button type="button" className={view === 'ember' ? 'active' : ''} onClick={() => setView('ember')}>06 · Ask Ember</button>
       </nav>
       {view === 'observatory' && <StoryObservatory
-        key={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
+        key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
         busy={busy} onReview={(factId, decision) => void reviewFact(factId, decision)}
-        onOpenCanon={() => setView('canon')} />}
+        onOpenCanon={() => setView('canon')} onOpenVault={() => setView('vault')}
+        onInspectSource={id => { setSourceId(id); setView('canon') }} />}
       {(view === 'guardian' || view === 'consequences' || view === 'ember') &&
         <SeriesProfessionalTools mode={view} seriesId={series.id}
           volumes={series.volumes || []} entities={entities}
