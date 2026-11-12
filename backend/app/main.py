@@ -61,6 +61,7 @@ from .routes_manuscript_intelligence import router as manuscript_intelligence_ro
 from .routes_media import router as media_router
 from .routes_memory import router as memory_router
 from .routes_preview import router as preview_router
+from .routes_publishing_desk import router as publishing_desk_router
 from .routes_production_conductor import router as production_conductor_router
 from .routes_production_preflight import router as production_preflight_router
 from .routes_prose_editor import router as prose_editor_router
@@ -228,6 +229,7 @@ app.include_router(media_router)
 app.include_router(sd_router)
 app.include_router(development_router)
 app.include_router(preview_router)
+app.include_router(publishing_desk_router)
 app.include_router(provenance_router)
 
 
