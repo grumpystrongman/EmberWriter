@@ -1,6 +1,8 @@
 """Deterministic, no-model-cost synthetic writing benchmark tests."""
 import pytest
+
 from app.story_generation_eval import SCENARIOS, inspect_text, run_benchmark
+
 
 def test_repetition_named_entities_and_forbidden_truth_are_reported():
     scene=SCENARIOS[0]
@@ -29,7 +31,9 @@ async def test_remote_model_endpoint_is_prohibited_before_network():
 
 def test_model_benchmark_job_is_explicit_and_local(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
-    from app import storage, series_vault, story_benchmark_jobs as jobs
+
+    from app import series_vault, storage
+    from app import story_benchmark_jobs as jobs
     from app.main import app
     monkeypatch.setattr(storage, "PROJECTS_ROOT", tmp_path / "projects")
     series = series_vault.create_series("Benchmark Test Fiction")

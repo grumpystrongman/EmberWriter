@@ -19,7 +19,8 @@ PSYCHOLOGY = {
     "identity": {"identity", "role", "believes", "values", "vulnerability"},
 }
 THREAD_START = {"foreshadows", "setup_for", "promises", "introduces_thread", "plants", "mystery"}
-THREAD_PAYOFF = {"pays_off", "resolves", "reveals", "fulfills", "answers"}
+THREAD_PAYOFF = {"pays_off", "resolves", "fulfills", "answers"}
+THREAD_SIGNAL = {"reveals", "discovers"}
 RELATIONSHIPS = {
     "trusts", "distrusts", "loves", "fears", "protects", "betrays",
     "allied_with", "rivals", "bonded_to", "related_to", "works_with",
@@ -32,11 +33,7 @@ def _applies(fact: dict, book: int, sequence: int) -> bool:
         return False
     if (fact["start_book"], fact["start_sequence"]) > (book, sequence):
         return False
-    if fact["end_book"] is not None and (
-        fact["end_book"], fact["end_sequence"] if fact["end_sequence"] is not None else 999999
-    ) < (book, sequence):
-        return False
-    return True
+    return not (fact["end_book"] is not None and (fact["end_book"], fact["end_sequence"] if fact["end_sequence"] is not None else 999999) < (book, sequence))
 
 
 def story_state(series_id: str, book: int, sequence: int = 999999) -> dict:
@@ -49,38 +46,40 @@ def story_state(series_id: str, book: int, sequence: int = 999999) -> dict:
         raise ValueError("Choose an existing book in this series")
 
     entities = canon.list_entities(series_id)
-    world = canon.at_book(series_id, book, sequence, scope="world")
-    reader = canon.at_book(series_id, book, sequence, scope="reader_reveal")
-    beliefs = []
-    conflicts = [
-        {**conflict, "scope": "world"} for conflict in world["conflicts"]
-    ] + [{**conflict, "scope": "reader_reveal"} for conflict in reader["conflicts"]]
-    for entity in entities:
-        if entity["kind"] != "character":
-            continue
-        perspective = canon.at_book(
-            series_id, book, sequence, scope="character_belief", knower_id=entity["id"]
-        )
-        beliefs.extend(perspective["facts"])
-        conflicts.extend(
-            {**conflict, "scope": "character_belief", "knower_id": entity["id"]}
-            for conflict in perspective["conflicts"]
-        )
-
-    accepted = [*world["facts"], *reader["facts"], *beliefs]
+    # One indexed read for the entire approved series, not one DB connection
+    # per character. This keeps story time scrubbing usable with large casts.
+    all_facts = canon.list_facts(series_id)
+    sequence_points = sorted({0, 999999, *(fact["start_sequence"] for fact in all_facts
+                                              if fact["start_book"] == book)})
+    accepted = [fact for fact in all_facts
+                if fact["status"] == "approved" and _applies(fact, book, sequence)]
     accepted.sort(key=lambda item: (
         item["start_book"], item["start_sequence"], item["created_at"], item["id"]
     ))
-    proposals = [
-        fact for fact in canon.list_facts(series_id, status="proposed")
-        if _applies(fact, book, sequence)
-    ]
+    proposals = [fact for fact in all_facts
+                 if fact["status"] == "proposed" and _applies(fact, book, sequence)]
+    groups: dict[tuple[str, str, str, str], list[dict]] = defaultdict(list)
+    for fact in accepted:
+        groups[(fact["subject_id"], fact["predicate"],
+                fact["scope"], fact["knower_id"] or "")].append(fact)
+    conflicts = []
+    for rows in groups.values():
+        values = {(row["object_entity_id"], row["object_text"]) for row in rows}
+        if len(values) > 1:
+            conflicts.append({
+                "subject": rows[0]["subject_name"], "predicate": rows[0]["predicate"],
+                "scope": rows[0]["scope"], "knower_id": rows[0]["knower_id"],
+                "assertion_ids": [row["id"] for row in rows],
+                "note": "Competing approved assertions; author review required",
+            })
+    by_entity: dict[str, list[dict]] = defaultdict(list)
+    for fact in accepted:
+        by_entity[fact["subject_id"]].append(fact)
+        if fact["knower_id"] and fact["knower_id"] != fact["subject_id"]:
+            by_entity[fact["knower_id"]].append(fact)
     profiles = {}
     for entity in entities:
-        related = [
-            fact for fact in accepted
-            if fact["subject_id"] == entity["id"] or fact["knower_id"] == entity["id"]
-        ]
+        related = by_entity[entity["id"]]
         facets = {
             facet: [fact for fact in related if
                     fact["subject_id"] == entity["id"] and fact["predicate"].lower() in terms]
@@ -112,18 +111,20 @@ def story_state(series_id: str, book: int, sequence: int = 999999) -> dict:
     # assertions and can therefore be explained and corrected by the author.
     thread_rows: dict[str, list[dict]] = defaultdict(list)
     for fact in accepted:
-        if fact["predicate"].lower() in THREAD_START | THREAD_PAYOFF:
+        if fact["predicate"].lower() in THREAD_START | THREAD_PAYOFF | THREAD_SIGNAL:
             thread_rows[fact["subject_id"]].append(fact)
     threads = []
+    entity_by_id = {entity["id"]: entity for entity in entities}
     for entity_id, events in thread_rows.items():
-        entity = next((item for item in entities if item["id"] == entity_id), None)
+        entity = entity_by_id.get(entity_id)
         last = events[-1]
         has_setup = any(row["predicate"].lower() in THREAD_START for row in events)
         has_payoff = any(row["predicate"].lower() in THREAD_PAYOFF for row in events)
         threads.append({
             "entity_id": entity_id, "name": entity["name"] if entity else last["subject_name"],
-            "status": "resolved" if has_payoff else "open",
+            "status": "resolved" if has_payoff else ("open" if has_setup else "unanchored"),
             "unearned_payoff": has_payoff and not has_setup,
+            "unanchored_reveal": not has_setup and not has_payoff,
             "events": events,
         })
 
@@ -141,6 +142,7 @@ def story_state(series_id: str, book: int, sequence: int = 999999) -> dict:
 
     return {
         "series_id": series_id, "book": book, "sequence": sequence,
+        "sequence_points": sequence_points,
         "stale_sources": stale_sources,
         "volumes": [{"id": row["id"], "title": row["title"], "ordinal": row["ordinal"]}
                     for row in volumes],

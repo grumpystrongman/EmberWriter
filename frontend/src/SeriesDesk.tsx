@@ -399,6 +399,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
         busy={busy} onReview={(factId, decision) => void reviewFact(factId, decision)}
         onOpenCanon={() => setView('canon')} onOpenVault={() => setView('vault')}
+        onDiscoverySaved={() => void loadSelected(series.id)}
         onInspectSource={id => { setSourceId(id); setView('canon') }} />}
       {(view === 'guardian' || view === 'consequences' || view === 'ember') &&
         <SeriesProfessionalTools mode={view} seriesId={series.id}

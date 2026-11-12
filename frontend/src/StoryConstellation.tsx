@@ -30,6 +30,36 @@ export default function StoryConstellation({entities, selectedId, links, factCou
       nodes.push({...ring[i],x:500+Math.cos(angle)*(outer?430:295),
         y:325+Math.sin(angle)*(outer?280:220),center:false})
     }
+    // Relax overlapping constellation cards deterministically. The original
+    // two-ring placement allowed nearby inner/outer nodes to cover each other,
+    // hiding story entities on medium-width desktops.
+    for(let step=0;step<100;step++){
+      let collisions=0
+      for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+        const a=nodes[i],b=nodes[j]
+        const deltaX=b.x-a.x,deltaY=b.y-a.y
+        const requiredX=(a.center||b.center)?205:172
+        const requiredY=(a.center||b.center)?155:138
+        const overlapX=requiredX-Math.abs(deltaX)
+        const overlapY=requiredY-Math.abs(deltaY)
+        if(overlapX<=0||overlapY<=0)continue
+        collisions++
+        const directionX=deltaX===0?(i<j?1:-1):Math.sign(deltaX)
+        const directionY=deltaY===0?(i<j?1:-1):Math.sign(deltaY)
+        const moveX=overlapX/requiredX<=overlapY/requiredY
+        const delta=(moveX?overlapX:overlapY)+3
+        const fractionA=a.center?0:b.center?1:0.5
+        const fractionB=b.center?0:a.center?1:0.5
+        if(moveX){a.x-=directionX*delta*fractionA;b.x+=directionX*delta*fractionB}
+        else{a.y-=directionY*delta*fractionA;b.y+=directionY*delta*fractionB}
+      }
+      for(const node of nodes){
+        if(node.center)continue
+        node.x=Math.max(95,Math.min(905,node.x))
+        node.y=Math.max(70,Math.min(580,node.y))
+      }
+      if(!collisions)break
+    }
     return nodes
   },[display.map(item=>item.id).join('|'),selectedId])
   const map=new Map(layout.map(item=>[item.id,item]))

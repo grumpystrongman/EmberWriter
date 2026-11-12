@@ -5,13 +5,14 @@ Vault root, and all prompts are synthetic. The caller's manuscript is never read
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
 import threading
 from pathlib import Path
 from uuid import uuid4
+
+import httpx
 
 from . import series_vault as vault
 from .story_generation_eval import run_benchmark
@@ -62,7 +63,7 @@ def status(series_id: str) -> dict:
 def queue(series_id: str, model: str) -> dict:
     if not model.strip() or len(model) > 200:
         raise ValueError("Choose an installed local Ollama model")
-    if re.search(r"(?:^|[-:])(cloud|remote)(?:$|[-:])", model, re.I):
+    if re.search(r"(?:^|[-:])(cloud|remote)(?:$|[-:])", model, re.IGNORECASE):
         raise ValueError("Cloud model aliases are not allowed")
     path = _path(series_id)
     with _guard:
@@ -93,9 +94,13 @@ async def execute(series_id: str, model: str) -> None:
                              "name": report["name"], "passed": report["passed"]}})
         result = await run_benchmark(model, on_progress=progress)
         _save(path, {**queued, "status": "completed", "result": result})
-    except Exception as exc:
+    except httpx.TimeoutException:
+        _save(path, {**queued, "status": "failed",
+                     "error": "The local model did not respond within 75 seconds. No manuscript content was changed. Check the Ollama workload or choose another installed model."})
+    except Exception as exc:  # noqa: BLE001 - isolate unexpected local job failures
         # Do not store model output or user data inside errors.
-        _save(path, {**queued, "status": "failed", "error": str(exc)[:500]})
+        _save(path, {**queued, "status": "failed",
+                     "error": str(exc)[:500] or "The local model evaluation failed before a result was available."})
     finally:
         with _guard:
             _active.discard(series_id)

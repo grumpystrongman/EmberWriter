@@ -187,3 +187,73 @@
 .story-observatory .observatory-toolbar{padding:12px}
 @media(max-width:1040px){.story-observatory .observatory-hero{grid-template-columns:1fr!important}.story-observatory .observatory-hero-stats{justify-self:start}}
 @media(max-width:540px){.story-observatory .observatory-hero{padding:17px!important}.story-observatory .observatory-hero-stats{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.story-observatory .observatory-hero-stats>div{min-width:0}}
+
+/* Chronological book-position control: an editable author navigation, not a cosmetic bar. */
+.observatory-scene-scrubber{padding:15px 19px;margin:12px 0 0;border-radius:12px;border:1px solid #58677e;background:linear-gradient(110deg,#203149,#292a42);display:grid;gap:10px}
+.observatory-scene-scrubber>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.observatory-scene-scrubber>div:first-child strong{font-size:.82rem;color:#f2dfc9}
+.observatory-scene-scrubber>div:first-child span{font-size:.75rem;color:#c9aedf}
+.observatory-scene-scrubber input[type=range]{width:100%;accent-color:#c59fdf;cursor:pointer;padding:4px 0}
+.observatory-scene-labels{display:flex;justify-content:space-between;color:#a7bacb;font-size:.7rem;gap:8px}
+
+/* Full-viewport author exploration. Escape and the visible return control exit. */
+.observatory-utility-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:9px;padding:3px 5px}
+.observatory-utility-bar>span{font-size:.67rem;font-weight:800;letter-spacing:.14em;color:#c6b7ce}
+.observatory-utility-bar em{font-style:normal;font-weight:500;color:#9aaec1}
+.observatory-utility-bar button{background:#26384d;border:1px solid #71819b;border-radius:10px;color:#e8e7f2;padding:10px 14px;cursor:pointer;font-size:.74rem;font-weight:700}
+.observatory-utility-bar button:hover,.observatory-utility-bar button:focus-visible{outline:2px solid #d0b1ed;outline-offset:2px}
+.story-observatory.is-immersive{position:fixed!important;inset:0!important;z-index:99998!important;width:100vw!important;height:100dvh!important;max-width:none!important;min-width:0!important;overflow-y:auto!important;overflow-x:hidden!important;border-radius:0!important;padding:18px clamp(14px,4vw,76px) 50px!important;background:radial-gradient(ellipse at 55% 0,#29334f,#101b2b 60%,#0a1420)!important;box-shadow:0 0 0 500px #071320a8}
+.story-observatory.is-immersive .observatory-hero{background:linear-gradient(110deg,#28374f,#1b263b)!important}
+.story-observatory.is-immersive .observatory-stage{max-width:1800px;width:100%;margin:0 auto}
+.story-observatory.is-immersive .observatory-network{height:min(70vh,780px);min-height:470px}
+.story-observatory.is-immersive .observatory-inspector{position:sticky;top:0;align-self:start;max-height:80vh;overflow:auto}
+.story-observatory.is-immersive .observatory-main{align-items:start}
+@media(max-width:960px){.story-observatory.is-immersive .observatory-inspector{position:relative;max-height:none}}
+@media(max-width:560px){.observatory-utility-bar{align-items:flex-start}.observatory-utility-bar em{display:none}.observatory-utility-bar button{font-size:.7rem;padding:9px}}
+
+/* Critical mobile correction: grid children must be allowed to shrink.
+   Earlier layout tests measured document overflow but missed clipped 608px
+   intrinsic grid children inside a 364px section. */
+.story-observatory{grid-template-columns:minmax(0,1fr)!important;min-width:0!important;max-width:100%!important;width:100%!important}
+.story-observatory>*{min-width:0!important;max-width:100%!important}
+.story-observatory .observatory-hero,
+.story-observatory .observatory-stage,
+.story-observatory .observatory-lenses,
+.story-observatory .observatory-toolbar,
+.story-observatory .observatory-main,
+.story-observatory .observatory-time,
+.story-observatory .discovery-workspace{min-width:0!important;max-width:100%!important;width:100%!important;box-sizing:border-box}
+.story-observatory .observatory-hero{grid-template-columns:minmax(0,1fr) auto!important}
+.story-observatory .observatory-hero>div{min-width:0}
+.story-observatory .observatory-hero h2{overflow-wrap:anywhere}
+.story-observatory .observatory-lenses{flex-wrap:wrap!important}
+.story-observatory .observatory-lenses button{min-width:0;flex:1 1 150px}
+.story-observatory .observatory-search{min-width:0;flex:1 1 230px}
+.story-observatory .observatory-toolbar{flex-wrap:wrap!important}
+.story-observatory .observatory-time-heading{min-width:0}
+@media(max-width:1040px){
+ .story-observatory .observatory-hero{grid-template-columns:minmax(0,1fr)!important}
+ .story-observatory .observatory-hero-stats{min-width:0!important;max-width:100%!important}
+}
+@media(max-width:560px){
+ .story-observatory .observatory-hero{padding:17px!important}
+ .story-observatory .observatory-hero-stats{width:100%!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ .story-observatory .observatory-hero-stats>div{min-width:0!important;padding:8px 4px!important}
+ .story-observatory .observatory-hero-stats span{font-size:.63rem;overflow-wrap:break-word}
+ .story-observatory .observatory-lenses button{flex:1 1 calc(50% - 8px);min-height:43px}
+ .story-observatory .observatory-segments{width:100%;display:flex}
+ .story-observatory .observatory-segments button{flex:1;min-width:0;padding-inline:5px}
+ .story-observatory .observatory-select{min-width:0;width:100%}
+ .story-observatory .observatory-select select{width:100%}
+ .story-observatory .observatory-search{flex:1 1 100%}
+ .story-observatory .observatory-time-heading{display:block}
+ .story-observatory .observatory-book-track{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Fullscreen fix: a fixed-height CSS grid was shrinking the story stage to 2px
+   and clipping the graph behind the footer. Use document flow while immersive. */
+.story-observatory.is-immersive{display:block!important;margin:0!important;top:0!important;left:0!important;height:100dvh!important;overflow-y:auto!important;overflow-x:hidden!important}
+.story-observatory.is-immersive>*{max-width:100%!important;margin-bottom:15px!important}
+.story-observatory.is-immersive .observatory-stage{height:auto!important;min-height:0!important;overflow:hidden!important}
+.story-observatory.is-immersive .observatory-main{min-height:540px!important;display:grid}
+.story-observatory.is-immersive .observatory-main[hidden]{display:none}

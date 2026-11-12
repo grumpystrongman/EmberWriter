@@ -12,9 +12,9 @@ import json
 import re
 import statistics
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 from urllib.parse import urlparse
 
 import httpx
@@ -110,7 +110,7 @@ def inspect_text(text: str, scenario: dict, elapsed_seconds: float | None = None
 
 
 async def run_benchmark(model: str, *, base_url: str = "http://127.0.0.1:11434",
-                        timeout_seconds: float = 300,
+                        timeout_seconds: float = 75,
                         on_progress: Callable[[int, int, dict], None] | None = None) -> dict:
     parsed = urlparse(base_url)
     if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:

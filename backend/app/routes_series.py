@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from . import series_canon as canon
+from . import series_discovery as discovery
 from . import series_story_state as intelligence
 from . import story_benchmark_jobs as benchmarks
 from . import series_vault as vault
@@ -182,6 +183,17 @@ async def restore_vault(
             raise ValueError("Series archive exceeds the 250 MB upload limit")
         return restore(data, rights_confirmed)
     except (ValueError, OSError, sqlite3.IntegrityError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/discover")
+def discover_evidence(series_id: str, book: int | None = Query(default=None, ge=1, le=9999),
+                      limit: int = Query(default=120, ge=1, le=250),
+                      offset: int = Query(default=0, ge=0)) -> dict:
+    """Read-only whole-source literal evidence candidates for deliberate author review."""
+    try:
+        return discovery.discover(series_id, book=book, limit=limit, offset=offset)
+    except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 
 

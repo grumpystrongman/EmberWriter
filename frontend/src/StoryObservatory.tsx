@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 import './story-observatory.css'
 import StoryConstellation from './StoryConstellation'
 import StoryModelLab from './StoryModelLab'
+import StoryDiscovery from './StoryDiscovery'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
 export type ObservatoryFact = {
@@ -22,17 +24,18 @@ type Props = {
   onOpenCanon: () => void
   onInspectSource: (sourceId: string) => void
   onOpenVault: () => void
+  onDiscoverySaved: () => void
 }
 
 type StoryState = {
-  book: number; sequence: number
+  book: number; sequence: number; sequence_points: number[]
   facts: ObservatoryFact[]
   proposals: ObservatoryFact[]
   conflicts: { subject: string; predicate: string; scope: string; assertion_ids: string[] }[]
   stale_sources: {source_id:string;source_path:string;book:number;volume:string;reason:string}[]
   profiles: Record<string, { entity_id: string; name: string; kind: string; facets: Record<string, ObservatoryFact[]>; missing_facets: string[] }>
   links: { from: string; to: string; predicate: string; fact_id: string; relationship: boolean; scope: string; reference: ObservatoryFact['reference'] }[]
-  threads: { entity_id: string; name: string; status: string; unearned_payoff: boolean; events: ObservatoryFact[] }[]
+  threads: { entity_id: string; name: string; status: string; unearned_payoff: boolean; unanchored_reveal: boolean; events: ObservatoryFact[] }[]
 }
 const kinds: Record<string, { icon: string; color: string }> = {
   character: { icon: '♙', color: '#c6a8ff' },
@@ -49,26 +52,30 @@ const scopeLabels: Record<string, string> = {
 const readable = (value: string) => value.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
 const unique = <T,>(values: T[]) => Array.from(new Set(values))
 
-export default function StoryObservatory({ seriesId, entities, facts, volumes, onReview, busy, onOpenCanon, onInspectSource, onOpenVault }: Props) {
+export default function StoryObservatory({ seriesId, entities, facts, volumes, onReview, busy, onOpenCanon, onInspectSource, onOpenVault, onDiscoverySaved }: Props) {
   const books = useMemo(() => [...volumes].sort((a, b) => a.ordinal - b.ordinal), [volumes])
   const [bookOverride, setBookOverride] = useState<number | null>(null)
+  const [sequenceOverride, setSequenceOverride] = useState<number | null>(null)
   const book = books.some(item => item.ordinal === bookOverride) ? bookOverride! : (books[books.length - 1]?.ordinal ?? 1)
+  const sequence = sequenceOverride ?? 999999
   const [scope, setScope] = useState<'all' | 'world' | 'character_belief' | 'reader_reveal'>('all')
   const [status, setStatus] = useState<'approved' | 'proposed' | 'all'>('approved')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showEvidence, setShowEvidence] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
-  const [lens, setLens] = useState<'universe' | 'psychology' | 'threads' | 'timeline' | 'models'>('universe')
+  const [lens, setLens] = useState<'universe' | 'psychology' | 'threads' | 'timeline' | 'models' | 'discovery'>('universe')
   const [snapshot, setSnapshot] = useState<StoryState | null>(null)
   const [loading, setLoading] = useState(true)
+  const [immersive, setImmersive] = useState(false)
+  const immersiveButtonRef = useRef<HTMLButtonElement>(null)
   const [loadError, setLoadError] = useState('')
   const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
     setSnapshot(null); setLoading(true); setLoadError('')
-    void fetch(`http://127.0.0.1:8000/api/series/${encodeURIComponent(seriesId)}/story-state?book=${book}`, {
+    void fetch(`http://127.0.0.1:8000/api/series/${encodeURIComponent(seriesId)}/story-state?book=${book}&sequence=${sequence}`, {
       signal: controller.signal,
     }).then(async response => {
       if (!response.ok) throw new Error(`Story intelligence unavailable (${response.status})`)
@@ -77,7 +84,24 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
       .catch(error => { if (!controller.signal.aborted) setLoadError(String(error)) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [seriesId, book, refresh, facts])
+  }, [seriesId, book, sequence, refresh, facts])
+
+  useEffect(() => {
+    if (!immersive) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setImmersive(false)
+        immersiveButtonRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previous
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [immersive])
 
   const visibleFacts = useMemo(() => {
     if (!snapshot) return []
@@ -101,7 +125,13 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
   const highlighted = new Set([selected?.name, ...connectedNames].filter(Boolean))
   const nodes = showAll ? matching : matching.slice(0, 32)
 
-  return <section className="story-observatory" aria-label="Interactive story observatory">
+  const surface = <section className={`story-observatory ${immersive ? "is-immersive" : ""}`} aria-label="Interactive story observatory">
+    <div className="observatory-utility-bar"><span>THE AUTHOR’S UNIVERSE <em>/ PRIVATE STORY SYSTEM</em></span>
+      <button type="button" ref={immersiveButtonRef} aria-pressed={immersive}
+        onClick={() => setImmersive(value => !value)}>
+        {immersive ? "↙ Return to Series Desk" : "⛶ Enter immersive view"}
+      </button>
+    </div>
     <header className="observatory-hero">
       <div>
         <span className="observatory-kicker">PART I · LIVING STORY INTELLIGENCE</span>
@@ -116,7 +146,7 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
     </header>
 
     <nav className="observatory-lenses" aria-label="Story intelligence lenses">
-      {([['universe','✧','Universe'],['psychology','♙','Character minds'],['threads','◇','Plot threads'],['timeline','◷','Story history'],['models','⚗','Model Lab']] as const)
+      {([['universe','✧','Universe'],['psychology','♙','Character minds'],['threads','◇','Plot threads'],['timeline','◷','Story history'],['models','⚗','Model Lab'],['discovery','◉','Discover']] as const)
         .map(([key,icon,label]) => <button key={key} type="button" aria-pressed={lens===key}
           onClick={() => setLens(key)}><span aria-hidden="true">{icon}</span>{label}</button>)}
     </nav>
@@ -126,7 +156,7 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
       {snapshot.stale_sources.length} linked manuscript sources changed since their evidence snapshots. <button type="button" onClick={onOpenVault}>Review sources</button>
     </div> : null}
     <div className="observatory-stage">
-      <div className="observatory-toolbar">
+      {lens === "universe" && <div className="observatory-toolbar">
         <label className="observatory-search"><span className="sr-only">Find story entity</span>
           <span aria-hidden="true">⌕</span>
           <input value={search} onChange={event => setSearch(event.target.value)}
@@ -142,11 +172,13 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
             <option value="all">Both (clearly labeled)</option>
           </select>
         </label>
-      </div>
+      </div>}
 
       {loading && <div role="status" className="observatory-loading">Reading approved story evidence…</div>}
       {lens === 'models' && <StoryModelLab seriesId={seriesId} />}
-      {!loading && lens !== 'universe' && lens !== 'models' && <StoryLens lens={lens} snapshot={snapshot} selectedId={selected?.id || null}
+      {lens === 'discovery' && <StoryDiscovery seriesId={seriesId} book={book} entities={entities}
+        onSaved={() => { setRefresh(n=>n+1);onDiscoverySaved() }} onOpenCanon={onOpenCanon} />}
+      {!loading && lens !== 'universe' && lens !== 'models' && lens !== 'discovery' && <StoryLens lens={lens} snapshot={snapshot} selectedId={selected?.id || null}
         onFocus={id => setSelectedId(id)} onExplore={id => { setSelectedId(id); setLens('universe') }} onOpenCanon={onOpenCanon} />}
       <div className="observatory-main" hidden={lens !== 'universe'}>
         <div className="observatory-constellation" aria-label="Selectable story entities">
@@ -223,13 +255,22 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
         {books.length ? books.map(volume => <button type="button" key={volume.id}
           className={book === volume.ordinal ? 'active' : ''}
           aria-pressed={book === volume.ordinal}
-          onClick={() => { setBookOverride(volume.ordinal); setShowEvidence(null) }}>
+          onClick={() => { setBookOverride(volume.ordinal); setSequenceOverride(null); setShowEvidence(null) }}>
           <span>BOOK {volume.ordinal}</span><strong>{volume.title}</strong>
         </button>) : <span className="observatory-muted">Add books to activate the story time machine.</span>}
       </div>
+      {snapshot && snapshot.sequence_points.length > 2 && <div className="observatory-scene-scrubber">
+        <div><strong>Explore within Book {book}</strong><span>{sequence === 999999 ? "End of book" : sequence === 0 ? "Book opening" : `Scene point ${sequence}`}</span></div>
+        <input type="range" min={0} max={snapshot.sequence_points.length-1} step={1}
+          aria-label="Story position within selected book"
+          value={Math.max(0,snapshot.sequence_points.indexOf(sequence))}
+          onChange={event => { setSequenceOverride(snapshot.sequence_points[Number(event.target.value)]);setShowEvidence(null) }}/>
+        <div className="observatory-scene-labels"><span>Opening</span><span>Book end</span></div>
+      </div>}
       <p className="observatory-provenance">Read-only exploration, except explicit Approve/Reject actions. All knowledge comes from your local Series Vault; no model request is made by this view.</p>
     </footer>
   </section>
+  return immersive ? createPortal(surface, document.body) : surface
 }
 
 function StoryLens({ lens, snapshot, selectedId, onFocus, onExplore, onOpenCanon }: {
@@ -288,12 +329,12 @@ function StoryLens({ lens, snapshot, selectedId, onFocus, onExplore, onOpenCanon
       <div className="observatory-thread-summary">
         <div><strong>{threads.filter(thread => thread.status === 'open').length}</strong><span>Still open</span></div>
         <div><strong>{threads.filter(thread => thread.status === 'resolved').length}</strong><span>Paid off</span></div>
-        <div><strong>{threads.filter(thread => thread.unearned_payoff).length}</strong><span>Payoffs without setup</span></div>
+        <div><strong>{threads.filter(thread => thread.unearned_payoff || thread.unanchored_reveal).length}</strong><span>Needs setup context</span></div>
       </div>
       {threads.length ? <div className="observatory-thread-list">{threads.slice(0,expanded?100:12).map(thread =>
         <article key={thread.entity_id} className="observatory-thread-card">
           <div className="observatory-thread-head"><button onClick={() => onExplore(thread.entity_id)}>{thread.name} ↗</button>
-            <span className={thread.status === 'resolved' ? 'done' : 'open'}>{thread.status === 'resolved' ? '✓ Resolved' : '◌ Open'}</span></div>
+            <span className={thread.status === 'resolved' ? 'done' : 'open'}>{thread.status === 'resolved' ? '✓ Resolved' : thread.status === 'unanchored' ? '? Reveal only' : '◌ Open'}</span></div>
           <div className="observatory-thread-rail" aria-label={'Thread ' + thread.name}>
             {thread.events.map(event => <div key={event.id} className="observatory-thread-moment">
               <span className="observatory-thread-dot"/>
@@ -304,6 +345,7 @@ function StoryLens({ lens, snapshot, selectedId, onFocus, onExplore, onOpenCanon
             </div>)}
           </div>
           {thread.unearned_payoff && <small className="observatory-thread-warning">Payoff has no approved setup in the accessible series evidence.</small>}
+          {thread.unanchored_reveal && <small className="observatory-thread-warning">Revealed information has no explicit sourced setup. It is not counted as a payoff.</small>}
         </article>)}</div> : <div className="observatory-lens-empty">No source-backed plot threads yet. Establish a setup or payoff as a cited canon assertion to bring it into this view. <button onClick={onOpenCanon}>Open Canon Graph</button></div>}
       {threads.length > 12 && <button className="observatory-expand" onClick={() => setExpanded(!expanded)}>{expanded ? 'Show fewer threads' : 'Explore more threads'}</button>}
     </div>

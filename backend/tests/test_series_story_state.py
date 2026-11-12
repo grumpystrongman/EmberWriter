@@ -5,9 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import series_canon as canon
-from app import series_story_state
+from app import series_story_state, storage
 from app import series_vault as vault
-from app import storage
 from app.main import app
 
 
@@ -57,7 +56,7 @@ def universe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_point_in_time_never_leaks_future_knowledge(universe):
-    series_id, ada, bex, bell, pending_id = universe
+    series_id, ada, bex, _bell, pending_id = universe
     first = series_story_state.story_state(series_id, 1)
     assert first["profiles"][ada]["facets"]["fears"][0]["object_text"] == "river"
     assert first["threads"][0]["status"] == "open"
@@ -72,7 +71,7 @@ def test_point_in_time_never_leaks_future_knowledge(universe):
 
 
 def test_approval_changes_projection_without_rewriting_source(universe):
-    series_id, ada, bex, _, pending_id = universe
+    series_id, _ada, bex, _, pending_id = universe
     with TestClient(app) as client:
         response = client.get(f"/api/series/{series_id}/story-state?book=2")
         assert response.status_code == 200
