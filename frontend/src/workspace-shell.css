@@ -390,3 +390,35 @@ body:has(.workspace-shell .project-card.active) .load-import-launcher { display:
 @media(max-width:920px){.workspace-actions .workspace-recovery-button{min-width:38px;padding:0 9px}.workspace-actions .workspace-recovery-button span:nth-child(2){display:none}}
 
 .workspace-actions .workspace-recovery-button.needs-attention{background:#593c28;color:#ffe2b9;border-color:#a77b4c}.workspace-actions .workspace-recovery-button.needs-attention:hover{background:#735039;color:#fff2e3}
+
+.workspace-shell:not(.binder-collapsed):not(.focus-mode) {
+  --workspace-library-width: clamp(200px, var(--ember-saved-library-width, 260px), 45vw);
+}
+
+.workspace-app > .app-shell {
+  grid-template-columns: minmax(0, var(--workspace-library-width)) minmax(0, 1fr);
+}
+
+.workspace-shell.binder-collapsed .app-shell,
+.workspace-shell.focus-mode .app-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace-binder-splitter {
+  position: absolute;
+  inset: 0 auto 0 calc(var(--workspace-library-width) - 4px);
+  width: 8px;
+  z-index: 15;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.workspace-binder-splitter:hover,
+.workspace-binder-splitter:focus-visible,
+.workspace-binder-splitter:active {
+  background: var(--ember-accent);
+}
+
+@media (max-width: 700px) {
+  .workspace-app > .app-shell { grid-template-columns: minmax(0, 1fr); }
+}

@@ -15,6 +15,7 @@ from .adult_specialist import (
     route_explicit_adult_specialist,
     should_use_adult_explicit_specialist,
 )
+from .board import inspiration_context
 from .character_voice import build_character_voice_context
 from .chemistry import build_chemistry_context
 from .craft import build_craft_context, quality_pass
@@ -266,12 +267,16 @@ def _is_studio_request(payload: GenerateRequest) -> bool:
 
 
 def _prepare_generation_context(slug: str, payload: GenerateRequest) -> tuple[str, list[str], str]:
+    inspiration = inspiration_context(slug)
     if _is_studio_request(payload):
         context_text, context_files, craft_text, _ = build_studio_context(
             slug,
             payload.prompt,
             payload.craft,
         )
+        if inspiration:
+            context_text = _CONTEXT_SEPARATOR.join([inspiration, context_text])
+            context_files = [*context_files, "planning/corkboard.json"]
         return _cap_generation_context(context_text, max_chars=36000), context_files, craft_text
 
     reconcile_story_memory(slug)
@@ -317,6 +322,9 @@ def _prepare_generation_context(slug: str, payload: GenerateRequest) -> tuple[st
         context_files,
         payload,
     )
+    if inspiration:
+        context_text = _CONTEXT_SEPARATOR.join([inspiration, context_text])
+        context_files = [*context_files, "planning/corkboard.json"]
     return _cap_generation_context(context_text), context_files, craft_text
 
 

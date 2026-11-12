@@ -349,6 +349,8 @@ def search_story(slug: str, query: str, limit: int = 8) -> list[dict]:
     hits: list[dict] = []
     for path in _iter_story_files(slug):
         relative = str(path.relative_to(project_root(slug))).replace("\\", "/")
+        if relative == "planning/corkboard.json" or relative.startswith("assets/board/"):
+            continue
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

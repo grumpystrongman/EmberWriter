@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import io
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -28,14 +29,27 @@ async def interpret_visual_reference(slug: str, asset_id: str, payload: ImageInt
             raise FileNotFoundError(asset_id)
         import json
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=404, detail="Visual reference not found") from exc
+    return {
+        "asset_id": asset_id,
+        "interpretation": await describe_reference_image(image_path, payload),
+        "source": "local_vision_model",
+        "canon_status": metadata.get("canon_status", "reference"),
+        "applied_to_manuscript": False,
+    }
+
+
+async def describe_reference_image(image_path: Path, payload: ImageInterpretRequest) -> str:
+    try:
         with Image.open(image_path) as original:
             image = original.convert("RGB")
             image.thumbnail((1024, 1024))
             output = io.BytesIO()
             image.save(output, format="JPEG", quality=83)
         encoded = base64.b64encode(output.getvalue()).decode("ascii")
-    except (FileNotFoundError, ValueError, OSError) as exc:
-        raise HTTPException(status_code=404, detail="Visual reference not found") from exc
+    except (ValueError, OSError, Image.DecompressionBombError) as exc:
+        raise HTTPException(status_code=400, detail="This reference is not a readable image.") from exc
 
     direction = payload.direction.strip() or "Describe useful visual storytelling cues."
     prompt = (
@@ -71,10 +85,4 @@ async def interpret_visual_reference(slug: str, asset_id: str, payload: ImageInt
             status_code=503,
             detail="Could not interpret this picture. Select an installed Ollama vision-capable model and retry.",
         ) from exc
-    return {
-        "asset_id": asset_id,
-        "interpretation": answer.strip()[:7000],
-        "source": "local_vision_model",
-        "canon_status": metadata.get("canon_status", "reference"),
-        "applied_to_manuscript": False,
-    }
+    return answer.strip()[:7000]
