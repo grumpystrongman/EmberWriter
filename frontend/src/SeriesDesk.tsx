@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { WorkspaceProject } from './workspace-types'
 import SeriesProfessionalTools, { type ProMode } from './SeriesProfessionalTools'
+import StoryObservatory from './StoryObservatory'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -40,7 +41,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [selectedId, setSelectedId] = useState('')
   const [series, setSeries] = useState<Series | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
-  const [view, setView] = useState<'vault' | 'canon' | 'timeline' | ProMode>('vault')
+  const [view, setView] = useState<'observatory' | 'vault' | 'canon' | 'timeline' | ProMode>('observatory')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -127,7 +128,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   useEffect(() => {
     const onOpenPanel = (event: Event) => {
       const panel = (event as CustomEvent<{panel: string}>).detail?.panel
-      if (['vault','canon','timeline','guardian','consequences','ember'].includes(panel)) {
+      if (['observatory','vault','canon','timeline','guardian','consequences','ember'].includes(panel)) {
         setView(panel as typeof view)
       }
     }
@@ -386,6 +387,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     </div>
     {series && <>
       <nav className="series-desk-tabs" aria-label="Series Desk views">
+        <button type="button" className={view === 'observatory' ? 'active' : ''} onClick={() => setView('observatory')}>✧ · Story Observatory</button>
         <button type="button" className={view === 'vault' ? 'active' : ''} onClick={() => setView('vault')}>01 · Series Vault</button>
         <button type="button" className={view === 'canon' ? 'active' : ''} onClick={() => setView('canon')}>02 · Canon Graph <small>{facts.filter(item => item.status === 'proposed').length} waiting</small></button>
         <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>03 · Time & Knowledge</button>
@@ -393,6 +395,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         <button type="button" className={view === 'consequences' ? 'active' : ''} onClick={() => setView('consequences')}>05 · Consequences</button>
         <button type="button" className={view === 'ember' ? 'active' : ''} onClick={() => setView('ember')}>06 · Ask Ember</button>
       </nav>
+      {view === 'observatory' && <StoryObservatory
+        key={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
+        busy={busy} onReview={(factId, decision) => void reviewFact(factId, decision)}
+        onOpenCanon={() => setView('canon')} />}
       {(view === 'guardian' || view === 'consequences' || view === 'ember') &&
         <SeriesProfessionalTools mode={view} seriesId={series.id}
           volumes={series.volumes || []} entities={entities}
