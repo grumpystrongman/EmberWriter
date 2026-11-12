@@ -1,0 +1,42 @@
+{
+  "Fenn & Fable": {
+    "genres": ["Crime", "Thriller", "Horror", "Fantasy", "Historical fiction"],
+    "access": "direct",
+    "rules": "Check the current window before sending.\nEmail a short query and attach a one-page synopsis and the first three chapters together as a single Word or PDF document.",
+    "settings": {"email":"submissions@fennandfable.com","query_required":true,"synopsis_required":true,"sample_kind":"chapters","sample_count":3,"attachment_mode":"mixed","accepted_formats":["docx"],"combine_synopsis":true}
+  },
+  "Dzanc Books": {
+    "genres": ["Literary fiction", "Nonfiction", "Poetry", "Hybrid"],
+    "access": "direct",
+    "rules": "Check the current submission window.\nSubmit the complete manuscript, synopsis, and brief author bio through Submittable.\nPreviously self-published work and writing created with generative AI assistance are ineligible. Genre fiction, children's books, and YA are excluded from general submissions.",
+    "settings": {"method":"web_form","submission_url":"https://dzancbooks.submittable.com/submit","query_required":false,"synopsis_required":true,"bio_required":true,"sample_kind":"full","attachment_mode":"attachments","accepted_formats":["docx"]}
+  },
+  "Baen Books": {
+    "genres": ["Science fiction", "Fantasy"],
+    "access": "direct",
+    "rules": "Science fiction and fantasy only. Complete manuscripts with a synopsis are preferred. Check the current upload format on the official submission page.",
+    "reason": "Confirm the required upload format before building."
+  },
+  "Angry Robot": {
+    "genres": ["Science fiction", "Fantasy", "Horror"],
+    "access": "conditional",
+    "rules": "The standard route is through an agent. Check the official page for exceptions and designated unagented windows.",
+    "reason": "Requirements depend on the submission route or open call."
+  },
+  "Tor Publishing Group": {
+    "genres": ["Science fiction", "Fantasy", "Horror"],
+    "access": "agent",
+    "rules": "Tor Publishing Group requires an agent for manuscripts and queries.",
+    "reason": "Agent required. There is no direct author submission packet."
+  },
+  "Graywolf Press": {
+    "genres": ["Literary fiction", "Nonfiction", "Poetry"],
+    "access": "conditional",
+    "reason": "Check the official page for program-specific eligibility and windows."
+  },
+  "Asteria Press": {
+    "genres": ["Young adult", "New adult"],
+    "access": "direct",
+    "reason": "The cover sheet has publisher-specific requirements. Review them before building."
+  }
+}

@@ -79,6 +79,12 @@ def _sources(db: sqlite3.Connection) -> dict[str, str]:
     return sources
 
 
+@lru_cache(maxsize=1)
+def publisher_packs() -> dict:
+    path = Path(__file__).with_name("resources") / "publisher-packs.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def market_listings() -> list[dict]:
     with closing(_connect()) as db:
         sources = _sources(db)
@@ -86,13 +92,28 @@ def market_listings() -> list[dict]:
     listings = []
     for url, name in sources.items():
         record = snapshots.get(url, {})
+        bundled = publisher_packs().get(name, {})
+        changed = bool(record.get("changed_at"))
+        settings = bundled.get("settings") if not changed else None
+        reason = bundled.get("reason") or "Packet requirements still need verification."
+        if changed:
+            reason = "Publisher rules changed. Compare the current source before using the bundled settings."
+        guidelines = json.loads(record["snapshot"]) if record.get("snapshot") else None
+        if settings and bundled.get("rules"):
+            guidelines = {"text": bundled["rules"], "settings": settings}
+        elif guidelines is None and bundled.get("rules"):
+            guidelines = {"text": bundled["rules"], "settings": {}}
         listings.append({
             "name": name,
             "url": url,
             "checked_at": record.get("checked_at"),
             "changed_at": record.get("changed_at"),
             "error": record.get("error"),
-            "guidelines": json.loads(record["snapshot"]) if record.get("snapshot") else None,
+            "guidelines": guidelines,
+            "genres": bundled.get("genres", []),
+            "access": bundled.get("access", "unknown"),
+            "pack_status": "ready" if settings else "review",
+            "pack_reason": None if settings else reason,
         })
     return listings
 

@@ -20,6 +20,7 @@ type Destination = {
   guidelines_url: string
   guidelines_text?: string
   guidelines_reviewed?: boolean
+  market_rules_required?: boolean
   blind_review?: boolean
   combine_synopsis?: boolean
   method: SubmissionMethod
@@ -100,6 +101,10 @@ type CatalogPublisher = { wikidata_id: string; name: string; website: string }
 type PublisherListing = {
   name: string
   url: string
+  genres?: string[]
+  access?: string
+  pack_status?: string
+  pack_reason?: string | null
   checked_at: string | null
   changed_at: string | null
   error: string | null
@@ -239,6 +244,10 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
   const [catalogLimit, setCatalogLimit] = useState(40)
   const [discovery, setDiscovery] = useState<{ id: string; results: DiscoveredGuidelines[] } | null>(null)
   const [marketSearch, setMarketSearch] = useState('')
+  const [genreFilter, setGenreFilter] = useState('')
+  const [accessFilter, setAccessFilter] = useState('')
+  const [readyOnly, setReadyOnly] = useState(false)
+  const genres = [...new Set(publishers.flatMap((item) => item.genres ?? []))].sort()
   const [rulesOnly, setRulesOnly] = useState(false)
   const catalogResults = useMemo(() => {
     const query = marketSearch.trim().toLowerCase()
@@ -503,31 +512,48 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
           <summary>Market Directory</summary>
           <label>Search publishers or requirements<input type="search" value={marketSearch} onChange={(event) => { setMarketSearch(event.target.value); setCatalogLimit(40) }} /></label>
           <label><input type="checkbox" checked={rulesOnly} onChange={(event) => setRulesOnly(event.target.checked)} /> Show only listings with submission guidelines</label>
+          <label>Genre<select value={genreFilter} onChange={(event) => setGenreFilter(event.target.value)}>
+            <option value="">Any genre</option>
+            {genres.map((genre) => <option key={genre}>{genre}</option>)}
+          </select></label>
+          <label>Submission route<select value={accessFilter} onChange={(event) => setAccessFilter(event.target.value)}>
+            <option value="">Any route</option>
+            <option value="direct">Direct author submissions</option>
+            <option value="conditional">Specific calls or eligibility</option>
+            <option value="agent">Agent required</option>
+            <option value="unknown">Unverified route</option>
+          </select></label>
+          <label><input type="checkbox" checked={readyOnly} onChange={(event) => setReadyOnly(event.target.checked)} /> Packet settings available</label>
           {marketError && <p role="status">{marketError}</p>}
-          {publishers.filter((item) => (!rulesOnly || item.guidelines) && `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
+          {publishers.filter((item) => (!rulesOnly || item.guidelines)
+            && (!genreFilter || item.genres?.includes(genreFilter))
+            && (!accessFilter || (item.access ?? 'unknown') === accessFilter)
+            && (!readyOnly || item.pack_status === 'ready') && `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
             <article key={item.url}>
               <div>
                 <a href={item.url} target="_blank" rel="noreferrer">{item.name} · official submission page</a>
                 {item.checked_at && <small>Last checked {new Date(item.checked_at).toLocaleDateString()}</small>}
                 {item.changed_at && <small>Rules changed {new Date(item.changed_at).toLocaleDateString()}</small>}
+                {item.genres?.length ? <small>{item.genres.join(' · ')}</small> : <small>Genres unverified</small>}
+                <small>{item.pack_status === 'ready' ? 'Packet settings available' : item.pack_reason}</small>
                 {item.error && <small>{item.error}</small>}
               </div>
-              <button type="button" disabled={disabled || busy} onClick={() => addDestination({
+              <button type="button" disabled={disabled || busy || item.access === 'agent'} onClick={() => addDestination({
                 name: item.name, settings: {
-                  kind: 'publisher', guidelines_url: item.url,
+                  kind: 'publisher', market_rules_required: true, guidelines_url: item.url,
                   guidelines_text: item.guidelines?.text ?? '', ...item.guidelines?.settings,
                 },
-              })}>Prepare submission</button>
+              })}>{item.pack_status === 'ready' ? 'Prepare publisher packet' : 'Review submission requirements'}</button>
             </article>
           ))}
           <p>Start with a recipient’s published requirements. Check the official page for current eligibility and dates.</p>
-          {marketListings.filter((listing) => !publishers.some((publisher) => publisher.name === listing.name) && listing.name.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((listing) => (
+          {!genreFilter && !accessFilter && !readyOnly && marketListings.filter((listing) => !publishers.some((publisher) => publisher.name === listing.name) && listing.name.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((listing) => (
             <article key={listing.name}>
               <a href={listing.settings.guidelines_url} target="_blank" rel="noreferrer">{listing.name}</a>
               <button type="button" onClick={() => addDestination(listing)} disabled={disabled || busy}>Use listing</button>
             </article>
           ))}
-          {!rulesOnly && <><p>{catalogResults.length.toLocaleString()} discovery results from {catalog.length.toLocaleString()} book publishers. Verify current submission status with the publisher. <a href="https://www.wikidata.org/wiki/Q1320047" target="_blank" rel="noreferrer">Wikidata source</a></p>
+          {!rulesOnly && !genreFilter && !readyOnly && (!accessFilter || accessFilter === 'unknown') && <><p>{catalogResults.length.toLocaleString()} discovery results from {catalog.length.toLocaleString()} book publishers. Verify current submission status with the publisher. <a href="https://www.wikidata.org/wiki/Q1320047" target="_blank" rel="noreferrer">Wikidata source</a></p>
           {catalogResults.slice(0, catalogLimit).map((publisher) => (
             <article key={publisher.wikidata_id}>
               <div>
@@ -537,7 +563,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
                 <a href={`https://www.wikidata.org/wiki/${publisher.wikidata_id}`} target="_blank" rel="noreferrer">Source record</a>
               </div>
               <button type="button" disabled={disabled || busy} onClick={() => addDestination({
-                name: publisher.name.slice(0, 240), settings: { kind: 'publisher' },
+                name: publisher.name.slice(0, 240), settings: { kind: 'publisher', market_rules_required: true },
               })}>Add target</button>
               {publisher.website && (
                 <button type="button" disabled={disabled || busy} onClick={() => void findPublisherGuidelines(publisher)}>Find submission guidelines</button>
@@ -551,7 +577,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
                       <p>{candidate.text.slice(0, 300)}</p>
                       <button type="button" disabled={disabled || busy} onClick={() => addDestination({
                         name: publisher.name.slice(0, 240),
-                        settings: { kind: 'publisher', guidelines_url: candidate.url, guidelines_text: candidate.text },
+                        settings: { kind: 'publisher', market_rules_required: true, guidelines_url: candidate.url, guidelines_text: candidate.text },
                       })}>Prepare submission using this source</button>
                     </div>
                   ))}

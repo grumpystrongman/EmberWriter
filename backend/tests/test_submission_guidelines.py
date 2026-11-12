@@ -151,3 +151,21 @@ def test_public_fetch_falls_back_to_another_validated_address(monkeypatch):
     monkeypatch.setattr(submission_guidelines, "HTTPSConnection", Connection)
     assert fetch_html("https://publisher.example/submissions") == b"<p>Rules</p>"
     assert attempts == ips
+
+
+def test_bundled_publisher_settings_available_in_empty_library(tmp_path, monkeypatch):
+    from app import storage, submission_market
+    from app.submission_models import SubmissionDestination
+
+    monkeypatch.setattr(storage, "DATA_ROOT", tmp_path)
+    listings = {item["name"]: item for item in submission_market.market_listings()}
+    for name in ("Fenn & Fable", "Dzanc Books"):
+        item = listings[name]
+        assert item["pack_status"] == "ready"
+        assert item["genres"]
+        SubmissionDestination(
+            id="fixture", name=name, guidelines_url=item["url"], **item["guidelines"]["settings"],
+        )
+    assert listings["Tor Publishing Group"]["access"] == "agent"
+    assert listings["Tor Publishing Group"]["pack_status"] == "review"
+    assert listings["Tor Publishing Group"]["pack_reason"]

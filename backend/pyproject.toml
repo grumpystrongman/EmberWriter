@@ -32,7 +32,7 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-app = ["resources/*.dict", "resources/book-publishers-*.csv", "resources/CMUDICT-LICENSE"]
+app = ["resources/*.dict", "resources/book-publishers-*.csv", "resources/publisher-packs.json", "resources/CMUDICT-LICENSE"]
 
 [tool.setuptools.packages.find]
 include = ["app", "app.*"]
