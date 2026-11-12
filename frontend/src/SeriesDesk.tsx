@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { WorkspaceProject } from './workspace-types'
 import SeriesProfessionalTools, { type ProMode } from './SeriesProfessionalTools'
 import StoryObservatory from './StoryObservatory'
+import PartTwoStudio from './PartTwoStudio'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -41,7 +42,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [selectedId, setSelectedId] = useState('')
   const [series, setSeries] = useState<Series | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
-  const [view, setView] = useState<'observatory' | 'vault' | 'canon' | 'timeline' | ProMode>('observatory')
+  const [view, setView] = useState<'observatory' | 'creative' | 'vault' | 'canon' | 'timeline' | ProMode>('observatory')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -388,6 +389,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     {series && <>
       <nav className="series-desk-tabs" aria-label="Series Desk views">
         <button type="button" className={view === 'observatory' ? 'active' : ''} onClick={() => setView('observatory')}>✧ · Story Observatory</button>
+        <button type="button" className={view === 'creative' ? 'active' : ''} onClick={() => setView('creative')}>✧ · Character & Scene Studio</button>
         <button type="button" className={view === 'vault' ? 'active' : ''} onClick={() => setView('vault')}>01 · Series Vault</button>
         <button type="button" className={view === 'canon' ? 'active' : ''} onClick={() => setView('canon')}>02 · Canon Graph <small>{facts.filter(item => item.status === 'proposed').length} waiting</small></button>
         <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>03 · Time & Knowledge</button>
@@ -401,6 +403,8 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         onOpenCanon={() => setView('canon')} onOpenVault={() => setView('vault')}
         onDiscoverySaved={() => void loadSelected(series.id)}
         onInspectSource={id => { setSourceId(id); setView('canon') }} />}
+      {view === 'creative' && <PartTwoStudio key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
+        onSource={id => {setSourceId(id);setView('canon')}} onCanon={() => setView('canon')}/>}
       {(view === 'guardian' || view === 'consequences' || view === 'ember') &&
         <SeriesProfessionalTools mode={view} seriesId={series.id}
           volumes={series.volumes || []} entities={entities}
