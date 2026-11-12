@@ -26,3 +26,13 @@ data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local synthetic author-review fixtures, screenshots and transient reports.
+# Excluded from source control but intentionally retained on disk.
+chrome-synthetic/
+part1-demo-data*/
+part1-demo-data*-Recovery/
+part2-*-suite.txt
+part3-*-suite.txt
+part3-release-tests.txt
+part4-full-suite.txt
