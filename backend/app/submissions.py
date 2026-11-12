@@ -196,6 +196,8 @@ def validate_submission(
         line for line in guideline_lines
         if re.search(r"\bAI\b|artificial intelligence|machine.generated|ChatGPT", line, re.IGNORECASE)
     ]
+    if destination.market_rules_required and not guideline_lines:
+        add("error", "market-guidelines-missing", "This publisher has no verified packet rules. Add the official requirements first.")
     if guideline_lines and not destination.guidelines_reviewed:
         add("error", "guidelines-unreviewed", "Review the source checklist against the destination settings.")
     if destination.combine_synopsis and (

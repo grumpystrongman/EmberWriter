@@ -45,6 +45,7 @@ class SubmissionDestination(BaseModel):
     expected_response_days: int | None = Field(default=None, ge=1, le=730)
     guidelines_text: str = Field(default="", max_length=24000)
     guidelines_reviewed: bool = False
+    market_rules_required: bool = False
     blind_review: bool = False
     combine_synopsis: bool = False
     notes: str = Field(default="", max_length=12000)

@@ -169,3 +169,152 @@
     grid-column: auto;
   }
 }
+
+.submission-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+}
+
+.submission-panel .submission-views button,
+.submission-panel .market-directory button {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.78rem;
+}
+
+.submission-panel .submission-views button[aria-pressed="true"] {
+  border-color: #c39ae2;
+  background: #352446;
+  color: #f5eaff;
+}
+
+.market-directory {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.market-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: clamp(0.9rem, 3vw, 1.8rem);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(115deg, #251a33, #18151e);
+  color: #f4edf9;
+}
+
+.market-heading h2 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  letter-spacing: -0.025em;
+}
+
+.market-heading p,
+.market-results p {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 0.85rem;
+}
+
+.market-heading span {
+  color: #e2c9f4;
+  font-size: 0.8rem;
+}
+
+.market-filters,
+.market-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.65rem;
+}
+
+.market-filters {
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.submission-panel .market-filters label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.market-filters input[type="checkbox"] {
+  width: auto;
+}
+
+.market-filters input[type="search"],
+.market-filters select {
+  width: 100%;
+  min-height: 2.5rem;
+}
+
+.market-results > p,
+.market-results > button {
+  grid-column: 1 / -1;
+}
+
+.market-results article {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.market-results article > div {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.market-results h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.market-results a,
+.market-results small {
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.market-results .market-ready {
+  color: #a9d8ae;
+  font-weight: 650;
+}
+
+.submission-manuscript {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.8rem;
+}
+
+.submission-manuscript > summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.submission-manuscript[open] > summary {
+  margin-bottom: 0.75rem;
+}
+
+.submission-panel :focus-visible {
+  outline: 2px solid #d7aaff;
+  outline-offset: 2px;
+}
