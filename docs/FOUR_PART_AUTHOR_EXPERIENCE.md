@@ -48,6 +48,7 @@ The application should feel like a professional creative studio, **not a workflo
 - Multi-book project experience, library, templates, versioning and backups.
 - Guided onboarding, accessibility audit, performance optimization, installer, local-model diagnostics and real author acceptance tests.
 - Optional author workflow upgrades such as writing goals and beta-reader feedback, after core author success is reliable.
+- **Stable-release documentation gate:** after freezing a real stable build, create a complete version-matched How-To Wiki and integrate it into the floating Ember Companion for contextual, one-step-at-a-time guided walkthroughs. The guide must be searchable offline, screenshot-verified, accessible, source-linked and safe for author-owned work. See `docs/STABLE_RELEASE_HELP_WIKI_REQUIREMENT.md` and GitHub issue #134. Do not mark the documentation gate complete until real release-specific procedures pass acceptance tests.
 
 **Design target:** an elegant guided publishing desk with clear stage progress, previews and explicit release actions. No automatic publication or cloud manuscript transfer.
 

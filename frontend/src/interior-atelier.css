@@ -1,0 +1,57 @@
+
+.interioratelier{margin:16px 0;border:1px solid #65778f;border-radius:16px;background:#1c2c40;color:#f5e8ef;overflow:hidden;min-width:0}
+.interioratelier *{box-sizing:border-box}.interioratelier button{cursor:pointer}.interioratelier button:focus-visible,.interioratelier select:focus-visible,.interioratelier input:focus-visible{outline:3px solid #eec398;outline-offset:3px}
+.interioratelier-head{padding:22px 21px 15px;background:linear-gradient(110deg,#283a50,#373048)}
+.interioratelier-head>span,.interioratelier-inspector>span,.interioratelier-device-controls strong{color:#efc39d;font-size:.67rem;font-weight:800;letter-spacing:.12em}
+.interioratelier-head h4{font:normal 1.8rem Georgia,serif;margin:8px 0;color:#fbece7}.interioratelier-head p{color:#c5d3df;font-size:.8rem;line-height:1.6;max-width:680px}
+.interioratelier-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:17px 20px}
+.interioratelier-presets button{background:#28394e;border:1px solid #63748b;border-radius:12px;color:#f2e8f0;padding:14px;text-align:left;display:grid;gap:8px;align-content:start;min-width:0}
+.interioratelier-presets button[aria-pressed=true]{background:#55435e;border-color:#e7b9da;box-shadow:0 0 0 2px #d3b2e339}
+.interioratelier-presets button>span{color:#e9c49e;font-size:.61rem;letter-spacing:.12em;font-weight:800}
+.interioratelier-presets-icon{color:#f4c4dd;font-size:1.7rem}.interioratelier-presets strong{font-size:.79rem}.interioratelier-presets small{font-size:.69rem;color:#c5d1de;line-height:1.55}
+.interioratelier-content{padding:0 20px 20px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(230px,.8fr);gap:13px}
+.interioratelier-reader,.interioratelier-inspector{background:#192b3d;border:1px solid #5c7189;border-radius:13px;min-width:0;overflow:hidden}
+.interioratelier-device-controls{padding:12px;background:#24374d;border-bottom:1px solid #556882;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.interioratelier-device-controls>div:first-child{display:grid;gap:4px}.interioratelier-device-controls small{font-size:.69rem;color:#bacbdd}
+.interioratelier-device-switch{display:flex;gap:4px;flex-wrap:wrap}
+.interioratelier-device-switch button{border:1px solid #647791;background:#34455d;color:#e8e0ec;border-radius:7px;padding:7px;font-size:.69rem}
+.interioratelier-device-switch button[aria-pressed=true]{background:#745773;border-color:#d8b2d1}
+.interioratelier-paper-backdrop{padding:18px;min-height:440px;display:grid;place-items:center;background:radial-gradient(ellipse at center,#46516b,#1a2b3a);overflow:auto}
+.interioratelier-device{display:grid;grid-template-rows:29px minmax(0,1fr) 23px;background:#faf7f0;color:#30272b;width:min(100%,300px);height:393px;overflow:hidden;border:8px solid #292b38;border-radius:20px;box-shadow:12px 14px 23px #111a28a8}
+.interioratelier-device.phone{width:215px;height:393px;border-radius:27px}
+.interioratelier-device.ereader{width:min(100%,270px);border:13px solid #2e3035;border-radius:11px}
+.interioratelier-device.tablet{width:min(100%,390px);height:348px;border-radius:14px}
+.interioratelier-device.print{width:min(100%,290px);height:395px;border:1px solid #d9c7b7;border-radius:2px}
+.interioratelier-device-top,.interioratelier-device-bottom{display:flex;justify-content:space-between;align-items:center;padding:0 9px;background:#fcf9f3;color:#7e7373;font-size:.62rem}
+.interioratelier-paper{display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;min-height:0;background:#fcf9f3}
+.interioratelier-paper h5{margin:11px 8px;font:normal 1rem Georgia,serif;text-align:center}
+.interioratelier-paper iframe{width:100%;height:100%;border:0;background:#faf7ed}
+.interioratelier-preview-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px}
+.interioratelier-preview-empty>span{font-size:2.3rem;color:#997ca5}.interioratelier-preview-empty strong{font:normal 1.2rem Georgia,serif}.interioratelier-preview-empty p{font-size:.79rem;line-height:1.55}
+.interioratelier-chapter-navigation{padding:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.interioratelier-chapter-navigation button{background:#37445b;color:#f1e7f2;border:1px solid #65758c;border-radius:8px;padding:8px;font-size:.7rem}
+.interioratelier-chapter-navigation button:disabled{opacity:.4}.interioratelier-chapter-navigation label{display:grid;gap:4px;flex:1;min-width:100px;color:#c3d0e0;font-size:.69rem}
+.interioratelier-chapter-navigation select{padding:7px;border:1px solid #667c93;border-radius:7px;background:#26384b;color:white;width:100%;min-width:0}
+.interioratelier-preview-button{margin:12px;background:#4e4564;color:#f3e5f2;border:1px solid #a087b2;border-radius:9px;padding:11px;font-size:.78rem}
+.interioratelier-inspector{padding:18px}.interioratelier-inspector h5{font:normal 1.55rem Georgia,serif;margin:10px 0}
+.interioratelier-inspector>p,.interioratelier-safety p{color:#c7d0dd;font-size:.8rem;line-height:1.55}
+.interioratelier-output,.interioratelier-safety{border:1px solid #536a84;background:#263a4d;border-radius:11px;padding:13px;margin:15px 0}
+.interioratelier-output>strong{display:block;color:#efc39d;font-size:.7rem;letter-spacing:.1em;margin-bottom:10px}
+.interioratelier-output>div{display:flex;flex-wrap:wrap;gap:7px}.interioratelier-output span{border:1px solid #aa8da9;background:#504360;color:#f1d8f1;padding:7px 10px;border-radius:100px;font-size:.72rem}
+.interioratelier-settings-toggle{background:transparent;border:0;color:#eac4e9;padding:8px 0;font-size:.78rem}
+.interioratelier-fields{display:grid;gap:9px;margin:9px 0}.interioratelier-fields label{display:grid;gap:5px;color:#e9d9e9;font-size:.76rem}
+.interioratelier-fields input,.interioratelier-fields select{background:#172838;color:#f3ebf3;border:1px solid #74869b;border-radius:7px;padding:9px;min-width:0}
+.interioratelier-safety strong{font-size:.79rem;color:#f6d3b6}.interioratelier-safety p{margin-bottom:0}
+.interioratelier-build{width:100%;display:flex;justify-content:space-between;gap:8px;border:1px solid #d8adcf;background:#795474;border-radius:10px;color:white;font-size:.79rem;font-weight:700;padding:13px}
+.interioratelier-build:disabled{opacity:.4}
+.interioratelier-confirm{border:1px solid #c99d8b;background:#53414c;border-radius:10px;padding:12px;display:grid;gap:8px}
+.interioratelier-confirm strong{font:normal 1.04rem Georgia,serif}.interioratelier-confirm p{color:#f1d8d9;font-size:.75rem;line-height:1.55}
+.interioratelier-confirm button{border:1px solid #a98ba1;background:#715678;color:white;padding:10px;border-radius:8px;font-size:.76rem}
+.interioratelier-error,.interioratelier-message{border:1px solid #b68f97;background:#533842;color:#f8dddd;padding:10px;border-radius:9px;font-size:.75rem}
+.interioratelier-message{border-color:#739a8a;background:#29453e;color:#dbf5e9}
+.interioratelier-outputs{display:grid;gap:8px;padding:12px;background:#24483f;border:1px solid #84b79b;border-radius:10px;margin-top:11px}
+.interioratelier-outputs strong{font-size:.81rem;color:#d9f4e0}.interioratelier-outputs a{color:#eee2fa;overflow-wrap:anywhere;font-size:.76rem}
+.interioratelier footer{padding:14px 20px;background:#1b3042;border-top:1px solid #4c6279;color:#bdcddc;font-size:.72rem;line-height:1.55}
+@media(max-width:1060px){.interioratelier-presets{grid-template-columns:repeat(2,minmax(0,1fr))}.interioratelier-content{grid-template-columns:1fr}}
+@media(max-width:570px){.interioratelier-head{padding:17px}.interioratelier-presets{padding:12px;gap:7px}.interioratelier-presets button{padding:10px}.interioratelier-content{padding:0 12px 12px}.interioratelier-device-controls{padding:10px}.interioratelier-inspector{padding:13px}.interioratelier-paper-backdrop{padding:10px}.interioratelier-device.tablet{width:min(100%,300px)}}
+@media(prefers-reduced-motion:reduce){.interioratelier-device{transition:none}}
