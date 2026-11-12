@@ -15,6 +15,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from . import series_scene_studio as scene_studio
 from .series_vault import (
     MAX_DOCUMENT_CHARS,
     _connect,
@@ -59,6 +60,7 @@ def backup(series_id: str) -> Path:
         "sources": sources,
         "entities": entities,
         "assertions": facts,
+        "scene_boards": scene_studio.list_boards(series_id),
         "note": "Restoring this archive creates a new independent series. "
                 "Linked writing projects are not moved; their immutable source "
                 "snapshots are included instead.",
@@ -130,9 +132,11 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
         sources = manifest.get("sources", [])
         entities = manifest.get("entities", [])
         assertions = manifest.get("assertions", [])
+        scene_boards = manifest.get("scene_boards", [])
         if (not isinstance(about, dict) or not isinstance(volumes, list)
                 or not isinstance(sources, list) or not isinstance(entities, list)
                 or not isinstance(assertions, list)
+                or not isinstance(scene_boards, list) or len(scene_boards) > 200
                 or len(sources) > 1000 or len(entities) > 10000
                 or len(assertions) > 100000):
             raise ValueError("Archive has invalid record counts")
@@ -183,6 +187,40 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                 raise ValueError("Canon source citation is invalid; restore cancelled")
             if fact.get("status") not in {"proposed", "approved", "rejected"}:
                 raise ValueError("Archive canon review state is invalid")
+        # Scene boards are noncanonical author drafts. Validate the full record
+        # before touching the destination, then remap entity IDs on restore.
+        character_ids = {e["id"] for e in entities if e.get("kind") == "character"}
+        place_ids = {e["id"] for e in entities if e.get("kind") == "place"}
+        for board in scene_boards:
+            if not isinstance(board, dict) or not isinstance(board.get("book"), int) or board["book"] not in orders:
+                raise ValueError("Archive contains an invalid scene board book")
+            if not isinstance(board.get("sequence"), int) or not 0 <= board["sequence"] <= 999999:
+                raise ValueError("Archive contains an invalid scene board position")
+            participants = board.get("participants")
+            if not isinstance(participants, list) or len(participants) > 20 or len(set(participants)) != len(participants) or any(p not in character_ids for p in participants):
+                raise ValueError("Archive contains a scene board with missing cast")
+            if (board.get("pov_id") and board["pov_id"] not in character_ids) or (board.get("location_id") and board["location_id"] not in place_ids):
+                raise ValueError("Archive scene board refers to an unknown location or POV")
+            if not 1 <= len(str(board.get("title", "")).strip()) <= 160:
+                raise ValueError("Archive contains a scene board with an invalid title")
+            for field, maximum in (("objective", 1200), ("conflict", 1200), ("opening", 1600), ("aftermath", 1600), ("voice_notes", 1200)):
+                if not isinstance(board.get(field, ""), str) or len(board.get(field, "")) > maximum:
+                    raise ValueError("Archive contains a scene board with invalid notes")
+            beats = board.get("beats")
+            if not isinstance(beats, list) or not 1 <= len(beats) <= 24:
+                raise ValueError("Archive contains an invalid dramatic beat board")
+            beat_ids = set()
+            for beat in beats:
+                if not isinstance(beat, dict) or not isinstance(beat.get("id"), str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", beat["id"]):
+                    raise ValueError("Archive contains an invalid beat identifier")
+                beat_ids.add(beat["id"])
+                if (beat.get("kind") not in scene_studio.BEAT_KINDS
+                    or not isinstance(beat.get("title"), str) or not 1 <= len(beat["title"].strip()) <= 120
+                    or not isinstance(beat.get("detail"), str) or len(beat["detail"]) > 1200
+                    or type(beat.get("pressure")) is not int or not 0 <= beat["pressure"] <= 100):
+                    raise ValueError("Archive contains an invalid scene beat")
+            if len(beat_ids) != len(beats):
+                raise ValueError("Archive contains repeated beat identifiers")
         # All validation has completed. Create only a new ID namespace.
         series_id = _id()
         volume_map = {old: _id() for old in volume_ids}
@@ -240,5 +278,20 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
         except Exception:
             for volume_id in set(created_volumes):
                 shutil.rmtree(_root() / "snapshots" / volume_id, ignore_errors=True)
+            raise
+        try:
+            for board in scene_boards:
+                scene_studio.create_board(series_id, {
+                    **{key: board.get(key, "") for key in ("title", "objective", "conflict", "opening", "aftermath", "voice_notes")},
+                    "book": board["book"], "sequence": board["sequence"],
+                    "pov_id": entity_map.get(board.get("pov_id")),
+                    "location_id": entity_map.get(board.get("location_id")),
+                    "participants": [entity_map[p] for p in board["participants"]],
+                    "beats": board["beats"],
+                })
+        except Exception:
+            # Do not leave an apparently successful but incomplete restore.
+            from .series_vault import delete_series
+            delete_series(series_id, title)
             raise
     return series_detail(series_id)

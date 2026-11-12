@@ -152,7 +152,7 @@ def delete_series(series_id: str, confirmation: str) -> dict:
             raise ValueError("Type the exact series title to confirm permanent deletion")
         from .recovery_vault import before_destructive_action
 
-        before_destructive_action("delete series", ["series/series-vault.sqlite3", "series/snapshots"])
+        before_destructive_action("delete series", ["series/series-vault.sqlite3", "series/snapshots", "series/scene-boards"])
         volumes = [row["id"] for row in con.execute(
             "SELECT id FROM volumes WHERE series_id=?", (series_id,))]
         # Assertions refer to series-local entities and source IDs. Delete in
@@ -168,6 +168,8 @@ def delete_series(series_id: str, confirmation: str) -> dict:
     for volume_id in volumes:
         if re.fullmatch(r"[0-9a-f]{32}", volume_id):
             shutil.rmtree(_root() / "snapshots" / volume_id, ignore_errors=True)
+    # This private planning artifact belongs to the deleted series only.
+    (_root() / "scene-boards" / f"{series_id}.json").unlink(missing_ok=True)
     return {"deleted": True, "series_id": series_id,
             "linked_projects_deleted": False}
 

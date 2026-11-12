@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
@@ -16,7 +17,7 @@ def _db_path(slug: str) -> Path:
 
 
 def _connect(slug: str) -> sqlite3.Connection:
-    con = sqlite3.connect(_db_path(slug))
+    con = sqlite3.connect(_db_path(slug), factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

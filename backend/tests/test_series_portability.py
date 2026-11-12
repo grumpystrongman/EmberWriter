@@ -131,3 +131,36 @@ def test_series_removal_requires_exact_title_and_never_deletes_linked_book(porta
     for volume in before["volumes"]:
         with pytest.raises(FileNotFoundError):
             vault.source_text(series_id, volume["sources"][0]["id"])
+
+def test_scene_boards_survive_private_backup_with_remapped_cast(portable_fixture):
+    from app import series_scene_studio as studio
+    series_id, _, _ = portable_fixture
+    char = canon.add_entity(series_id, "Eira", "character")
+    place = canon.add_entity(series_id, "Frozen Keep", "place")
+    payload = {
+        "title": "The confession", "book": 1, "sequence": 4, "objective": "Tell the truth",
+        "conflict": "An oath prevents disclosure", "opening": "Guarded trust",
+        "aftermath": "They choose to separate", "voice_notes": "Whispered dialogue",
+        "pov_id": char["id"], "location_id": place["id"],
+        "participants": [char["id"]],
+        "beats": [{"id": "a1", "kind": "reversal", "title": "The confession",
+                   "detail": "A secret changes their future", "pressure": 83}],
+    }
+    original = studio.create_board(series_id, payload)
+    archive = portable.backup(series_id)
+    try:
+        restored = portable.restore(archive.read_bytes(), True)
+    finally:
+        archive.unlink(missing_ok=True)
+    boards = studio.list_boards(restored["id"])
+    assert len(boards) == 1
+    restored_board = boards[0]
+    assert restored_board["id"] != original["id"]
+    assert restored_board["version"] == 1
+    assert restored_board["beats"] == payload["beats"]
+    assert restored_board["aftermath"] == payload["aftermath"]
+    entities = {entity["name"]: entity["id"] for entity in canon.list_entities(restored["id"])}
+    assert restored_board["pov_id"] == entities["Eira"]
+    assert restored_board["location_id"] == entities["Frozen Keep"]
+    assert restored_board["participants"] == [entities["Eira"]]
+    assert studio.list_boards(series_id)[0]["id"] == original["id"]

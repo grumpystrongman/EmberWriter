@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -54,7 +55,7 @@ def _db_path(slug: str) -> Path:
 def _connect(slug: str) -> sqlite3.Connection:
     path = _db_path(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(path, factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

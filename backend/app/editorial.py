@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from collections import Counter, defaultdict
 from collections.abc import Iterable
@@ -295,7 +296,7 @@ def _db_path(slug: str) -> Path:
 
 
 def _connect(slug: str) -> sqlite3.Connection:
-    con = sqlite3.connect(_db_path(slug))
+    con = sqlite3.connect(_db_path(slug), factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

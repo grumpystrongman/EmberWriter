@@ -18,6 +18,8 @@ from . import series_discovery as discovery
 from . import series_story_state as intelligence
 from . import story_benchmark_jobs as benchmarks
 from . import series_vault as vault
+from . import series_scene_studio as scene_studio
+from . import series_scene_preflight as scene_preflight
 
 router = APIRouter(prefix="/api/series", tags=["Series Vault"])
 
@@ -89,6 +91,29 @@ class SourceSuggestion(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     start: int = Field(ge=0)
     end: int = Field(gt=0)
+
+
+class SceneBoardPayload(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    book: int = Field(ge=1, le=9999)
+    sequence: int = Field(default=0, ge=0, le=999999)
+    objective: str = Field(default='', max_length=1200)
+    conflict: str = Field(default='', max_length=1200)
+    opening: str = Field(default='', max_length=1600)
+    aftermath: str = Field(default='', max_length=1600)
+    voice_notes: str = Field(default='', max_length=1200)
+    pov_id: str | None = None
+    location_id: str | None = None
+    participants: list[str] = Field(default_factory=list, max_length=20)
+    beats: list[dict] = Field(min_length=1, max_length=24)
+
+
+class SceneBoardUpdate(SceneBoardPayload):
+    version: int = Field(ge=1)
+
+
+class SceneBoardDelete(BaseModel):
+    version: int = Field(ge=1)
 
 
 class SceneClaim(BaseModel):
@@ -214,6 +239,46 @@ def start_model_evaluation(series_id: str, payload: ModelEvaluationCreate,
         _fail(exc)
     background_tasks.add_task(benchmarks.execute, series_id, payload.model)
     return job
+
+
+@router.post("/{series_id}/scene-preflight")
+def preview_scene_staging(series_id: str, payload: SceneBoardPayload) -> dict:
+    try:
+        return scene_preflight.preflight(series_id, payload.model_dump())
+    except (FileNotFoundError, ValueError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/scene-boards")
+def get_scene_boards(series_id: str, book: int | None = Query(default=None, ge=1)) -> list[dict]:
+    try:
+        return scene_studio.list_boards(series_id, book)
+    except (FileNotFoundError, ValueError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/scene-boards", status_code=201)
+def create_scene_board(series_id: str, payload: SceneBoardPayload) -> dict:
+    try:
+        return scene_studio.create_board(series_id, payload.model_dump())
+    except (FileNotFoundError, ValueError) as exc:
+        _fail(exc)
+
+
+@router.put("/{series_id}/scene-boards/{board_id}")
+def update_scene_board(series_id: str, board_id: str, payload: SceneBoardUpdate) -> dict:
+    try:
+        return scene_studio.update_board(series_id, board_id, payload.version, payload.model_dump(exclude={"version"}))
+    except (FileNotFoundError, ValueError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/scene-boards/{board_id}/delete")
+def remove_scene_board(series_id: str, board_id: str, payload: SceneBoardDelete) -> dict:
+    try:
+        return scene_studio.delete_board(series_id, board_id, payload.version)
+    except (FileNotFoundError, ValueError) as exc:
+        _fail(exc)
 
 
 @router.get("/{series_id}/story-state")

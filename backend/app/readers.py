@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from typing import Any
 from uuid import uuid4
@@ -97,7 +98,7 @@ def _parse_json_object(text: str, label: str) -> dict[str, Any]:
 
 def _connect(slug: str) -> sqlite3.Connection:
     path = project_root(slug) / ".ember" / "story.db"
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(path, factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """
