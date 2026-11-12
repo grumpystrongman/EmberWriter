@@ -232,6 +232,7 @@ function providerFromStorage(): Provider | null {
 }
 
 export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource }: Props) {
+  const [view, setView] = useState<'market' | 'packet'>('market')
   const [profile, setProfile] = useState<SubmissionProfile | null>(null)
   const [selectedDestinationId, setSelectedDestinationId] = useState('')
   const [validation, setValidation] = useState<Validation | null>(null)
@@ -359,6 +360,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
     const next = listing ? { ...newDestination(), ...listing.settings, name: listing.name } : newDestination()
     setProfile({ ...profile, destinations: [...profile.destinations, next] })
     setSelectedDestinationId(next.id)
+    setView('packet')
     setResult(null)
   }
 
@@ -474,42 +476,20 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
   }
 
   return (
-    <details className="authoring-panel submission-panel">
+    <details className="authoring-panel submission-panel" open>
       <summary>Traditional Submission Studio <small>query · synopsis · samples · tracker</small></summary>
       <div className="authoring-panel-body submission-body">
-        <div className="submission-grid">
-          <label>Author / pen name<input value={profile.author_name} onChange={(event) => setProfile({ ...profile, author_name: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Manuscript title<input value={profile.title} onChange={(event) => setProfile({ ...profile, title: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Genre / category<input value={profile.genre} onChange={(event) => setProfile({ ...profile, genre: event.target.value })} placeholder="Adult dark fantasy" disabled={disabled || busy} /></label>
-          <label>Word count<input type="number" min="0" value={profile.word_count} onChange={(event) => setProfile({ ...profile, word_count: Number(event.target.value) })} disabled={disabled || busy} /></label>
-          <label>Submission manuscript preset<select value={profile.manuscript_preset} onChange={(event) => setProfile({ ...profile, manuscript_preset: event.target.value as ManuscriptPreset })} disabled={disabled || busy}><option value="standard_novel">Modern standard novel</option><option value="shunn_classic">Shunn-style classic / Courier</option></select></label>
-          <label>Comparable titles<input value={profile.comp_titles.join(', ')} onChange={(event) => setProfile({ ...profile, comp_titles: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} disabled={disabled || busy} /></label>
-          <label>Email<input value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Phone<input value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} disabled={disabled || busy} /></label>
-          <label className="submission-wide">Mailing address<textarea rows={2} value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} disabled={disabled || busy} /></label>
-          <label className="submission-wide">Website<input value={profile.website} onChange={(event) => setProfile({ ...profile, website: event.target.value })} disabled={disabled || busy} /></label>
-        </div>
-
-        <div className="submission-materials">
-          <label>Logline<textarea rows={2} value={profile.logline} onChange={(event) => setProfile({ ...profile, logline: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Pitch <button type="button" onClick={() => void draft('pitch')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'pitch' ? 'Drafting…' : 'AI draft'}</button><textarea rows={4} value={profile.pitch} onChange={(event) => setProfile({ ...profile, pitch: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Query letter <button type="button" onClick={() => void draft('query')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'query' ? 'Drafting…' : 'AI draft'}</button><textarea rows={10} value={profile.query_letter} onChange={(event) => setProfile({ ...profile, query_letter: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Synopsis <button type="button" onClick={() => void draft('synopsis')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'synopsis' ? 'Drafting…' : 'AI draft'}</button><textarea rows={12} value={profile.synopsis} onChange={(event) => setProfile({ ...profile, synopsis: event.target.value })} disabled={disabled || busy} /></label>
-          <label>Author bio <button type="button" onClick={() => void draft('bio')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'bio' ? 'Drafting…' : 'AI draft'}</button><textarea rows={4} value={profile.bio} onChange={(event) => setProfile({ ...profile, bio: event.target.value })} disabled={disabled || busy} /></label>
-          {draftEvidence && <small className="panel-help">{draftEvidence}</small>}
-        </div>
-
-        <div className="submission-target-toolbar">
-          <select value={selectedDestinationId} onChange={(event) => setSelectedDestinationId(event.target.value)} disabled={disabled || busy}>
-            <option value="">Choose an agent / publisher…</option>
-            {profile.destinations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-          <button type="button" onClick={() => addDestination()} disabled={disabled || busy}>+ Target</button>
-          {selectedDestination && <button type="button" onClick={removeDestination} disabled={disabled || busy}>Remove</button>}
-        </div>
-
-        <details className="submission-history">
-          <summary>Market Directory</summary>
+        <nav className="submission-views" aria-label="Submission Studio views">
+          <button type="button" aria-pressed={view === 'market'} onClick={() => setView('market')}>Market Directory</button>
+          <button type="button" aria-pressed={view === 'packet'} onClick={() => setView('packet')}>Prepare packet</button>
+        </nav>
+        {view === 'market' ? (
+          <section className="market-directory" aria-label="Market Directory">
+          <div className="market-heading">
+            <div><h2>Find a publisher</h2><p>Search the directory, review submission requirements, and start your packet.</p></div>
+            {catalog.length > 0 && <span>{catalog.length.toLocaleString()} publishers</span>}
+          </div>
+          <div className="market-filters">
           <label>Search publishers or requirements<input type="search" value={marketSearch} onChange={(event) => { setMarketSearch(event.target.value); setCatalogLimit(40) }} /></label>
           <label><input type="checkbox" checked={rulesOnly} onChange={(event) => setRulesOnly(event.target.checked)} /> Show only listings with submission guidelines</label>
           <label>Genre<select value={genreFilter} onChange={(event) => setGenreFilter(event.target.value)}>
@@ -524,6 +504,8 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
             <option value="unknown">Unverified route</option>
           </select></label>
           <label><input type="checkbox" checked={readyOnly} onChange={(event) => setReadyOnly(event.target.checked)} /> Packet settings available</label>
+          </div>
+          <div className="market-results">
           {marketError && <p role="status">{marketError}</p>}
           {publishers.filter((item) => (!rulesOnly || item.guidelines)
             && (!genreFilter || item.genres?.includes(genreFilter))
@@ -531,11 +513,11 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
             && (!readyOnly || item.pack_status === 'ready') && `${item.name} ${item.guidelines?.text ?? ''}`.toLowerCase().includes(marketSearch.trim().toLowerCase())).map((item) => (
             <article key={item.url}>
               <div>
-                <a href={item.url} target="_blank" rel="noreferrer">{item.name} · official submission page</a>
+                <h3>{item.name}</h3><a href={item.url} target="_blank" rel="noreferrer">Official submission page</a>
                 {item.checked_at && <small>Last checked {new Date(item.checked_at).toLocaleDateString()}</small>}
                 {item.changed_at && <small>Rules changed {new Date(item.changed_at).toLocaleDateString()}</small>}
                 {item.genres?.length ? <small>{item.genres.join(' · ')}</small> : <small>Genres unverified</small>}
-                <small>{item.pack_status === 'ready' ? 'Packet settings available' : item.pack_reason}</small>
+                <small className={item.pack_status === 'ready' ? 'market-ready' : ''}>{item.pack_status === 'ready' ? 'Packet settings available' : item.pack_reason}</small>
                 {item.error && <small>{item.error}</small>}
               </div>
               <button type="button" disabled={disabled || busy || item.access === 'agent'} onClick={() => addDestination({
@@ -557,7 +539,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
           {catalogResults.slice(0, catalogLimit).map((publisher) => (
             <article key={publisher.wikidata_id}>
               <div>
-                <strong>{publisher.name}</strong>
+                <h3>{publisher.name}</h3>
                 <small>Submission rules unverified</small>
                 {publisher.website && <a href={publisher.website} target="_blank" rel="noreferrer">Listed website</a>}
                 <a href={`https://www.wikidata.org/wiki/${publisher.wikidata_id}`} target="_blank" rel="noreferrer">Source record</a>
@@ -588,7 +570,45 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
           {catalogLimit < catalogResults.length && (
             <button type="button" onClick={() => setCatalogLimit((limit) => limit + 40)}>Show more publishers</button>
           )}</>}
+          </div>
+        </section>
+        ) : <>
+        <details className="submission-manuscript" open>
+          <summary>Manuscript and author details</summary>
+        <div className="submission-grid">
+          <label>Author / pen name<input value={profile.author_name} onChange={(event) => setProfile({ ...profile, author_name: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Manuscript title<input value={profile.title} onChange={(event) => setProfile({ ...profile, title: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Genre / category<input value={profile.genre} onChange={(event) => setProfile({ ...profile, genre: event.target.value })} placeholder="Adult dark fantasy" disabled={disabled || busy} /></label>
+          <label>Word count<input type="number" min="0" value={profile.word_count} onChange={(event) => setProfile({ ...profile, word_count: Number(event.target.value) })} disabled={disabled || busy} /></label>
+          <label>Submission manuscript preset<select value={profile.manuscript_preset} onChange={(event) => setProfile({ ...profile, manuscript_preset: event.target.value as ManuscriptPreset })} disabled={disabled || busy}><option value="standard_novel">Modern standard novel</option><option value="shunn_classic">Shunn-style classic / Courier</option></select></label>
+          <label>Comparable titles<input value={profile.comp_titles.join(', ')} onChange={(event) => setProfile({ ...profile, comp_titles: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} disabled={disabled || busy} /></label>
+          <label>Email<input value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Phone<input value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} disabled={disabled || busy} /></label>
+          <label className="submission-wide">Mailing address<textarea rows={2} value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} disabled={disabled || busy} /></label>
+          <label className="submission-wide">Website<input value={profile.website} onChange={(event) => setProfile({ ...profile, website: event.target.value })} disabled={disabled || busy} /></label>
+        </div>
+
         </details>
+        <details className="submission-manuscript">
+          <summary>Query, synopsis and author bio</summary>
+        <div className="submission-materials">
+          <label>Logline<textarea rows={2} value={profile.logline} onChange={(event) => setProfile({ ...profile, logline: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Pitch <button type="button" onClick={() => void draft('pitch')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'pitch' ? 'Drafting…' : 'AI draft'}</button><textarea rows={4} value={profile.pitch} onChange={(event) => setProfile({ ...profile, pitch: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Query letter <button type="button" onClick={() => void draft('query')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'query' ? 'Drafting…' : 'AI draft'}</button><textarea rows={10} value={profile.query_letter} onChange={(event) => setProfile({ ...profile, query_letter: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Synopsis <button type="button" onClick={() => void draft('synopsis')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'synopsis' ? 'Drafting…' : 'AI draft'}</button><textarea rows={12} value={profile.synopsis} onChange={(event) => setProfile({ ...profile, synopsis: event.target.value })} disabled={disabled || busy} /></label>
+          <label>Author bio <button type="button" onClick={() => void draft('bio')} disabled={disabled || busy || Boolean(drafting)}>{drafting === 'bio' ? 'Drafting…' : 'AI draft'}</button><textarea rows={4} value={profile.bio} onChange={(event) => setProfile({ ...profile, bio: event.target.value })} disabled={disabled || busy} /></label>
+          {draftEvidence && <small className="panel-help">{draftEvidence}</small>}
+        </div>
+
+        </details>
+        <div className="submission-target-toolbar">
+          <select value={selectedDestinationId} onChange={(event) => setSelectedDestinationId(event.target.value)} disabled={disabled || busy}>
+            <option value="">Choose an agent / publisher…</option>
+            {profile.destinations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+          <button type="button" onClick={() => addDestination()} disabled={disabled || busy}>+ Target</button>
+          {selectedDestination && <button type="button" onClick={removeDestination} disabled={disabled || busy}>Remove</button>}
+        </div>
 
         {selectedDestination && (
           <section className="submission-target-card">
@@ -743,6 +763,7 @@ export default function SubmissionPanel({ apiBase, slug, disabled, onOpenSource 
         )}
 
         <small className="panel-help">Agent and publisher rules are destination-specific. Ember's preset creates a clean manuscript handoff, but the saved current guideline page always overrides the preset. Ember prepares and tracks submissions; it does not send them automatically.</small>
+        </>}
         {error && <small className="panel-error">{error}</small>}
       </div>
     </details>
