@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from .board import (
+    BOARD_ASSET_LIMIT,
     board_asset_path,
     create_item,
     delete_item,
@@ -14,6 +15,7 @@ from .board import (
     update_item,
 )
 from .board_models import BoardItem, BoardItemCreate, BoardItemUpdate, BoardState
+from .routes_visual_interpret import ImageInterpretRequest, describe_reference_image
 
 router = APIRouter(prefix="/api")
 
@@ -65,9 +67,10 @@ async def upload_item(
     file: Annotated[UploadFile, File(...)],
     x: Annotated[float, Form()] = 100,
     y: Annotated[float, Form()] = 100,
+    parent_note_id: Annotated[str, Form(max_length=200)] = "",
 ) -> BoardItem:
     try:
-        data = await file.read()
+        data = await file.read(BOARD_ASSET_LIMIT + 1)
         return store_asset(
             slug,
             filename=file.filename or "attachment",
@@ -75,6 +78,7 @@ async def upload_item(
             content_type=file.content_type or "application/octet-stream",
             x=x,
             y=y,
+            parent_note_id=parent_note_id,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
@@ -85,8 +89,24 @@ async def upload_item(
 @router.get("/projects/{slug}/board/asset")
 def get_asset(slug: str, path: Annotated[str, Query(min_length=1)]) -> FileResponse:
     try:
-        return FileResponse(board_asset_path(slug, path))
+        asset = board_asset_path(slug, path)
+        if asset.suffix.casefold() in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}:
+            return FileResponse(asset, headers={"X-Content-Type-Options": "nosniff"})
+        return FileResponse(asset, media_type="application/octet-stream", filename=asset.name)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Board asset not found") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/projects/{slug}/board/items/{item_id}/describe")
+async def describe_attachment(slug: str, item_id: str, payload: ImageInterpretRequest) -> dict:
+    try:
+        image = next((item for item in load_board(slug).items
+                      if item.id == item_id and item.kind == "image" and item.parent_note_id), None)
+        if image is None:
+            raise FileNotFoundError(item_id)
+        path = board_asset_path(slug, image.asset_path)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Note image not found") from exc
+    return {"description": await describe_reference_image(path, payload)}

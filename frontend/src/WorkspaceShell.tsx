@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 const AppV2 = lazy(() => import('./AppV2'))
 import EmberCompanion from './EmberCompanion'
@@ -144,6 +144,16 @@ export default function WorkspaceShell() {
     const stored = localStorage.getItem('emberwriter.workspace') as Workspace | null
     return workspaces.some((item) => item.id === stored) ? stored! : 'write'
   })
+  const [binderWidth, setBinderWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('emberwriter.binderWidth'))
+    return saved >= 200 && saved <= 620 ? saved : 260
+  })
+  const resizingBinder = useRef(false)
+  function resizeBinder(width: number) {
+    const next = Math.round(Math.max(200, Math.min(620, window.innerWidth * 0.45, width)))
+    setBinderWidth(next)
+    localStorage.setItem('emberwriter.binderWidth', String(next))
+  }
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem('emberwriter.focusMode') === 'true')
   const [binderCollapsed, setBinderCollapsed] = useState(() => window.matchMedia('(max-width: 700px)').matches)
   const [projectContext, setProjectContext] = useState<WorkspaceProject | null>(null)
@@ -299,7 +309,6 @@ export default function WorkspaceShell() {
       }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
         event.preventDefault()
-        setWorkspace('write')
         setFocusMode((value) => !value)
         return
       }
@@ -385,6 +394,7 @@ export default function WorkspaceShell() {
   return (
     <div
       className={`workspace-shell workspace-${workspace}${focusMode ? ' focus-mode' : ''}${binderCollapsed ? ' binder-collapsed' : ''}`}
+      style={{ "--ember-saved-library-width": `${binderWidth}px` } as CSSProperties}
       data-workspace={workspace}
       data-writing-format={writingFormat}
     >
@@ -448,7 +458,7 @@ export default function WorkspaceShell() {
           <button
             type="button"
             className={focusMode ? 'active' : ''}
-            onClick={() => { setWorkspace('write'); setFocusMode((value) => !value) }}
+            onClick={() => setFocusMode((value) => !value)}
             title="Focus mode · Ctrl/Cmd+Shift+F"
           >
             ◉ Focus
@@ -467,6 +477,24 @@ export default function WorkspaceShell() {
         <Suspense fallback={<div role="status" className="workspace-loading">Opening your writing desk…</div>}>
           <AppV2 />
         </Suspense>
+        {!binderCollapsed && !focusMode && !narrow && (
+          <div className="workspace-binder-splitter" role="separator" tabIndex={0}
+            aria-label="Resize Binder" aria-orientation="vertical" aria-valuemin={200}
+            aria-valuemax={620} aria-valuenow={binderWidth}
+            onPointerDown={(event) => {
+              event.preventDefault()
+              resizingBinder.current = true
+              event.currentTarget.setPointerCapture(event.pointerId)
+            }}
+            onPointerMove={(event) => { if (resizingBinder.current) resizeBinder(event.clientX) }}
+            onLostPointerCapture={() => { resizingBinder.current = false }}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+              event.preventDefault()
+              resizeBinder(binderWidth + (event.key === 'ArrowLeft' ? -24 : 24))
+            }}
+            onDoubleClick={() => resizeBinder(260)} />
+        )}
         <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
       <RecoveryCenter open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />

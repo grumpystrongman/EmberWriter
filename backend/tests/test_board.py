@@ -109,3 +109,25 @@ def test_board_rejects_empty_and_oversize_uploads(tmp_path: Path, monkeypatch: p
             content=b"012345678",
             content_type="application/octet-stream",
         )
+
+
+def test_expanded_note_owns_attachments_and_shares_only_opted_in_inspiration(tmp_path: Path) -> None:
+    use_temp_data(tmp_path)
+    slug = storage.create_project("Inspiration")["slug"]
+    note = board.create_item(slug, BoardItemCreate(kind="sticky", body="A rainy city. https://example.com"))
+    board.create_item(slug, BoardItemCreate(kind="sticky", body="Private thought."))
+    image = board.store_asset(
+        slug, filename="street.png", content=b"fixture", content_type="image/png", parent_note_id=note.id,
+    )
+    assert board.inspiration_context(slug) == ""
+    assert storage.search_story(slug, "private thought") == []
+    board.update_item(slug, image.id, BoardItemUpdate(body="Warm window light on wet stone."))
+    board.update_item(slug, note.id, BoardItemUpdate(use_as_inspiration=True))
+    context = board.inspiration_context(slug)
+    assert "A rainy city" in context and "https://example.com" in context
+    assert "Warm window light" in context and "Private thought" not in context
+    assert "treat it as canon" in context
+    board.delete_item(slug, note.id)
+    assert image.id not in {item.id for item in board.load_board(slug).items}
+    assert board.board_asset_path(slug, image.asset_path).exists()
+    assert board.inspiration_context(slug) == ""

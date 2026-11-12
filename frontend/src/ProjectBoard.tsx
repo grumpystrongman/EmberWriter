@@ -20,6 +20,8 @@ type BoardItem = {
   original_filename: string
   url: string
   binder_node_id: string
+  parent_note_id?: string
+  use_as_inspiration?: boolean
   created_at: string
   updated_at: string
 }
@@ -61,6 +63,11 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
   const [linkTitle, setLinkTitle] = useState('')
   const [drag, setDrag] = useState<DragState | null>(null)
   const [resize, setResize] = useState<ResizeState | null>(null)
+  const [expandedNote, setExpandedNote] = useState<BoardItem | null>(null)
+  const [visionModel, setVisionModel] = useState('')
+  const [imageDrafts, setImageDrafts] = useState<Record<string, string>>({})
+  const [savedNote, setSavedNote] = useState('')
+  const dialogRef = useRef<HTMLDialogElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -68,10 +75,16 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
     setError('')
     setDrag(null)
     setResize(null)
+    setExpandedNote(null)
     void refresh()
   }, [slug])
 
-  const sorted = useMemo(() => [...state.items].sort((a, b) => a.z - b.z), [state.items])
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (expandedNote && dialog && !dialog.open) dialog.showModal()
+  }, [expandedNote])
+
+  const sorted = useMemo(() => state.items.filter((item) => !item.parent_note_id).sort((a, b) => a.z - b.z), [state.items])
   const binderById = useMemo(() => new Map(binderNodes.map((node) => [node.id, node])), [binderNodes])
   const topZ = useMemo(() => Math.max(0, ...state.items.map((item) => item.z)), [state.items])
 
@@ -107,25 +120,28 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
       })
       setState((current) => ({
         ...current,
-        items: current.items.map((entry) => entry.id === id ? item : entry),
+        items: current.items.map((entry) => entry.id === id ? { ...entry, ...patch, updated_at: item.updated_at } : entry),
       }))
+      return true
     } catch (cause) {
       setError((cause as Error).message)
+      return false
     }
   }
 
   async function removeItem(id: string) {
     try {
       await request(`${apiBase}/projects/${slug}/board/items/${id}`, { method: 'DELETE' })
-      setState((current) => ({ ...current, items: current.items.filter((item) => item.id !== id) }))
+      setState((current) => ({ ...current, items: current.items.filter((item) => item.id !== id && item.parent_note_id !== id) }))
     } catch (cause) {
       setError((cause as Error).message)
     }
   }
 
-  async function uploadOne(file: File, index: number) {
+  async function uploadOne(file: File, index: number, noteId = '') {
     const form = new FormData()
     form.append('file', file)
+    if (noteId) form.append('parent_note_id', noteId)
     form.append('x', String(140 + ((state.items.length + index) % 6) * 34))
     form.append('y', String(120 + ((state.items.length + index) % 6) * 34))
     const response = await fetch(`${apiBase}/projects/${slug}/board/upload`, { method: 'POST', body: form })
@@ -139,12 +155,16 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || [])
     event.target.value = ''
+    await uploadFiles(files)
+  }
+
+  async function uploadFiles(files: File[], noteId = '') {
     if (!files.length || disabled || busy) return
     setBusy(true)
     setError('')
     try {
       const uploaded: BoardItem[] = []
-      for (const [index, file] of files.entries()) uploaded.push(await uploadOne(file, index))
+      for (const [index, file] of files.entries()) uploaded.push(await uploadOne(file, index, noteId))
       setState((current) => ({ ...current, items: [...current.items, ...uploaded] }))
     } catch (cause) {
       setError((cause as Error).message)
@@ -276,6 +296,57 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
     return `${apiBase}/projects/${slug}/board/asset?path=${encodeURIComponent(item.asset_path)}`
   }
 
+  async function describeImage(item: BoardItem) {
+    setBusy(true)
+    setError('')
+    try {
+      const result = await request<{ description: string }>(`${apiBase}/projects/${slug}/board/items/${item.id}/describe`, {
+        method: 'POST', body: JSON.stringify({ model: visionModel.trim() }),
+      })
+      setImageDrafts((drafts) => ({ ...drafts, [item.id]: result.description }))
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function openNote(item: BoardItem) {
+    setError('')
+    setSavedNote('')
+    setImageDrafts({})
+    setExpandedNote(item)
+  }
+
+  async function closeNote() {
+    if (!disabled && expandedNote) {
+      setBusy(true)
+      const ok = await patchItem(expandedNote.id, {
+        title: expandedNote.title, body: expandedNote.body,
+        use_as_inspiration: Boolean(expandedNote.use_as_inspiration),
+      })
+      setBusy(false)
+      if (!ok) return
+    }
+    dialogRef.current?.close()
+    setExpandedNote(null)
+  }
+
+  async function saveNote() {
+    if (!expandedNote || busy) return
+    setBusy(true)
+    setError('')
+    setSavedNote('')
+    try {
+      if (await patchItem(expandedNote.id, {
+        title: expandedNote.title, body: expandedNote.body,
+        use_as_inspiration: Boolean(expandedNote.use_as_inspiration),
+      })) setSavedNote('Saved to the corkboard.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <section className="project-board-shell">
       <header className="project-board-toolbar">
@@ -315,17 +386,20 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
               style={{ left: item.x, top: item.y, width: item.width, height: item.height, zIndex: item.z }}
               onPointerDown={(event) => beginDrag(event, item)}
               onDoubleClick={() => {
+                if (item.kind === 'sticky') openNote(item)
                 if (item.kind === 'binder' && binder?.path && !binder.custom_metadata.source_missing) onOpenBinder(binder.path)
               }}
             >
               <div className="board-item-head">
                 <span>{item.kind === 'sticky' ? '✎' : item.kind === 'image' ? '▧' : item.kind === 'attachment' ? '▤' : item.kind === 'link' ? '↗' : '▦'}</span>
                 <input
+                  key={item.title}
                   defaultValue={item.title}
                   onFocus={() => bringToFront(item)}
                   onBlur={(event) => { if (event.target.value !== item.title) void patchItem(item.id, { title: event.target.value }) }}
                   aria-label="Board item title"
                 />
+                {item.kind === 'sticky' && <button type="button" onClick={() => openNote(item)} aria-label="Expand note" title="Expand note">⤢</button>}
                 <button type="button" onClick={() => void removeItem(item.id)} aria-label="Remove from board">×</button>
               </div>
 
@@ -340,6 +414,7 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
               )}
               {(item.kind === 'sticky' || item.kind === 'binder') && (
                 <textarea
+                  key={item.body}
                   defaultValue={item.body}
                   placeholder={item.kind === 'sticky' ? 'Write a thought, question, beat, reminder…' : 'Scene note…'}
                   onFocus={() => bringToFront(item)}
@@ -365,7 +440,21 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
               <button
                 type="button"
                 className="board-resize-handle"
-                aria-label="Resize board item"
+                aria-label="Resize board item. Use arrow keys to adjust size."
+                title="Drag to resize, or use the arrow keys"
+                disabled={disabled}
+                onKeyDown={(event) => {
+                  const steps: Record<string, [number, number]> = {
+                    ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24],
+                  }
+                  const step = steps[event.key]
+                  if (!step) return
+                  event.preventDefault()
+                  void patchItem(item.id, {
+                    width: Math.max(120, Math.min(1200, item.width + step[0])),
+                    height: Math.max(80, Math.min(1000, item.height + step[1])),
+                  })
+                }}
                 onPointerDown={(event) => beginResize(event, item)}
               >
                 ◢
@@ -380,6 +469,79 @@ export default function ProjectBoard({ apiBase, slug, binderNodes, selectedBinde
           </div>
         )}
       </div>
+      {expandedNote && (
+        <dialog className="board-note-editor" ref={dialogRef} aria-label="Expanded corkboard note"
+          onCancel={(event) => { event.preventDefault(); if (!busy) void closeNote() }}
+          onPaste={(event) => {
+            const files = Array.from(event.clipboardData.files)
+            if (!files.length) return
+            event.preventDefault()
+            void uploadFiles(files, expandedNote.id)
+          }}>
+          <header>
+            <h2>Corkboard note</h2>
+            <button type="button" onClick={() => void closeNote()} disabled={busy}>Close</button>
+          </header>
+          <div className="board-note-content">
+            <label>Title<input value={expandedNote.title} maxLength={500} disabled={disabled || busy}
+              onChange={(event) => { setSavedNote(''); setExpandedNote({ ...expandedNote, title: event.target.value }) }} /></label>
+            <label>Note<textarea value={expandedNote.body} maxLength={50000} disabled={disabled || busy}
+              onChange={(event) => { setSavedNote(''); setExpandedNote({ ...expandedNote, body: event.target.value }) }}
+              placeholder="Write ideas, paste URLs, or paste a screenshot here." /></label>
+            {[...new Set(expandedNote.body.match(/https?:\/\/[^\s<>"')]+/g) ?? [])].map((url) => (
+              <a key={url} href={url} target="_blank" rel="noreferrer">{url}</a>
+            ))}
+            <label className="board-upload-button">Attach images or files
+              <input type="file" multiple disabled={disabled || busy} onChange={(event) => {
+                const files = Array.from(event.target.files ?? [])
+                event.target.value = ''
+                void uploadFiles(files, expandedNote.id)
+              }} />
+            </label>
+            {state.items.some((item) => item.parent_note_id === expandedNote.id && item.kind === 'image') && (
+              <label>Local Ollama vision model (optional)
+                <input value={visionModel} maxLength={200} disabled={disabled || busy} placeholder="Installed vision model name"
+                  onChange={(event) => setVisionModel(event.target.value)} />
+              </label>
+            )}
+            <div className="board-note-attachments">
+              {state.items.filter((item) => item.parent_note_id === expandedNote.id).map((item) => (
+                <article key={item.id}>
+                  {item.kind === 'image' && <img src={assetUrl(item)} alt={item.title} />}
+                  <a href={assetUrl(item)} target="_blank" rel="noreferrer">{item.title}</a>
+                  {item.kind === 'image' && (
+                    <button type="button" disabled={disabled || busy || !visionModel.trim()} onClick={() => void describeImage(item)}>Describe with local AI</button>
+                  )}
+                  {imageDrafts[item.id] && (
+                    <div>
+                      <p>{imageDrafts[item.id]}</p>
+                      <button type="button" disabled={disabled || busy} onClick={() => {
+                        const body = [item.body, imageDrafts[item.id]].filter(Boolean).join('\n\n').slice(0, 50000)
+                        void patchItem(item.id, { body }).then((ok) => {
+                          if (ok) setImageDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                        })
+                      }}>Add description to reference notes</button>
+                    </div>
+                  )}
+                  <label>What should I remember about this attachment?
+                    <textarea key={item.body} defaultValue={item.body} maxLength={50000} disabled={disabled || busy}
+                      onBlur={(event) => { if (event.target.value !== item.body) void patchItem(item.id, { body: event.target.value }) }} />
+                  </label>
+                  <button type="button" disabled={disabled || busy} onClick={() => void removeItem(item.id)}>Remove attachment</button>
+                </article>
+              ))}
+            </div>
+          </div>
+          <footer>
+            <label><input type="checkbox" checked={Boolean(expandedNote.use_as_inspiration)} disabled={disabled || busy}
+              onChange={(event) => { setSavedNote(''); setExpandedNote({ ...expandedNote, use_as_inspiration: event.target.checked }) }} />
+              Share this note and attachment descriptions with AI as inspiration</label>
+            <button type="button" className="primary" onClick={() => void saveNote()} disabled={disabled || busy}>Save note</button>
+            <span role="status">{savedNote}</span>
+            {error && <span role="alert">{error}</span>}
+          </footer>
+        </dialog>
+      )}
       {error && <small className="panel-error">{error}</small>}
     </section>
   )

@@ -22,6 +22,8 @@ class BoardItem(BaseModel):
     original_filename: str = Field(default="", max_length=1000)
     url: str = Field(default="", max_length=4000)
     binder_node_id: str = Field(default="", max_length=200)
+    parent_note_id: str = Field(default="", max_length=200)
+    use_as_inspiration: bool = False
     created_at: str
     updated_at: str
 
@@ -45,6 +47,7 @@ class BoardItemCreate(BaseModel):
 
 
 class BoardItemUpdate(BaseModel):
+    use_as_inspiration: bool | None = None
     title: str | None = Field(default=None, max_length=500)
     body: str | None = Field(default=None, max_length=50000)
     x: float | None = None
