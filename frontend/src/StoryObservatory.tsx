@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import './story-observatory.css'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
@@ -109,7 +110,7 @@ export default function StoryObservatory({ entities, facts, volumes, onReview, b
               return <button key={entity.id} type="button"
                 className={['observatory-node',selected?.id === entity.id ? 'selected' : '',
                   selected?.id !== entity.id && highlighted.has(entity.name) ? 'related' : ''].join(' ')}
-                style={{ '--node-accent': color } as React.CSSProperties}
+                style={{ '--node-accent': color } as CSSProperties}
                 aria-pressed={selected?.id === entity.id}
                 onClick={() => { setSelectedId(entity.id); setShowEvidence(null) }}>
                 <span className="observatory-node-icon" aria-hidden="true">{kindInfo(entity.kind).icon}</span>
@@ -132,7 +133,7 @@ export default function StoryObservatory({ entities, facts, volumes, onReview, b
         <aside className="observatory-inspector" aria-live="polite">
           {selected ? <>
             <div className="observatory-inspector-heading">
-              <div className="observatory-avatar" style={{ '--node-accent':kindInfo(selected.kind).color } as React.CSSProperties}>{kindInfo(selected.kind).icon}</div>
+              <div className="observatory-avatar" style={{ '--node-accent':kindInfo(selected.kind).color } as CSSProperties}>{kindInfo(selected.kind).icon}</div>
               <div><small>{readable(selected.kind).toUpperCase()}</small><h3>{selected.name}</h3></div>
             </div>
             {selected.description && <p className="observatory-bio">{selected.description}</p>}
