@@ -146,4 +146,3 @@ def test_real_epub_docx_pdf_exports_change_release_fingerprint(sample):
     assert decision["local_only"]
     export_project(slug, formats=["epub"], title="Recompiled Edition", author="Test Author")
     assert publishing_desk.report(slug)["reviewed_current"] is False
-
