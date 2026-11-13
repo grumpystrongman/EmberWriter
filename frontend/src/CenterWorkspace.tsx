@@ -21,6 +21,7 @@ type Props = {
   workspace: Workspace
   project: WorkspaceProject | null
   onOpenSource: (path: string, anchor?: string) => void
+  onNavigateWorkspace: (workspace:Workspace) => void
 }
 
 const API = 'http://127.0.0.1:8000/api'
@@ -35,7 +36,7 @@ function LoadingWorkspace() {
   )
 }
 
-export default function CenterWorkspace({ workspace, project, onOpenSource }: Props) {
+export default function CenterWorkspace({ workspace, project, onOpenSource, onNavigateWorkspace }: Props) {
   if (workspace === 'write') return null
   if (workspace === 'series') return (
     <div className="center-workspace-overlay center-workspace-series">
@@ -64,7 +65,7 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
       <Suspense fallback={<LoadingWorkspace />}>
         {workspace === 'studio' && <AIStudioWorkspace apiBase={API} project={project} />}
         {workspace === 'notes' && <NotesWorkspace project={project} onOpenSource={onOpenSource} />}
-        {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} />}
+        {workspace === 'plan' && <PlanningHub apiBase={API} project={project} onOpenSource={onOpenSource} onNavigateWorkspace={onNavigateWorkspace} />}
         {workspace === 'characters' && (
           <>
             <CharactersWorkspace apiBase={API} project={project} onOpenSource={onOpenSource} />
@@ -75,7 +76,16 @@ export default function CenterWorkspace({ workspace, project, onOpenSource }: Pr
         {workspace === 'analyze' && (
           <section className="center-tool analyze-workspace">
             <header className="center-tool-header">
-              <div><small>ANALYZE · {project.name}</small><h1>Editorial & Reader Studio</h1><p>Manuscript-wide diagnostics, smart triage, AI side-by-side revision review, genre readers, grammar knowledge, continuity work, provenance, and voice fidelity in one full-width surface.</p></div>
+              <div><small>DEEP CRITIQUE · {project.name}</small><h1>Reader Perspectives & Critique</h1>
+     <p>Run deeper chapter and manuscript perspectives here. For source-linked manuscript health, selective rewriting and recoverable edits, use the unified Edit & Review workbench.</p>
+     <button type="button" className="analyze-bridge" onClick={()=>{
+       try{
+         sessionStorage.setItem('emberwriter:planning-tab-request:'+project.slug,'developmental_studio')
+         sessionStorage.setItem('emberwriter:editorial-mode:'+project.slug,'revisions')
+       }catch{/* Navigation still works without storage */}
+       onNavigateWorkspace('plan')
+     }}>Open Edit & Review / Revision Workbench ↗</button>
+   </div>
             </header>
             <EditorialPanel
               apiBase={API}

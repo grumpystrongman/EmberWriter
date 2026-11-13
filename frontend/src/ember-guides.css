@@ -1,0 +1,41 @@
+
+.ember-guides{color:#f7eae3;line-height:1.5}
+.ember-guide-head{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #685849;padding-bottom:12px;margin-bottom:12px}
+.ember-guide-head>div{display:grid;gap:4px}.ember-guide-head strong{font:normal 1.22rem Georgia,serif}
+.ember-guide-head small{font-size:.73rem;color:#e3c39d}
+.ember-guide-head button,.ember-guide-back-library{border:1px solid #ac8a76;border-radius:9px;background:#49372d;color:#f2e8df;padding:8px 11px;font-size:.77rem}
+.ember-guide-library label{display:grid;gap:7px;font-weight:700;font-size:.76rem;color:#eed5b8}
+.ember-guide-library input{background:#191918;border:1px solid #927b64;color:#f5e9e0;padding:11px;border-radius:9px;width:100%;font-size:.85rem}
+.ember-guide-count{font-size:.7rem;color:#bbb4a5;margin:10px 0}
+.ember-guide-card{width:100%;display:grid;text-align:left;gap:6px;margin:8px 0;padding:12px;background:linear-gradient(140deg,#313c49,#312b32);border:1px solid #786979;border-radius:12px;color:#f1e5e8}
+.ember-guide-card>span:first-child,.ember-guide-category{font-size:.65rem;color:#f1c292;letter-spacing:.09em;text-transform:uppercase;font-weight:800}
+.ember-guide-card strong{font:normal 1.05rem Georgia,serif}.ember-guide-card small{color:#cdd3db;font-size:.75rem;line-height:1.55}
+.ember-guide-card-action{color:#eec6d6;font-size:.72rem;margin-top:3px}
+.ember-guide-disclaimer{font-size:.72rem;color:#cdbeb0;line-height:1.6;border-top:1px solid #65564a;padding-top:11px}
+.ember-guide-walkthrough h3{font:normal 1.45rem Georgia,serif;margin:7px 0}
+.ember-guide-walkthrough>p{font-size:.8rem;color:#e0d6d0}
+.ember-guide-category{display:block;margin-top:14px}
+.ember-guide-image{display:block;width:100%;max-height:160px;object-fit:contain;object-position:top;border:1px solid #796c77;border-radius:8px;background:#1e2632;margin:12px 0}
+.ember-guide-progress{display:flex;gap:5px;margin:15px 0}
+.ember-guide-progress button{height:12px;flex:1;border:1px solid #978778;border-radius:5px;background:#473b3e;padding:0;min-width:8px}
+.ember-guide-progress button[aria-current=step]{background:#e8ba95;border-color:#ffe2bb}
+.ember-guide-progress button.complete{background:#86baa2;border-color:#a9d2b7}
+.ember-guide-step{border:1px solid #89757b;border-radius:13px;background:#34333e;padding:13px;margin:12px 0}
+.ember-guide-step>span{font-size:.68rem;letter-spacing:.1em;color:#eab989}
+.ember-guide-step>strong{display:block;font:normal 1.17rem Georgia,serif;margin:8px 0}
+.ember-guide-step p{font-size:.8rem;color:#e0d6db;line-height:1.6}
+.ember-guide-step button{width:100%;padding:11px;margin:4px 0;border-radius:9px;border:1px solid #b899b1;color:#fff0f3;background:#574b62;font-size:.77rem}
+.ember-guide-step .ember-guide-navigate{background:#885f6f}
+.ember-guide-step .ember-guide-locate{background:#32485a;border-color:#7898a9}
+.ember-guide-step .ember-guide-result{border-left:3px solid #a8d4c1;padding-left:8px;color:#d7eddf}
+.ember-guide-step details{border-top:1px solid #6f5c64;padding:10px 0 0;margin-top:12px;font-size:.77rem}
+.ember-guide-step summary{cursor:pointer;color:#f3cca9}.ember-guide-step details p{font-size:.74rem}
+.ember-guide-caution{background:#60423a;border:1px solid #c39a7e;border-radius:7px;padding:9px;font-size:.75rem}
+.ember-guide-check{display:flex;align-items:center;gap:8px;color:#dce4d8;font-size:.76rem;line-height:1.4}
+.ember-guide-check input{width:17px;height:17px;flex:0 0 17px;accent-color:#9fd4b5}
+.ember-guide-controls{display:flex;justify-content:space-between;gap:9px;margin-top:12px}
+.ember-guide-controls button{flex:1;min-height:44px;padding:9px;border:1px solid #c99eae;border-radius:8px;background:#624d61;color:#f5eaf2;font-weight:650}
+.ember-guide-controls button:disabled{opacity:.45}
+.ember-guide-target{outline:4px solid #ffb958!important;outline-offset:3px!important;box-shadow:0 0 0 8px #f5b85933!important;z-index:50!important}
+.ember-companion-help-trigger{display:block;width:100%;padding:11px;margin-bottom:13px;border:1px solid #ab876f;border-radius:9px;background:#3d3e4b;color:#f7e6e7;font-size:.8rem;font-weight:700}
+@media(max-width:700px){.ember-companion-panel:has(.ember-guides){height:min(670px,calc(100dvh - 80px));width:min(410px,calc(100vw - 20px));}}

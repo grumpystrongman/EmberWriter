@@ -45,7 +45,14 @@ export default function DevelopmentalStudio({apiBase,projectSlug,onOpenSource,on
   onOpenEditorTool:(tool:'story_arcs'|'voiceprint'|'editorial_board'|'prose_editor',path:string)=>void
 }){
   const endpoint=API(apiBase,projectSlug)
-  const [mode,setMode]=useState<Mode>('pulse')
+  const [mode,setMode]=useState<Mode>(()=>{
+    try{
+      const requested=sessionStorage.getItem('emberwriter:editorial-mode:'+projectSlug)
+      sessionStorage.removeItem('emberwriter:editorial-mode:'+projectSlug)
+      if(requested==='pulse'||requested==='arcs'||requested==='dialogue'||requested==='revisions')return requested
+    }catch{/* Use default mode */}
+    return 'pulse'
+  })
   const [overview,setOverview]=useState<Overview|null>(null)
   const [query,setQuery]=useState('')
   const [subjects,setSubjects]=useState<string[]>([])
@@ -160,13 +167,16 @@ export default function DevelopmentalStudio({apiBase,projectSlug,onOpenSource,on
     setApproved(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id])
     setConfirmation(false)
   }
-  return <section className="devstudio" aria-label="Part Three developmental editing studio">
+  return <section className="devstudio" aria-label="Developmental editing studio">
     <header className="devstudio-hero">
-      <div className="devstudio-eyebrow">PART III · THE AUTHOR'S EDITORIAL ATELIER</div>
+      <div className="devstudio-eyebrow">THE AUTHOR'S EDITORIAL ATELIER</div>
       <div className="devstudio-hero-line"><div>
         <h2>See the book beneath the words.</h2>
         <p>Read the manuscript's shape. Trace the promises you've made. Refine only what you choose—without losing the prose you started with.</p>
-      </div><div className="devstudio-seal" aria-hidden="true">✦</div></div>
+      </div><div className="devstudio-hero-actions">
+         <button type="button" onClick={()=>setMode('pulse')}>Explore chapters</button>
+         <button type="button" onClick={()=>setMode('revisions')}>Revise a chapter</button>
+       </div></div>
       <nav className="devstudio-nav" aria-label="Editorial workspaces">{PERSPECTIVES.map(item=>
         <button key={item.id} type="button" aria-pressed={mode===item.id} onClick={()=>{setMode(item.id);setNotice('');setError('')}}>
           <span aria-hidden="true">{item.icon}</span><strong>{item.name}</strong><small>{item.detail}</small>

@@ -4,7 +4,7 @@ import './publishing-desk.css'
 type StageId='readiness'|'interior'|'cover'|'audio'|'distribution'|'history'
 type Stage={id:StageId;title:string;detail:string;status:'reviewed'|'needs_attention'|'not_started'|'optional';count:number}
 type Issue={title?:string;detail?:string;message?:string;level:string;path?:string;code?:string;waived?:boolean}
-type FileItem={filename:string;relative_path:string;suffix:string;bytes:number;role:string;sha256:string;modified_at:string}
+type FileItem={filename:string;relative_path:string;suffix:string;bytes:number;role:string;sha256:string;modified_at:string;freshness:'current'|'stale'|'modified'|'unknown';source_hash:string|null;explanation:string}
 type Receipt={id:string;created_at:string;fingerprint:string;note:string;chapter_count:number;editorial_blockers:number;editorial_warnings:number;distribution_valid:boolean;current:boolean}
 type Dashboard={project_name:string;chapter_count:number;words:number;source_fingerprint:string;compile_error:string|null;
   formats:Record<'epub'|'pdf'|'docx',boolean>;chapters:{id:string;title:string;path:string;words:number}[];
@@ -65,10 +65,13 @@ export default function PublishingDesk({apiBase,slug,disabled,onGo,onOpenSource}
  return <section className="pubdesk" aria-label="Private publishing command deck">
    <header className="pubdesk-hero">
      <div className="pubdesk-heading">
-       <div><span className="pubdesk-kicker">THE AUTHOR'S PRIVATE PUBLISHING ATELIER · PART IV</span>
+       <div><span className="pubdesk-kicker">YOUR PRIVATE PUBLISHING DESK</span>
          <h2>Make the book ready for the world.</h2>
          <p>From your manuscript to polished editions, reviewable files, and a deliberate release. Every step stays under your control.</p></div>
-       <div className="pubdesk-compass" aria-hidden="true"><span>✦</span><small>CREATE<br/>REVIEW<br/>RELEASE</small></div>
+       <div className="pubdesk-quick-actions">
+         <button type="button" onClick={()=>onGo('interior')}>Preview & compile a book</button>
+         <button type="button" onClick={()=>setFocused('distribution')}>Review release issues</button>
+       </div>
      </div>
      <div className="pubdesk-overview-strip">
        <div><span>COMPILED CHAPTERS</span><strong>{report?.chapter_count??'—'}</strong></div>
@@ -164,7 +167,14 @@ export default function PublishingDesk({apiBase,slug,disabled,onGo,onOpenSource}
          <button type="button" onClick={()=>onGo('interior')}>Go to book files ↗</button></div>:
        report.files.slice(0,showAllFiles?80:6).map(file=><article key={file.relative_path}>
          <div className="pubdesk-asset-symbol">{file.suffix.toUpperCase().slice(1)}</div>
-         <div><strong>{file.filename}</strong><small>{file.role.replaceAll('_',' ')} · {bytes(file.bytes)} · SHA-256 {file.sha256.slice(0,12)}…</small></div>
+         <div><strong>{file.filename}</strong>
+           <small>{file.role.replaceAll('_',' ')} · {bytes(file.bytes)} · SHA-256 {file.sha256.slice(0,12)}…</small>
+           <span className={'pubdesk-asset-freshness '+file.freshness} title={file.explanation}>
+             {file.freshness==='current'?'✓ Matches current manuscript'
+              :file.freshness==='stale'?'⚠ Recompile — manuscript changed'
+              :file.freshness==='modified'?'⚠ Artifact bytes modified'
+              :'○ Source version not verified'}
+           </span></div>
          <a href={`${apiBase}/projects/${encodeURIComponent(slug)}/exports/download?path=${encodeURIComponent(file.relative_path)}`} download={file.filename}>Download ↗</a>
        </article>)}
        {report.files.length>6&&<button type="button" className="pubdesk-show" onClick={()=>setShowAllFiles(v=>!v)}>{showAllFiles?'Show fewer assets':'See all '+report.files.length+' artifacts'}</button>}

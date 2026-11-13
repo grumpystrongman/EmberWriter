@@ -146,3 +146,44 @@ def test_real_epub_docx_pdf_exports_change_release_fingerprint(sample):
     assert decision["local_only"]
     export_project(slug, formats=["epub"], title="Recompiled Edition", author="Test Author")
     assert publishing_desk.report(slug)["reviewed_current"] is False
+
+
+def test_export_provenance_is_current_then_stale_then_modified(sample):
+    from app.publishing import export_project
+
+    slug, _ = sample
+    outcome = export_project(
+        slug, formats=["epub"], title="Synthetic Harbor", author="Local Author"
+    )
+    report = publishing_desk.report(slug)
+    exported = next(
+        item for item in report["files"]
+        if item["relative_path"] == outcome["artifacts"][0]["relative_path"]
+    )
+    assert exported["freshness"] == "current"
+    assert exported["source_hash"]
+    storage.save_text(
+        slug, "manuscript/chapter-001.md",
+        "# Lighthouse\n\nAn entirely new ending replaced the original.",
+    )
+    after_edit = publishing_desk.report(slug)
+    exported = next(
+        item for item in after_edit["files"]
+        if item["relative_path"] == outcome["artifacts"][0]["relative_path"]
+    )
+    assert exported["freshness"] == "stale"
+    assert "Recompile" in exported["explanation"] or "changed" in exported["explanation"]
+    file_path = storage.project_root(slug) / outcome["artifacts"][0]["relative_path"]
+    with file_path.open("ab") as handle:
+        handle.write(b"changed bytes")
+    # Content validator may reject a corrupted artifact; check the provenance
+    # directly against its previously validated file metadata.
+    from types import SimpleNamespace
+
+    fake = SimpleNamespace(
+        suffix=".epub",
+        relative_path=outcome["artifacts"][0]["relative_path"],
+        sha256="0" * 64,
+    )
+    modified = publishing_desk._artifact_freshness(slug, fake, "a" * 64)
+    assert modified["freshness"] == "modified"

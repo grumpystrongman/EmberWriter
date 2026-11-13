@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from .distribution import list_release_artifacts, load_release_profile, validate_release
 from .production_preflight import preflight
-from .publishing import compiled_documents
+from .publishing import compile_source_fingerprint, compiled_documents
 from .storage import get_project, project_root
 
 MAX_RECEIPTS = 100
@@ -76,6 +76,42 @@ def _fingerprint(documents: list[dict], profile: dict, artifacts: list) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+def _artifact_freshness(slug: str, artifact, current_source: str) -> dict:
+    """Strict manifest/source+bytes match; old exports remain explicitly unknown."""
+    result = {"freshness": "unknown", "source_hash": None, "explanation": "Export provenance unavailable"}
+    if artifact.suffix.lower() not in {".epub", ".docx", ".pdf"}:
+        result["explanation"] = "Source currency does not apply to this asset"
+        return result
+    export_root = (project_root(slug) / "exports").resolve()
+    file_path = (project_root(slug) / artifact.relative_path).resolve()
+    if export_root not in file_path.parents:
+        return result
+    meta = file_path.parent / "compile-provenance.json"
+    if not meta.is_file() or meta.stat().st_size > 100_000:
+        return result
+    try:
+        record = json.loads(meta.read_text(encoding="utf-8"))
+        if record.get("schema") != 1:
+            return result
+        entry = next(
+            (a for a in record["artifacts"] if a["filename"] == file_path.name),
+            None,
+        )
+        if not entry or entry.get("sha256") != artifact.sha256:
+            return {"freshness": "modified", "source_hash": record.get("source_hash"),
+                    "explanation": "Export bytes no longer match the recorded build"}
+        source_hash = record["source_hash"]
+        if not re.fullmatch(r"[a-f0-9]{64}", source_hash):
+            return result
+        if source_hash != current_source:
+            return {"freshness": "stale", "source_hash": source_hash,
+                    "explanation": "Manuscript or Binder selection changed since compilation"}
+        return {"freshness": "current", "source_hash": source_hash,
+                "explanation": "Matches current ordered manuscript and recorded export bytes"}
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError, StopIteration):
+        return result
+
+
 def report(slug: str) -> dict:
     project = get_project(slug)
     documents, compile_error = _compiled(slug)
@@ -87,6 +123,7 @@ def report(slug: str) -> dict:
     existing = _receipts(slug)
     source = _fingerprint(documents, profile_data, artifact_records)
     current_receipts = [item for item in existing if item.get("fingerprint") == source]
+    compile_source = compile_source_fingerprint(documents)
     formats = {"epub": False, "docx": False, "pdf": False}
     for item in artifact_records:
         suffix = item.suffix.lstrip(".")
@@ -149,6 +186,7 @@ def report(slug: str) -> dict:
                 "filename": item.filename, "relative_path": item.relative_path,
                 "suffix": item.suffix, "bytes": item.bytes, "role": item.role,
                 "sha256": item.sha256, "modified_at": item.modified_at,
+                **_artifact_freshness(slug, item, compile_source),
             } for item in artifact_records[:80]
         ],
         "editorial": {

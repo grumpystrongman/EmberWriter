@@ -97,6 +97,7 @@ export default function PartTwoStudio({seriesId,entities,facts,volumes,onSource,
   }|null>(null)
   const [dirty,setDirty]=useState(false)
   const [deleteConfirm,setDeleteConfirm]=useState(false)
+  const [handoffConfirm,setHandoffConfirm]=useState(false)
   const approved=useMemo(()=>facts.filter(f=>f.status==='approved'),[facts])
   const atTime=useMemo(()=>approved.filter(f=>earlier(f,book,sequence) &&
     (!f.end_book|| f.end_book>book||(f.end_book===book&&(f.end_sequence??999999)>=sequence))),[approved,book,sequence])
@@ -127,8 +128,8 @@ export default function PartTwoStudio({seriesId,entities,facts,volumes,onSource,
       return {entity,known:known.slice(-7)}
     })
   },[board,characters,approved])
-  async function copySceneBrief(){
-    if(!board)return
+  function sceneBrief(){
+    if(!board)return ""
     const name=(id:string|null)=>entities.find(e=>e.id===id)?.name||'Not chosen'
     const brief=[
       `SCENE: ${board.title}`,`Book ${board.book}, scene position ${board.sequence}`,
@@ -142,8 +143,27 @@ export default function PartTwoStudio({seriesId,entities,facts,volumes,onSource,
       'Respect previously established canon, POV knowledge boundaries, consent and character individuality.',
       'This is an author-controlled planning artifact, not established canon.',
     ].join('\n')
-    try{await navigator.clipboard.writeText(brief);setMessage('Scene brief copied. Paste into the Writer or Scene Architect to develop prose.')}
+    return brief
+  }
+  async function copySceneBrief(){
+    if(!board)return
+    try{await navigator.clipboard.writeText(sceneBrief());setMessage('Scene brief copied. The storyboard and manuscript remain unchanged.')}
     catch{setError('Clipboard access unavailable in this browser; the scene remains saved privately.')}
+  }
+  function sendBriefToWriter(){
+    if(!board?.id||dirty||saving){
+      setError('Save the scene plan before sending its directing brief to Writer.')
+      setHandoffConfirm(false)
+      return
+    }
+    const brief=sceneBrief()
+    if(!brief){setError('A saved scene plan is required.');return}
+    setHandoffConfirm(false)
+    window.dispatchEvent(new CustomEvent('emberwriter:writer-brief',{
+      detail:{prompt:brief,mode:'write',origin_board_id:board.id,origin_series_id:seriesId,
+        origin_board_version:board.version},
+    }))
+    setMessage('Directing brief sent to Scene Writer. No prose, manuscript file or canon was changed.')
   }
   const allPaths=[...volumes].sort((a,b)=>a.ordinal-b.ordinal)
 
@@ -321,11 +341,23 @@ export default function PartTwoStudio({seriesId,entities,facts,volumes,onSource,
           <input aria-label="Scene title" maxLength={160} value={board.title} onChange={e=>modify({title:e.target.value})}/>
         </div>
         <div className="p2-board-actions"><button type="button" disabled={saving||!dirty} onClick={()=>void save()}>{saving?'Working…':'◆ Save scene plan'}</button>
+          <button type="button" disabled={!board.id||dirty||saving} title={dirty?'Save changes first':'Open Scene Writer with this saved plan'}
+             onClick={()=>setHandoffConfirm(true)}>Send to Scene Writer ↗</button>
           <button type="button" onClick={()=>void copySceneBrief()}>↗ Copy directing brief</button>
           {board.id&&<button type="button" onClick={()=>setDeleteConfirm(!deleteConfirm)}>Delete</button>}
           {deleteConfirm&&<button type="button" className="p2-danger" onClick={()=>void remove()} disabled={saving}>Confirm delete</button>}
         </div>
       </div>
+      {handoffConfirm&&<div className="p2-handoff-confirm" role="group" aria-label="Confirm directing brief handoff">
+        <div><strong>Take this scene into Writer?</strong>
+          <p>EmberWriter will open Scene Writer with this saved board's objective, beats,
+          cast, POV, boundaries and aftermath in its prompt. It will not generate prose,
+          overwrite a chapter, or change canon without another author action.</p>
+          <small>{board.title} · Book {board.book} · Board v{board.version}</small>
+        </div>
+        <button type="button" disabled={dirty||saving} onClick={sendBriefToWriter}>Open Scene Writer with brief</button>
+        <button type="button" onClick={()=>setHandoffConfirm(false)}>Cancel</button>
+      </div>}
       <div className="p2-tension-chart"><div className="p2-subtitle"><strong>The tension curve</strong><small>Each scene beat sets its own pressure level</small></div>
         <svg viewBox="0 0 940 160" preserveAspectRatio="none" role="img" aria-label="Scene tension from first beat to last beat">
           {[25,50,75].map(p=><line key={p} x1="24" y1={148-p*1.25} x2="916" y2={148-p*1.25} stroke="#4b6177" strokeDasharray="5 8"/>)}

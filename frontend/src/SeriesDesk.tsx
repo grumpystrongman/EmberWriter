@@ -387,16 +387,36 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       </details>
     </div>
     {series && <>
-      <nav className="series-desk-tabs" aria-label="Series Desk views">
-        <button type="button" className={view === 'observatory' ? 'active' : ''} onClick={() => setView('observatory')}>✧ · Story Observatory</button>
-        <button type="button" className={view === 'creative' ? 'active' : ''} onClick={() => setView('creative')}>✧ · Character & Scene Studio</button>
-        <button type="button" className={view === 'vault' ? 'active' : ''} onClick={() => setView('vault')}>01 · Series Vault</button>
-        <button type="button" className={view === 'canon' ? 'active' : ''} onClick={() => setView('canon')}>02 · Canon Graph <small>{facts.filter(item => item.status === 'proposed').length} waiting</small></button>
-        <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>03 · Time & Knowledge</button>
-        <button type="button" className={view === 'guardian' ? 'active' : ''} onClick={() => setView('guardian')}>04 · Continuity</button>
-        <button type="button" className={view === 'consequences' ? 'active' : ''} onClick={() => setView('consequences')}>05 · Consequences</button>
-        <button type="button" className={view === 'ember' ? 'active' : ''} onClick={() => setView('ember')}>06 · Ask Ember</button>
+      <nav className="series-experience-modes" aria-label="Series author workflows">
+        {([
+          ['observatory','Explore','Characters, secrets and story threads'],
+          ['creative','Direct','Character relationships and scene boards'],
+          ['canon','Verify','Evidence, chronology and continuity'],
+          ['vault','Library','Books and source archives'],
+        ] as const).map(([key,label,description])=>{
+          const active=key==='canon'
+            ? ['canon','timeline','guardian','consequences','ember'].includes(view)
+            : view===key
+          return <button key={key} type="button" aria-pressed={active}
+            onClick={()=>setView(key)}>
+            <strong>{label}</strong><small>{description}</small>
+            {key==='canon'&&facts.some(item=>item.status==='proposed')&&
+              <span>{facts.filter(item=>item.status==='proposed').length} awaiting review</span>}
+          </button>
+        })}
       </nav>
+      {(['canon','timeline','guardian','consequences','ember'] as const).includes(view as 'canon')&&
+        <nav className="series-verify-tools" aria-label="Evidence and verification tools">
+          {([
+            ['canon','Review canon'],
+            ['timeline','Time & knowledge'],
+            ['guardian','Continuity'],
+            ['consequences','Consequences'],
+            ['ember','Ask Ember'],
+          ] as const).map(([key,label])=>
+            <button key={key} type="button" aria-current={view===key?'page':undefined}
+              onClick={()=>setView(key)}>{label}</button>)}
+        </nav>}
       {view === 'observatory' && <StoryObservatory
         key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
         busy={busy} onReview={(factId, decision) => void reviewFact(factId, decision)}

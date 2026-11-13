@@ -71,3 +71,21 @@
 .series-desk-create details+details{border-top:1px solid #485867;margin-top:12px;padding-top:12px}.series-desk-backup{display:inline-block;background:#2b463f;border:1px solid #608e80;color:#d5f1e3;border-radius:9px;text-decoration:none;padding:9px 13px;font-weight:750;font-size:.86rem}.series-desk-backup:hover{background:#356252;color:#fff}.series-desk-backup:focus-visible{outline:3px solid #f7bc82}
 
 .series-desk-danger{border:1px solid #895957;border-radius:9px;margin:15px 0;padding:10px 12px;background:#2f2529}.series-desk-danger>summary{color:#ffccba;cursor:pointer;font-size:.83rem;font-weight:700}.series-desk-danger p{color:#e6c4c2;font-size:.82rem;line-height:1.5}.series-desk-danger>label{margin:10px 0}.series-desk-danger button{background:#7b3939;border-color:#b1655d;color:#fff0ec;font-weight:750}
+
+/* Author UX-007: four editorial jobs replace eight competing Series top tabs. */
+.series-experience-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0}
+.series-experience-modes button{display:grid;align-content:center;gap:5px;min-height:70px;text-align:left;
+ padding:10px 12px;border:1px solid #5d7188;background:#213548;color:#efe6ef;border-radius:11px;min-width:0}
+.series-experience-modes button[aria-pressed=true]{border-color:#e0b8d8;background:#4b405a}
+.series-experience-modes button strong{font-size:.91rem}.series-experience-modes button small{font-size:.68rem;line-height:1.35;color:#c1ccdb}
+.series-experience-modes button span{font-size:.67rem;color:#f5cc9f}
+.series-verify-tools{display:flex;flex-wrap:wrap;gap:7px;border-bottom:1px solid #627284;padding-bottom:12px;margin-bottom:15px}
+.series-verify-tools button{padding:10px 13px;min-height:44px;border-radius:9px;background:#243748;border:1px solid #5c6f88;color:#d5e2eb;font-size:.78rem}
+.series-verify-tools button[aria-current=page]{background:#674b69;border-color:#dfb5d9;color:white}
+@media(max-width:700px){
+ .series-experience-modes{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0}
+ .series-experience-modes button{min-height:58px;padding:9px}
+ .series-experience-modes button small{display:none}
+ .series-verify-tools{gap:5px}
+ .series-verify-tools button{font-size:.74rem;padding:8px 10px}
+}
