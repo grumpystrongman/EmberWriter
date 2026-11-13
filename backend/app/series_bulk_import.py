@@ -14,6 +14,7 @@ from pathlib import PurePosixPath
 from ebooklib.exceptions import EpubException
 
 from . import series_vault as vault
+from .series_epub_safety import _check_nested_epub
 
 MAX_ARCHIVE_BYTES = 60 * 1024 * 1024
 MAX_EXPANDED_BYTES = 100 * 1024 * 1024
@@ -103,6 +104,7 @@ def import_epub_zip(series_id: str, blob: bytes, *, rights_confirmed: bool,
         prepared = []
         for row in candidates:
             raw = archive.read(row["entry"])
+            _check_nested_epub(raw, row["filename"])
             try:
                 text = vault._source_text(raw, row["filename"])
             except (EpubException, zipfile.BadZipFile) as exc:

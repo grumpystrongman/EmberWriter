@@ -148,3 +148,55 @@ def test_legacy_epub_soft_hyphen_does_not_hide_character_names():
     assert "Remo Chiun" in text
     assert "\u00ad" not in text
     assert "\u200b" not in text
+
+
+def test_nested_epub_expansion_bomb_is_rejected_before_parsing(isolated):
+    series_id, _ = isolated
+    interior = io.BytesIO()
+    with zipfile.ZipFile(interior, "w", zipfile.ZIP_DEFLATED) as book:
+        book.writestr("mimetype", "application/epub+zip")
+        book.writestr("OEBPS/massive.xhtml", "X" * (17 * 1024 * 1024))
+    outer = _zip([("Cycle 001 - Suspicious.epub", interior.getvalue())])
+    with pytest.raises(ValueError, match="oversized internal content"):
+        series_bulk_import.import_epub_zip(series_id, outer, rights_confirmed=True)
+    assert not series_vault.series_detail(series_id)["volumes"]
+
+
+def test_nested_epub_path_traversal_and_missing_mimetype_are_rejected(isolated):
+    series_id, _ = isolated
+    for inner_files, error in [
+        ([("../escape.xhtml", "<p>unsafe</p>")], "unsafe inner path"),
+        ([("OPS/text.xhtml", "<p>missing mimetype</p>")], "missing mimetype"),
+    ]:
+        interior = io.BytesIO()
+        with zipfile.ZipFile(interior, "w", zipfile.ZIP_DEFLATED) as book:
+            if "missing" not in error:
+                book.writestr("mimetype", "application/epub+zip")
+            for name, content in inner_files:
+                book.writestr(name, content)
+        outer = _zip([("Cycle 001 - Suspicious.epub", interior.getvalue())])
+        with pytest.raises(ValueError, match=error):
+            series_bulk_import.import_epub_zip(series_id, outer,
+                                              rights_confirmed=True)
+        assert not series_vault.series_detail(series_id)["volumes"]
+
+
+def test_epub_mimetype_bomb_and_duplicate_mimetype_rejected_before_import(isolated):
+    series_id, _ = isolated
+    # A valid-looking ZIP with an oversized mimetype should be rejected on
+    # metadata alone, rather than decompressing attacker-controlled contents.
+    for members in (
+        [("mimetype", b"A" * 2_000_000)],
+        [("mimetype", b"application/epub+zip"),
+         ("mimetype", b"application/epub+zip")],
+    ):
+        interior = io.BytesIO()
+        with zipfile.ZipFile(interior, "w", zipfile.ZIP_DEFLATED) as book:
+            for name, payload in members:
+                book.writestr(name, payload)
+        outer = _zip([("Cycle 001 - Unsafe.epub", interior.getvalue())])
+        with pytest.raises(ValueError, match="invalid or duplicate mimetype"):
+            series_bulk_import.import_epub_zip(
+                series_id, outer, rights_confirmed=True
+            )
+        assert series_vault.series_detail(series_id)["volumes"] == []

@@ -454,7 +454,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
               onClick={()=>setView(key)}>{label}</button>)}
         </nav>}
       {series && <SeriesEvidenceSearch seriesId={series.id}
-        bookCount={series.volumes?.length || 0}
+        characters={entities} bookCount={series.volumes?.length || 0}
         onOpenSource={(id,searchTerm,position)=>{
           const located = sources.find(item=>item.id===id)
           setSourceId(id)

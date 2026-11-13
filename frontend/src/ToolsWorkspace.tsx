@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import ChemistryPanel, { type AftermathProposal, type ChemistryProfile } from './ChemistryPanel'
+import ReleaseLab from './ReleaseLab'
 import CraftPanel, {
   type CraftControls,
   type CraftProfile,
@@ -18,7 +19,7 @@ type Props = {
   onOpenSource: (path: string, anchor?: string) => void
 }
 
-type ToolTab = 'history' | 'memory' | 'relationships' | 'settings'
+type ToolTab = 'history' | 'memory' | 'relationships' | 'settings' | 'release'
 type ProjectDetail = { files: string[] }
 type AnalyzeResult = { summary: string; facts_written: number; skipped: boolean }
 
@@ -80,6 +81,12 @@ function readStoredCraft(): CraftControls {
 
 export default function ToolsWorkspace({ apiBase, project, onOpenSource }: Props) {
   const [tab, setTab] = useState<ToolTab>('history')
+  const tabNavRef=useRef<HTMLElement|null>(null)
+  useEffect(()=>{
+    const nav=tabNavRef.current
+    const active=nav?.querySelector<HTMLButtonElement>('button.active')
+    if(nav&&active)nav.scrollTo({left:active.offsetLeft-nav.offsetLeft-nav.clientWidth/2+active.clientWidth/2,behavior:'auto'})
+  },[tab])
   const [provider, setProvider] = useState<ProviderConfig>(readStoredProvider)
   const [models, setModels] = useState<string[]>([])
   const [craftControls, setCraftControls] = useState<CraftControls>(readStoredCraft)
@@ -348,17 +355,20 @@ export default function ToolsWorkspace({ apiBase, project, onOpenSource }: Props
       <header className="center-tool-header">
         <div>
           <small>TOOLS · {project.name}</small>
-          <h1>Project Tools</h1>
-          <p>The utilities that used to crowd the right rail now live here. Studio is the only AI-writing interface; these tools support the manuscript without shrinking it.</p>
+          <h1>{tab==='release'?'Release Lab':'Project Tools'}</h1>
+          {tab!=='release'&&<p>The utilities that used to crowd the right rail now live here. Studio is the only AI-writing interface; these tools support the manuscript without shrinking it.</p>}
         </div>
       </header>
 
-      <nav className="center-subtabs" aria-label="Project tools">
+      <nav ref={tabNavRef} className="center-subtabs" aria-label="Project tools">
         <button type="button" className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>History</button>
         <button type="button" className={tab === 'memory' ? 'active' : ''} onClick={() => setTab('memory')}>Story Memory <span>{stats.facts}</span></button>
         <button type="button" className={tab === 'relationships' ? 'active' : ''} onClick={() => setTab('relationships')}>Relationships <span>{chemistry.length}</span></button>
         <button type="button" className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Craft & Model</button>
+        <button type="button" className={tab === 'release' ? 'active' : ''} onClick={() => setTab('release')}>Release Lab <span>0 certified</span></button>
       </nav>
+
+      {tab === 'release' && <ReleaseLab />}
 
       {tab === 'history' && (
         <div className="tool-surface">
@@ -441,7 +451,7 @@ export default function ToolsWorkspace({ apiBase, project, onOpenSource }: Props
         </div>
       )}
 
-      {status && <div className="tools-status" role="status">{status}</div>}
+      {status && tab!=='release' && <div className="tools-status" role="status">{status}</div>}
     </section>
   )
 }

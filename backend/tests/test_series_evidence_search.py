@@ -108,3 +108,35 @@ def test_cited_search_result_opens_the_exact_original_position(setup):
             params={"position": len(document) + 100, "limit": 500},
         )
         assert invalid.status_code in (400, 422)
+
+
+def test_character_evidence_map_is_book_bounded_source_only(setup):
+    from app import series_canon
+    series_id, other_id = setup
+    character = series_canon.add_entity(series_id, "First Journey", "character",
+                                        aliases=["First"])
+    other_character = series_canon.add_entity(other_id, "Hidden", "character")
+    early = series_evidence_search.character_evidence_map(
+        series_id, character["id"], max_book=1)
+    assert len(early["books"]) == 1
+    assert early["books"][0]["matching_windows"] >= 1
+    assert early["first_attested_book"] == 1
+    assert early["max_book"] == 1
+    assert "not establish" in early["disclaimer"]
+    all_books = series_evidence_search.character_evidence_map(
+        series_id, character["id"], max_book=3)
+    assert len(all_books["books"]) == 3
+    assert all_books["total_windows"] >= early["total_windows"]
+    assert [row["book"] for row in all_books["books"]] == [1, 2, 3]
+    with pytest.raises(FileNotFoundError):
+        series_evidence_search.character_evidence_map(
+            series_id, other_character["id"], max_book=3)
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/series/{series_id}/characters/{character['id']}/evidence-map",
+            params={"max_book": 1})
+        assert response.status_code == 200
+        assert len(response.json()["books"]) == 1
+        denied = client.get(
+            f"/api/series/{series_id}/characters/{other_character['id']}/evidence-map")
+        assert denied.status_code == 404

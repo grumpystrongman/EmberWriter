@@ -405,6 +405,19 @@ def search_across_books(
         _fail(exc)
 
 
+@router.get("/{series_id}/characters/{entity_id}/evidence-map")
+def character_series_evidence(
+    series_id: str, entity_id: str,
+    max_book: int = Query(default=9999, ge=1, le=9999),
+) -> dict:
+    """Read-only character citation-density map across the private series."""
+    try:
+        return evidence_search.character_evidence_map(
+            series_id, entity_id, max_book=max_book)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/volumes/{volume_id}/sources")
 def list_volume_sources(series_id: str, volume_id: str) -> list[dict]:
     try:
