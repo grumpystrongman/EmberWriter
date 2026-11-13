@@ -170,6 +170,10 @@ def delete_series(series_id: str, confirmation: str) -> dict:
             shutil.rmtree(_root() / "snapshots" / volume_id, ignore_errors=True)
     # This private planning artifact belongs to the deleted series only.
     (_root() / "scene-boards" / f"{series_id}.json").unlink(missing_ok=True)
+    # Erase the private full-text index when a series is explicitly deleted.
+    # Otherwise source passages would survive in an orphan SQLite file.
+    if re.fullmatch(r"[0-9a-f]{32}", series_id):
+        (_root() / f"source-evidence-{series_id}.sqlite3").unlink(missing_ok=True)
     return {"deleted": True, "series_id": series_id,
             "linked_projects_deleted": False}
 
@@ -188,8 +192,8 @@ def _snapshot(volume_id: str, source_id: str, content: str) -> str:
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / (source_id + ".txt")
     # Exclusive; immutable source snapshots cannot be silently replaced.
-    with target.open("x", encoding="utf-8") as out:
-        out.write(content)
+    with target.open("xb") as out:
+        out.write(content.encode("utf-8"))
     return target.relative_to(_root()).as_posix()
 
 
@@ -219,6 +223,11 @@ def _source_text(blob: bytes, filename: str) -> str:
         )
     else:
         raise ValueError("Supported source files are TXT, Markdown, DOCX, EPUB and text-based PDF")
+    # Many legacy EPUBs use optional soft hyphens and zero-width breaks inside
+    # every word (for example, Re\u00admo and Chi\u00adun). They are layout
+    # controls, not literary spelling; leave the original EPUB untouched.
+    value = value.translate({0x00AD: None, 0x200B: None, 0xFEFF: None})
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
     if not value.strip():
         raise ValueError("Document contains no extractable text; scanned PDFs need OCR elsewhere")
     if len(value) > MAX_DOCUMENT_CHARS:
@@ -330,7 +339,7 @@ def source_text(series_id: str, source_id: str) -> tuple[dict, str]:
     path = (base / item["snapshot_path"]).resolve()
     if base not in path.parents or not path.is_file():
         raise FileNotFoundError("Source snapshot is unavailable")
-    content = path.read_text(encoding="utf-8")
+    content = path.read_bytes().decode("utf-8")
     if hashlib.sha256(content.encode("utf-8")).hexdigest() != item["sha256"]:
         raise ValueError("Source snapshot checksum mismatch")
     return item, content
@@ -356,11 +365,16 @@ def volume_sources(series_id: str, volume_id: str) -> list[dict]:
 
 
 def list_source_excerpt(series_id: str, source_id: str, query: str = "",
-                        limit: int = 1200) -> dict:
+                        limit: int = 1200, position: int | None = None) -> dict:
     item, content = source_text(series_id, source_id)
     if not 120 <= limit <= 5000:
         raise ValueError("Excerpt limit must be 120–5,000 characters")
-    at = content.casefold().find(query.strip().casefold()) if query.strip() else 0
+    if position is not None:
+        if not 0 <= position < len(content):
+            raise ValueError("Source position is outside this source document")
+        at = position
+    else:
+        at = content.casefold().find(query.strip().casefold()) if query.strip() else 0
     if at < 0:
         return {"source": item, "found": False, "excerpt": ""}
     begin = max(0, at - 200)
