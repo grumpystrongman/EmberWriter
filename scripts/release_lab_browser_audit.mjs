@@ -1,0 +1,60 @@
+// Real, synthetic-only Release Lab browser acceptance; screenshot evidence is safe.
+import fs from 'node:fs'
+import path from 'node:path'
+const root=path.resolve(import.meta.dirname,'..')
+const folder=path.join(root,'docs','reviews','assets','2026-11-13-release-lab')
+fs.mkdirSync(folder,{recursive:true})
+const projects=await(await fetch('http://127.0.0.1:8000/api/projects')).json()
+if(projects.length!==1||!projects[0].name.includes('Synthetic Editorial Review'))throw Error('Only isolated synthetic project allowed')
+const tabs=await(await fetch('http://127.0.0.1:9227/json')).json()
+const page=tabs.find(x=>x.type==='page'&&x.url.startsWith('http://127.0.0.1:5173'))
+if(!page)throw Error('Local Chromium test tab missing')
+const ws=new WebSocket(page.webSocketDebuggerUrl)
+await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j})
+let id=0;const pending=new Map()
+ws.onmessage=e=>{const m=JSON.parse(e.data);if(!m.id||!pending.has(m.id))return;const p=pending.get(m.id);pending.delete(m.id);m.error?p.j(Error(JSON.stringify(m.error))):p.r(m.result)}
+const send=(method,params={})=>new Promise((r,j)=>{const key=++id;pending.set(key,{r,j});ws.send(JSON.stringify({id:key,method,params}))})
+async function js(expression){const d=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(d.exceptionDetails)throw Error(JSON.stringify(d.exceptionDetails));return d.result?.value}
+async function until(expr,label){for(let n=0;n<50;n++){if(await js(expr))return;await new Promise(r=>setTimeout(r,250))}throw Error('Timed out: '+label)}
+async function shot(name,width,height){
+ await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<600})
+ await new Promise(r=>setTimeout(r,350))
+ const png=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})
+ fs.writeFileSync(path.join(folder,name+'.png'),Buffer.from(png.data,'base64'))
+ const geometry=await js('({width:innerWidth,documentWidth:document.documentElement.scrollWidth,visibleGates:document.querySelectorAll(".rl-gate").length})')
+ if(geometry.documentWidth>width+2)throw Error('Horizontal overflow '+name+' '+JSON.stringify(geometry))
+ console.log('CAPTURE',name,JSON.stringify(geometry))
+}
+try{
+ await send('Page.enable');await send('Page.navigate',{url:'http://127.0.0.1:5173/'})
+ await until('!!document.querySelector(".project-card")','project')
+ await js('localStorage.setItem("emberwriter.workspace","tools");location.reload();true')
+ await until('!!document.querySelector(".project-card")','reload project')
+ await js('if(!document.querySelector(".project-card.active"))document.querySelector(".project-card").click();true')
+ await until('!!document.querySelector(".center-subtabs")','Tools workspace')
+ await js('([...document.querySelectorAll(".center-subtabs button")].find(e=>e.innerText.includes("Release Lab"))||null)?.click();true')
+ await until('!!document.querySelector(".release-lab")','Release Lab')
+ const overview=await js('({heading:document.querySelector(".rl-hero h2")?.textContent,gates:document.querySelectorAll(".rl-gate").length,domains:document.querySelectorAll(".rl-domain").length,kpis:[...document.querySelectorAll(".rl-kpis strong")].map(e=>e.textContent)})')
+ if(overview.gates!==38||overview.domains!==5||overview.kpis[1]!=='0')throw Error('Unexpected scorecard '+JSON.stringify(overview))
+ await shot('01-desktop-overview',1440,900)
+ await js('document.querySelector(".rl-domain:nth-child(2)").click();true')
+ await until('document.querySelectorAll(".rl-gate").length===10','ten story intelligence gates')
+ await shot('02-story-depth-desktop',1440,900)
+ await js('document.querySelector(".rl-gate-trigger").click();true')
+ await until('!!document.querySelector(".rl-gate-detail")','evidence inspector')
+ const expanded=await js('document.querySelector(".rl-gate-detail")?.innerText')
+ if(!expanded.includes('WHAT EARNS 5/5')||!expanded.includes('locked'))throw Error('Missing proof and lock in expanded gate')
+ await shot('03-proof-inspector',1440,900)
+ await js('document.querySelector(".rl-domain:nth-child(2)").click();true')
+ await js('([...document.querySelectorAll(".rl-filterbar button")].find(b=>b.innerText.includes("P0 blockers"))||null)?.click();true')
+ await until('document.querySelectorAll(".rl-gate").length===2','P0 blockers')
+ await shot('04-release-blockers',1440,900)
+ await js('([...document.querySelectorAll(".rl-filterbar button")].find(b=>b.innerText.includes("All gates"))||null)?.click();true')
+ await shot('05-phone-overview',390,844)
+ await js('document.querySelector(".rl-domain:nth-child(5)").click();true')
+ await until('document.querySelectorAll(".rl-gate").length===9','craft gates')
+ await shot('06-phone-craft',390,844)
+ const result={timestamp:new Date().toISOString(),source:'Local Chromium CDP on synthetic only',overview,confirmedChecks:['38 release gates','5 quality groups','0 certified','10 narrative gates','proof inspector with locked 5/5','2 P0 blockers','responsive 1440 and 390 without page overflow','9 author craft gates']}
+ fs.writeFileSync(path.join(root,'docs','reviews','2026-11-13-release-lab-browser-evidence.json'),JSON.stringify(result,null,2))
+ console.log('RELEASE_LAB_PASS',JSON.stringify(result))
+}catch(e){console.error('RELEASE_LAB_FAIL',e.stack||e);process.exitCode=1}finally{ws.close()}

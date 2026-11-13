@@ -167,3 +167,59 @@ def search(series_id: str, query: str, *, min_book: int = 1,
         "indexed": True,
         "disclaimer": "Literal source matches only. Mentions do not establish motives, events, or approved canon.",
     }
+
+
+def character_evidence_map(series_id: str, entity_id: str, *,
+                           max_book: int = 9999) -> dict:
+    """Safe, source-only trajectory. A mention is NOT a story event or motive."""
+    if not 1 <= max_book <= 9999:
+        raise ValueError("Choose a valid reading position")
+    from . import series_canon
+
+    series = vault.series_detail(series_id)
+    entity = next((person for person in series_canon.list_entities(series_id)
+                   if person["id"] == entity_id and person["kind"] == "character"),
+                  None)
+    if entity is None:
+        raise FileNotFoundError("Character is not part of this Series Vault")
+    aliases = []
+    for label in [entity["name"], *entity["aliases"]]:
+        terms = re.findall(r"[\w]{2,}", label, re.UNICODE)[:5]
+        if terms:
+            phrase = " ".join(terms)
+            if phrase.casefold() not in {word.casefold() for word in aliases}:
+                aliases.append(phrase)
+        if len(aliases) >= 12:
+            break
+    volumes = [volume for volume in series["volumes"]
+               if volume["ordinal"] <= max_book]
+    if not volumes or not aliases:
+        return {"series_id": series_id, "entity_id": entity_id,
+                "name": entity["name"], "query": entity["name"], "max_book": max_book,
+                "total_windows": 0, "first_attested_book": None, "books": [],
+                "disclaimer": "Mentions are not proof of psychology, agency or character growth."}
+    expression = " OR ".join(
+        '"' + alias.replace('"', '""') + '"' for alias in aliases
+    )
+    index = _build(series, _signature(series))
+    with closing(sqlite3.connect(index, timeout=30)) as connection:
+        counts = {
+            int(book): int(count)
+            for book, count in connection.execute(
+                "SELECT CAST(book AS INTEGER), COUNT(*) FROM chunks "
+                "WHERE chunks MATCH ? AND CAST(book AS INTEGER) <= ? "
+                "GROUP BY CAST(book AS INTEGER)", (expression, max_book))
+        }
+    results = [{
+        "book": volume["ordinal"], "title": volume["title"],
+        "matching_windows": counts.get(volume["ordinal"], 0),
+    } for volume in volumes]
+    first = next((volume["book"] for volume in results
+                  if volume["matching_windows"] > 0), None)
+    return {
+        "series_id": series_id, "entity_id": entity_id,
+        "name": entity["name"], "query": min(aliases, key=lambda label: (len(label.split()), len(label))),
+        "max_book": max_book, "total_windows": sum(counts.values()),
+        "first_attested_book": first, "books": results,
+        "disclaimer": "Literal matching source windows, including possible overlapping windows. A mention alone cannot establish a character's feelings, motives, relationships or story events. Approval is always required for canon.",
+    }

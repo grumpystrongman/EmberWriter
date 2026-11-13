@@ -214,6 +214,8 @@ def _source_text(blob: bytes, filename: str) -> str:
             raise ValueError("PDF exceeds the 1,000-page import limit")
         value = "\n\n".join(page.extract_text() or "" for page in reader.pages)
     elif extension == ".epub":
+        from .series_epub_safety import _check_nested_epub
+        _check_nested_epub(blob, filename)
         from bs4 import BeautifulSoup
         from ebooklib import ITEM_DOCUMENT, epub
         book = epub.read_epub(io.BytesIO(blob))

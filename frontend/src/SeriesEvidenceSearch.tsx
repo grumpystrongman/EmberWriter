@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './series-evidence-search.css'
+import SeriesCharacterEvidenceMap from './SeriesCharacterEvidenceMap'
 
 type Match = {
  book:number;volume:string;source_id:string;
@@ -10,21 +11,22 @@ type SearchResponse = {
  sources:number;total_hits:number;results:Match[];disclaimer:string
 }
 type Props = {
- seriesId:string;bookCount:number;onOpenSource:(id:string,query:string,position:number)=>void
+ seriesId:string;bookCount:number;characters:{id:string;name:string;kind:string}[];onOpenSource:(id:string,query:string,position:number)=>void
 }
 const EXAMPLES=['Remo','Chiun','Smith','CURE']
 
-export default function SeriesEvidenceSearch({seriesId,bookCount,onOpenSource}:Props){
+export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOpenSource}:Props){
  const [query,setQuery]=useState('')
  const [maxBook,setMaxBook]=useState(bookCount||1)
  const [searching,setSearching]=useState(false)
  const [result,setResult]=useState<SearchResponse|null>(null)
  const [error,setError]=useState('')
  const [sort,setSort]=useState<'relevance'|'chronological'>('relevance')
+ const [focusedBook,setFocusedBook]=useState<number|null>(null)
  const [expanded,setExpanded]=useState(bookCount>12)
  useEffect(()=>{
    setMaxBook(Math.max(1,bookCount));setResult(null);setError('')
-   setExpanded(bookCount>12)
+   setExpanded(bookCount>12);setFocusedBook(null)
  },[seriesId,bookCount])
  const entries=useMemo(()=>{
    if(!result)return []
@@ -32,12 +34,13 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,onOpenSource}:P
      ?[...result.results].sort((a,b)=>a.book-b.book||a.excerpt_start-b.excerpt_start)
      :result.results
  },[result,sort])
- async function run(term=query){
+ async function run(term=query,book:number|null=null){
    const q=term.trim()
    if(q.length<2||searching)return
-   setQuery(q);setError('');setSearching(true)
+   setQuery(q);setError('');setSearching(true);setFocusedBook(book)
    try{
-     const params=new URLSearchParams({query:q,max_book:String(maxBook),limit:'35'})
+     const params=new URLSearchParams({query:q,max_book:String(book||maxBook),limit:'35'})
+   if(book!==null)params.set('min_book',String(book))
      const response=await fetch(
        'http://127.0.0.1:8000/api/series/'+encodeURIComponent(seriesId)+'/evidence-search?'+params
      )
@@ -76,7 +79,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,onOpenSource}:P
          <label htmlFor="series-evidence-timeline">Only show evidence up to <strong>book {maxBook}</strong></label>
          <input id="series-evidence-timeline" type="range" min={1}
            max={Math.max(1,bookCount)} value={maxBook}
-           onChange={event=>{setMaxBook(Number(event.target.value));setResult(null)}}/>
+           onChange={event=>{setMaxBook(Number(event.target.value));setFocusedBook(null);setResult(null)}}/>
          <div><small>Book 1</small><small>Book {Math.max(1,bookCount)}</small></div>
        </div>
        <div className="series-evidence-suggestions">
@@ -85,12 +88,19 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,onOpenSource}:P
            onClick={()=>void run(term)}>{term}</button>)}
        </div>
      </div>
+     <SeriesCharacterEvidenceMap seriesId={seriesId} maxBook={maxBook}
+       characters={characters.filter(entity=>entity.kind==='character')}
+       onExploreBook={(book,name)=>{void run(name,book)}}/>
+     {focusedBook!==null&&<div className="series-evidence-book-focus">
+       <span>Showing cited passages from Book {focusedBook} only</span>
+       <button type="button" onClick={()=>{void run(query,null)}}>Return to full reading range ↺</button>
+     </div>}
      {error&&<p className="series-evidence-error" role="alert">{error}</p>}
      {searching&&<p className="series-evidence-loading" role="status">Checking the private manuscript index. Large series may take longer to index the first time.</p>}
      {result&&!searching&&<div className="series-evidence-results">
        <div className="series-evidence-resultbar">
          <div><strong>{result.total_hits.toLocaleString()} matching text windows</strong>
-           <small>across {result.sources} source files, books 1–{result.max_book}</small></div>
+           <small>across {result.sources} source files, books {result.min_book}–{result.max_book}</small></div>
          <label>Order <select value={sort} onChange={event=>setSort(event.target.value as typeof sort)}>
            <option value="relevance">Most relevant</option>
            <option value="chronological">Book order</option>

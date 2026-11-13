@@ -1,0 +1,32 @@
+.character-evidence-map{margin:16px 0;border:1px solid #98839e;border-radius:18px;padding:17px;background:radial-gradient(circle at 97% 4%,#6c4d7866,transparent 46%),linear-gradient(150deg,#273649,#263347);color:#f4e6ea}
+.cem-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.cem-heading>div{min-width:0}
+.cem-heading small{font-size:.63rem;letter-spacing:.14em;color:#efbd9e;font-weight:800}
+.cem-heading h3{font:normal clamp(1.4rem,2.6vw,2.05rem) Georgia,serif;margin:6px 0;color:#fff0e8}
+.cem-heading p{font-size:.78rem;color:#d6dce8;line-height:1.55;margin:4px 0 9px;max-width:65ch}
+.cem-scope{font-size:.65rem;color:#f2c8a4;white-space:nowrap;font-weight:800;letter-spacing:.07em}
+.cem-characters{display:flex;gap:7px;overflow-x:auto;padding:9px 1px 12px;scrollbar-width:thin}
+.cem-characters button{flex:0 0 auto;border:1px solid #7e8aa0;background:#1c3043;color:#d3e1ed;border-radius:24px;padding:10px 15px;min-height:42px;font-size:.78rem}
+.cem-characters button[aria-pressed=true]{background:#72516d;border-color:#eac2d7;color:#ffeaf1;font-weight:800}
+.cem-status,.cem-error{font-size:.82rem;color:#d6dfec}.cem-error{color:#ffb49d}
+.cem-summary{display:flex;gap:11px;margin:4px 0 17px;flex-wrap:wrap}
+.cem-summary>div{display:grid;gap:2px;padding:9px 16px;border:1px solid #647b8e;border-radius:12px;background:#192d40;min-width:135px;flex:1}
+.cem-summary strong{font:normal 1.6rem Georgia,serif;color:#f6e2de}.cem-summary span{font-size:.67rem;color:#b7cad8}
+.cem-chart-scroll{overflow-x:auto;padding:8px 2px 0;scrollbar-width:thin}
+.cem-chart{display:grid;grid-auto-flow:column;grid-auto-columns:11px;align-items:end;gap:2px;min-height:132px;min-width:max-content;max-width:100%}
+.cem-chart button{display:grid;align-items:end;justify-items:center;gap:5px;width:100%;min-width:11px;border:0;background:transparent;color:#bdcbd8;padding:0;cursor:pointer}
+.cem-chart .cem-bar-rail{height:101px;width:100%;min-width:7px;border-radius:5px 5px 0 0;background:#556b8128;display:flex;align-items:end;overflow:hidden}
+.cem-chart .cem-bar{display:block;width:100%;min-height:0;background:linear-gradient(0deg,#e6a987,#ac89c9);border-radius:5px 5px 0 0;transition:height .25s ease}
+.cem-chart button.active .cem-bar{background:linear-gradient(0deg,#ffe0a8,#fcbb89)}
+.cem-chart button.active .cem-bar-rail{box-shadow:0 0 0 2px #f3c28e}
+.cem-chart button:hover .cem-bar-rail{outline:2px solid #d6b0cb;outline-offset:1px}
+.cem-chart button:focus-visible{outline:2px solid #ffbd84;outline-offset:3px}
+.cem-chart small{height:16px;font-size:.58rem;color:#c6d6e4}
+.cem-book-focus{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;margin-top:14px;padding:11px 14px;border:1px solid #a188a4;border-radius:12px;background:#473c58}
+.cem-book-focus>div{display:grid;gap:3px}.cem-book-focus small{font-size:.62rem;color:#f4b38f;font-weight:800;letter-spacing:.08em}
+.cem-book-focus strong{font:normal 1.12rem Georgia,serif}.cem-book-focus span{font-size:.72rem;color:#dce5eb}
+.cem-book-focus button,.series-evidence-book-focus button{border:1px solid #e5bfc6;border-radius:9px;color:#fff1ed;background:#81566e;padding:10px 13px;font-weight:750;font-size:.75rem;min-height:42px}
+.cem-book-focus button:disabled{opacity:.44;cursor:not-allowed}
+.cem-caveat{border-top:1px solid #6e738b;padding-top:10px;margin:14px 0 0;font-size:.71rem;line-height:1.5;color:#c0ccda}
+.series-evidence-book-focus{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:15px 0;color:#eec6aa;font-size:.8rem}
+@media(max-width:700px){.character-evidence-map{padding:11px}.cem-heading{display:grid}.cem-scope{font-size:.58rem}.cem-summary{gap:6px}.cem-summary>div{min-width:0;padding:8px}.cem-summary strong{font-size:1.22rem}.cem-summary span{font-size:.59rem} .cem-characters{flex-wrap:wrap;overflow:visible}.cem-chart{grid-auto-columns:12px;gap:3px;min-width:max-content}.cem-book-focus button{width:100%}}
+@media(prefers-reduced-motion:reduce){.cem-chart .cem-bar{transition:none}}
