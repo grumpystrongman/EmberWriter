@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.background import BackgroundTasks
 from fastapi.responses import FileResponse
@@ -17,6 +18,7 @@ from . import series_bulk_import
 from . import series_canon as canon
 from . import series_discovery as discovery
 from . import series_evidence_search as evidence_search
+from . import series_extraction_jobs as extraction_jobs
 from . import series_knowledge_lab as knowledge_lab
 from . import series_scene_preflight as scene_preflight
 from . import series_scene_studio as scene_studio
@@ -88,6 +90,11 @@ class FactCreate(BaseModel):
 
 class Review(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
+
+
+class ExtractionStart(BaseModel):
+    source_id: str = Field(min_length=1, max_length=100)
+    model: str = Field(min_length=1, max_length=200)
 
 
 class SourceSuggestion(BaseModel):
@@ -452,6 +459,50 @@ def character_series_evidence(
 def list_volume_sources(series_id: str, volume_id: str) -> list[dict]:
     try:
         return vault.volume_sources(series_id, volume_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/extraction-jobs")
+def get_extraction_jobs(series_id: str, source_id: str | None = None) -> list[dict]:
+    try:
+        return extraction_jobs.list_jobs(series_id, source_id=source_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-jobs", status_code=201)
+def start_extraction_job(series_id: str, payload: ExtractionStart) -> dict:
+    try:
+        return extraction_jobs.create(series_id, payload.source_id, payload.model)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/extraction-jobs/{job_id}")
+def get_extraction_job(series_id: str, job_id: str) -> dict:
+    try:
+        return extraction_jobs.get(series_id, job_id)
+    except FileNotFoundError as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-jobs/{job_id}/next")
+async def advance_extraction_job(series_id: str, job_id: str) -> dict:
+    try:
+        return await extraction_jobs.advance(series_id, job_id)
+    except TimeoutError as exc:
+        raise HTTPException(503, "Local model timed out; the same source window can be retried") from exc
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+    except (OSError, RuntimeError, httpx.HTTPError) as exc:
+        raise HTTPException(503, "Local model unavailable; no source window was advanced") from exc
+
+
+@router.post("/{series_id}/extraction-jobs/{job_id}/cancel")
+def cancel_extraction_job(series_id: str, job_id: str) -> dict:
+    try:
+        return extraction_jobs.cancel(series_id, job_id)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 

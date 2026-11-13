@@ -5,6 +5,7 @@ import StoryObservatory from './StoryObservatory'
 import PartTwoStudio from './PartTwoStudio'
 import SeriesEvidenceSearch from './SeriesEvidenceSearch'
 import SeriesKnowledgeLab from './SeriesKnowledgeLab'
+import SeriesExtractionWorkbench from './SeriesExtractionWorkbench'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -718,6 +719,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 <button type="button" onClick={() => useSuggestion(candidate)}>Use this in the proposal form</button>
               </div>)}
             </div>}
+            {selectedSource&&<SeriesExtractionWorkbench
+              key={series.id+':'+selectedSource.id} seriesId={series.id}
+              sourceId={selectedSource.id} model={suggestionModel}
+              onUseSuggestion={useSuggestion}/>}
             <label>Exact quote (copy from the excerpt above) <textarea rows={3} maxLength={2000}
               value={quote} onChange={event => setQuote(event.target.value)} /></label>
             <p className={quoteStart >= 0 ? 'series-desk-success' : 'series-desk-hint'}>
