@@ -11,11 +11,12 @@ type SearchResponse = {
  sources:number;total_hits:number;results:Match[];disclaimer:string
 }
 type Props = {
- seriesId:string;bookCount:number;characters:{id:string;name:string;kind:string}[];onOpenSource:(id:string,query:string,position:number)=>void
+ seriesId:string;bookCount:number;characters:{id:string;name:string;kind:string}[];onOpenSource:(id:string,query:string,position:number)=>void;
+ onDraftClaim:(entry:Match)=>void
 }
 const EXAMPLES=['Remo','Chiun','Smith','CURE']
 
-export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOpenSource}:Props){
+export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOpenSource,onDraftClaim}:Props){
  const [query,setQuery]=useState('')
  const [maxBook,setMaxBook]=useState(bookCount||1)
  const [searching,setSearching]=useState(false)
@@ -116,6 +117,9 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
            <p>{entry.excerpt}</p>
            <button type="button" onClick={()=>onOpenSource(entry.source_id,query,entry.excerpt_start)}>
              Open original source · position {entry.excerpt_start.toLocaleString()} ↗
+           </button>
+           <button type="button" className="series-evidence-stage-claim" onClick={()=>onDraftClaim(entry)}>
+             Draft a source-backed claim from this passage (author review required)
            </button>
          </article>)}</div>
        {result.total_hits>result.results.length&&<p className="series-evidence-count">

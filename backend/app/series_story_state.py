@@ -65,7 +65,7 @@ def story_state(series_id: str, book: int, sequence: int = 999999) -> dict:
     conflicts = []
     for rows in groups.values():
         values = {(row["object_entity_id"], row["object_text"]) for row in rows}
-        if len(values) > 1:
+        if len(values) > 1 and rows[0]["predicate"] in canon.EXCLUSIVE_PREDICATES:
             conflicts.append({
                 "subject": rows[0]["subject_name"], "predicate": rows[0]["predicate"],
                 "scope": rows[0]["scope"], "knower_id": rows[0]["knower_id"],
