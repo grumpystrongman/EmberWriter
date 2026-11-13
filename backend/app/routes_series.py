@@ -17,6 +17,7 @@ from . import series_bulk_import
 from . import series_canon as canon
 from . import series_discovery as discovery
 from . import series_evidence_search as evidence_search
+from . import series_knowledge_lab as knowledge_lab
 from . import series_scene_preflight as scene_preflight
 from . import series_scene_studio as scene_studio
 from . import series_story_state as intelligence
@@ -280,6 +281,35 @@ def remove_scene_board(series_id: str, board_id: str, payload: SceneBoardDelete)
     try:
         return scene_studio.delete_board(series_id, board_id, payload.version)
     except (FileNotFoundError, ValueError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/local-model-readiness")
+def private_local_model_readiness(series_id: str) -> dict:
+    """Service-only health check; never transmits story text."""
+    from .series_model_readiness import model_readiness
+    try:
+        return model_readiness(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/knowledge-lab")
+def source_grounded_knowledge(
+    series_id: str,
+    book: int = Query(ge=1, le=9999),
+    sequence: int = Query(default=999999, ge=0, le=999999),
+    subject_id: str | None = None,
+    other_id: str | None = None,
+    knower_id: str | None = None,
+) -> dict:
+    """Only author-approved, temporal, cited evidence; never model guesses."""
+    try:
+        return knowledge_lab.investigate(
+            series_id, book, sequence=sequence, subject_id=subject_id,
+            other_id=other_id, knower_id=knower_id,
+        )
+    except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 
 

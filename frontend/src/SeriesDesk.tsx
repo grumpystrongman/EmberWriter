@@ -4,6 +4,7 @@ import SeriesProfessionalTools, { type ProMode } from './SeriesProfessionalTools
 import StoryObservatory from './StoryObservatory'
 import PartTwoStudio from './PartTwoStudio'
 import SeriesEvidenceSearch from './SeriesEvidenceSearch'
+import SeriesKnowledgeLab from './SeriesKnowledgeLab'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -43,7 +44,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [selectedId, setSelectedId] = useState('')
   const [series, setSeries] = useState<Series | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
-  const [view, setView] = useState<'observatory' | 'creative' | 'vault' | 'canon' | 'timeline' | ProMode>('observatory')
+  const [view, setView] = useState<'observatory' | 'creative' | 'vault' | 'canon' | 'timeline' | 'knowledge' | ProMode>('observatory')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -431,7 +432,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
           ['vault','Library','Books and source archives'],
         ] as const).map(([key,label,description])=>{
           const active=key==='canon'
-            ? ['canon','timeline','guardian','consequences','ember'].includes(view)
+            ? ['canon','timeline','knowledge','guardian','consequences','ember'].includes(view)
             : view===key
           return <button key={key} type="button" aria-pressed={active}
             onClick={()=>setView(key)}>
@@ -441,11 +442,12 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
           </button>
         })}
       </nav>
-      {(['canon','timeline','guardian','consequences','ember'] as const).includes(view as 'canon')&&
+      {(['canon','timeline','knowledge','guardian','consequences','ember'] as const).includes(view as 'canon')&&
         <nav className="series-verify-tools" aria-label="Evidence and verification tools">
           {([
             ['canon','Review canon'],
             ['timeline','Time & knowledge'],
+            ['knowledge','Knowledge Lab'],
             ['guardian','Continuity'],
             ['consequences','Consequences'],
             ['ember','Ask Ember'],
@@ -455,11 +457,39 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
         </nav>}
       {series && <SeriesEvidenceSearch seriesId={series.id}
         characters={entities} bookCount={series.volumes?.length || 0}
+        onDraftClaim={entry=>{
+          const located=sources.find(source=>source.id===entry.source_id)
+          setSourceId(entry.source_id)
+          setSourcePosition(entry.excerpt_start)
+          setSourceQuery('')
+          setQuote(entry.excerpt)
+          setSubjectId('')
+          setPredicate('located_in')
+          setObjectText('')
+          setObjectEntityId('')
+          setScope('world')
+          setKnowerId('')
+          setStartBook(located?.ordinal||entry.book)
+          setStartSequence(0);setEndBook('')
+          setNotice('Exact passage staged as a draft. Choose who or what it concerns, its meaning, and save only after verifying the source. Nothing was approved.')
+          setView('canon')
+        }}
         onOpenSource={(id,searchTerm,position)=>{
           const located = sources.find(item=>item.id===id)
           setSourceId(id)
           setSourcePosition(position)
           setSourceQuery(searchTerm.trim().split(' ')[0] || '')
+          setQuote('')
+          if(located){setStartBook(located.ordinal);setStartSequence(0);setEndBook('')}
+          setView('canon')
+        }}/>}
+      {view === 'knowledge' && <SeriesKnowledgeLab
+        key={series.id} seriesId={series.id} entities={entities} volumes={series.volumes||[]}
+        onReview={()=>setView('canon')}
+        onInspect={(id,searchTerm,position)=>{
+          const located=sources.find(source=>source.id===id)
+          setSourceId(id);setSourcePosition(position)
+          setSourceQuery(searchTerm.trim().slice(0,80))
           setQuote('')
           if(located){setStartBook(located.ordinal);setStartSequence(0);setEndBook('')}
           setView('canon')

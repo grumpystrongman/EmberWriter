@@ -15,6 +15,10 @@ from .series_vault import _connect, _id, _one, now, source_text
 KINDS = {"character", "place", "artifact", "faction", "species", "rule", "event", "concept"}
 SCOPES = {"world", "character_belief", "reader_reveal"}
 STATUS = {"proposed", "approved", "rejected"}
+# Only demonstrably single-valued statuses can generate deterministic
+# possible-conflict alerts. Multiple goals, beliefs, affiliations or people
+# someone trusts are not contradictions by themselves.
+EXCLUSIVE_PREDICATES = {"located_in", "location", "current_location", "alive", "status"}
 WORD = re.compile(r"[\w'-]+", re.UNICODE)
 STOP = {"the", "and", "about", "what", "which", "where", "when", "did", "does",
         "have", "has", "was", "were", "that", "this", "with", "from", "book",
@@ -259,7 +263,8 @@ def at_book(series_id: str, book: int, sequence: int = 999999, *,
         groups.setdefault(key, []).append(claim)
     for group in groups.values():
         values = {(row["object_entity_id"], row["object_text"]) for row in group}
-        if len(group) > 1 and len(values) > 1:
+        if (len(group) > 1 and len(values) > 1
+                and group[0]["predicate"] in EXCLUSIVE_PREDICATES):
             conflicts.append({
                 "subject": group[0]["subject_name"], "predicate": group[0]["predicate"],
                 "assertion_ids": [row["id"] for row in group],

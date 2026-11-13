@@ -57,3 +57,7 @@
  .series-evidence-heading span{font-size:.57rem;letter-spacing:.075em}
  .series-evidence-collapse{min-height:44px;padding:8px;font-size:.72rem}
 }
+
+.series-evidence-stage-claim{display:block;width:100%;min-height:42px;margin-top:7px;padding:9px 12px;border:1px solid #9e8ab0;border-radius:9px;background:#3e3b57;color:#f1daeb;font-size:.75rem;font-weight:700;text-align:left}
+.series-evidence-stage-claim:hover{background:#624b65}
+.series-evidence-stage-claim:focus-visible{outline:3px solid #f4c39e;outline-offset:2px}
