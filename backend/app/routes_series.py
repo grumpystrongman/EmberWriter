@@ -13,13 +13,15 @@ from fastapi.background import BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from . import series_bulk_import
 from . import series_canon as canon
 from . import series_discovery as discovery
-from . import series_story_state as intelligence
-from . import story_benchmark_jobs as benchmarks
-from . import series_vault as vault
-from . import series_scene_studio as scene_studio
+from . import series_evidence_search as evidence_search
 from . import series_scene_preflight as scene_preflight
+from . import series_scene_studio as scene_studio
+from . import series_story_state as intelligence
+from . import series_vault as vault
+from . import story_benchmark_jobs as benchmarks
 
 router = APIRouter(prefix="/api/series", tags=["Series Vault"])
 
@@ -370,6 +372,39 @@ async def import_document(
         _fail(exc)
 
 
+@router.post("/{series_id}/volumes/bulk-zip", status_code=201)
+async def import_epub_collection(
+    series_id: str,
+    file: Annotated[UploadFile, File()],
+    rights_confirmed: bool = Form(default=False),
+) -> dict:
+    """Safely add all numbered EPUBs in one local ZIP, in series order."""
+    try:
+        blob = await file.read(series_bulk_import.MAX_ARCHIVE_BYTES + 1)
+        return series_bulk_import.import_epub_zip(
+            series_id, blob, rights_confirmed=rights_confirmed,
+        )
+    except (ValueError, FileNotFoundError, sqlite3.IntegrityError,
+            UnicodeError, OSError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/evidence-search")
+def search_across_books(
+    series_id: str,
+    query: str = Query(min_length=2, max_length=120),
+    min_book: int = Query(default=1, ge=1, le=9999),
+    max_book: int = Query(default=9999, ge=1, le=9999),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> dict:
+    """Grounded offline full-series lookup; never infers or approves canon."""
+    try:
+        return evidence_search.search(series_id, query, min_book=min_book,
+                                      max_book=max_book, limit=limit)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/volumes/{volume_id}/sources")
 def list_volume_sources(series_id: str, volume_id: str) -> list[dict]:
     try:
@@ -397,9 +432,11 @@ async def propose_source_suggestions(series_id: str, source_id: str,
 def show_source(
     series_id: str, source_id: str, query: str = Query(default="", max_length=400),
     limit: int = Query(default=1200, ge=120, le=5000),
+    position: int | None = Query(default=None, ge=0, le=4_000_000),
 ) -> dict:
     try:
-        return vault.list_source_excerpt(series_id, source_id, query, limit)
+        return vault.list_source_excerpt(series_id, source_id, query, limit,
+                                         position=position)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 

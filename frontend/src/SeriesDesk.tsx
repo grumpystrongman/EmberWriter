@@ -3,6 +3,7 @@ import type { WorkspaceProject } from './workspace-types'
 import SeriesProfessionalTools, { type ProMode } from './SeriesProfessionalTools'
 import StoryObservatory from './StoryObservatory'
 import PartTwoStudio from './PartTwoStudio'
+import SeriesEvidenceSearch from './SeriesEvidenceSearch'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -57,9 +58,18 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [editionStatus, setEditionStatus] = useState('draft')
   const [linkProject, setLinkProject] = useState('')
   const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [collectionFile, setCollectionFile] = useState<File | null>(null)
+  const [collectionPermission, setCollectionPermission] = useState(false)
+  const [collectionConfirmed, setCollectionConfirmed] = useState(false)
+  const [collectionResult, setCollectionResult] = useState<{
+    imported_count: number; book_orders: number[]; total_source_characters: number;
+    ignored_non_epub: number; canon_facts_approved: number;
+  } | null>(null)
   const [volumeEdits, setVolumeEdits] = useState<Record<string, {title: string; ordinal: number; kind: string; edition_status: string}>>({})
   const [rightsConfirmed, setRightsConfirmed] = useState(false)
   const [addMode, setAddMode] = useState<'project' | 'document'>('project')
+  const [bookFilter,setBookFilter] = useState('')
+  const [bookPage,setBookPage] = useState(0)
   const [entities, setEntities] = useState<Entity[]>([])
   const [facts, setFacts] = useState<Fact[]>([])
   const [entityName, setEntityName] = useState('')
@@ -67,6 +77,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [entityAliases, setEntityAliases] = useState('')
   const [sourceId, setSourceId] = useState('')
   const [sourceQuery, setSourceQuery] = useState('')
+  const [sourcePosition, setSourcePosition] = useState<number|null>(null)
   const [excerpt, setExcerpt] = useState<Excerpt | null>(null)
   const [quote, setQuote] = useState('')
   const [subjectId, setSubjectId] = useState('')
@@ -93,6 +104,12 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const sources = useMemo(() => (series?.volumes || []).flatMap(volume =>
     volume.sources.map(source => ({ ...source, ordinal: volume.ordinal, volumeTitle: volume.title }))),
   [series])
+  const filteredBooks = useMemo(() => (series?.volumes || []).filter(book => {
+    const term=bookFilter.trim().toLowerCase()
+    return !term || book.title.toLowerCase().includes(term) || String(book.ordinal).padStart(3,'0').includes(term)
+  }),[series?.volumes,bookFilter])
+  const bookPages=Math.max(1,Math.ceil(filteredBooks.length/16))
+  const visibleBooks=filteredBooks.slice(Math.min(bookPage,bookPages-1)*16,(Math.min(bookPage,bookPages-1)+1)*16)
   const selectedSource = sources.find(row => row.id === sourceId)
   const quotePosition = excerpt && quote ? excerpt.excerpt.indexOf(quote) : -1
   const quoteStart = excerpt && quotePosition >= 0 ? excerpt.excerpt_start + quotePosition : -1
@@ -137,6 +154,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     return () => window.removeEventListener('emberwriter:series-panel', onOpenPanel)
   }, [])
 
+  useEffect(()=>{setBookPage(0)},[series?.id,bookFilter])
   useEffect(() => {
     if (!series?.volumes?.length) return
     setVolumeOrdinal(Math.max(...series.volumes.map(item => item.ordinal)) + 1)
@@ -173,11 +191,12 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     }
     let active = true
     const query = new URLSearchParams({ query: sourceQuery, limit: '4000' })
+    if(sourcePosition!==null)query.set('position',String(sourcePosition))
     void request<Excerpt>(`/series/${selectedId}/sources/${sourceId}/excerpt?${query}`)
       .then(result => { if (active) setExcerpt(result) })
       .catch(cause => { if (active) { setExcerpt(null); setError(String(cause)) } })
     return () => { active = false }
-  }, [sourceId, sourceQuery, selectedId, series?.id, sources])
+  }, [sourceId, sourceQuery, sourcePosition, selectedId, series?.id, sources])
 
   async function execute(operation: () => Promise<void>, success: string) {
     setBusy(true); setError(''); setNotice('')
@@ -246,6 +265,23 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       setRightsConfirmed(false); setVolumeTitle(''); setDocumentFile(null)
       await loadSelected(series.id)
     }, 'Book added to the Series Vault. Its source snapshot is preserved and no canon was approved automatically.')
+  }
+
+  async function importCollection() {
+    if (!series || !collectionFile || !collectionPermission || !collectionConfirmed) return
+    setCollectionConfirmed(false)
+    await execute(async () => {
+      const data = new FormData()
+      data.append('file', collectionFile)
+      data.append('rights_confirmed', 'true')
+      const result = await request<{
+        imported_count: number; book_orders: number[]; total_source_characters: number;
+        ignored_non_epub: number; canon_facts_approved: number;
+      }>(`/series/${series.id}/volumes/bulk-zip`, {method: 'POST',body: data})
+      setCollectionResult(result)
+      setCollectionFile(null); setCollectionPermission(false)
+      await loadSelected(series.id)
+    }, 'EPUB collection imported privately. Source evidence is available; no canon facts were automatically approved.')
   }
 
   async function saveVolume(book: Volume) {
@@ -417,6 +453,17 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
             <button key={key} type="button" aria-current={view===key?'page':undefined}
               onClick={()=>setView(key)}>{label}</button>)}
         </nav>}
+      {series && <SeriesEvidenceSearch seriesId={series.id}
+        bookCount={series.volumes?.length || 0}
+        onOpenSource={(id,searchTerm,position)=>{
+          const located = sources.find(item=>item.id===id)
+          setSourceId(id)
+          setSourcePosition(position)
+          setSourceQuery(searchTerm.trim().split(' ')[0] || '')
+          setQuote('')
+          if(located){setStartBook(located.ordinal);setStartSequence(0);setEndBook('')}
+          setView('canon')
+        }}/>}
       {view === 'observatory' && <StoryObservatory
         key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
         busy={busy} onReview={(factId, decision) => void reviewFact(factId, decision)}
@@ -446,8 +493,17 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
             <button type="button" disabled={busy || deleteConfirmation !== series.title}
               onClick={() => void deleteSelectedSeries()}>Permanently delete this series vault</button>
           </details>
-          {series.volumes?.length ? <div className="series-desk-books">
-            {series.volumes.map(book => <article key={book.id}>
+          {series.volumes?.length ? <>
+            <div className="series-book-finder">
+              <label htmlFor="series-book-filter">Find a volume by book number or title
+                <input id="series-book-filter" type="search" value={bookFilter}
+                  placeholder="e.g. 040 or Dangerous Games"
+                  onChange={event=>setBookFilter(event.target.value)}/>
+              </label>
+              <span>{filteredBooks.length} of {series.volumes.length} books shown · 16 per page</span>
+            </div>
+            <div className="series-desk-books">
+            {visibleBooks.map(book => <article key={book.id}>
               <div className="series-desk-book-index">{String(book.ordinal).padStart(2, '0')}</div>
               <div><strong>{book.title}</strong><p>{book.kind.replaceAll('_', ' ')} · {book.edition_status} · {book.source_count} sources</p>
                 {book.project_slug && <small>Linked project: {book.project_slug}</small>}
@@ -487,8 +543,52 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 </details>
               </div>
             </article>)}
-          </div> : <div className="series-desk-empty">No books yet. Add the first volume below. Nothing needs to be retyped.</div>}
+            </div>
+            {bookPages>1&&<nav className="series-book-pages" aria-label="Browse series volumes">
+              <button type="button" disabled={bookPage<=0} onClick={()=>setBookPage(n=>Math.max(0,n-1))}>← Earlier books</button>
+              <span>Page {Math.min(bookPage,bookPages-1)+1} of {bookPages}</span>
+              <button type="button" disabled={bookPage>=bookPages-1} onClick={()=>setBookPage(n=>Math.min(bookPages-1,n+1))}>Later books →</button>
+            </nav>}
+          </> : <div className="series-desk-empty">No books yet. Add the first volume below. Nothing needs to be retyped.</div>}
         </div>
+        <section className="series-desk-card series-collection-import" aria-label="Import a numbered EPUB collection">
+          <div className="series-collection-heading">
+            <span aria-hidden="true" className="series-collection-mark">▥</span>
+            <div><small>BULK SERIES LIBRARY · LOCAL ONLY</small>
+              <h2>Bring an entire series into the Vault</h2>
+              <p className="series-desk-hint">Select one ZIP containing numbered EPUB books. The importer reads all volumes in order, checks them before writing, and preserves immutable source snapshots. Nothing is uploaded to a cloud service or added to approved canon.</p>
+            </div>
+          </div>
+          <div className="series-collection-controls">
+            <label>Choose a ZIP of numbered EPUBs
+              <input type="file" accept=".zip,application/zip" disabled={busy}
+                onChange={event => {
+                  setCollectionFile(event.target.files?.[0] || null)
+                  setCollectionConfirmed(false); setCollectionResult(null)
+                }} />
+            </label>
+            {collectionFile&&<p className="series-collection-selected">{collectionFile.name}
+              <span> · {(collectionFile.size/1024/1024).toFixed(1)} MB · Up to 150 volumes</span></p>}
+            <p className="series-collection-hint">Expected names: <code>Series 001 - Book Title.epub</code>. Other catalog metadata is ignored. An existing book position will block import rather than overwrite it.</p>
+            <label className="series-desk-check"><input type="checkbox" checked={collectionPermission}
+              disabled={busy} onChange={event=>{setCollectionPermission(event.target.checked);setCollectionConfirmed(false)}} />
+              <span>I have permission to use these files in my private local reference library.</span>
+            </label>
+            {!collectionConfirmed?<button type="button" className="series-desk-primary"
+              disabled={busy||!collectionFile||!collectionPermission||collectionFile.size>60*1024*1024}
+              onClick={()=>setCollectionConfirmed(true)}>Review bulk import →</button>:
+              <div className="series-collection-confirm" role="group" aria-label="Confirm series collection import">
+                <strong>Import every numbered EPUB from this archive?</strong>
+                <p>New reference volumes and local source snapshots will be created for this Series Vault only. Existing manuscript projects will not change. No narrative facts will be automatically approved.</p>
+                <div><button type="button" disabled={busy} onClick={()=>void importCollection()}>Confirm private import</button>
+                <button type="button" disabled={busy} onClick={()=>setCollectionConfirmed(false)}>Cancel</button></div>
+              </div>}
+            {collectionResult&&<div className="series-collection-success" role="status">
+              <strong>{collectionResult.imported_count} books imported</strong>
+              <span>{collectionResult.total_source_characters.toLocaleString()} extracted characters · positions {Math.min(...collectionResult.book_orders)}–{Math.max(...collectionResult.book_orders)} · {collectionResult.canon_facts_approved} facts automatically approved</span>
+            </div>}
+          </div>
+        </section>
         <div className="series-desk-card">
           <h2>Add a book or story</h2>
           <p className="series-desk-hint">Link one of your existing EmberWriter books or import an authorized source file. Your original is never edited.</p>
@@ -549,14 +649,14 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
           <p className="series-desk-hint">Select an exact passage in one of your books. A proposal is not canon until you approve it.</p>
           <div className="series-desk-form">
             <label>Source document
-              <select value={sourceId} onChange={event => { setSourceId(event.target.value); setQuote(''); setSourceQuery('');
+              <select value={sourceId} onChange={event => { setSourceId(event.target.value); setQuote(''); setSourceQuery(''); setSourcePosition(null);
                 setStartBook(sources.find(item => item.id === event.target.value)?.ordinal || 1)
                 setStartSequence(0); setEndBook('') }}>
                 {!sources.length && <option value="">Add a book first</option>}
                 {sources.map(row => <option key={row.id} value={row.id}>Book {row.ordinal} · {row.volumeTitle} · {row.title}</option>)}
               </select></label>
             <label>Find a phrase in this book <input value={sourceQuery} maxLength={400}
-              onChange={event => { setSourceQuery(event.target.value); setQuote('') }}
+              onChange={event => { setSourceQuery(event.target.value); setQuote(''); setSourcePosition(null) }}
               placeholder="Enter exact words to locate evidence" /></label>
             {selectedSource && <div className="series-desk-evidence">
               <small>Immutable evidence snapshot · {selectedSource.source_path}</small>

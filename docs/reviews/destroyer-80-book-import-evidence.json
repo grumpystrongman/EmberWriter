@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-11-13T13:56:30.094042+00:00",
+  "archive_path": "C:\\Users\\grump\\Downloads\\The Destroyer ePub eBooks murphy sapir remo.zip",
+  "import_mode": "local HTTP bulk ZIP upload into isolated test Series Vault",
+  "series_id": "11d2558e7e1248298d1454ab6e906883",
+  "series_title": "The Destroyer - 80-Book Continuity Lab",
+  "books": 80,
+  "ordinal_min": 1,
+  "ordinal_max": 80,
+  "source_count": 80,
+  "extracted_bytes": 23757877,
+  "elapsed_seconds": 16.398,
+  "source_checks": {
+    "1": {
+      "book_title": "Created The Destroyer",
+      "source_sha256": "cbf01c5aaed9e44522905fd6d479eeeeb3be4877bdbe89a0f2a8544780c82b79",
+      "finds_name": true,
+      "source_characters": 298095,
+      "excerpt_offset": 1097
+    },
+    "20": {
+      "book_title": "Assassins Play-Off",
+      "source_sha256": "6283092c9fbe8810c92e91d4cb03ed31ac108b0cec2f36a49840d6616e72d406",
+      "finds_name": true,
+      "source_characters": 248365,
+      "excerpt_offset": 921
+    },
+    "40": {
+      "book_title": "Dangerous Games",
+      "source_sha256": "67169d0b627764fcdf5ef604d71c1fbe80b6030c7ffccce1ce2c9916bc63948c",
+      "finds_name": true,
+      "source_characters": 249759,
+      "excerpt_offset": 19427
+    },
+    "60": {
+      "book_title": "The End of the Game",
+      "source_sha256": "80da97211a3b2d450c80dd6bee80ef3cad13915372606a69bdc4e7ee9649d735",
+      "finds_name": true,
+      "source_characters": 295657,
+      "excerpt_offset": 965
+    },
+    "80": {
+      "book_title": "Death Sentence",
+      "source_sha256": "37b691cb86539876e68e53cec174edb9ba5ba2439a31d7c18f3041ffaa66e9b9",
+      "finds_name": true,
+      "source_characters": 352436,
+      "excerpt_offset": 13224
+    }
+  },
+  "approved_canon_count": 0,
+  "original_projects_untouched": true,
+  "books_auto_approved": false,
+  "limitations": "Book import and string retrieval are not semantic psychology or continuity proof."
+}

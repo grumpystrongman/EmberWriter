@@ -1,0 +1,59 @@
+.series-evidence-search{margin:14px 0;background:linear-gradient(135deg,#293c4d,#283148);border:1px solid #708099;border-radius:17px;overflow:hidden;color:#f8e8e7}
+.series-evidence-search *{box-sizing:border-box}
+.series-evidence-search button:focus-visible,.series-evidence-search input:focus-visible,.series-evidence-search select:focus-visible{outline:3px solid #f8bf88;outline-offset:3px}
+.series-evidence-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 21px;background:radial-gradient(ellipse at 5% 10%,#5c4b6e88,transparent 45%)}
+.series-evidence-heading>div{flex:1;min-width:0}
+.series-evidence-heading span{color:#eec197;letter-spacing:.12em;font-size:.65rem;font-weight:800}
+.series-evidence-heading h2{font:normal clamp(1.35rem,2.5vw,1.9rem) Georgia,serif;margin:6px 0;color:#fff0e9}
+.series-evidence-heading p{margin:0;font-size:.78rem;color:#d4d9e5;line-height:1.5}
+.series-evidence-collapse{min-height:44px;flex-shrink:0;border:1px solid #b6a0c4;border-radius:9px;background:#55455f;color:#fff;padding:10px;font-size:.79rem}
+.series-evidence-body{padding:0 20px 18px}
+.series-evidence-searchbar{display:grid;gap:8px}
+.series-evidence-searchbar label{color:#f0d6b7;font-size:.73rem;font-weight:750}
+.series-evidence-searchbar>div{display:flex;gap:8px;min-width:0}
+.series-evidence-searchbar input{flex:1;min-width:0;border:1px solid #90a0b0;border-radius:10px;background:#162739;color:#f8eff1;padding:13px;font-size:.9rem}
+.series-evidence-searchbar button{padding:12px 16px;border:1px solid #dfacc9;color:#fff;background:#785570;border-radius:10px;font-weight:700;font-size:.81rem}
+.series-evidence-searchbar button:disabled{opacity:.5}
+.series-evidence-controls{display:grid;grid-template-columns:minmax(240px,1.3fr) minmax(180px,1fr);gap:18px;margin:16px 0}
+.series-evidence-booklimit label{font-size:.78rem;color:#e1d8e1}.series-evidence-booklimit label strong{color:#ffe0af}
+.series-evidence-booklimit input{width:100%;accent-color:#e4b4cb;margin:12px 0 2px;min-height:21px}
+.series-evidence-booklimit>div{display:flex;justify-content:space-between;color:#c4ccd8;font-size:.7rem}
+.series-evidence-suggestions{display:flex;align-content:start;align-items:center;gap:6px;flex-wrap:wrap}
+.series-evidence-suggestions span{font-size:.65rem;font-weight:800;color:#e2ba98;letter-spacing:.1em;width:100%}
+.series-evidence-suggestions button{border:1px solid #98899c;border-radius:100px;background:#443e55;color:#f3e7ef;padding:8px 11px;font-size:.76rem}
+.series-evidence-loading,.series-evidence-error{border:1px solid #8099ac;background:#263d51;border-radius:10px;padding:13px;font-size:.8rem}
+.series-evidence-error{color:#f9c3bf;border-color:#c3818c;background:#513842}
+.series-evidence-results{margin-top:17px;border-top:1px solid #68778e;padding-top:13px}
+.series-evidence-resultbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.series-evidence-resultbar>div{display:grid;gap:4px}
+.series-evidence-resultbar strong{font:normal 1.18rem Georgia,serif}
+.series-evidence-resultbar small{font-size:.7rem;color:#c5d3e0}
+.series-evidence-resultbar label{font-size:.72rem;color:#d4d1db}
+.series-evidence-resultbar select{background:#1a2e42;border:1px solid #8593a8;color:#eee4ef;border-radius:8px;padding:8px}
+.series-evidence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.series-evidence-grid article{border:1px solid #677b92;background:#172a3d;border-radius:12px;padding:14px;min-width:0}
+.series-evidence-cardhead{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.series-evidence-cardhead span{color:#efb99a;font-size:.68rem;font-weight:850;letter-spacing:.08em}
+.series-evidence-cardhead strong{font:normal 1.05rem Georgia,serif}
+.series-evidence-grid article p{font:normal .82rem/1.6 Georgia,serif;color:#e9dfdb;max-height:108px;overflow:hidden;overflow-wrap:anywhere;margin:12px 0}
+.series-evidence-grid article button{min-height:44px;background:#423f58;color:#ebd7f0;border:1px solid #977ba9;padding:9px 12px;border-radius:9px;font-size:.75rem}
+.series-evidence-empty,.series-evidence-count,.series-evidence-disclaimer{font-size:.76rem;color:#c9d3df;line-height:1.6}
+.series-evidence-disclaimer{border-top:1px solid #65768e;padding-top:12px}
+@media(max-width:750px){
+ .series-evidence-heading{padding:12px;flex-wrap:wrap}
+ .series-evidence-heading h2{font-size:1.3rem}
+ .series-evidence-body{padding:0 12px 12px}
+ .series-evidence-controls{grid-template-columns:1fr;gap:10px}
+ .series-evidence-grid{grid-template-columns:1fr}
+ .series-evidence-searchbar>div{flex-wrap:wrap}
+ .series-evidence-searchbar button{width:100%}
+ .series-evidence-heading p{font-size:.74rem}
+}
+/* Dense 80-book research should not hide the search action on a phone. */
+@media(max-width:750px){
+ .series-evidence-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 12px}
+ .series-evidence-heading h2{font-size:1.12rem;line-height:1.28;margin:3px 0}
+ .series-evidence-heading p{display:none}
+ .series-evidence-heading span{font-size:.57rem;letter-spacing:.075em}
+ .series-evidence-collapse{min-height:44px;padding:8px;font-size:.72rem}
+}
