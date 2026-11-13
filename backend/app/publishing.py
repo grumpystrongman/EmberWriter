@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -455,6 +457,19 @@ def export_pdf(
     doc.build(story, onLaterPages=_pdf_page_number)
 
 
+def compile_source_fingerprint(documents: list[dict]) -> str:
+    """SHA-256 of exactly the ordered Binder-selected chapters used by export."""
+    payload = [
+        {
+            "id": item["id"], "path": item["path"], "title": item["title"],
+            "content": hashlib.sha256(item["content"].encode("utf-8")).hexdigest(),
+        } for item in documents
+    ]
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
 def export_project(
     slug: str,
     *,
@@ -516,6 +531,27 @@ def export_project(
                 "bytes": path.stat().st_size,
             }
         )
+
+    # The manifest is written once after successful output generation and
+    # remains next to those files. It never causes a manuscript write.
+    manifest = {
+        "schema": 1,
+        "source_hash": compile_source_fingerprint(documents),
+        "created_at": datetime.now(UTC).isoformat(),
+        "artifacts": [
+            {
+                "filename": item["filename"],
+                "sha256": hashlib.sha256((directory / item["filename"]).read_bytes()).hexdigest(),
+            } for item in artifacts
+        ],
+    }
+    metadata = directory / "compile-provenance.json"
+    temporary = directory / f".{uuid4().hex}.tmp"
+    try:
+        temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        temporary.replace(metadata)
+    finally:
+        temporary.unlink(missing_ok=True)
 
     return {
         "export_id": export_id,

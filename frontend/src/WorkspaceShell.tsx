@@ -130,6 +130,7 @@ const NARROW_WORKSPACES: Workspace[] = ['write', 'plan', 'series', 'publish']
 export default function WorkspaceShell() {
   const moreRef = useRef<HTMLDetailsElement | null>(null)
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 700px)').matches)
+  const [mobileMore,setMobileMore]=useState(false)
   const visibleWorkspaces = narrow ? NARROW_WORKSPACES : PRIMARY_WORKSPACES
   useEffect(() => {
     const media = window.matchMedia('(max-width: 700px)')
@@ -207,6 +208,12 @@ export default function WorkspaceShell() {
   }, [])
 
   const active = useMemo(() => workspaces.find((item) => item.id === workspace) || workspaces[0], [workspace])
+  useEffect(()=>{
+    if(!mobileMore)return
+    const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setMobileMore(false)}
+    document.addEventListener('keydown',close)
+    return()=>document.removeEventListener('keydown',close)
+  },[mobileMore])
 
   useEffect(() => {
     let latest = 0
@@ -262,7 +269,7 @@ export default function WorkspaceShell() {
         return
       }
       const description = cleanText(activeCard?.querySelector('small')?.textContent)
-      const activePathText = cleanText(document.querySelector<HTMLElement>('.editor-header h1')?.textContent)
+      const activePathText = document.querySelector<HTMLElement>('.editor-header h1')?.getAttribute('data-source-path') || ''
       const activePath = activePathText === 'Select a file' ? '' : activePathText
       try {
         const response = await fetch(`${API}/projects`)
@@ -348,6 +355,7 @@ export default function WorkspaceShell() {
   }, [])
 
   function openWorkspace(next: Workspace) {
+    setMobileMore(false)
     setWorkspace(next)
     setFocusMode(false)
     if (moreRef.current) moreRef.current.open = false
@@ -495,13 +503,34 @@ export default function WorkspaceShell() {
             }}
             onDoubleClick={() => resizeBinder(260)} />
         )}
-        <CenterWorkspace workspace={workspace} project={projectContext} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
+        <CenterWorkspace workspace={workspace} project={projectContext} onNavigateWorkspace={openWorkspace} onOpenSource={(path, anchor) => void openSource(path, anchor)} />
       </div>
       <RecoveryCenter open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />
       <WritingTemplatePicker open={templateOpen} project={projectContext}
         onClose={() => setTemplateOpen(false)}
         onCreated={path => { void (async () => { await sleep(230); await openSource(path) })() }} />
       <ReferenceCapture project={projectContext} open={captureOpen} onClose={() => setCaptureOpen(false)} />
+      {narrow&&!focusMode&&<nav className="workspace-mobile-nav" aria-label="Mobile author workspaces">
+        {(['write','plan','series','publish'] as Workspace[]).map(key=>{
+          const item=workspaces.find(entry=>entry.id===key)!
+          return <button type="button" key={key} aria-current={workspace===key?'page':undefined}
+            onClick={()=>openWorkspace(key)}>
+            <span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong>
+          </button>
+        })}
+        <button type="button" aria-expanded={mobileMore}
+          aria-controls="workspace-mobile-more" onClick={()=>setMobileMore(value=>!value)}>
+          <span aria-hidden="true">⋯</span><strong>More</strong>
+        </button>
+      </nav>}
+      {narrow&&mobileMore&&!focusMode&&<nav id="workspace-mobile-more"
+        className="workspace-mobile-more" aria-label="More author workspaces">
+        {workspaces.filter(item=>!NARROW_WORKSPACES.includes(item.id)).map(item=>
+          <button type="button" key={item.id}
+            aria-current={workspace===item.id?'page':undefined} onClick={()=>openWorkspace(item.id)}>
+            <span aria-hidden="true">{item.icon}</span>{item.label}
+          </button>)}
+      </nav>}
       {!focusMode && <EmberCompanion workspace={workspace} project={projectContext} onNavigate={openWorkspace}
         onOpenSource={path => { void openSource(path) }}
         onNewWriting={() => setTemplateOpen(true)} />}

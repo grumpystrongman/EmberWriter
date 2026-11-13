@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Workspace, WorkspaceProject } from './workspace-types'
+import EmberGuides from './EmberGuides'
+import { searchHelp } from './author-help'
 import './ember-companion.css'
 
 type Props = {
@@ -39,6 +41,9 @@ function isAvailablePath(path: string) {
 
 export default function EmberCompanion({ workspace, project, onNavigate, onOpenSource, onNewWriting }: Props) {
   const [open, setOpen] = useState(false)
+  const [helpOpen,setHelpOpen] = useState(false)
+  const [helpQuery,setHelpQuery] = useState('')
+  const lastProjectSlug=useRef<string|null>(null)
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [model, setModel] = useState('')
@@ -52,6 +57,11 @@ export default function EmberCompanion({ workspace, project, onNavigate, onOpenS
 
   useEffect(() => {
     setMessages([])
+    if(lastProjectSlug.current&&project?.slug&&lastProjectSlug.current!==project.slug){
+      setHelpOpen(false)
+      setHelpQuery('')
+    }
+    if(project?.slug)lastProjectSlug.current=project.slug
     setDestination(null)
     setSnapshot(null)
     setAllowStory(false)
@@ -81,6 +91,16 @@ export default function EmberCompanion({ workspace, project, onNavigate, onOpenS
   async function ask(text: string) {
     const current = text.trim()
     if (!current || busy) return
+    // Local how-to results always take precedence over model speculation only
+    // when the author explicitly requests application instructions.
+    const wantsWalkthrough = /\b(how|show me|help me|guide|walk me through|steps to|teach me)\b/i.test(current)
+    if (wantsWalkthrough && searchHelp(current).length) {
+      setQuestion('')
+      setHelpQuery(current)
+      setHelpOpen(true)
+      return
+    }
+
     const permitted = allowStory
     setQuestion(''); setAllowStory(false); setDestination(null)
     setMessages(previous => [...previous, { role: 'author', text: current }])
@@ -138,6 +158,10 @@ export default function EmberCompanion({ workspace, project, onNavigate, onOpenS
           <button type="button" aria-label="Close Ember assistant" onClick={() => setOpen(false)}>✕</button>
         </header>
         <div className="ember-companion-body">
+          {!helpOpen&&<button type="button" className="ember-companion-help-trigger"
+            onClick={()=>{setHelpQuery('');setHelpOpen(true)}}>◈ How-To library & guided walkthroughs</button>}
+          {helpOpen?<EmberGuides workspace={workspace} initialQuery={helpQuery}
+            onNavigate={onNavigate} onExit={()=>{setHelpOpen(false);setHelpQuery('')}}/>:<>
           {!messages.length && <>
             <p className="ember-companion-welcome">{project
               ? `Hi! I'm beside you in ${workspace}. I can help you find tools, explore writing ideas, or look up details in ${project.name} when you allow it.`
@@ -175,9 +199,10 @@ export default function EmberCompanion({ workspace, project, onNavigate, onOpenS
           {destination && <button type="button" className="ember-companion-go" onClick={() => navigate(destination)}>
             Open {destination.charAt(0).toUpperCase() + destination.slice(1)} →
           </button>}
+          </>}
           <div ref={endRef} />
         </div>
-        <form onSubmit={event => { event.preventDefault(); void ask(question) }}>
+        {!helpOpen&&<form onSubmit={event => { event.preventDefault(); void ask(question) }}>
           <label htmlFor="ember-companion-question">What can I help you with?</label>
           <div className="ember-companion-compose">
             <input ref={inputRef} id="ember-companion-question" value={question}
@@ -197,7 +222,7 @@ export default function EmberCompanion({ workspace, project, onNavigate, onOpenS
             </select>
           </label>
           <small>Read-only. Source excerpts go only to the local model you select. No changes to your story or canon.</small>
-        </form>
+        </form>}
       </div>}
       <button type="button" className="ember-companion-launcher" aria-expanded={open}
         aria-label={open ? 'Hide Ember companion' : 'Ask Ember about your book or the app'}

@@ -18,6 +18,7 @@ type Props = {
   apiBase: string
   project: WorkspaceProject
   onOpenSource: (path: string, anchor?: string) => void
+  onNavigateWorkspace: (workspace:'analyze') => void
 }
 type PlanHubTab =
   | 'production_conductor' | 'book_studio'
@@ -72,13 +73,18 @@ function groupFor(tab: PlanHubTab): Group {
 }
 function initialTab(slug: string): PlanHubTab {
   try {
+    const requested = window.sessionStorage.getItem('emberwriter:planning-tab-request:'+slug)
+    if(requested && TOOLS.some(tool=>tool.id===requested)){
+      window.sessionStorage.removeItem('emberwriter:planning-tab-request:'+slug)
+      return requested as PlanHubTab
+    }
     const stored = window.localStorage.getItem(`emberwriter:planning-tab:${slug}`)
     if (TOOLS.some(tool => tool.id === stored)) return stored as PlanHubTab
   } catch { /* Private browsing may disable local storage. */ }
   return 'production_conductor'
 }
 
-export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
+export default function PlanningHub({ apiBase, project, onOpenSource, onNavigateWorkspace }: Props) {
   const [tab, setTab] = useState<PlanHubTab>(() => initialTab(project.slug))
   const [editorialTarget, setEditorialTarget] = useState('')
   const groupId = groupFor(tab)
@@ -137,6 +143,10 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
           <p>Choose the work you're doing. Your chapters, settings and author decisions remain in the project.</p>
         </div>
       </header>
+      <div className="planning-author-shortcut">
+        <span>Source-linked editing and safe revisions live here.</span>
+        <button type="button" onClick={()=>onNavigateWorkspace('analyze')}>Run deep reader critique ↗</button>
+      </div>
       <nav className="planning-groups" aria-label="Writing workflow">
         {PLANNING_GROUPS.map(item =>
           <button key={item.id} type="button" aria-pressed={groupId === item.id}

@@ -917,7 +917,15 @@ export default function AppV2() {
       <main className="editor-panel rich-editor-panel">
         {project ? <>
           <div className="editor-header">
-            <div><small>{project.name}</small><h1>{activeFile || 'Select a file'}</h1></div>
+            <div><small>{project.name}</small>
+              <h1 title={activeFile || undefined} data-source-path={activeFile || undefined}>
+                {activeFile
+                  ? binderState?.nodes.find(node=>node.path===activeFile)?.title
+                    || activeFile.split('/').pop()?.replace(/\.(md|txt)$/i,'').replace(/[-_]+/g,' ')
+                  : 'Select a file'}
+              </h1>
+              {activeFile&&<small className="editor-path-detail" title={activeFile}>{activeFile}</small>}
+            </div>
             <span className="word-count">{content.trim() ? content.trim().split(/\s+/).length : 0} words</span>
           </div>
           {activeFile ? (

@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-12",
+  "synthetic": "The Ashen Coast — Synthetic Editorial Review",
+  "results": [
+    {
+      "test": "mobile plan",
+      "pass": true
+    },
+    {
+      "test": "mobile series",
+      "pass": true
+    },
+    {
+      "test": "mobile publish",
+      "pass": true
+    },
+    {
+      "test": "mobile More menu navigation",
+      "pass": true
+    },
+    {
+      "test": "offline how-to library, explicit step progression, truthful locate feedback",
+      "pass": true
+    },
+    {
+      "test": "series task grouping and verification submenu",
+      "pass": true
+    },
+    {
+      "test": "saved storyboard -> explicit author confirmation -> Scene Writer prompt (no manuscript overwrite)",
+      "pass": true
+    }
+  ]
+}

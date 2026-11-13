@@ -1,0 +1,105 @@
+/* Author Experience UX-001/006/010: content-first navigation and manuscript headings. */
+.editor-path-detail{display:block;opacity:.65;font-size:.67rem;max-width:60ch;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.devstudio-hero{padding:15px 20px 10px}
+.devstudio-eyebrow{font-size:.61rem;letter-spacing:.1em}
+.devstudio-hero-line{gap:15px}
+.devstudio-hero-line h2{font-size:clamp(1.3rem,2vw,1.8rem);margin:4px 0}
+.devstudio-hero-line p{font-size:.76rem;line-height:1.4;margin:0 0 5px}
+.devstudio-seal{display:none}
+.devstudio-nav{gap:7px;margin-top:7px}
+.devstudio-nav button{padding:9px;min-height:55px}
+.devstudio-nav button>span{font-size:1.25rem}
+.devstudio-nav button small{font-size:.63rem;line-height:1.2}
+.devstudio-overview-stats{padding:8px 17px}
+.devstudio-overview-stats>div{padding:8px}
+.devstudio-pulse{padding:13px 17px}
+.devstudio-section-intro{margin:0 0 10px}
+.devstudio-section-intro h3{font-size:1.35rem;margin:4px 0}
+.devstudio-section-intro p{font-size:.73rem;line-height:1.4}
+.devstudio-hero-actions,.pubdesk-quick-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:end}
+.devstudio-hero-actions button,.pubdesk-quick-actions button{min-height:44px;border:1px solid #c89ebf;color:#fcebe9;background:#544057;border-radius:9px;padding:8px 11px;font-size:.74rem;font-weight:650;max-width:170px}
+.devstudio-hero-actions button:hover,.pubdesk-quick-actions button:hover{background:#73516e}
+.pubdesk-hero{padding:15px 17px 8px}
+.pubdesk-heading h2{font-size:clamp(1.35rem,2vw,1.85rem);margin:4px 0}
+.pubdesk-heading p{font-size:.75rem;line-height:1.4;margin:0}
+.pubdesk-kicker{font-size:.6rem}
+.pubdesk-overview-strip{margin-top:8px}
+.pubdesk-overview-strip>div{padding:8px;gap:4px}
+.pubdesk-overview-strip strong{font-size:1.15rem}
+.pubdesk-section-caption{padding:10px 17px 6px}
+.pubdesk-journey{padding:0 17px 13px;gap:6px}
+.pubdesk-journey button{min-height:98px;padding:9px;gap:5px}
+.pubdesk-stage-icon{font-size:1.15rem}
+.pubdesk-main{padding:0 17px 12px}
+.pubdesk-focus,.pubdesk-side{padding:15px}
+.pubdesk-focus-title{margin:8px 0 12px}
+.pubdesk-focus-title h3{font-size:1.35rem}
+@media(max-width:750px){
+  .devstudio-hero{padding:10px 11px 7px}
+  .devstudio-hero-line{display:grid;grid-template-columns:1fr}
+  .devstudio-hero-line h2{font-size:1.38rem}
+  .devstudio-hero-line p{display:none}
+  .devstudio-hero-actions{justify-content:start}
+  .devstudio-hero-actions button{font-size:.7rem}
+  .devstudio-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .devstudio-nav button{min-height:51px}
+  .devstudio-nav button small{display:none}
+  .devstudio-overview-stats>div{flex:1 1 40%;padding:7px}
+  .devstudio-overview-stats>button{min-height:44px}
+  .devstudio-pulse{padding:9px 11px}
+  .pubdesk-heading{display:grid}
+  .pubdesk-heading p{display:none}
+  .pubdesk-hero{padding:10px 12px 8px}
+  .pubdesk-quick-actions{justify-content:start}
+  .pubdesk-overview-strip{margin-top:6px}
+  .pubdesk-journey{grid-template-columns:repeat(3,minmax(0,1fr));padding:0 12px 9px}
+  .pubdesk-journey button{min-height:80px}
+  .pubdesk-stage-icon{display:none}
+  .pubdesk-section-caption{padding:9px 12px 6px}
+  .pubdesk-main{padding:0 12px 12px}
+}
+
+/* UX-003: explicit, labeled, reachable mobile navigation. */
+.workspace-mobile-nav,.workspace-mobile-more{display:none}
+@media(max-width:700px){
+ .workspace-topbar{grid-template-columns:minmax(90px,1fr) minmax(0,1.25fr)}
+ .workspace-brand{display:flex;min-width:0;padding:0 9px}
+ .workspace-brand strong{font-size:.85rem}
+ .workspace-brand small{font-size:.55rem}
+ .workspace-nav,.workspace-more{display:none!important}
+ .workspace-actions{grid-column:2;overflow-x:auto;min-width:0;max-width:100%;scrollbar-width:thin}
+ .workspace-actions>button{flex:0 0 39px;min-width:39px}
+ .workspace-mobile-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;
+   inset:auto 0 0;z-index:1200;height:64px;background:#111e2b;border-top:1px solid #5e7186;
+   box-shadow:0 -9px 26px #060c12aa;padding-bottom:env(safe-area-inset-bottom,0px)}
+ .workspace-mobile-nav button{display:grid;align-content:center;justify-items:center;gap:2px;
+   padding:7px 3px;color:#cad9e3;background:transparent;border:0;
+   border-top:3px solid transparent;font-size:.7rem}
+ .workspace-mobile-nav button[aria-current=page]{background:#283448;border-top-color:#e9a66d;color:#ffdfb9}
+ .workspace-mobile-nav button[aria-expanded=true]{background:#3a394d;color:#ffe2c6}
+ .workspace-mobile-nav button>span{font-size:1.02rem}
+ .workspace-mobile-nav button strong{font-size:.69rem;font-weight:700}
+ .workspace-mobile-nav button:focus-visible,.workspace-mobile-more button:focus-visible{outline:3px solid #ffc88f;outline-offset:-3px}
+ .workspace-mobile-more{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;
+   position:fixed;inset:auto 8px calc(64px + env(safe-area-inset-bottom,0px)) 8px;z-index:1199;
+   padding:12px;border-radius:14px;background:#223448;border:1px solid #758294;
+   box-shadow:0 -14px 44px #050a11cf}
+ .workspace-mobile-more button{display:flex;gap:8px;align-items:center;min-height:48px;
+   border:1px solid #74839b;border-radius:10px;background:#172a3c;color:#e6edf5;
+   font-size:.79rem;padding:11px}
+ .workspace-mobile-more button[aria-current=page]{border-color:#f2be97;color:#ffe6c5;background:#473c47}
+ .workspace-app{height:calc(100dvh - 82px - 64px)}
+ .ember-companion{bottom:76px!important}
+ .workspace-shell:not(.focus-mode) .workspace-app .editor-panel{padding-bottom:5px}
+}
+
+.analyze-bridge,.planning-author-shortcut button{min-height:44px;padding:10px 13px;border-radius:9px;
+ background:#57415e;color:#f8e7f3;border:1px solid #caa8cb;font-weight:700;font-size:.78rem}
+.analyze-bridge{display:inline-flex;margin-top:12px}
+.planning-author-shortcut{display:flex;gap:12px;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;padding:5px 25px;color:#b9cbdc;font-size:.74rem}
+@media(max-width:700px){
+ .planning-author-shortcut{padding:5px 15px}
+ .planning-author-shortcut span{display:none}
+ .planning-author-shortcut button{width:100%}
+}

@@ -5,8 +5,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const root=path.resolve(import.meta.dirname,'..')
-const date=new Date().toISOString().slice(0,10)
-const out=path.join(root,'docs','reviews','assets',date)
+const date=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'})
+const runTag=process.argv[2]||date
+const out=path.join(root,'docs','reviews','assets',runTag)
 fs.mkdirSync(out,{recursive:true})
 const backend='http://127.0.0.1:8000'
 const projects=await(await fetch(backend+'/api/projects')).json()
@@ -55,7 +56,7 @@ async function navigateWorkspace(name){
   const expected={
     write:'!!document.querySelector(".editor-header")',
     plan:'!!document.querySelector(".planning-groups")',
-    analyze:'document.body.innerText.includes("Editorial & Reader Studio")',
+    analyze:'document.body.innerText.includes("Reader Perspectives & Critique")',
     publish:'!!document.querySelector(".pubdesk-journey")',
     series:'document.body.innerText.includes("Series Desk")',
   }
@@ -97,13 +98,15 @@ async function capture(workspace,viewportWidth,viewportHeight,name){
   })()`)
   const r=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})
   fs.writeFileSync(path.join(out,name+'.png'),Buffer.from(r.data,'base64'))
-  const data={step:name,workspace,...checks,image:'assets/'+date+'/'+name+'.png'}
+  const data={step:name,workspace,...checks,image:'assets/'+runTag+'/'+name+'.png'}
   console.log('AUDIT',JSON.stringify({step:name,width:checks.viewport,scroll:checks.documentWidth,headings:checks.heading.slice(0,3),unnamed:checks.unnamedControls.length,small:checks.smallControls.length,alerts:checks.alertTexts}))
   return data
 }
 const runs=[]
 try{
   await send('Page.enable')
+  await send('Page.navigate',{url:'http://127.0.0.1:5173/'})
+  await wait('location.origin==="http://127.0.0.1:5173"','synthetic development site')
   for(const workspace of ['write','plan','analyze','publish','series']){
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false})
     await navigateWorkspace(workspace)
@@ -131,12 +134,13 @@ try{
   }
   const baseline={
     date,
+    runTag,
     source:'Fresh CDP capture of synthetic localhost application',
     synthetic_project:projects[0].name,
     timestamp:new Date().toISOString(),
     cases:runs,
   }
-  fs.writeFileSync(path.join(root,'docs','reviews',date+'-evidence.json'),JSON.stringify(baseline,null,2))
+  fs.writeFileSync(path.join(root,'docs','reviews',runTag+'-evidence.json'),JSON.stringify(baseline,null,2))
   console.log('SUCCESS: captured',runs.length,'author UX screenshots. No writes to manuscript.')
 }catch(e){
   console.error('AUDIT FAILED',e.stack||e)

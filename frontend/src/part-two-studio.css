@@ -137,3 +137,9 @@
 .p2-preflight-list article p{font-size:.77rem;color:#bbc8d7;line-height:1.55;margin:0}
 .p2-preflight-list article blockquote{font-family:Georgia,serif;color:#e2cbd5;font-size:.83rem;line-height:1.55;margin:4px 0;padding-left:11px;border-left:2px solid #be9bc8}
 .p2-preflight-list article button{justify-self:start;background:#3c435c;color:#e9d5f2;border:1px solid #977fa7;border-radius:8px;padding:8px 10px;font-size:.73rem}
+
+.p2-handoff-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border:1px solid #caa9d1;background:#364057;border-radius:14px;padding:14px;margin:12px 0}
+.p2-handoff-confirm>div{flex:1 1 260px}.p2-handoff-confirm strong{font:1.15rem Georgia,serif;color:#ffe7ee}
+.p2-handoff-confirm p{color:#d6dce8;font-size:.79rem;line-height:1.6;margin:8px 0}
+.p2-handoff-confirm small{color:#edc49f}.p2-handoff-confirm button{padding:10px 12px;border:1px solid #c9a6c8;border-radius:9px;background:#554360;color:#f8ebf4;font-size:.78rem}
+.p2-handoff-confirm button:disabled{opacity:.45}

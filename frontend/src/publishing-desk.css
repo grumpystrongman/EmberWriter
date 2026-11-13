@@ -79,3 +79,7 @@
 @media(max-width:750px){.pubdesk-hero{padding:18px 14px 12px}.pubdesk-heading h2{font-size:1.9rem}.pubdesk-compass{display:none}.pubdesk-section-caption{padding:20px 15px 11px}.pubdesk-journey{padding:0 15px 18px;grid-template-columns:repeat(2,minmax(0,1fr))}.pubdesk-journey button{min-height:119px;padding:11px}.pubdesk-stage-icon{font-size:1.25rem}.pubdesk-main{padding:0 15px 14px}.pubdesk-focus,.pubdesk-side{padding:15px}.pubdesk-assets{padding:0 15px 18px}.pubdesk-signoff{grid-template-columns:1fr;padding:0 15px 17px}.pubdesk-signoff>div,.pubdesk-signoff>aside{padding:16px}}
 @media(max-width:440px){.pubdesk-overview-strip>div{flex:1 1 calc(50% - 8px)}.pubdesk-review-metrics strong{font-size:1.2rem}.pubdesk-review-metrics span{font-size:.59rem}.pubdesk-formats{grid-template-columns:1fr}.pubdesk-bookmock{flex-wrap:wrap}.pubdesk-journey strong{font-size:.74rem}.pubdesk-journey small{font-size:.62rem}}
 @media(prefers-reduced-motion:reduce){.pubdesk-journey button{transition:none}.pubdesk-journey button:hover{transform:none}}
+
+.pubdesk-asset-freshness{display:block;font-size:.67rem;color:#bdcddc;font-weight:700;padding-top:4px}
+.pubdesk-asset-freshness.current{color:#b9e9cb}
+.pubdesk-asset-freshness.stale,.pubdesk-asset-freshness.modified{color:#ffc39d}
