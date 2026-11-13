@@ -34,6 +34,10 @@ class SeriesCreate(BaseModel):
     description: str = Field(default="", max_length=2000)
 
 
+class ModelProbeCreate(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+
+
 class ModelEvaluationCreate(BaseModel):
     model: str = Field(min_length=1, max_length=200)
 
@@ -291,6 +295,16 @@ def remove_scene_board(series_id: str, board_id: str, payload: SceneBoardDelete)
         _fail(exc)
 
 
+@router.post("/{series_id}/local-model-probe")
+async def test_private_local_model(series_id: str, payload: ModelProbeCreate) -> dict:
+    """Only a synthetic sentence is submitted to local inference."""
+    from .series_model_probe import probe
+    try:
+        return await probe(series_id, payload.model)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/local-model-readiness")
 def private_local_model_readiness(series_id: str) -> dict:
     """Service-only health check; never transmits story text."""
@@ -531,6 +545,19 @@ def show_source(
     try:
         return vault.list_source_excerpt(series_id, source_id, query, limit,
                                          position=position)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/sources/{source_id}/sections")
+def source_section_index(
+    series_id: str, source_id: str,
+    position: int | None = Query(default=None, ge=0),
+) -> dict:
+    """Literal chapter-heading coordinates; no invented narrative chronology."""
+    from .series_source_sections import sections
+    try:
+        return sections(series_id, source_id, position=position)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 

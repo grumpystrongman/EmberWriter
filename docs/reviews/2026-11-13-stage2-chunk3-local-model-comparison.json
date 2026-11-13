@@ -1,0 +1,20 @@
+﻿{
+    "models":  [
+                   {
+                       "exact_answer_verified":  false,
+                       "status":  "timed_out",
+                       "source_text_sent":  false,
+                       "model":  "lfm2.5:latest",
+                       "elapsed_ms":  30415.8
+                   },
+                   {
+                       "exact_answer_verified":  false,
+                       "status":  "timed_out",
+                       "source_text_sent":  false,
+                       "model":  "qwen3.5:4b",
+                       "elapsed_ms":  30514.0
+                   }
+               ],
+    "checked_at":  "2026-11-13T21:26:14.1886597Z",
+    "synthetic_only":  true
+}

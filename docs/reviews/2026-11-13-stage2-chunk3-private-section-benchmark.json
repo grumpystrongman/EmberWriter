@@ -1,0 +1,47 @@
+﻿{
+    "checks":  [
+                   {
+                       "elapsed_ms":  13,
+                       "sections":  1,
+                       "book":  1,
+                       "source_text_returned":  false,
+                       "story_sequence_inferred":  false,
+                       "headings":  0
+                   },
+                   {
+                       "elapsed_ms":  43,
+                       "sections":  1,
+                       "book":  20,
+                       "source_text_returned":  false,
+                       "story_sequence_inferred":  false,
+                       "headings":  0
+                   },
+                   {
+                       "elapsed_ms":  34,
+                       "sections":  1,
+                       "book":  40,
+                       "source_text_returned":  false,
+                       "story_sequence_inferred":  false,
+                       "headings":  0
+                   },
+                   {
+                       "elapsed_ms":  32,
+                       "sections":  1,
+                       "book":  60,
+                       "source_text_returned":  false,
+                       "story_sequence_inferred":  false,
+                       "headings":  0
+                   },
+                   {
+                       "elapsed_ms":  31,
+                       "sections":  1,
+                       "book":  80,
+                       "source_text_returned":  false,
+                       "story_sequence_inferred":  false,
+                       "headings":  0
+                   }
+               ],
+    "checked_at":  "2026-11-13T21:22:19.9177002Z",
+    "series_volume_count":  80,
+    "model_inference_invoked":  false
+}

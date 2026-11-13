@@ -1,0 +1,12 @@
+.source-sections{margin:10px 0 14px;padding:11px 13px;border-radius:11px;border:1px solid #647b91;background:#24384c;color:#e5e6f0}
+.source-sections>summary{cursor:pointer;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.79rem;color:#ead3e5;font-weight:750}
+.source-sections>summary span{font-size:.67rem;color:#cfb6d5}
+.source-section-content{padding:10px 2px 2px;display:grid;gap:9px}
+.source-section-content>p{font-size:.74rem;color:#c8d7e2;margin:0;line-height:1.5}
+.source-section-content label{display:grid;gap:4px;font-weight:720;font-size:.72rem;color:#e7c1d5}
+.source-section-content input{padding:9px;border-radius:8px;min-height:43px;border:1px solid #778ba0;background:#152a40;color:#f9edf0}
+.source-section-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:280px;overflow:auto}
+.source-section-list button{background:#334158;border:1px solid #73839c;border-radius:8px;min-height:43px;padding:9px;display:grid;text-align:left;gap:3px;color:#f7e8ef;overflow-wrap:anywhere}
+.source-section-list button span{font-size:.74rem;font-weight:750}.source-section-list button small{font-size:.67rem;color:#c0ccd9}
+.source-section-list button:focus-visible,.source-section-content input:focus-visible{outline:3px solid #ffd3a5;outline-offset:2px}
+@media(max-width:650px){.source-section-list{grid-template-columns:1fr}}

@@ -1,0 +1,10 @@
+﻿{
+    "checked_at":  "2026-11-13T21:24:33.3115749Z",
+    "model":  "llama3.2:3b",
+    "elapsed_ms":  9510.7,
+    "status":  "incorrect",
+    "exact_answer_verified":  false,
+    "limitations":  "A single synthetic sentence tests local inference only; it is not a benchmark for long-form writing, literary psychology or cross-book reasoning.",
+    "detail":  "Model completed but returned a non-exact or unsupported answer",
+    "source_text_sent":  false
+}
