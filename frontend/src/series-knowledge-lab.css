@@ -67,3 +67,8 @@
  .knowledge-summary{padding:10px 12px}
  .knowledge-model-health{margin-top:14px}
 }
+
+.knowledge-probe-label{display:grid;gap:7px;font-size:.75rem;color:#edd0df;font-weight:720;margin:12px 0}
+.knowledge-probe-label select{background:#1d3149;border:1px solid #8a88a7;border-radius:9px;padding:10px;color:#fff0f3;min-height:43px;max-width:440px}
+.knowledge-probe-result{padding:12px;border-radius:10px;border:1px solid #7786a0;background:#263c50;margin-top:10px;font-size:.77rem}
+.knowledge-probe-result strong{color:#edd0a9}.knowledge-probe-result p{margin:4px 0}

@@ -28,6 +28,24 @@ export default function SeriesKnowledgeLab({seriesId,volumes,entities,onInspect,
  const [error,setError]=useState('')
  const [modelStatus,setModelStatus]=useState<{status:string;models:string[];next_step:string;source_text_sent:boolean;generation_tested:boolean}|null>(null)
  const [modelRefresh,setModelRefresh]=useState(0)
+ const [probeModel,setProbeModel]=useState('')
+ const [probing,setProbing]=useState(false)
+ const [probeError,setProbeError]=useState('')
+ const [probeResult,setProbeResult]=useState<{status:string;elapsed_ms:number;detail:string;source_text_sent:boolean;exact_answer_verified:boolean;limitations:string}|null>(null)
+ async function runProbe(){
+   if(!probeModel||probing)return
+   setProbing(true);setProbeError('');setProbeResult(null)
+   try{
+     const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+'/local-model-probe',{
+       method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({model:probeModel}),
+     })
+     const payload=await response.json()
+     if(!response.ok)throw Error(payload.detail||'Local model probe failed')
+     setProbeResult(payload)
+   }catch(cause){setProbeError(String(cause))}
+   finally{setProbing(false)}
+ }
  useEffect(()=>{setBook(volumes.at(-1)?.ordinal||1);setKnowledge(null);setError('')},[seriesId,volumes.length])
  useEffect(()=>{
    const controller=new AbortController()
@@ -179,9 +197,23 @@ export default function SeriesKnowledgeLab({seriesId,volumes,entities,onInspect,
      <summary><span>Local AI readiness</span><strong>{modelStatus?modelStatus.status.replaceAll('_',' '):'Checking…'}</strong></summary>
      <p>{modelStatus?.next_step||'Checking the local Ollama service only.'}</p>
      <p>No book text is transmitted by this health check. An installed model does not prove successful generation or continuity reasoning.</p>
-     {!!modelStatus?.models.length&&<p>Detected local models: {modelStatus.models.join(', ')}</p>}
+     {!!modelStatus?.models.length&&<label className="knowledge-probe-label">
+       Model for synthetic test
+       <select value={probeModel} onChange={e=>{setProbeModel(e.target.value);setProbeResult(null)}}>
+         <option value="">Choose an installed model</option>
+         {modelStatus.models.map(name=><option key={name} value={name}>{name}</option>)}
+       </select></label>}
      <div><button type="button" onClick={()=>setModelRefresh(n=>n+1)}>Recheck local models</button>
-       <button type="button" onClick={onReview}>Review a selected passage or ask local AI for unsaved suggestions ↗</button></div>
+       <button type="button" onClick={onReview}>Review selected source or request unsaved suggestions ↗</button>
+       <button type="button" disabled={!probeModel||probing} onClick={()=>void runProbe()}>
+         {probing?'Testing synthetic sentence…':'Verify local model actually answers'}
+       </button></div>
+     {probeError&&<p role="alert" className="knowledge-error">{probeError}</p>}
+     {probeResult&&<div className="knowledge-probe-result" role="status">
+       <strong>{probeResult.status==='passed'?'Synthetic inference passed':'Not verified — '+probeResult.status}</strong>
+       <p>{probeResult.detail} · {probeResult.elapsed_ms.toLocaleString()} ms</p>
+       <p>{probeResult.limitations}</p>
+     </div>}
    </details>
  </section>
 }

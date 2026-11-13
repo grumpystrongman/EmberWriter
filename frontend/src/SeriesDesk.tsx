@@ -6,6 +6,7 @@ import PartTwoStudio from './PartTwoStudio'
 import SeriesEvidenceSearch from './SeriesEvidenceSearch'
 import SeriesKnowledgeLab from './SeriesKnowledgeLab'
 import SeriesExtractionWorkbench from './SeriesExtractionWorkbench'
+import SourceSectionNavigator from './SourceSectionNavigator'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -701,6 +702,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 <small>Showing characters {excerpt.excerpt_start + 1}–{excerpt.excerpt_end} of {excerpt.total_characters}. Search another phrase to reach later pages.</small>
               </> : <p>No matching passage. Try a different phrase.</p>}
             </div>}
+            {selectedSource&&<SourceSectionNavigator seriesId={series.id} sourceId={selectedSource.id}
+              onJump={position=>{
+                setSourcePosition(position);setSourceQuery('');setQuote('')
+              }}/>}
             {excerpt?.found && <div className="series-desk-suggest">
               <strong>Optional · let local AI suggest possible canon facts</strong>
               <p className="series-desk-hint">This sends only your selected quote—or up to 1,900 characters of the visible excerpt—to your installed local Ollama model. The model cannot save or approve canon. Its suggested quotes must match your source exactly.</p>
