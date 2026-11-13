@@ -14,7 +14,7 @@ from fastapi.background import BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import series_bulk_import
+from . import series_bulk_import, series_epub_index, series_epub_structure
 from . import series_canon as canon
 from . import series_discovery as discovery
 from . import series_evidence_search as evidence_search
@@ -549,6 +549,30 @@ def show_source(
         _fail(exc)
 
 
+@router.post("/{series_id}/sources/{source_id}/epub-structure-preview")
+async def original_epub_structure_preview(
+    series_id: str, source_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Preview original EPUB spine against unchanged source; never save or replace canon."""
+    try:
+        blob = await file.read(vault.MAX_IMPORT_BYTES + 1)
+        return series_epub_structure.preview(series_id, source_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/sources/{source_id}/epub-structure-confirm")
+async def confirm_original_epub_structure(
+    series_id: str, source_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Explicit author acceptance; stores only checked offsets, never EPUB bytes."""
+    try:
+        blob = await file.read(vault.MAX_IMPORT_BYTES + 1)
+        return series_epub_index.save(series_id, source_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/sources/{source_id}/sections")
 def source_section_index(
     series_id: str, source_id: str,
@@ -557,7 +581,19 @@ def source_section_index(
     """Literal chapter-heading coordinates; no invented narrative chronology."""
     from .series_source_sections import sections
     try:
-        return sections(series_id, source_id, position=position)
+        result = sections(series_id, source_id, position=position)
+        saved = series_epub_index.read(series_id, source_id)
+        if saved is not None:
+            entries = saved["sections"]
+            result["sections"] = entries
+            result["selected_section"] = next((
+                s["index"] for s in entries if position is not None
+                and s["start"] <= position < s["end"]
+            ), None)
+            result["metadata_origin"] = saved["metadata_origin"]
+            result["structure_index_saved"] = True
+            result["heading_limit_reached"] = len(entries) >= series_epub_structure.MAX_SECTIONS
+        return result
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 
