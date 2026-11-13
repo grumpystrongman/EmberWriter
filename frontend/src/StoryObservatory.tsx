@@ -5,6 +5,7 @@ import './story-observatory.css'
 import StoryConstellation from './StoryConstellation'
 import StoryModelLab from './StoryModelLab'
 import StoryDiscovery from './StoryDiscovery'
+import StoryEvidenceOnboarding from './StoryEvidenceOnboarding'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
 export type ObservatoryFact = {
@@ -156,6 +157,7 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
       {snapshot.stale_sources.length} linked manuscript sources changed since their evidence snapshots. <button type="button" onClick={onOpenVault}>Review sources</button>
     </div> : null}
     <div className="observatory-stage">
+      {!loading && !loadError && snapshot && snapshot.facts.length === 0 && snapshot.proposals.length === 0 && lens !== "models" && lens !== "discovery" && <StoryEvidenceOnboarding seriesId={seriesId} onDiscover={() => setLens("discovery")} onReview={onOpenCanon} />}
       {lens === "universe" && <div className="observatory-toolbar">
         <label className="observatory-search"><span className="sr-only">Find story entity</span>
           <span aria-hidden="true">⌕</span>

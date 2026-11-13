@@ -431,10 +431,11 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
           ['observatory','Explore','Characters, secrets and story threads'],
           ['creative','Direct','Character relationships and scene boards'],
           ['canon','Verify','Evidence, chronology and continuity'],
+          ['knowledge','Knowledge Lab','Stage 2: source facts and local AI checks'],
           ['vault','Library','Books and source archives'],
         ] as const).map(([key,label,description])=>{
           const active=key==='canon'
-            ? ['canon','timeline','knowledge','guardian','consequences','ember'].includes(view)
+            ? ['canon','timeline','guardian','consequences','ember'].includes(view)
             : view===key
           return <button key={key} type="button" aria-pressed={active}
             onClick={()=>setView(key)}>
