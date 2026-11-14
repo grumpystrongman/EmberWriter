@@ -1,7 +1,9 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useMemo,useState} from 'react'
+import ReviewQueue from './ReviewQueue'
+import type {QueueRow} from './ReviewQueue'
 import './story-event-review-board.css'
 
-type Review = {
+type Review={
  id:string;book:number;source_id:string;quote:string;quote_start:number;
  status:'proposed'|'approved'|'rejected';title:string;
  event_kind:string;timeline_class:string;note:string;
@@ -22,95 +24,99 @@ const times=[
  {value:'flashback',label:'Flashback to earlier story time'},
  {value:'flashforward',label:'Flashforward to later story time'},
 ]
-export default function StoryEventReviewBoard({seriesId,revision=0}:{
- seriesId:string;revision?:number
-}){
+export default function StoryEventReviewBoard({seriesId,revision=0}:{seriesId:string;revision?:number}){
  const [events,setEvents]=useState<Review[]>([])
  const [active,setActive]=useState<string|null>(null)
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
  const [notice,setNotice]=useState('')
  const [refresh,setRefresh]=useState(0)
- const [title,setTitle]=useState('')
+ const [eventTitle,setEventTitle]=useState('')
  const [kind,setKind]=useState('observed_event')
- const [time,setTime]=useState('time_unknown')
+ const [timeline,setTimeline]=useState('time_unknown')
  const [note,setNote]=useState('')
- const selected=events.find(item=>item.id===active)||null
  useEffect(()=>{
   const controller=new AbortController()
   void fetch(`${BASE}/${encodeURIComponent(seriesId)}/event-reviews`,{signal:controller.signal})
-   .then(async r=>{if(!r.ok)throw Error('Could not load author event reviews');return r.json() as Promise<Report>})
+   .then(async r=>{if(!r.ok)throw Error('Could not load event reviews');return r.json() as Promise<Report>})
    .then(data=>{if(!controller.signal.aborted)setEvents(data.events)})
    .catch(cause=>{if(!controller.signal.aborted)setError(String(cause))})
   return()=>controller.abort()
  },[seriesId,revision,refresh])
+ const rows=useMemo<QueueRow[]>(()=>events.map(item=>({
+  key:item.id,title:'Book '+item.book+' · '+(item.title||'Event interpretation needed'),
+  subtitle:item.source_verified?'Source verified':'Source fingerprint changed',
+  preview:item.quote,meta:'At '+item.quote_start.toLocaleString(),status:item.status,
+ })),[events])
  function focus(item:Review){
   setActive(item.id)
-  setTitle(item.title||'')
+  setEventTitle(item.title||'')
   setKind(item.event_kind==='uncertain'?'observed_event':item.event_kind)
-  setTime(item.timeline_class||'time_unknown')
+  setTimeline(item.timeline_class||'time_unknown')
   setNote(item.note||'')
   setError('');setNotice('')
  }
- async function decide(decision:'approved'|'rejected'){
-  if(!selected||busy)return
+ async function decide(item:Review,decision:'approved'|'rejected'){
+  if(busy)return
   setBusy(true);setError('');setNotice('')
   try{
    const response=await fetch(
-    `${BASE}/${encodeURIComponent(seriesId)}/event-reviews/${selected.id}/decision`,{
+    `${BASE}/${encodeURIComponent(seriesId)}/event-reviews/${item.id}/decision`,{
      method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({decision,title,event_kind:kind,timeline_class:time,note}),
+     body:JSON.stringify({decision,title:eventTitle,event_kind:kind,timeline_class:timeline,note}),
     })
    const result=await response.json()
    if(!response.ok)throw Error(result.detail||'Author review was not saved')
-   setNotice(decision==='approved'?'Reviewed event saved. This is an author interpretation, not inferred by AI.':'Lead rejected as an event.')
+   setNotice(decision==='approved'?'Event saved as an author interpretation, not AI-inferred canon.':'Lead rejected.')
    setRefresh(n=>n+1)
   }catch(cause){setError(String(cause))}
   finally{setBusy(false)}
  }
- return <section className="story-event-review-board" aria-label="Author event review ledger">
-  <div><strong>Author-reviewed narrative events</strong>
-   <p>Only events you explicitly interpret and approve appear as confirmed event records. A citation alone is not proof of an event or its chronology.</p></div>
-  <div className="story-event-review-stats">
-   <span>{events.filter(item=>item.is_author_approved).length} author-approved</span>
-   <span>{events.filter(item=>item.status==='proposed').length} awaiting review</span>
-   <span>{events.filter(item=>item.status==='rejected').length} rejected</span>
-  </div>
-  <div className="story-event-review-entries">
-   {events.map(item=><button type="button" key={item.id}
-    aria-pressed={item.id===active} onClick={()=>focus(item)}>
-    <strong>Book {item.book} · {item.title||'Unreviewed event lead'}</strong>
-    <small>{item.status} · {item.source_verified?'exact source verified':'SOURCE CHANGED — BLOCKED'}</small>
-    <span>{item.quote}</span>
-   </button>)}
-   {!events.length&&<p>No events have been staged. Stage an exact source quote in the Event Leads panel to begin.</p>}
-  </div>
-  {selected&&<div className="story-event-review-decision">
-   <strong>Interpret original quote · Book {selected.book}</strong>
-   <blockquote>{selected.quote||'Source mismatch; review blocked'}</blockquote>
+ function detail(row:QueueRow){
+  const item=events.find(x=>x.id===row.key)
+  if(!item)return null
+  return <div className="review-queue-detail-fields">
+   <h4>Book {item.book} · {item.title||'Review original context'}</h4>
+   <blockquote>{item.quote||'SOURCE HAS CHANGED — REVIEW BLOCKED'}</blockquote>
+   <small>Exact source offset: {item.quote_start.toLocaleString()} · {item.source_verified?'Verified':'Invalid fingerprint'}</small>
    <label>Author-confirmed event title
-    <input value={title} maxLength={160} onChange={e=>setTitle(e.target.value)}
-      placeholder="What genuinely occurs in this passage?"/>
+    <input key={'title:'+item.id} defaultValue={item.title} maxLength={160}
+     onChange={e=>setEventTitle(e.target.value)} placeholder="What actually happened?"/>
    </label>
    <label>Meaning of this passage
-    <select value={kind} onChange={e=>setKind(e.target.value)}>
-     {kinds.map(item=><option value={item.value} key={item.value}>{item.label}</option>)}
+    <select key={'kind:'+item.id} defaultValue={item.event_kind==='uncertain'?'observed_event':item.event_kind}
+     onChange={e=>setKind(e.target.value)}>
+     {kinds.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
    </label>
    <label>Position in story time
-    <select value={time} onChange={e=>setTime(e.target.value)}>
-     {times.map(item=><option value={item.value} key={item.value}>{item.label}</option>)}
+    <select key={'time:'+item.id} defaultValue={item.timeline_class}
+     onChange={e=>setTimeline(e.target.value)}>
+     {times.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
    </label>
-   <label>Reason or caveat (optional)
-    <textarea value={note} maxLength={1000} onChange={e=>setNote(e.target.value)} rows={3}/>
+   <label>Reason or caveat
+    <textarea key={'note:'+item.id} defaultValue={item.note} rows={3} maxLength={1000}
+     onChange={e=>setNote(e.target.value)}/>
    </label>
-   <div className="story-event-review-actions">
-    <button disabled={busy||!selected.source_verified||!title.trim()} onClick={()=>void decide('approved')}>Approve interpreted event</button>
-    <button disabled={busy||!selected.source_verified} onClick={()=>void decide('rejected')}>Reject event lead</button>
+   <div className="review-queue-actions">
+    <button disabled={busy||!item.source_verified||!(eventTitle||item.title).trim()}
+     onClick={()=>void decide(item,'approved')}>Approve event</button>
+    <button disabled={busy||!item.source_verified}
+     onClick={()=>void decide(item,'rejected')}>Reject event</button>
    </div>
-  </div>}
+  </div>
+ }
+ return <section className="story-event-review-board" aria-label="Author event review ledger">
   {error&&<p role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}
+  <ReviewQueue title="Author decision queue"
+   description="Every event and story-time interpretation requires direct author review. The original source evidence remains attached."
+   rows={rows} detail={detail} emptyText="No staged events. Select a source lead and stage it to begin."
+   onSelectionChange={key=>{
+    const item=events.find(x=>x.id===key)
+    if(item)focus(item)
+   }}
+   footer={<span>{events.filter(x=>x.status==='proposed').length} awaiting review · {events.filter(x=>x.is_author_approved).length} author-approved · {events.filter(x=>x.status==='rejected').length} rejected</span>}/>
  </section>
 }

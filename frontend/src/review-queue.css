@@ -1,0 +1,56 @@
+/* Dense, two-pane review queue. No heavy cards; details only for the active row. */
+.review-queue{container-type:inline-size;--rq-border:rgba(180,196,211,.24);--rq-panel:#182a3b;--rq-active:#33475d;margin:12px 0;border:1px solid var(--rq-border);border-radius:12px;background:#18293a;color:#edf1f6;overflow:hidden;min-width:0}
+.review-queue-head{display:flex;align-items:start;justify-content:space-between;gap:14px;padding:15px 18px 10px}
+.review-queue-head h3{font-size:1rem;margin:0 0 5px;color:#f1cfaa}
+.review-queue-head p{font-size:.77rem;line-height:1.45;margin:0;max-width:680px;color:#c6d4df}
+.review-queue-count{font-size:.7rem;white-space:nowrap;color:#aebfcc;padding-top:4px}
+.review-queue-toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;padding:9px 16px 13px;border-bottom:1px solid var(--rq-border)}
+.review-queue-toolbar label{display:grid;gap:4px;font-size:.67rem;color:#d4dfe8}
+.review-queue-toolbar input,.review-queue-toolbar select{height:36px;background:#0e2030;border:1px solid #667d91;color:#fff;border-radius:6px;padding:6px 10px;font:inherit}
+.review-queue-search{flex:1;min-width:170px;max-width:390px}
+.review-queue-search input{width:100%}
+.review-queue-body{display:grid;grid-template-columns:minmax(270px,1.15fr) minmax(300px,1fr);min-height:270px;max-height:650px}
+.review-queue-list{overflow-y:auto;overscroll-behavior:contain;border-right:1px solid var(--rq-border)}
+.review-queue-row{width:100%;display:grid;grid-template-columns:29px minmax(0,1fr) auto;gap:9px;align-items:center;min-height:53px;padding:7px 12px;border:0;border-bottom:1px solid rgba(180,196,211,.13);border-left:3px solid transparent;color:inherit;background:transparent;text-align:left;cursor:pointer;font:inherit}
+.review-queue-row:hover{background:rgba(181,203,224,.09)}
+.review-queue-row[aria-current=true]{border-left-color:#e8c090;background:var(--rq-active)}
+.review-queue-row:focus-visible{outline:2px solid #f4cf97;outline-offset:-3px}
+.review-queue-index{color:#9eb4c7;font-size:.63rem;font-variant-numeric:tabular-nums}
+.review-queue-main{min-width:0;display:grid;gap:3px}
+.review-queue-main strong{font-size:.8rem;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f3ede8}
+.review-queue-main small{font-size:.67rem;color:#bfcdda;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.review-queue-preview{font-size:.72rem;color:#d3dce6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.review-queue-side{display:grid;justify-items:end;gap:5px;min-width:0;max-width:110px}
+.review-queue-side small{font-size:.65rem;color:#b7c9d6;text-align:right;white-space:nowrap}
+.review-queue-status{font-size:.62rem;white-space:nowrap;padding:3px 6px;border-radius:4px;background:#394b5d;color:#dbe7f2}
+.review-queue-inspector{min-width:0;overflow-y:auto;overscroll-behavior:contain;background:var(--rq-panel);padding:15px 18px;display:grid;align-content:start;gap:11px}
+.review-queue-inspector-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.63rem;font-weight:700;color:#c4b1a0;letter-spacing:.08em}
+.review-queue-close{border:1px solid #70859a;border-radius:5px;color:#e7edf2;background:#2c4154;padding:6px 9px;cursor:pointer;font-size:.7rem}
+.review-queue-inspector h4{margin:0;color:#f2d6b5;font-size:.9rem}
+.review-queue-inspector blockquote{margin:0;border-left:2px solid #e2b68e;padding:9px 12px;background:#122232;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.79rem;line-height:1.65}
+.review-queue-inspector p,.review-queue-inspector small{font-size:.76rem;line-height:1.5;color:#cddae4}
+.review-queue-inspector button:not(.review-queue-close){border:1px solid #829ab0;background:#32485f;color:#fff;padding:9px 11px;border-radius:6px;cursor:pointer;font-size:.75rem;min-height:36px}
+.review-queue-inspector button:disabled{opacity:.5;cursor:not-allowed}
+.review-queue-inspector label{display:grid;gap:6px;font-size:.74rem}
+.review-queue-inspector input,.review-queue-inspector select,.review-queue-inspector textarea{max-width:100%;min-width:0;width:100%;border:1px solid #7890a3;border-radius:6px;padding:8px 10px;color:#fff;background:#0d2233;font:inherit}
+.review-queue-inspector .review-queue-actions{display:flex;flex-wrap:wrap;gap:7px}
+.review-queue-empty{padding:20px;color:#bfccd9;font-size:.8rem}
+.review-queue-footer{border-top:1px solid var(--rq-border);padding:9px 15px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.review-queue-footer button{background:#293f55;border:1px solid #8496a8;border-radius:6px;padding:7px 11px;color:#fff;cursor:pointer}
+.review-queue-footer button:disabled{opacity:.45}
+.review-queue-shortcuts{font-size:.64rem;color:#abbbc9;margin:0;padding:8px 16px;border-top:1px solid rgba(180,196,211,.12)}
+@media(max-width:900px){.review-queue-body{display:block;max-height:none}.review-queue-list{max-height:360px;border-right:0}.review-queue-inspector{border-top:1px solid var(--rq-border);max-height:580px}.review-queue-body:not(.review-queue-detail-open) .review-queue-inspector{display:none}.review-queue-row{min-height:59px}.review-queue-head{flex-wrap:wrap}}
+
+@container (max-width:750px){.review-queue-body{display:block;max-height:none}.review-queue-list{max-height:365px;border-right:0}.review-queue-inspector{border-top:1px solid var(--rq-border);max-height:570px}.review-queue-body:not(.review-queue-detail-open) .review-queue-inspector{display:none}}
+
+.review-queue-density{display:flex;align-items:center;gap:0;padding-bottom:1px}
+.review-queue-density button{border:1px solid #60798f;border-radius:0;background:#172c40;color:#d3dfeb;min-height:36px;padding:7px 9px;font-size:.69rem;cursor:pointer}
+.review-queue-density button:first-child{border-radius:6px 0 0 6px}
+.review-queue-density button:last-child{border-radius:0 6px 6px 0}
+.review-queue-density button[aria-pressed=true]{background:#5d4b40;border-color:#d8b38a;color:#fff}
+.review-queue-comfortable .review-queue-row{min-height:76px;padding-top:12px;padding-bottom:12px}
+.review-queue-comfortable .review-queue-preview{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* Default is intentionally two lines, not a three-line card. Comfortable adds metadata back. */
+.review-queue:not(.review-queue-comfortable) .review-queue-main small{display:none}
+.review-queue:not(.review-queue-comfortable) .review-queue-row{min-height:52px;padding-top:6px;padding-bottom:6px}

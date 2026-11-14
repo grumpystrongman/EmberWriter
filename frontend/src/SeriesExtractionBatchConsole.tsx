@@ -1,5 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import './series-extraction-batch-console.css'
+import ReviewQueue from './ReviewQueue'
+import type {QueueRow} from './ReviewQueue'
 
 type Batch={
  id:string;model:string;source_count:number;current_source_index:number;
@@ -30,7 +32,13 @@ export default function SeriesExtractionBatchConsole({seriesId,model}:{
    .catch(e=>{if(!controller.signal.aborted)setError(String(e))})
   return()=>controller.abort()
  },[seriesId])
- const batch=batches.find(item=>item.id===selected)||null
+ const batch=batches.find(item=>item.id===selected)||batches[0]||null
+ const rows:QueueRow[]=batches.map(item=>({
+  key:item.id,title:item.model+' · '+item.source_count+' sources',
+  subtitle:item.current_source_index+'/'+item.source_count+' sources finished',
+  preview:item.processed_windows+' bounded windows attempted',status:item.status,
+  meta:item.current_source_index===item.source_count?'Complete':'Ready to review',
+ }))
  async function request(path:string,body?:object):Promise<Batch>{
   const r=await fetch(`${BASE}/${encodeURIComponent(seriesId)}/extraction-batches${path}`,{
    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{}),
@@ -52,21 +60,23 @@ export default function SeriesExtractionBatchConsole({seriesId,model}:{
    setNotice('Book plan saved locally. Nothing has been sent to a model yet.')
   }catch(cause){setError(String(cause))}finally{setBusy(false)}
  }
- async function action(operation:'pause'|'resume'|'cancel'){
-  if(!batch||busy)return
+ async function action(operation:'pause'|'resume'|'cancel',chosen?:Batch){
+  const target=chosen||batch
+  if(!target||busy)return
   setBusy(true);setError('')
   if(operation==='pause')stopRef.current=true
   try{
-   const result=await request(`/${batch.id}/${operation}`)
+   const result=await request(`/${target.id}/${operation}`)
    update(result)
    setNotice('Batch is '+result.status+'. Each successfully processed source window retains its own checkpoint.')
   }catch(cause){setError(String(cause))}
   finally{setBusy(false)}
  }
- async function run(count:number){
-  if(!batch||stepping||busy||batch.status!=='ready')return
+ async function run(count:number,chosen?:Batch){
+  const target=chosen||batch
+  if(!target||stepping||busy||target.status!=='ready')return
   setStepping(true);setStop(false);stopRef.current=false;setError('');setNotice('')
-  let current=batch
+  let current=target
   let completed=0
   try{
    for(let index=0;index<count;index++){
@@ -79,7 +89,7 @@ export default function SeriesExtractionBatchConsole({seriesId,model}:{
   }catch(cause){
    setError(String(cause))
    try{
-    const r=await fetch(`${BASE}/${encodeURIComponent(seriesId)}/extraction-batches/${batch.id}`)
+    const r=await fetch(`${BASE}/${encodeURIComponent(seriesId)}/extraction-batches/${target.id}`)
     if(r.ok)update(await r.json() as Batch)
    }catch{/* Preserve original problem */}
   }finally{setStepping(false);setStop(false)}
@@ -92,23 +102,25 @@ export default function SeriesExtractionBatchConsole({seriesId,model}:{
    <label>Ending book<input aria-label="Batch ending book" type="number" min={1} max={9999} value={to} onChange={e=>setTo(Number(e.target.value))}/></label>
    <button type="button" disabled={!model||busy||stepping||from<1||to<from} onClick={()=>void prepare()}>Prepare source range</button>
   </div>
-  {batches.length>0&&<label>Saved plans
-    <select aria-label="Saved extraction batches" value={selected||''} onChange={e=>setSelected(e.target.value)}>
-     {batches.map(item=><option value={item.id} key={item.id}>{item.model} · {item.source_count} sources · {item.status} · {item.processed_windows} windows</option>)}
-    </select>
-  </label>}
-  {batch&&<div className="series-batch-progress">
-   <strong>{batch.status.replaceAll('_',' ')} · {batch.current_source_index}/{batch.source_count} sources completed</strong>
-   <progress max={batch.source_count} value={batch.current_source_index}/>
-   <p>{batch.processed_windows} bounded windows processed. {batch.last_source?'Latest book '+batch.last_source.book+', '+batch.last_source.source_progress_percent+'% scanned.':'No windows processed in this browser session.'}</p>
+  {batches.length>0&&<ReviewQueue title="Saved extraction plans"
+   description="Select a checkpoint to inspect its progress and actions. Each manual step processes at most one source window."
+   rows={rows} onSelectionChange={setSelected} emptyText="No saved extraction plans."
+   detail={row=>{
+    const current=batches.find(item=>item.id===row.key)
+    if(!current)return null
+    return <div className="series-batch-progress">
+   <strong>{current.status.replaceAll('_',' ')} · {current.current_source_index}/{current.source_count} sources completed</strong>
+   <progress max={current.source_count} value={current.current_source_index}/>
+   <p>{current.processed_windows} bounded windows processed. {current.last_source?'Latest book '+current.last_source.book+', '+current.last_source.source_progress_percent+'% scanned.':'Last progress available from saved checkpoints.'}</p>
    <div className="series-batch-actions">
-    <button disabled={busy||stepping||batch.status!=='ready'} onClick={()=>void run(1)}>Process next window</button>
-    <button disabled={busy||stepping||batch.status!=='ready'} onClick={()=>void run(3)}>Process 3 and checkpoint</button>
-    {(stepping||batch.status==='ready'||batch.status==='running')&&<button onClick={()=>{stopRef.current=true;setStop(true);void action('pause')}} disabled={busy||stop}>Pause after current window</button>}
-    {(batch.status==='paused'||batch.status==='error')&&<button disabled={busy||stepping} onClick={()=>void action('resume')}>Resume</button>}
-    {batch.status!=='complete'&&batch.status!=='cancelled'&&<button disabled={busy||stepping} onClick={()=>void action('cancel')}>Cancel plan</button>}
+    <button disabled={busy||stepping||current.status!=='ready'} onClick={()=>{setSelected(current.id);void run(1,current)}}>Process next window</button>
+    <button disabled={busy||stepping||current.status!=='ready'} onClick={()=>{setSelected(current.id);void run(3,current)}}>Process 3 and checkpoint</button>
+    {(stepping||current.status==='ready'||current.status==='running')&&<button onClick={()=>{stopRef.current=true;setStop(true);setSelected(current.id);void action('pause',current)}} disabled={busy||stop}>Pause after current window</button>}
+    {(current.status==='paused'||current.status==='error')&&<button disabled={busy||stepping} onClick={()=>{setSelected(current.id);void action('resume',current)}}>Resume</button>}
+    {current.status!=='complete'&&current.status!=='cancelled'&&<button disabled={busy||stepping} onClick={()=>{setSelected(current.id);void action('cancel',current)}}>Cancel plan</button>}
    </div>
-  </div>}
+  </div>
+   }}/>}
   {error&&<p role="alert">{error}</p>}
   {notice&&<p role="status">{notice}</p>}
  </details>
