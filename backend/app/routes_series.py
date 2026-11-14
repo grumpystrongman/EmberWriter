@@ -281,6 +281,67 @@ def decide_author_event_review(series_id: str, review_id: str,
         _fail(exc)
 
 
+class DialogueStage(BaseModel):
+    source_id: str = Field(min_length=1, max_length=120)
+    quote_start: int = Field(ge=0)
+    quote_end: int = Field(gt=0)
+
+
+class DialogueDecision(BaseModel):
+    decision: str = Field(pattern='^(approved|rejected)$')
+    speaker_id: str | None = Field(default=None, max_length=120)
+    pov_class: str = 'not_determined'
+    note: str = Field(default='', max_length=1000)
+
+
+@router.get("/{series_id}/dialogue-reviews")
+def dialogue_review_list(series_id: str,
+                         book: int | None = Query(default=None, ge=1, le=9999)) -> list[dict]:
+    from .series_dialogue_reviews import list_reviews
+    try:
+        return list_reviews(series_id, book=book)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/dialogue-reviews", status_code=201)
+def dialogue_review_stage(series_id: str, payload: DialogueStage) -> dict:
+    from .series_dialogue_reviews import stage
+    try:
+        return stage(series_id, payload.source_id, payload.quote_start, payload.quote_end)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/dialogue-reviews/{review_id}/decision")
+def dialogue_review_decision(series_id: str, review_id: str,
+                             payload: DialogueDecision) -> dict:
+    from .series_dialogue_reviews import decide
+    try:
+        return decide(series_id, review_id, decision=payload.decision,
+                      speaker_id=payload.speaker_id, pov_class=payload.pov_class,
+                      note=payload.note)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/dialogue-leads")
+def dialogue_attribution_clues(
+    series_id: str,
+    book: int = Query(ge=1, le=9999),
+    entity_id: str | None = Query(default=None, max_length=120),
+    limit: int = Query(default=60, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """Literal dialogue and name cues; not a verified speaker or POV."""
+    from .series_dialogue_leads import scan
+    try:
+        return scan(series_id, book=book, entity_id=entity_id,
+                    limit=limit, offset=offset)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/name-candidates")
 def literal_name_candidates(series_id: str,
                             limit: int = Query(default=60, ge=1, le=100),

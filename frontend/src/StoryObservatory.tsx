@@ -9,6 +9,7 @@ import StoryEvidenceOnboarding from './StoryEvidenceOnboarding'
 import StoryEventLeads from './StoryEventLeads'
 import StoryCharacterEvidenceMap from './StoryCharacterEvidenceMap'
 import StoryNameDiscovery from './StoryNameDiscovery'
+import StoryDialogueReview from './StoryDialogueReview'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
 export type ObservatoryFact = {
@@ -164,6 +165,9 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
       {!loading && !loadError && snapshot && lens === 'psychology' && <>
         <StoryCharacterEvidenceMap seriesId={seriesId} entities={entities} onInspectSource={onInspectSource} />
         <StoryNameDiscovery seriesId={seriesId} onAdded={onDiscoverySaved} onInspectSource={onInspectSource} />
+        <details className="observatory-dialogue-panel"><summary>Research dialogue and POV clues in Book {book}</summary>
+          <StoryDialogueReview seriesId={seriesId} book={book} entities={entities} onInspectSource={onInspectSource}/>
+        </details>
       </>}
       {!loading && !loadError && snapshot && lens === 'timeline' &&
         <StoryEventLeads seriesId={seriesId} book={book} onInspectSource={onInspectSource} />}

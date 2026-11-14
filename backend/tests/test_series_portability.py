@@ -306,3 +306,59 @@ def test_bad_epub_index_source_offsets_are_rejected(tmp_path, monkeypatch):
         assert len(vault.list_series()) == 1
     finally:
         archive.unlink(missing_ok=True)
+
+
+def test_dialogue_review_backup_restore_remaps_speaker_and_verifies_quote(tmp_path, monkeypatch):
+    from app import series_dialogue_leads as dialogue_leads
+    from app import series_dialogue_reviews as dialogue_reviews
+
+    monkeypatch.setattr(storage, "PROJECTS_ROOT", tmp_path / "projects")
+    sid = vault.create_series("Reviewed Dialogue Backup")["id"]
+    text = 'Ada said "The lighthouse is closed until dawn."'
+    detail = vault.import_volume(sid, "dialogue.md", text.encode(), 1,
+                                 title="Book One", kind="novel", edition_status="reference",
+                                 rights_confirmed=True)
+    src = detail["volumes"][0]["sources"][0]["id"]
+    original = canon.add_entity(sid, "Ada", "character")
+    quote = dialogue_leads.scan(sid, book=1)["leads"][0]
+    staged = dialogue_reviews.stage(sid, src, quote["quote_start"], quote["quote_end"])
+    dialogue_reviews.decide(sid, staged["id"], decision="approved",
+                            speaker_id=original["id"], note="Checked speaker punctuation")
+    backup = portable.backup(sid)
+    try:
+        restored = portable.restore(backup.read_bytes(), True)
+        rsid = restored["id"]
+        confirmed = dialogue_reviews.list_reviews(rsid)
+        assert len(confirmed) == 1
+        assert confirmed[0]["source_verified"]
+        assert confirmed[0]["author_confirmed_speaker"]
+        assert confirmed[0]["source_id"] != src
+        assert confirmed[0]["speaker_id"] != original["id"]
+        assert confirmed[0]["speaker_id"] == next(
+            e["id"] for e in canon.list_entities(rsid) if e["name"] == "Ada"
+        )
+        # Older valid backup manifests are still accepted without the new field.
+        with zipfile.ZipFile(backup) as reader:
+            entries = {name: reader.read(name) for name in reader.namelist()}
+        manifest = json.loads(entries["manifest.json"])
+        manifest.pop("author_dialogue_reviews")
+        entries["manifest.json"] = json.dumps(manifest).encode("utf8")
+        old = io.BytesIO()
+        with zipfile.ZipFile(old, "w") as writer:
+            for name, data in entries.items():
+                writer.writestr(name, data)
+        assert dialogue_reviews.list_reviews(portable.restore(old.getvalue(), True)["id"]) == []
+        # Forged source text or speaker must fail before creating a new series.
+        manifest["author_dialogue_reviews"] = [{
+            **json.loads(zipfile.ZipFile(backup).read("manifest.json"))["author_dialogue_reviews"][0],
+            "speaker_id": "f" * 32,
+        }]
+        entries["manifest.json"] = json.dumps(manifest).encode("utf8")
+        forged = io.BytesIO()
+        with zipfile.ZipFile(forged, "w") as writer:
+            for name, data in entries.items():
+                writer.writestr(name, data)
+        with pytest.raises(ValueError, match="Dialogue review"):
+            portable.restore(forged.getvalue(), True)
+    finally:
+        backup.unlink(missing_ok=True)

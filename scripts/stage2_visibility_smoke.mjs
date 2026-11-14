@@ -53,6 +53,12 @@ try{
      const review=await js('({evidence:!!document.querySelector(".story-name-evidence blockquote"),registerControl:[...document.querySelectorAll(".story-name-actions button")].some(b=>b.textContent.includes("Register as a character"))})')
      assert.ok(review.evidence&&review.registerControl,'Author-only candidate registration control missing')
      console.log('VISIBLE Character Name Discovery',JSON.stringify({...names,...review}))
+     await until('!!document.querySelector(".observatory-dialogue-panel summary")','Dialogue and POV panel mounted')
+     await js('document.querySelector(".observatory-dialogue-panel summary").click();true')
+     await until('document.querySelectorAll(".story-dialogue-leads article").length>0','Real book quote cues')
+     const dialogue=await js('({leads:document.querySelectorAll(".story-dialogue-leads article").length,stageButton:[...document.querySelectorAll(".story-dialogue-actions button")].some(b=>b.textContent.includes("Stage for author review")),speakerApproved:document.querySelector(".story-dialogue-ledger strong")?.textContent})')
+     assert.ok(dialogue.leads>0&&dialogue.stageButton,'Dialogue review is not independently accessible')
+     console.log('VISIBLE Dialogue POV Research',JSON.stringify(dialogue))
    }
  }
  await js('document.querySelectorAll(".observatory-lenses button")[4].click();true')
