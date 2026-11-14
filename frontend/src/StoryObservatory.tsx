@@ -7,6 +7,8 @@ import StoryModelLab from './StoryModelLab'
 import StoryDiscovery from './StoryDiscovery'
 import StoryEvidenceOnboarding from './StoryEvidenceOnboarding'
 import StoryEventLeads from './StoryEventLeads'
+import StoryCharacterEvidenceMap from './StoryCharacterEvidenceMap'
+import StoryNameDiscovery from './StoryNameDiscovery'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
 export type ObservatoryFact = {
@@ -159,6 +161,10 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
     </div> : null}
     <div className="observatory-stage">
       {!loading && !loadError && snapshot && snapshot.facts.length === 0 && snapshot.proposals.length === 0 && lens !== "models" && lens !== "discovery" && <StoryEvidenceOnboarding seriesId={seriesId} onDiscover={() => setLens("discovery")} onReview={onOpenCanon} />}
+      {!loading && !loadError && snapshot && lens === 'psychology' && <>
+        <StoryCharacterEvidenceMap seriesId={seriesId} entities={entities} onInspectSource={onInspectSource} />
+        <StoryNameDiscovery seriesId={seriesId} onAdded={onDiscoverySaved} onInspectSource={onInspectSource} />
+      </>}
       {!loading && !loadError && snapshot && lens === 'timeline' &&
         <StoryEventLeads seriesId={seriesId} book={book} onInspectSource={onInspectSource} />}
       {lens === "universe" && <div className="observatory-toolbar">

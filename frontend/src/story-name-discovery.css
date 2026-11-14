@@ -1,0 +1,19 @@
+.story-name-discovery{padding:15px;margin:14px 0;border:1px solid #758aa2;border-radius:12px;background:#1b3042;color:#e9edf1}
+.story-name-discovery>summary{cursor:pointer;font-weight:750;color:#f1c48f}
+.story-name-discovery p{font-size:.77rem;color:#cbd9e5;line-height:1.55}
+.story-name-discovery label{display:grid;gap:6px;font-size:.77rem;margin:11px 0}
+.story-name-search{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.story-name-search button{border:1px solid #c4a27e;background:#665845;color:#fff;padding:11px;border-radius:8px;cursor:pointer;min-height:42px}
+.story-name-discovery input{max-width:360px;width:100%;border:1px solid #93a8b9;background:#0e2332;color:#fff;border-radius:8px;padding:11px}
+.story-name-candidates{display:grid;gap:7px;max-height:650px;overflow-y:auto}
+.story-name-candidates article{border:1px solid #617b94;border-radius:8px;background:#223a4c}
+.story-name-toggle{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:11px 13px;border:0;background:transparent;color:#f3e6db;width:100%;text-align:left;cursor:pointer}
+.story-name-toggle strong{font-size:.81rem}
+.story-name-toggle small{font-size:.7rem;color:#c6d6e2}
+.story-name-evidence{padding:12px;display:grid;gap:12px}
+.story-name-evidence>div{border-top:1px solid #5f7a93;padding-top:9px}
+.story-name-evidence blockquote{margin:8px 0;padding:9px 12px;border-left:2px solid #e7bd8b;font-size:.78rem;line-height:1.5;overflow-wrap:anywhere}
+.story-name-evidence small{color:#cbd8e5;font-size:.7rem}
+.story-name-evidence button{padding:10px;border-radius:8px;background:#5b5162;border:1px solid #b2a5b5;color:#fff;cursor:pointer}
+.story-name-actions{display:flex;gap:10px;flex-wrap:wrap}
+.story-name-disclaimer{font-size:.7rem!important}
