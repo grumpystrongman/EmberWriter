@@ -623,10 +623,13 @@ def source_section_index(
         if saved is not None:
             entries = saved["sections"]
             result["sections"] = entries
-            result["selected_section"] = next((
-                s["index"] for s in entries if position is not None
-                and s["start"] <= position < s["end"]
-            ), None)
+            eligible = [s for s in entries if position is not None
+                        and s["start"] <= position < s["end"]]
+            # A ToC fragment is nested inside its containing EPUB spine item.
+            # Prefer the narrower verified link for active-section navigation.
+            chosen = min(eligible, key=lambda item: item["end"] - item["start"],
+                         default=None)
+            result["selected_section"] = chosen["index"] if chosen else None
             result["metadata_origin"] = saved["metadata_origin"]
             result["structure_index_saved"] = True
             result["heading_limit_reached"] = len(entries) >= series_epub_structure.MAX_SECTIONS

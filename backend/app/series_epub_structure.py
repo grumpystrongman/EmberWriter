@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from ebooklib import ITEM_DOCUMENT, epub
 from ebooklib.exceptions import EpubException
 
+from . import series_epub_toc as toc
 from . import series_vault as vault
 from .series_epub_safety import _check_nested_epub
 
@@ -91,13 +92,21 @@ def preview(series_id: str, source_id: str, blob: bytes) -> dict:
         })
         if len(rows) >= MAX_SECTIONS:
             break
+    spine_count = len(rows)
+    if len(rows) < MAX_SECTIONS:
+        rows.extend(toc.toc_rows(book, extracted, offsets, max_rows=MAX_SECTIONS - len(rows)))
+    rows.sort(key=lambda section: (section["start"], -section["characters"]))
+    for section_index, row in enumerate(rows, 1):
+        row["index"] = section_index
+    toc_count = len(rows) - spine_count
     return {
         "series_id": series_id, "source_id": source_id,
         "source_hash": source["sha256"], "epub_hash": hashlib.sha256(blob).hexdigest(),
         "exact_snapshot_match": True, "navigable": bool(rows),
+        "spine_sections": spine_count, "toc_fragment_sections": toc_count,
         "sections": rows, "spine_items": len(book.spine),
         "matched_sections": len(rows),
         "status": "exact_match" if rows else "no_spine_documents",
-        "message": "Exact source offsets recovered from the original EPUB spine. Explicit XHTML headings are labeled; otherwise only filenames are shown. No story chronology was inferred.",
+        "message": "Exact source offsets recovered from the original EPUB spine and uniquely resolved ToC fragment anchors. ToC labels are publication metadata, not proof of literary chronology or canon.",
         "story_sequence_inferred": False, "saved": False,
     }

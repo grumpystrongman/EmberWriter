@@ -3,7 +3,7 @@ import './series-source-sections.css'
 import SeriesEpubCollectionRecovery from './SeriesEpubCollectionRecovery'
 
 type Section={index:number;title:string;start:number;end:number;characters:number;
- heading_detected:boolean;confidence:string;author_confirmed:boolean}
+ heading_detected:boolean;confidence:string;author_confirmed:boolean;toc_href?:string;toc_fragment?:string}
 type Structure={sections:Section[];book:number;selected_section:number|null;
  source_length:number;heading_limit_reached:boolean;story_sequence_inferred:boolean;
  structure_index_saved?:boolean;metadata_origin?:string}
@@ -17,7 +17,7 @@ export default function SourceSectionNavigator({seriesId,sourceId,onJump}:{
  const [filter,setFilter]=useState('')
  const [expanded,setExpanded]=useState(false)
  const [originalEpub,setOriginalEpub]=useState<File|null>(null)
- const [preview,setPreview]=useState<(Structure & {exact_snapshot_match:boolean;status:string;message:string;matched_sections:number})|null>(null)
+ const [preview,setPreview]=useState<(Structure & {exact_snapshot_match:boolean;status:string;message:string;matched_sections:number;spine_sections?:number;toc_fragment_sections?:number})|null>(null)
  const [previewBusy,setPreviewBusy]=useState(false)
  const [previewError,setPreviewError]=useState('')
  const [indexSaved,setIndexSaved]=useState(false)
@@ -65,7 +65,7 @@ export default function SourceSectionNavigator({seriesId,sourceId,onJump}:{
    <summary>Jump to a source chapter or section <span>{data?.sections.length??'…'} structural sections</span></summary>
    {error&&<p role="alert">{error}</p>}
    {data&&<div className="source-section-content">
-     <p>{data.structure_index_saved?'Saved exact-match EPUB spine index. Source coordinates are verified; chapter titles and story chronology are not inferred.':'Only literal source headings are detected until an exact EPUB spine index is saved. This navigation does not establish story-time, scene order, character knowledge, or canon.'}</p>
+     <p>{data.structure_index_saved?'Saved exact-match EPUB spine and table-of-contents index. Source coordinates are verified; publication labels do not establish story chronology or canon.':'Only literal source headings are detected until an exact EPUB spine index is saved. This navigation does not establish story-time, scene order, character knowledge, or canon.'}</p>
      <label>Find a chapter heading
        <input type="search" value={filter} onChange={e=>setFilter(e.target.value)}
          placeholder="Chapter 12, Epilogue…"/></label>
@@ -73,7 +73,7 @@ export default function SourceSectionNavigator({seriesId,sourceId,onJump}:{
        {matched.slice(0,35).map(section=><button key={section.index} type="button"
          onClick={()=>onJump(section.start)}>
          <span>{String(section.index).padStart(2,'0')} · {section.title}</span>
-         <small>{section.heading_detected?'Literal heading':'Unverified'} · source character {section.start.toLocaleString()}</small>
+         <small>{section.confidence==='exact_epub_toc_fragment'?'Exact EPUB ToC anchor':section.confidence.startsWith('exact_')?'Verified EPUB spine':section.heading_detected?'Literal heading':'Unverified'} · source character {section.start.toLocaleString()}</small>
        </button>)}
        {!matched.length&&<p>No matching section headings in this source.</p>}
        {matched.length>35&&<p>Showing 35 of {matched.length}. Refine the search to find another section.</p>}
@@ -90,9 +90,9 @@ export default function SourceSectionNavigator({seriesId,sourceId,onJump}:{
        {preview&&<div role="status" className="source-original-results">
          <p><strong>{preview.exact_snapshot_match?'Exact source match':'Edition / extraction mismatch'}</strong> · {preview.message}</p>
          {preview.exact_snapshot_match&&<>
-           <p>{preview.matched_sections} exact spine documents recovered. Labels use explicit EPUB headings where present; otherwise filenames. These positions are not story-time chronology.</p>
+           <p>{preview.spine_sections??preview.matched_sections} exact EPUB spine documents and {preview.toc_fragment_sections??0} uniquely matched ToC fragment links recovered. Labels come from the original publication; none establish story-time chronology.</p>
            <div className="source-section-list">{preview.sections.slice(0,40).map(row=><button type="button" key={row.index} onClick={()=>onJump(row.start)}>
-             {row.title} · source character {row.start.toLocaleString()}
+             {row.title} · {row.confidence==='exact_epub_toc_fragment'?'ToC anchor':'spine'} · character {row.start.toLocaleString()}
            </button>)}</div>
            {preview.sections.length>40&&<p>First 40 sections shown; no positions inferred.</p>}
            <button type="button" disabled={previewBusy||indexSaved} onClick={()=>void confirmIndex()}>{indexSaved?'Verified index saved':'Save verified chapter index'}</button>
