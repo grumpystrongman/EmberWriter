@@ -1,0 +1,14 @@
+.story-scene-evaluation{margin:12px 0;padding:12px;border:1px solid #6f8197;border-radius:9px;background:#1b2c3e;color:#eaf1f8}
+.story-scene-evaluation>summary{cursor:pointer;color:#e9c29b;font-weight:650;font-size:.8rem}
+.story-scene-evaluation>p{font-size:.74rem;line-height:1.55;color:#d6e0ea}
+.scene-evaluation-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:14px 0}
+.scene-evaluation-summary>div{padding:11px;background:#233b51;border:1px solid #557087;border-radius:7px;display:grid;gap:4px;min-width:0}
+.scene-evaluation-summary small{font-size:.64rem;color:#ccd8e4;line-height:1.25}
+.scene-evaluation-summary strong{font-size:1.35rem;font-variant-numeric:tabular-nums}
+.scene-evaluation-gate{color:#f4d0ad!important;border-left:3px solid #d6b28e;padding:10px 13px;background:#392e2d}
+.scene-evaluation-inspector{display:grid;gap:10px;font-size:.77rem}
+.scene-evaluation-inspector dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;font-size:.7rem}
+.scene-evaluation-inspector dt{color:#bacbd9}.scene-evaluation-inspector dd{margin:0;color:#f1e8dc;text-align:right}
+.scene-evaluation-author{font-weight:600}
+.scene-evaluation-limitations{font-size:.69rem!important;color:#c1d1df!important}
+@media(max-width:670px){.scene-evaluation-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}

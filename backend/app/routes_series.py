@@ -341,6 +341,18 @@ class SceneDecision(BaseModel):
     note: str = Field(default='', max_length=1000)
 
 
+@router.get("/{series_id}/scene-evaluation")
+def scene_research_evaluation(
+    series_id: str, book: int | None = Query(default=None, ge=1, le=9999),
+) -> dict:
+    """Local fixed-fixture evaluation; never interprets private book text with a model."""
+    from .series_scene_gold import evaluate
+    try:
+        return evaluate(series_id, book=book)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/scene-reviews")
 def read_scene_reviews(series_id: str,
                        book: int | None = Query(default=None, ge=1, le=9999)) -> list[dict]:

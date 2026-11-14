@@ -48,6 +48,14 @@ try{
      await js('document.querySelector(".story-scene-explorer .scene-review-ledger summary").click();true')
      await until('!!document.querySelector(".story-scene-explorer .scene-review-queue .review-queue")','Separate author scene review ledger')
      console.log('VISIBLE Chunk8 Scene Evidence',JSON.stringify(scene))
+     await until('!!document.querySelector(".story-scene-evaluation summary")','Literary gold evaluation disclosure')
+     await js('document.querySelector(".story-scene-evaluation summary").click();true')
+     await until('document.querySelectorAll(".story-scene-evaluation .review-queue-row").length===12','12 synthetic literary boundary fixtures')
+     const quality=await js('({cases:document.querySelectorAll(".story-scene-evaluation .review-queue-row").length,metrics:[...document.querySelectorAll(".scene-evaluation-summary strong")].map(n=>n.textContent),gate:document.querySelector(".scene-evaluation-gate")?.textContent,sourceSent:document.querySelector(".scene-evaluation-limitations")?.textContent})')
+     assert.ok(quality.cases===12&&quality.gate.includes('Not certified for automatic scene interpretation'),'Synthetic tests must NOT certify scene inference')
+     await js('document.querySelector(".story-scene-evaluation .review-queue-row").click();true')
+     await until('!!document.querySelector(".scene-evaluation-inspector blockquote")','Gold fixture evidence inspector')
+     console.log('VISIBLE Chunk9 Literary Evaluation',JSON.stringify(quality))
    }
    if(heading==='Character minds'){
      await until('document.querySelector(".story-character-evidence-map select")?.options.length>=3','Character source map available')

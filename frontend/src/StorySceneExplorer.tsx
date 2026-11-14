@@ -2,6 +2,7 @@ import {useEffect,useMemo,useState} from 'react'
 import ReviewQueue from './ReviewQueue'
 import type {QueueRow} from './ReviewQueue'
 import StorySceneReviewQueue from './StorySceneReviewQueue'
+import StorySceneEvaluation from './StorySceneEvaluation'
 import './story-scene-explorer.css'
 
 type Mention={entity_id:string;name:string;literal_form:string}
@@ -142,6 +143,7 @@ export default function StorySceneExplorer({seriesId,book,entities,onInspectSour
     {reviewsOpen&&<StorySceneReviewQueue seriesId={seriesId} book={book}
      entities={entities} revision={reviewRevision} onInspectSource={onInspectSource}/>}
    </details>
+   <StorySceneEvaluation seriesId={seriesId} book={book} revision={reviewRevision}/>
    {report&&<p className="scene-explorer-caveat">{report.disclaimer}</p>}
   </>}
  </details>
