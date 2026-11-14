@@ -119,3 +119,38 @@ def test_corrupt_epub_rejected(source):
     sid, src, _ = source
     with pytest.raises(ValueError):
         series_epub_structure.preview(sid, src, b"not an epub")
+
+
+@pytest.mark.asyncio
+async def test_extraction_stops_at_author_confirmed_spine_and_never_skips(source, monkeypatch):
+    from app import series_epub_index
+    from app import series_extraction_jobs as extraction
+    from app import series_suggestions as suggestions
+
+    sid, src, blob = source
+    saved = series_epub_index.save(sid, src, blob)
+    assert saved["saved"]
+    source_sections = series_epub_index.read(sid, src)["sections"]
+    # Importer item order may differ from EPUB reading order; choose the
+    # first positive immutable-source coordinate, not a guessed spine index.
+    boundary = min(row["start"] for row in source_sections if row["start"] > 0)
+    calls = []
+
+    async def fake_local_proposals(series_id, source_id, start, stop, model):
+        calls.append((start, stop))
+        return {"suggestions": [], "discarded": 0}
+
+    monkeypatch.setattr(suggestions, "suggest_facts", fake_local_proposals)
+    job = extraction.create(sid, src, "fictional-test")
+    first = await extraction.advance(sid, job["id"])
+    assert first["last_window"]["alignment"] == "author_confirmed_epub_spine"
+    assert first["last_window"]["author_confirmed_structure"] is True
+    assert calls == [(0, boundary)]
+    assert first["next_offset"] == boundary
+
+    second = await extraction.advance(sid, job["id"])
+    assert calls[1][0] == calls[0][1]
+    assert calls[1][1] <= second["source_length"]
+    assert all(end - start <= extraction.WINDOW_CHARS for start, end in calls)
+    assert second["candidate_count"] == 0
+    assert second["auto_canon_approved"] is False
