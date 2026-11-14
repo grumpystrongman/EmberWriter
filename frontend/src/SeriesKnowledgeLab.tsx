@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import './series-knowledge-lab.css'
 
 type Entity={id:string;name:string;kind:string}
@@ -32,6 +32,36 @@ export default function SeriesKnowledgeLab({seriesId,volumes,entities,onInspect,
  const [probing,setProbing]=useState(false)
  const [probeError,setProbeError]=useState('')
  const [probeResult,setProbeResult]=useState<{status:string;elapsed_ms:number;detail:string;source_text_sent:boolean;exact_answer_verified:boolean;limitations:string}|null>(null)
+ type StreamResult={status:string;detail:string;elapsed_ms:number;first_token_ms:number|null;load_ms:number|null;
+  prompt_eval_ms:number|null;generation_ms:number|null;prompt_tokens:number|null;generated_tokens:number|null;tokens_per_second:number|null;
+  stream_events:number;stream_completed:boolean;exact_answer_verified:boolean;source_text_sent:boolean;limitations:string}
+ const [streamBusy,setStreamBusy]=useState(false)
+ const [streamError,setStreamError]=useState('')
+ const [streamResult,setStreamResult]=useState<StreamResult|null>(null)
+ const streamController=useRef<AbortController|null>(null)
+ useEffect(()=>()=>{streamController.current?.abort()},[seriesId])
+ async function runStreamProbe(){
+  if(!probeModel||streamBusy||probing)return
+  const controller=new AbortController()
+  streamController.current=controller
+  setStreamBusy(true);setStreamError('');setStreamResult(null)
+  try{
+   const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+'/local-model-stream-probe',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:probeModel}),signal:controller.signal,
+   })
+   const payload=await response.json()
+   if(!response.ok)throw Error(payload.detail||'Streaming test failed')
+   if(!controller.signal.aborted)setStreamResult(payload as StreamResult)
+  }catch(error){if(!controller.signal.aborted)setStreamError(String(error))}
+  finally{if(streamController.current===controller){streamController.current=null;setStreamBusy(false)}}
+ }
+ function cancelStreamProbe(){
+  streamController.current?.abort()
+  streamController.current=null
+  setStreamBusy(false)
+  setStreamError('Test cancelled by author; no source text or canon changed.')
+ }
  async function runProbe(){
    if(!probeModel||probing)return
    setProbing(true);setProbeError('');setProbeResult(null)
@@ -205,9 +235,31 @@ export default function SeriesKnowledgeLab({seriesId,volumes,entities,onInspect,
        </select></label>}
      <div><button type="button" onClick={()=>setModelRefresh(n=>n+1)}>Recheck local models</button>
        <button type="button" onClick={onReview}>Review selected source or request unsaved suggestions ↗</button>
-       <button type="button" disabled={!probeModel||probing} onClick={()=>void runProbe()}>
+       <button type="button" disabled={!probeModel||probing||streamBusy} onClick={()=>void runProbe()}>
          {probing?'Testing synthetic sentence…':'Verify local model actually answers'}
        </button></div>
+     <div className="knowledge-stream-controls">
+       <button type="button" disabled={!probeModel||probing||streamBusy} onClick={()=>void runStreamProbe()}>
+         {streamBusy?'Measuring local streaming…':'Measure startup and streaming (45s max)'}
+       </button>
+       {streamBusy&&<button type="button" onClick={cancelStreamProbe}>Cancel streaming test</button>}
+       <small>Uses invented fiction only. The server cancels an active model request when the browser disconnects. No source text is sent.</small>
+     </div>
+     {streamError&&<p role="status" className="knowledge-error">{streamError}</p>}
+     {streamResult&&<div role="status" className="knowledge-stream-result">
+       <strong>{streamResult.status==='passed'?'Synthetic streaming verified':'Streaming not verified: '+streamResult.status}</strong>
+       <p>{streamResult.detail}. Completed: {streamResult.stream_completed?'yes':'no'}.</p>
+       <dl>
+         <div><dt>First generated text</dt><dd>{streamResult.first_token_ms?.toLocaleString()??'not received'} ms</dd></div>
+         <div><dt>Complete request</dt><dd>{streamResult.elapsed_ms.toLocaleString()} ms</dd></div>
+         <div><dt>Model load</dt><dd>{streamResult.load_ms?.toLocaleString()??'unreported'} ms</dd></div>
+         <div><dt>Prompt evaluation</dt><dd>{streamResult.prompt_eval_ms?.toLocaleString()??'unreported'} ms</dd></div>
+         <div><dt>Generation</dt><dd>{streamResult.generation_ms?.toLocaleString()??'unreported'} ms</dd></div>
+         <div><dt>Generated tokens</dt><dd>{streamResult.generated_tokens??'unreported'}</dd></div>
+         <div><dt>Generation rate</dt><dd>{streamResult.tokens_per_second===null?'unreported':streamResult.tokens_per_second.toLocaleString()+' tokens/sec'}</dd></div>
+       </dl>
+       <p>{streamResult.limitations}</p>
+     </div>}
      {probeError&&<p role="alert" className="knowledge-error">{probeError}</p>}
      {probeResult&&<div className="knowledge-probe-result" role="status">
        <strong>{probeResult.status==='passed'?'Synthetic inference passed':'Not verified — '+probeResult.status}</strong>

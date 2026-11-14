@@ -9,7 +9,7 @@ import sqlite3
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.background import BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -301,6 +301,18 @@ async def test_private_local_model(series_id: str, payload: ModelProbeCreate) ->
     from .series_model_probe import probe
     try:
         return await probe(series_id, payload.model)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/local-model-stream-probe")
+async def test_private_streaming_model(
+    series_id: str, payload: ModelProbeCreate, request: Request,
+) -> dict:
+    """Bounded, cancellable, synthetic-only streaming inference diagnostic."""
+    from .series_model_stream_probe import probe
+    try:
+        return await probe(series_id, payload.model, is_disconnected=request.is_disconnected)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 
