@@ -10,6 +10,7 @@ import StoryEventLeads from './StoryEventLeads'
 import StoryCharacterEvidenceMap from './StoryCharacterEvidenceMap'
 import StoryNameDiscovery from './StoryNameDiscovery'
 import StoryDialogueReview from './StoryDialogueReview'
+import StorySceneExplorer from './StorySceneExplorer'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
 export type ObservatoryFact = {
@@ -169,8 +170,10 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
           <StoryDialogueReview seriesId={seriesId} book={book} entities={entities} onInspectSource={onInspectSource}/>
         </details>
       </>}
-      {!loading && !loadError && snapshot && lens === 'timeline' &&
-        <StoryEventLeads seriesId={seriesId} book={book} onInspectSource={onInspectSource} />}
+      {!loading && !loadError && snapshot && lens === 'timeline' && <>
+        <StorySceneExplorer seriesId={seriesId} book={book} entities={entities} onInspectSource={onInspectSource} />
+        <StoryEventLeads seriesId={seriesId} book={book} onInspectSource={onInspectSource} />
+      </>}
       {lens === "universe" && <div className="observatory-toolbar">
         <label className="observatory-search"><span className="sr-only">Find story entity</span>
           <span aria-hidden="true">⌕</span>
