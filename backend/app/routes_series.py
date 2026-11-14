@@ -318,6 +318,18 @@ async def test_private_streaming_model(
         _fail(exc)
 
 
+@router.post("/{series_id}/local-model-evidence-benchmark")
+async def test_synthetic_evidence_quality(
+    series_id: str, payload: ModelProbeCreate, request: Request,
+) -> dict:
+    """Five predeclared fictional evidence cases; author-invoked, local-only."""
+    from .series_model_evidence_benchmark import benchmark
+    try:
+        return await benchmark(series_id, payload.model, is_disconnected=request.is_disconnected)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/local-model-readiness")
 def private_local_model_readiness(series_id: str) -> dict:
     """Service-only health check; never transmits story text."""

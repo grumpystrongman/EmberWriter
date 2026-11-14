@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react'
 import './series-knowledge-lab.css'
+import StoryEvidenceQualityGate from './StoryEvidenceQualityGate'
 
 type Entity={id:string;name:string;kind:string}
 type Volume={id:string;ordinal:number;title:string}
@@ -245,6 +246,7 @@ export default function SeriesKnowledgeLab({seriesId,volumes,entities,onInspect,
        {streamBusy&&<button type="button" onClick={cancelStreamProbe}>Cancel streaming test</button>}
        <small>Uses invented fiction only. The server cancels an active model request when the browser disconnects. No source text is sent.</small>
      </div>
+     <StoryEvidenceQualityGate seriesId={seriesId} model={probeModel}/>
      {streamError&&<p role="status" className="knowledge-error">{streamError}</p>}
      {streamResult&&<div role="status" className="knowledge-stream-result">
        <strong>{streamResult.status==='passed'?'Synthetic streaming verified':'Streaming not verified: '+streamResult.status}</strong>
