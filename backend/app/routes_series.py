@@ -325,6 +325,83 @@ def dialogue_review_decision(series_id: str, review_id: str,
         _fail(exc)
 
 
+class SceneStage(BaseModel):
+    source_id: str = Field(min_length=1, max_length=120)
+    book: int = Field(ge=1, le=9999)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+
+
+class SceneDecision(BaseModel):
+    decision: str = Field(pattern='^(approved|rejected)$')
+    title: str = Field(default='', max_length=160)
+    scene_kind: str = 'uncertain'
+    pov_style: str = 'undetermined'
+    pov_character_id: str | None = Field(default=None, max_length=120)
+    note: str = Field(default='', max_length=1000)
+
+
+@router.get("/{series_id}/scene-reviews")
+def read_scene_reviews(series_id: str,
+                       book: int | None = Query(default=None, ge=1, le=9999)) -> list[dict]:
+    from .series_scene_reviews import list_reviews
+    try:
+        return list_reviews(series_id, book=book)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/scene-reviews", status_code=201)
+def stage_scene_review(series_id: str, payload: SceneStage) -> dict:
+    from .series_scene_reviews import stage
+    try:
+        return stage(series_id, source_id=payload.source_id, book=payload.book,
+                     start=payload.start, end=payload.end)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/scene-reviews/{review_id}/decision")
+def decide_scene_review(series_id: str, review_id: str, payload: SceneDecision) -> dict:
+    from .series_scene_reviews import decide
+    try:
+        return decide(series_id, review_id, decision=payload.decision,
+                      title=payload.title, kind=payload.scene_kind,
+                      pov_style=payload.pov_style,
+                      pov_character_id=payload.pov_character_id, note=payload.note)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/scene-windows")
+def source_scene_windows(
+    series_id: str,
+    book: int = Query(ge=1, le=9999),
+    offset: int = Query(default=0, ge=0, le=100000),
+    limit: int = Query(default=40, ge=1, le=100),
+) -> dict:
+    """Verified structural sections and explicitly nonsemantic reading windows."""
+    from .series_scene_windows import scan
+    try:
+        return scan(series_id, book=book, offset=offset, limit=limit)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/scene-windows/{source_id}/detail")
+def source_scene_window_detail(
+    series_id: str, source_id: str,
+    book: int = Query(ge=1, le=9999),
+    start: int = Query(ge=0), end: int = Query(gt=0),
+) -> dict:
+    """Only return exact, revalidated bounded source-window text."""
+    from .series_scene_windows import detail
+    try:
+        return detail(series_id, book=book, source_id=source_id, start=start, end=end)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/dialogue-leads")
 def dialogue_attribution_clues(
     series_id: str,

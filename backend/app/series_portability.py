@@ -18,6 +18,7 @@ from pathlib import Path
 from . import series_dialogue_reviews as dialogue_reviews
 from . import series_epub_index as epub_index
 from . import series_event_reviews as event_reviews
+from . import series_scene_reviews as scene_reviews
 from . import series_scene_studio as scene_studio
 from .series_vault import (
     MAX_DOCUMENT_CHARS,
@@ -55,6 +56,10 @@ def backup(series_id: str) -> Path:
         reviewed_dialogue = [dict(row) for row in con.execute(
             "SELECT * FROM series_dialogue_reviews WHERE series_id=? ORDER BY book,quote_start",
             (series_id,))]
+        scene_reviews._ensure(con)
+        reviewed_scenes = [dict(row) for row in con.execute(
+            "SELECT * FROM series_scene_reviews WHERE series_id=? ORDER BY book,start",
+            (series_id,))]
     sources = []
     for volume in series["volumes"]:
         for source in volume["sources"]:
@@ -78,6 +83,7 @@ def backup(series_id: str) -> Path:
         "verified_epub_indexes": epub_indexes,
         "author_event_reviews": reviewed_events,
         "author_dialogue_reviews": reviewed_dialogue,
+        "author_scene_reviews": reviewed_scenes,
         "scene_boards": scene_studio.list_boards(series_id),
         "note": "Restoring this archive creates a new independent series. "
                 "Linked writing projects are not moved; their immutable source "
@@ -154,10 +160,12 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
         indexes = manifest.get("verified_epub_indexes", [])
         events = manifest.get("author_event_reviews", [])
         dialogue_records = manifest.get("author_dialogue_reviews", [])
+        scene_records = manifest.get("author_scene_reviews", [])
         if (not isinstance(indexes, list) or not isinstance(events, list)
                 or not isinstance(dialogue_records, list)
+                or not isinstance(scene_records, list)
                 or len(indexes) > 1000 or len(events) > 5000
-                or len(dialogue_records) > 5000):
+                or len(dialogue_records) > 5000 or len(scene_records) > 5000):
             raise ValueError("Archive includes excessive or invalid review metadata")
         if (not isinstance(about, dict) or not isinstance(volumes, list)
                 or not isinstance(sources, list) or not isinstance(entities, list)
@@ -283,6 +291,41 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
             if identity in reviewed_dialogue_ids:
                 raise ValueError('Duplicate dialogue attribution evidence')
             reviewed_dialogue_ids.add(identity)
+        # Author-reviewed source windows are distinct from scene-studio drafts.
+        # Verify the exact cited bytes and author-controlled metadata before
+        # creating the destination series or remapping identifiers.
+        reviewed_scene_ids = set()
+        book_by_volume = {volume['id']: volume['ordinal'] for volume in volumes}
+        for item in scene_records:
+            if not isinstance(item, dict) or item.get('source_id') not in source_ids:
+                raise ValueError('Scene review references unknown source')
+            sid = item['source_id']
+            begin, finish = item.get('start'), item.get('end')
+            person = item.get('pov_character_id')
+            valid = (type(begin) is int and type(finish) is int
+                     and 0 <= begin < finish <= len(contents[sid])
+                     and finish-begin <= 8500
+                     and item.get('source_hash') == source_by_id[sid]['sha256']
+                     and item.get('range_hash') == hashlib.sha256(
+                         contents[sid][begin:finish].encode('utf8')).hexdigest()
+                     and item.get('book') == book_by_volume[
+                         source_by_id[sid]['volume_id']]
+                     and item.get('status') in scene_reviews.STATUSES
+                     and item.get('scene_kind') in scene_reviews.KINDS
+                     and item.get('pov_style') in scene_reviews.POV
+                     and (person is None or person in character_ids)
+                     and isinstance(item.get('title'), str)
+                     and len(item['title']) <= 160
+                     and isinstance(item.get('note'), str)
+                     and len(item['note']) <= 1000)
+            if not valid or (item.get('status') == 'approved' and
+                             (item.get('scene_kind') == 'uncertain'
+                              or not item['title'].strip())):
+                raise ValueError('Scene review coordinates, citation or classification failed verification')
+            identity = (sid, begin, finish)
+            if identity in reviewed_scene_ids:
+                raise ValueError('Duplicate scene review coordinates')
+            reviewed_scene_ids.add(identity)
         # Scene boards are noncanonical author drafts. Validate the full record
         # before touching the destination, then remap entity IDs on restore.
         character_ids = {e["id"] for e in entities if e.get("kind") == "character"}
@@ -374,6 +417,7 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                 epub_index._table(con)
                 event_reviews._ensure(con)
                 dialogue_reviews._ensure(con)
+                scene_reviews._ensure(con)
                 for record in indexes:
                     con.execute("""
                         INSERT INTO series_epub_structure_indexes
@@ -413,6 +457,21 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                         entity_map.get(record['speaker_id']),record['pov_class'],
                         record['note'],record['status'],now(),
                         now() if record['reviewed_at'] else None,
+                    ))
+                for item in scene_records:
+                    con.execute('''
+                        INSERT INTO series_scene_reviews (
+                            id,series_id,source_id,source_hash,range_hash,
+                            book,start,end,title,scene_kind,pov_style,
+                            pov_character_id,note,status,created_at,reviewed_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ''', (
+                        _id(),series_id,source_map[item['source_id']],
+                        item['source_hash'],item['range_hash'],item['book'],
+                        item['start'],item['end'],item['title'],item['scene_kind'],
+                        item['pov_style'],entity_map.get(item.get('pov_character_id')),
+                        item['note'],item['status'],now(),
+                        now() if item.get('reviewed_at') else None,
                     ))
         except Exception:
             for volume_id in set(created_volumes):
