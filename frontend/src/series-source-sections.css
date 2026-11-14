@@ -9,4 +9,21 @@
 .source-section-list button{background:#334158;border:1px solid #73839c;border-radius:8px;min-height:43px;padding:9px;display:grid;text-align:left;gap:3px;color:#f7e8ef;overflow-wrap:anywhere}
 .source-section-list button span{font-size:.74rem;font-weight:750}.source-section-list button small{font-size:.67rem;color:#c0ccd9}
 .source-section-list button:focus-visible,.source-section-content input:focus-visible{outline:3px solid #ffd3a5;outline-offset:2px}
+.source-original-preview{margin-top:12px;padding:14px;border:1px solid #8291a5;border-radius:10px;display:grid;gap:10px;background:#1d3044}
+.source-original-preview>strong{color:#ffd1a0}
+.source-original-preview p{font-size:.8rem;line-height:1.5;margin:0}
+.source-original-preview button{cursor:pointer;padding:10px 13px}
+.source-original-preview button:disabled{opacity:.6;cursor:not-allowed}
+.source-original-results{display:grid;gap:10px}
+.source-collection-recovery{border:1px solid #8b9dac;border-radius:10px;margin-top:10px;padding:13px;background:#223447}
+.source-collection-recovery summary{cursor:pointer;font-weight:800;font-size:.85rem;color:#f3cea2}
+.source-collection-recovery>p{font-size:.76rem;line-height:1.55;color:#d8e0e9}
+.source-collection-recovery label{display:grid;gap:6px;margin:10px 0}
+.source-collection-recovery button{padding:11px 14px;border:1px solid #dbb383;background:#5e4b5d;color:#fff;border-radius:8px;cursor:pointer}
+.source-collection-recovery button:disabled{opacity:.55;cursor:not-allowed}
+.collection-recovery-results{display:grid;gap:10px;margin:15px 0;padding:12px;border:1px solid #8994a9;border-radius:9px;background:#172b3d}
+.collection-recovery-results>p,.collection-recovery-results>small{font-size:.76rem;line-height:1.5}
+.collection-recovery-books{max-height:300px;overflow:auto;display:grid;gap:6px}
+.collection-recovery-books>div{display:grid;gap:4px;padding:10px;border:1px solid #667b8d;border-radius:7px;overflow-wrap:anywhere}
+.collection-recovery-books strong{font-size:.76rem}.collection-recovery-books small{color:#d1dbe2;font-size:.7rem}
 @media(max-width:650px){.source-section-list{grid-template-columns:1fr}}

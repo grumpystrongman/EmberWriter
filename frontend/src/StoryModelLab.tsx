@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import './story-model-lab.css'
+import StoryStreamDiagnostics from './StoryStreamDiagnostics'
+import StoryEvidenceQualityGate from './StoryEvidenceQualityGate'
 
 type SceneReport = {
   scenario_id: string
@@ -103,6 +105,8 @@ export default function StoryModelLab({seriesId}:{seriesId:string}){
         </button>
       </div>
     </div>
+    <StoryStreamDiagnostics seriesId={seriesId} model={model}/>
+    <StoryEvidenceQualityGate seriesId={seriesId} model={model}/>
     {error&&<div className="model-lab-error" role="alert">{error}</div>}
     {job.error&&<div className="model-lab-error" role="alert">{job.error}</div>}
     {running&&<div className="model-lab-progress" role="status">

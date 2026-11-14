@@ -3,15 +3,22 @@ import './story-evidence-onboarding.css'
 
 type Lead={subject_name:string;predicate:string;object_text:string;start_book:number;quote:string}
 type Discovery={total:number;scanned_sources:number;skipped_large_sources:number;candidates:Lead[];caveat:string}
+type StructureSummary={source_count:number;indexed_sources:number;verified_sections:number;toc_fragment_links:number;structural_only:boolean}
 export default function StoryEvidenceOnboarding({seriesId,onDiscover,onReview}:{
  seriesId:string;onDiscover:()=>void;onReview:()=>void
 }){
  const [data,setData]=useState<Discovery|null>(null)
  const [error,setError]=useState('')
  const [loading,setLoading]=useState(true)
+ const [structure,setStructure]=useState<StructureSummary|null>(null)
  useEffect(()=>{
    const controller=new AbortController()
-   setLoading(true);setError('');setData(null)
+   setLoading(true);setError('');setData(null);setStructure(null)
+   void fetch('http://127.0.0.1:8000/api/series/'+encodeURIComponent(seriesId)+'/structure-overview',
+     {signal:controller.signal})
+     .then(async response=>response.ok?response.json() as Promise<StructureSummary>:null)
+     .then(summary=>{if(!controller.signal.aborted)setStructure(summary)})
+     .catch(()=>{/* Source leads remain usable if indexing summary is unavailable. */})
    fetch('http://127.0.0.1:8000/api/series/'+encodeURIComponent(seriesId)+'/discover?limit=5',
      {signal:controller.signal})
      .then(async r=>{if(!r.ok)throw Error('Source discovery is unavailable ('+r.status+')');return r.json() as Promise<Discovery>})
@@ -32,6 +39,10 @@ export default function StoryEvidenceOnboarding({seriesId,onDiscover,onReview}:{
     <span><strong>{data.scanned_sources}</strong> source snapshots scanned</span>
     <span><strong>{data.total}</strong> unapproved leads found</span>
     <span><strong>{data.skipped_large_sources}</strong> sources skipped</span>
+    {structure&&<>
+     <span><strong>{structure.indexed_sources}/{structure.source_count}</strong> original sources indexed</span>
+     <span><strong>{structure.verified_sections.toLocaleString()}</strong> exact structural sections</span>
+    </>}
    </div>
    {!!data.candidates.length&&<div className="story-evidence-preview">
     <h4>Examples from your books — not yet canon</h4>

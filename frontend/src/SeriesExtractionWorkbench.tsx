@@ -1,5 +1,6 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import './series-extraction-workbench.css'
+import SeriesExtractionBatchConsole from './SeriesExtractionBatchConsole'
 
 type Suggestion={
   subject_id:string;subject_name:string;predicate:string;object_text:string;
@@ -10,7 +11,8 @@ type Job={
   id:string;source_id:string;model:string;source_length:number;next_offset:number;
   progress_percent:number;status:'ready'|'running'|'error'|'complete'|'cancelled';
   processed_windows:number;candidate_count:number;discarded:number;error:string;
-  candidates?:Suggestion[];all_candidates_unsaved:boolean;auto_canon_approved:boolean
+  candidates?:Suggestion[];all_candidates_unsaved:boolean;auto_canon_approved:boolean;
+  last_window?:{start:number;end:number;alignment:string;author_confirmed_structure:boolean}
 }
 const BASE='http://127.0.0.1:8000/api/series'
 async function api<T>(path:string,init?:RequestInit):Promise<T>{
@@ -32,6 +34,9 @@ export default function SeriesExtractionWorkbench({seriesId,sourceId,model,onUse
  const [error,setError]=useState('')
  const [notice,setNotice]=useState('')
  const [visible,setVisible]=useState(15)
+ const [batchBusy,setBatchBusy]=useState(false)
+ const stopAfterWindow=useRef(false)
+ useEffect(()=>()=>{stopAfterWindow.current=true},[seriesId,sourceId,model])
  useEffect(()=>{
   const controller=new AbortController()
   setJob(null);setJobs([]);setError('');setNotice('');setVisible(15)
@@ -77,6 +82,27 @@ export default function SeriesExtractionWorkbench({seriesId,sourceId,model,onUse
    catch{/* Explicit error stays visible */}
   }finally{setBusy(false)}
  }
+ async function processThree(){
+  if(!job||busy||!['ready','error'].includes(job.status))return
+  stopAfterWindow.current=false
+  setBatchBusy(true);setBusy(true);setError('');setNotice('')
+  let current=job
+  let completed=0
+  try{
+   for(let i=0;i<3;i++){
+    if(stopAfterWindow.current||current.status==='complete'||current.status==='cancelled')break
+    current=await api<Job>(`/${encodeURIComponent(seriesId)}/extraction-jobs/${current.id}/next`,post())
+    completed++
+    setJob(current)
+    if(current.status!=='ready')break
+   }
+   setNotice(`${completed} bounded passage(s) processed. ${stopAfterWindow.current?'Stopped at an author-requested checkpoint. ':'All candidates remain unapproved.'}`)
+  }catch(e){
+   setError(String(e))
+   try{setJob(await api<Job>(`/${encodeURIComponent(seriesId)}/extraction-jobs/${job.id}`))}
+   catch{/* Preserve the visible processing error */}
+  }finally{setBatchBusy(false);setBusy(false)}
+ }
  async function cancel(){
   if(!job||busy)return
   setBusy(true);setError('');setNotice('')
@@ -102,9 +128,16 @@ export default function SeriesExtractionWorkbench({seriesId,sourceId,model,onUse
      <div><strong>{job.status==='complete'?'Scan complete':job.status==='error'?'Paused after error':job.status==='cancelled'?'Cancelled':'Ready for next passage'}</strong>
        <span>{job.progress_percent.toFixed(1)}% · {job.processed_windows} windows · {job.candidate_count} leads · {job.discarded} rejected</span></div>
      <progress max={job.source_length} value={job.next_offset}/>
+     {job.last_window&&<p className="extraction-window-note">Processed source characters {job.last_window.start.toLocaleString()}–{job.last_window.end.toLocaleString()} · {job.last_window.author_confirmed_structure?'Stopped at your confirmed EPUB spine boundary':job.last_window.alignment.replaceAll('_',' ')}. No material was skipped.</p>}
      <div className="extraction-actions">
        {(job.status==='ready'||job.status==='error'||job.status==='running')&&<button type="button" disabled={busy} onClick={()=>void next()}>
          {busy?'Processing one passage…':job.status==='running'?'Check/recover interrupted window':'Process next window (up to 1,400 characters)'}
+       </button>}
+       {(job.status==='ready'||job.status==='error')&&<button type="button" disabled={busy} onClick={()=>void processThree()}>
+         Process up to 3 windows (explicit author action)
+       </button>}
+       {batchBusy&&<button type="button" onClick={()=>{stopAfterWindow.current=true;setNotice('Stop requested: current window may finish safely, then no more will start.')}}>
+         Stop after current window
        </button>}
        {job.status!=='cancelled'&&job.status!=='running'&&
          <button type="button" className="extraction-cancel" disabled={busy} onClick={()=>void cancel()}>Cancel job</button>}
@@ -122,6 +155,7 @@ export default function SeriesExtractionWorkbench({seriesId,sourceId,model,onUse
      </article>)}
      {visible<job.candidates.length&&<button type="button" onClick={()=>setVisible(n=>n+15)}>Show 15 more leads</button>}
    </div>}
+   <SeriesExtractionBatchConsole seriesId={seriesId} model={model}/>
    <p className="extraction-footnote">A candidate is not a fact. AI can misread narration, irony, POV, consent, emotional motives or chronology. Verify the quoted source and approve canon explicitly in the Review Board.</p>
  </section>
 }

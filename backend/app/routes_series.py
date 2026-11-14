@@ -9,15 +9,18 @@ import sqlite3
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.background import BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import series_bulk_import
+from . import series_bulk_import, series_epub_collection, series_epub_index, series_epub_structure
 from . import series_canon as canon
 from . import series_discovery as discovery
+from . import series_event_reviews as event_reviews
 from . import series_evidence_search as evidence_search
+from . import series_extraction_batches as extraction_batches
 from . import series_extraction_jobs as extraction_jobs
 from . import series_knowledge_lab as knowledge_lab
 from . import series_scene_preflight as scene_preflight
@@ -99,6 +102,26 @@ class Review(BaseModel):
 class ExtractionStart(BaseModel):
     source_id: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=200)
+
+
+class EventStage(BaseModel):
+    source_id: str = Field(min_length=1, max_length=120)
+    quote_start: int = Field(ge=0)
+    quote_end: int = Field(gt=0)
+
+
+class EventDecision(BaseModel):
+    decision: str = Field(pattern='^(approved|rejected)$')
+    title: str = Field(default='', max_length=160)
+    event_kind: str = 'uncertain'
+    timeline_class: str = 'time_unknown'
+    note: str = Field(default='', max_length=1000)
+
+
+class BatchExtractionStart(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+    book_from: int = Field(ge=1, le=9999)
+    book_to: int = Field(ge=1, le=9999)
 
 
 class SourceSuggestion(BaseModel):
@@ -225,6 +248,54 @@ async def restore_vault(
         _fail(exc)
 
 
+@router.get("/{series_id}/event-reviews")
+def list_author_event_reviews(
+    series_id: str, status: str = Query(default='all'),
+    book: int | None = Query(default=None, ge=1, le=9999),
+) -> dict:
+    try:
+        return event_reviews.list_events(series_id, status=status, book=book)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/event-reviews", status_code=201)
+def stage_author_event_review(series_id: str, payload: EventStage) -> dict:
+    try:
+        return event_reviews.stage(series_id, payload.source_id,
+                                   payload.quote_start, payload.quote_end)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/event-reviews/{review_id}/decision")
+def decide_author_event_review(series_id: str, review_id: str,
+                               payload: EventDecision) -> dict:
+    try:
+        return event_reviews.review(
+            series_id, review_id, decision=payload.decision,
+            title=payload.title, event_kind=payload.event_kind,
+            timeline_class=payload.timeline_class, note=payload.note,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/event-leads")
+def discover_literal_event_leads(
+    series_id: str,
+    book: int | None = Query(default=None, ge=1, le=9999),
+    limit: int = Query(default=80, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """Author-reviewed event navigation candidates, not inferred chronology."""
+    from .series_event_leads import scan
+    try:
+        return scan(series_id, book=book, limit=limit, offset=offset)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/discover")
 def discover_evidence(series_id: str, book: int | None = Query(default=None, ge=1, le=9999),
                       limit: int = Query(default=120, ge=1, le=250),
@@ -301,6 +372,30 @@ async def test_private_local_model(series_id: str, payload: ModelProbeCreate) ->
     from .series_model_probe import probe
     try:
         return await probe(series_id, payload.model)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/local-model-stream-probe")
+async def test_private_streaming_model(
+    series_id: str, payload: ModelProbeCreate, request: Request,
+) -> dict:
+    """Bounded, cancellable, synthetic-only streaming inference diagnostic."""
+    from .series_model_stream_probe import probe
+    try:
+        return await probe(series_id, payload.model, is_disconnected=request.is_disconnected)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/local-model-evidence-benchmark")
+async def test_synthetic_evidence_quality(
+    series_id: str, payload: ModelProbeCreate, request: Request,
+) -> dict:
+    """Five predeclared fictional evidence cases; author-invoked, local-only."""
+    from .series_model_evidence_benchmark import benchmark
+    try:
+        return await benchmark(series_id, payload.model, is_disconnected=request.is_disconnected)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 
@@ -477,6 +572,66 @@ def list_volume_sources(series_id: str, volume_id: str) -> list[dict]:
         _fail(exc)
 
 
+@router.get("/{series_id}/extraction-batches")
+def extraction_batch_list(series_id: str) -> list[dict]:
+    try:
+        return extraction_batches.list_batches(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches", status_code=201)
+def create_extraction_batch(series_id: str, payload: BatchExtractionStart) -> dict:
+    try:
+        return extraction_batches.create(series_id, payload.model, payload.book_from, payload.book_to)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/extraction-batches/{batch_id}")
+def get_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.get(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/next")
+async def next_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return await extraction_batches.advance(series_id, batch_id)
+    except TimeoutError as exc:
+        raise HTTPException(503, 'Local model timed out; source checkpoint was preserved') from exc
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+    except (RuntimeError, OSError, httpx.HTTPError) as exc:
+        raise HTTPException(503, 'Local inference unavailable; batch can be resumed') from exc
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/pause")
+def pause_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.pause(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/resume")
+def resume_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.resume(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/cancel")
+def cancel_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.cancel(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/extraction-jobs")
 def get_extraction_jobs(series_id: str, source_id: str | None = None) -> list[dict]:
     try:
@@ -549,6 +704,63 @@ def show_source(
         _fail(exc)
 
 
+@router.get("/{series_id}/structure-overview")
+def source_structure_overview(series_id: str) -> dict:
+    """Local-only aggregate verified chapter navigation; never returns source text."""
+    try:
+        return series_epub_index.overview(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/epub-structure-zip-preview")
+async def collection_epub_structure_preview(
+    series_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Check a bounded original EPUB ZIP without modifying sources or canon."""
+    try:
+        blob = await file.read(series_bulk_import.MAX_ARCHIVE_BYTES + 1)
+        return await run_in_threadpool(series_epub_collection.preview, series_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/epub-structure-zip-confirm")
+async def collection_epub_structure_confirm(
+    series_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Atomic, author-confirmed save of matched EPUB indexes; no manuscripts."""
+    try:
+        blob = await file.read(series_bulk_import.MAX_ARCHIVE_BYTES + 1)
+        return await run_in_threadpool(series_epub_collection.confirm, series_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/sources/{source_id}/epub-structure-preview")
+async def original_epub_structure_preview(
+    series_id: str, source_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Preview original EPUB spine against unchanged source; never save or replace canon."""
+    try:
+        blob = await file.read(vault.MAX_IMPORT_BYTES + 1)
+        return series_epub_structure.preview(series_id, source_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/sources/{source_id}/epub-structure-confirm")
+async def confirm_original_epub_structure(
+    series_id: str, source_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Explicit author acceptance; stores only checked offsets, never EPUB bytes."""
+    try:
+        blob = await file.read(vault.MAX_IMPORT_BYTES + 1)
+        return series_epub_index.save(series_id, source_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/sources/{source_id}/sections")
 def source_section_index(
     series_id: str, source_id: str,
@@ -557,7 +769,22 @@ def source_section_index(
     """Literal chapter-heading coordinates; no invented narrative chronology."""
     from .series_source_sections import sections
     try:
-        return sections(series_id, source_id, position=position)
+        result = sections(series_id, source_id, position=position)
+        saved = series_epub_index.read(series_id, source_id)
+        if saved is not None:
+            entries = saved["sections"]
+            result["sections"] = entries
+            eligible = [s for s in entries if position is not None
+                        and s["start"] <= position < s["end"]]
+            # A ToC fragment is nested inside its containing EPUB spine item.
+            # Prefer the narrower verified link for active-section navigation.
+            chosen = min(eligible, key=lambda item: item["end"] - item["start"],
+                         default=None)
+            result["selected_section"] = chosen["index"] if chosen else None
+            result["metadata_origin"] = saved["metadata_origin"]
+            result["structure_index_saved"] = True
+            result["heading_limit_reached"] = len(entries) >= series_epub_structure.MAX_SECTIONS
+        return result
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 

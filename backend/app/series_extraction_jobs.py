@@ -7,6 +7,7 @@ source text; all persisted state remains in the local Series Vault database.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,32 @@ from . import series_vault as vault
 WINDOW_CHARS = 1400
 MAX_STORED_SUGGESTIONS = 600
 LEASE_SECONDS = 150
+
+
+def _plan_window(series_id: str, source_id: str, content: str, start: int) -> tuple[int, str]:
+    """Honor author-confirmed EPUB spine boundaries without skipping source bytes.
+
+    Unconfirmed structure is never used. Otherwise retain the existing safe
+    1,400-character sentence/paragraph bounded behavior.
+    """
+    limit = min(start + WINDOW_CHARS, len(content))
+    from . import series_epub_index
+    saved = series_epub_index.read(series_id, source_id)
+    if saved is not None:
+        boundaries = sorted({
+            section["start"] for section in saved["sections"]
+            if start < section["start"] <= limit
+        })
+        if boundaries:
+            return boundaries[0], "author_confirmed_epub_spine"
+    if limit < len(content):
+        last = max(content.rfind(".", start + 500, limit),
+                   content.rfind("!", start + 500, limit),
+                   content.rfind("?", start + 500, limit),
+                   content.rfind("\n", start + 500, limit))
+        if last > start + 500:
+            return last + 1, "sentence_or_paragraph"
+    return limit, "bounded_source_window"
 
 
 def _ensure(con: sqlite3.Connection) -> None:
@@ -179,20 +206,23 @@ async def advance(series_id: str, job_id: str) -> dict:
         raise ValueError("The original source snapshot no longer matches this job")
 
     start = row["next_offset"]
-    stop = min(start + WINDOW_CHARS, len(content))
-    # Process one bounded window; never put entire novels in a model context.
-    # Snap near a sentence boundary when practical; remaining text is not lost.
-    if stop < len(content):
-        last = max(content.rfind(".", start + 500, stop),
-                   content.rfind("!", start + 500, stop),
-                   content.rfind("?", start + 500, stop),
-                   content.rfind("\n", start + 500, stop))
-        if last > start + 500:
-            stop = last + 1
+    # One strictly bounded window; author-confirmed EPUB structure takes
+    # precedence over heuristic punctuation. No offsets are skipped.
+    stop, boundary_kind = _plan_window(series_id, row["source_id"], content, start)
     try:
         result = await suggestions.suggest_facts(
             series_id, row["source_id"], start, stop, row["model"],
         )
+    except asyncio.CancelledError:
+        # Browser disconnect or explicit cancellation leaves the checkpoint
+        # exactly where it was, ready for deliberate retry without a lease wait.
+        with vault._connect() as con:
+            _ensure(con)
+            con.execute("""UPDATE series_extraction_jobs SET status='error',
+                last_error='Interrupted window; resume explicitly',
+                leased_at=NULL,updated_at=? WHERE id=? AND status='running'""",
+                (vault.now(), job_id))
+        raise
     except Exception as exc:
         # Do not log source text or raw model output.
         message = ("Local model timed out; retry this window"
@@ -260,4 +290,9 @@ async def advance(series_id: str, job_id: str) -> dict:
             (state, stop, json.dumps(candidates, ensure_ascii=False),
              fresh["discarded"] + result["discarded"] + discarded_invalid,
              fresh["processed_windows"] + 1, vault.now(), job_id))
-        return _public(_row(con, series_id, job_id))
+        updated = _public(_row(con, series_id, job_id))
+        updated["last_window"] = {
+            "start": start, "end": stop, "alignment": boundary_kind,
+            "author_confirmed_structure": boundary_kind == "author_confirmed_epub_spine",
+        }
+        return updated
