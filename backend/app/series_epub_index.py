@@ -82,3 +82,56 @@ def read(series_id: str, source_id: str) -> dict | None:
         "source_length": len(text),
         "story_sequence_inferred": False,
     }
+
+
+def overview(series_id: str) -> dict:
+    """Fast structural coverage summary; no novel text in the response."""
+    vault.series_detail(series_id)
+    with vault._connect() as con:
+        _table(con)
+        total = con.execute("""
+            SELECT COUNT(*)
+            FROM sources s JOIN volumes v ON s.volume_id=v.id
+            WHERE v.series_id=?
+        """, (series_id,)).fetchone()[0]
+        records = con.execute("""
+            SELECT i.source_hash, i.sections_json, s.sha256
+            FROM series_epub_structure_indexes i
+            JOIN sources s ON s.id=i.source_id
+            JOIN volumes v ON v.id=s.volume_id
+            WHERE i.series_id=? AND v.series_id=?
+        """, (series_id, series_id)).fetchall()
+    indexed = 0
+    section_count = 0
+    toc_count = 0
+    for row in records:
+        if row["source_hash"] != row["sha256"]:
+            continue
+        try:
+            sections = json.loads(row["sections_json"])
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(sections, list) or len(sections) > epub_structure.MAX_SECTIONS:
+            continue
+        if any(not isinstance(section, dict)
+               or not isinstance(section.get("start"), int)
+               or not isinstance(section.get("end"), int)
+               or section["start"] < 0 or section["end"] <= section["start"]
+               for section in sections):
+            continue
+        indexed += 1
+        section_count += len(sections)
+        toc_count += sum(s.get("confidence") == "exact_epub_toc_fragment" for s in sections)
+    return {
+        "series_id": series_id,
+        "source_count": total,
+        "indexed_sources": indexed,
+        "unindexed_sources": max(0, total - indexed),
+        "verified_sections": section_count,
+        "toc_fragment_links": toc_count,
+        "structural_only": True,
+        "canon_assertions_created": 0,
+        "story_sequence_inferred": False,
+        "snapshot_fingerprints_checked": True,
+        "source_text_returned": False,
+    }

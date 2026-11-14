@@ -574,6 +574,15 @@ def show_source(
         _fail(exc)
 
 
+@router.get("/{series_id}/structure-overview")
+def source_structure_overview(series_id: str) -> dict:
+    """Local-only aggregate verified chapter navigation; never returns source text."""
+    try:
+        return series_epub_index.overview(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.post("/{series_id}/epub-structure-zip-preview")
 async def collection_epub_structure_preview(
     series_id: str, file: Annotated[UploadFile, File()],

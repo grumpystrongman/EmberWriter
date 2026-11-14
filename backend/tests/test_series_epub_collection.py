@@ -77,6 +77,12 @@ def test_collection_preview_is_read_only_and_confirmation_atomic(sample):
     assert not result["source_text_changed"]
     assert not result["canon_approved"]
     assert not result["story_sequence_inferred"]
+    summary = series_epub_index.overview(sid)
+    assert summary["source_count"] == summary["indexed_sources"] == 2
+    assert summary["unindexed_sources"] == 0
+    assert summary["verified_sections"] >= 4
+    assert summary["canon_assertions_created"] == 0
+    assert not summary["story_sequence_inferred"]
     for source, text in zip(sources, source_texts, strict=True):
         saved = series_epub_index.read(sid, source)
         assert saved is not None
@@ -134,3 +140,8 @@ def test_collection_api_requires_author_confirm_and_isolation(sample):
         assert confirm.status_code == 200, confirm.text
         assert confirm.json()["indexed_books"] == 2
         assert series_epub_index.read(sid, sources[0]) is not None
+        indexed = client.get(f"/api/series/{sid}/structure-overview")
+        assert indexed.status_code == 200
+        assert indexed.json()["indexed_sources"] == 2
+        assert indexed.json()["verified_sections"] >= 4
+        assert indexed.json()["source_text_returned"] is False

@@ -7,6 +7,7 @@ Status: Chunk 4 **in progress**. The provenance/indexing work is verified; liter
 ## Delivered
 
 - Exact-match EPUB spine documents and nested ToC fragment links, including uniquely resolved legacy named anchors.
+- A fingerprint-scoped structural coverage API now exposes indexed source and chapter counts without returning original book text. Universe, Character minds, Plot threads and Story history empty-state research panels show **80/80 indexed sources and 1,723 structural sections** while correctly distinguishing structure from author-approved canon.
 - One-book and 80-book original EPUB archive recovery, all-or-nothing, requiring full immutable snapshot match before saving local metadata.
 - Author-initiated, source-specific extraction checkpoints now honor verified internal boundaries.
 - The existing extraction workbench additionally supports **up to three** sequential, individually committed bounded windows per explicit author click. An author can stop after the current window. The implementation never schedules background scanning, auto-approves canon, or writes to manuscripts.
