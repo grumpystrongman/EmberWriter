@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useState} from 'react'
 import './series-source-sections.css'
+import SeriesEpubCollectionRecovery from './SeriesEpubCollectionRecovery'
 
 type Section={index:number;title:string;start:number;end:number;characters:number;
  heading_detected:boolean;confidence:string;author_confirmed:boolean}
@@ -99,6 +100,10 @@ export default function SourceSectionNavigator({seriesId,sourceId,onJump}:{
          </>}
        </div>}
      </div>
+     <SeriesEpubCollectionRecovery seriesId={seriesId} onIndexed={()=>{
+       void fetch(`${BASE}/${encodeURIComponent(seriesId)}/sources/${encodeURIComponent(sourceId)}/sections`)
+         .then(async response=>{if(response.ok)setData(await response.json())})
+     }}/>
    </div>}
  </details>
 }

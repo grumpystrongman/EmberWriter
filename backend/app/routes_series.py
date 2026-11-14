@@ -11,10 +11,11 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.background import BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import series_bulk_import, series_epub_index, series_epub_structure
+from . import series_bulk_import, series_epub_collection, series_epub_index, series_epub_structure
 from . import series_canon as canon
 from . import series_discovery as discovery
 from . import series_evidence_search as evidence_search
@@ -558,6 +559,30 @@ def show_source(
         return vault.list_source_excerpt(series_id, source_id, query, limit,
                                          position=position)
     except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/epub-structure-zip-preview")
+async def collection_epub_structure_preview(
+    series_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Check a bounded original EPUB ZIP without modifying sources or canon."""
+    try:
+        blob = await file.read(series_bulk_import.MAX_ARCHIVE_BYTES + 1)
+        return await run_in_threadpool(series_epub_collection.preview, series_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/epub-structure-zip-confirm")
+async def collection_epub_structure_confirm(
+    series_id: str, file: Annotated[UploadFile, File()],
+) -> dict:
+    """Atomic, author-confirmed save of matched EPUB indexes; no manuscripts."""
+    try:
+        blob = await file.read(series_bulk_import.MAX_ARCHIVE_BYTES + 1)
+        return await run_in_threadpool(series_epub_collection.confirm, series_id, blob)
+    except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
         _fail(exc)
 
 

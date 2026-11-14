@@ -69,6 +69,12 @@ try{
  assert.ok(chapter.heading.includes('Chunk 4'))
  assert.ok(chapter.disabled,'EPUB preview must require explicit input')
  console.log('VISIBLE Chunk4 EPUB',JSON.stringify(chapter))
+ await until('!!document.querySelector(".source-collection-recovery summary")','Whole-series ZIP recovery visible')
+ await js('document.querySelector(".source-collection-recovery summary").click();true')
+ await until('!!document.querySelector(".source-collection-recovery input[type=file]")','Original collection ZIP picker')
+ const collection=await js('({control:document.querySelector(".source-collection-recovery summary")?.textContent,picker:!!document.querySelector(".source-collection-recovery input[type=file]"),previewDisabled:document.querySelector(".source-collection-recovery button")?.disabled})')
+ assert.ok(collection.picker&&collection.previewDisabled,'ZIP preview must require explicit author file selection')
+ console.log('VISIBLE Chunk4 EPUB Collection',JSON.stringify(collection))
  console.log('STAGE2_VISIBILITY_SMOKE_PASS',JSON.stringify({series:selected,tabs:stats.tabs,models:model.options,non_destructive:true}))
 }finally{
  ws?.close()
