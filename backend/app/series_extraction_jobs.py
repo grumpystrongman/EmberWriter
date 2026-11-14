@@ -7,6 +7,7 @@ source text; all persisted state remains in the local Series Vault database.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -212,6 +213,16 @@ async def advance(series_id: str, job_id: str) -> dict:
         result = await suggestions.suggest_facts(
             series_id, row["source_id"], start, stop, row["model"],
         )
+    except asyncio.CancelledError:
+        # Browser disconnect or explicit cancellation leaves the checkpoint
+        # exactly where it was, ready for deliberate retry without a lease wait.
+        with vault._connect() as con:
+            _ensure(con)
+            con.execute("""UPDATE series_extraction_jobs SET status='error',
+                last_error='Interrupted window; resume explicitly',
+                leased_at=NULL,updated_at=? WHERE id=? AND status='running'""",
+                (vault.now(), job_id))
+        raise
     except Exception as exc:
         # Do not log source text or raw model output.
         message = ("Local model timed out; retry this window"

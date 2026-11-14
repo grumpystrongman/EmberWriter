@@ -58,8 +58,8 @@ async def test_all_synthetic_questions_exactly_scored(sid, monkeypatch):
     calls = fake_client(monkeypatch)
     result = await quality.benchmark(sid, "fictional:3b")
     assert result["status"] == "passed"
-    assert result["passed"] == result["total"] == 5
-    assert len(calls) == 5
+    assert result["passed"] == result["total"] == 10
+    assert len(calls) == 10
     assert all(row["status"] == "passed" and row["quote_correct"] for row in result["cases"])
     assert all(call["model"] == "fictional:3b" and call["stream"] is False and call["think"] is False for call in calls)
     assert all("REFERENCE BEGINS" in call["prompt"] for call in calls)
@@ -72,7 +72,7 @@ async def test_one_wrong_answer_is_partial_not_passed(sid, monkeypatch):
     fake_client(monkeypatch, wrong_case="untrusted_note")
     result = await quality.benchmark(sid, "fictional:3b")
     assert result["status"] == "partial"
-    assert result["passed"] == 4
+    assert result["passed"] == 9
     wrong = next(row for row in result["cases"] if row["id"] == "untrusted_note")
     assert not wrong["answer_correct"] and wrong["quote_correct"]
 
@@ -81,7 +81,7 @@ async def test_one_wrong_answer_is_partial_not_passed(sid, monkeypatch):
 async def test_timeout_marks_case_unverified(sid, monkeypatch):
     fake_client(monkeypatch, timeout_case="reader_cutoff")
     result = await quality.benchmark(sid, "fictional:3b")
-    assert result["passed"] == 4
+    assert result["passed"] == 9
     wrong = next(row for row in result["cases"] if row["id"] == "reader_cutoff")
     assert wrong["status"] == "timed_out"
     assert not wrong["quote_correct"]

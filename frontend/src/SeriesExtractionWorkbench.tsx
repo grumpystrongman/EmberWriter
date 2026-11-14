@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react'
 import './series-extraction-workbench.css'
+import SeriesExtractionBatchConsole from './SeriesExtractionBatchConsole'
 
 type Suggestion={
   subject_id:string;subject_name:string;predicate:string;object_text:string;
@@ -154,6 +155,7 @@ export default function SeriesExtractionWorkbench({seriesId,sourceId,model,onUse
      </article>)}
      {visible<job.candidates.length&&<button type="button" onClick={()=>setVisible(n=>n+15)}>Show 15 more leads</button>}
    </div>}
+   <SeriesExtractionBatchConsole seriesId={seriesId} model={model}/>
    <p className="extraction-footnote">A candidate is not a fact. AI can misread narration, irony, POV, consent, emotional motives or chronology. Verify the quoted source and approve canon explicitly in the Review Board.</p>
  </section>
 }

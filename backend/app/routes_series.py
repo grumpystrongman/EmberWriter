@@ -18,7 +18,9 @@ from pydantic import BaseModel, Field
 from . import series_bulk_import, series_epub_collection, series_epub_index, series_epub_structure
 from . import series_canon as canon
 from . import series_discovery as discovery
+from . import series_event_reviews as event_reviews
 from . import series_evidence_search as evidence_search
+from . import series_extraction_batches as extraction_batches
 from . import series_extraction_jobs as extraction_jobs
 from . import series_knowledge_lab as knowledge_lab
 from . import series_scene_preflight as scene_preflight
@@ -100,6 +102,26 @@ class Review(BaseModel):
 class ExtractionStart(BaseModel):
     source_id: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=200)
+
+
+class EventStage(BaseModel):
+    source_id: str = Field(min_length=1, max_length=120)
+    quote_start: int = Field(ge=0)
+    quote_end: int = Field(gt=0)
+
+
+class EventDecision(BaseModel):
+    decision: str = Field(pattern='^(approved|rejected)$')
+    title: str = Field(default='', max_length=160)
+    event_kind: str = 'uncertain'
+    timeline_class: str = 'time_unknown'
+    note: str = Field(default='', max_length=1000)
+
+
+class BatchExtractionStart(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+    book_from: int = Field(ge=1, le=9999)
+    book_to: int = Field(ge=1, le=9999)
 
 
 class SourceSuggestion(BaseModel):
@@ -223,6 +245,54 @@ async def restore_vault(
             raise ValueError("Series archive exceeds the 250 MB upload limit")
         return restore(data, rights_confirmed)
     except (ValueError, OSError, sqlite3.IntegrityError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/event-reviews")
+def list_author_event_reviews(
+    series_id: str, status: str = Query(default='all'),
+    book: int | None = Query(default=None, ge=1, le=9999),
+) -> dict:
+    try:
+        return event_reviews.list_events(series_id, status=status, book=book)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/event-reviews", status_code=201)
+def stage_author_event_review(series_id: str, payload: EventStage) -> dict:
+    try:
+        return event_reviews.stage(series_id, payload.source_id,
+                                   payload.quote_start, payload.quote_end)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/event-reviews/{review_id}/decision")
+def decide_author_event_review(series_id: str, review_id: str,
+                               payload: EventDecision) -> dict:
+    try:
+        return event_reviews.review(
+            series_id, review_id, decision=payload.decision,
+            title=payload.title, event_kind=payload.event_kind,
+            timeline_class=payload.timeline_class, note=payload.note,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/event-leads")
+def discover_literal_event_leads(
+    series_id: str,
+    book: int | None = Query(default=None, ge=1, le=9999),
+    limit: int = Query(default=80, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """Author-reviewed event navigation candidates, not inferred chronology."""
+    from .series_event_leads import scan
+    try:
+        return scan(series_id, book=book, limit=limit, offset=offset)
+    except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 
 
@@ -498,6 +568,66 @@ def character_series_evidence(
 def list_volume_sources(series_id: str, volume_id: str) -> list[dict]:
     try:
         return vault.volume_sources(series_id, volume_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/extraction-batches")
+def extraction_batch_list(series_id: str) -> list[dict]:
+    try:
+        return extraction_batches.list_batches(series_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches", status_code=201)
+def create_extraction_batch(series_id: str, payload: BatchExtractionStart) -> dict:
+    try:
+        return extraction_batches.create(series_id, payload.model, payload.book_from, payload.book_to)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/extraction-batches/{batch_id}")
+def get_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.get(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/next")
+async def next_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return await extraction_batches.advance(series_id, batch_id)
+    except TimeoutError as exc:
+        raise HTTPException(503, 'Local model timed out; source checkpoint was preserved') from exc
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+    except (RuntimeError, OSError, httpx.HTTPError) as exc:
+        raise HTTPException(503, 'Local inference unavailable; batch can be resumed') from exc
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/pause")
+def pause_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.pause(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/resume")
+def resume_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.resume(series_id, batch_id)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/extraction-batches/{batch_id}/cancel")
+def cancel_extraction_batch(series_id: str, batch_id: str) -> dict:
+    try:
+        return extraction_batches.cancel(series_id, batch_id)
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
 

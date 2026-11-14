@@ -15,6 +15,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from . import series_epub_index as epub_index
+from . import series_event_reviews as event_reviews
 from . import series_scene_studio as scene_studio
 from .series_vault import (
     MAX_DOCUMENT_CHARS,
@@ -40,6 +42,14 @@ def backup(series_id: str) -> Path:
             "SELECT * FROM entities WHERE series_id=? ORDER BY name", (series_id,))]
         facts = [dict(row) for row in con.execute(
             "SELECT * FROM assertions WHERE series_id=? ORDER BY created_at", (series_id,))]
+        epub_index._table(con)
+        event_reviews._ensure(con)
+        epub_indexes = [dict(row) for row in con.execute(
+            "SELECT * FROM series_epub_structure_indexes WHERE series_id=? ORDER BY source_id",
+            (series_id,))]
+        reviewed_events = [dict(row) for row in con.execute(
+            "SELECT * FROM series_event_reviews WHERE series_id=? ORDER BY book,quote_start",
+            (series_id,))]
     sources = []
     for volume in series["volumes"]:
         for source in volume["sources"]:
@@ -60,6 +70,8 @@ def backup(series_id: str) -> Path:
         "sources": sources,
         "entities": entities,
         "assertions": facts,
+        "verified_epub_indexes": epub_indexes,
+        "author_event_reviews": reviewed_events,
         "scene_boards": scene_studio.list_boards(series_id),
         "note": "Restoring this archive creates a new independent series. "
                 "Linked writing projects are not moved; their immutable source "
@@ -133,6 +145,11 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
         entities = manifest.get("entities", [])
         assertions = manifest.get("assertions", [])
         scene_boards = manifest.get("scene_boards", [])
+        indexes = manifest.get("verified_epub_indexes", [])
+        events = manifest.get("author_event_reviews", [])
+        if (not isinstance(indexes, list) or not isinstance(events, list)
+                or len(indexes) > 1000 or len(events) > 5000):
+            raise ValueError("Archive includes excessive or invalid review metadata")
         if (not isinstance(about, dict) or not isinstance(volumes, list)
                 or not isinstance(sources, list) or not isinstance(entities, list)
                 or not isinstance(assertions, list)
@@ -187,6 +204,50 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                 raise ValueError("Canon source citation is invalid; restore cancelled")
             if fact.get("status") not in {"proposed", "approved", "rejected"}:
                 raise ValueError("Archive canon review state is invalid")
+        # Newer archive fields are optional: existing version-one backups without
+        # structural metadata must remain importable. All new metadata is checked
+        # against the original immutable snapshots before any series is created.
+        source_by_id = {item["id"]: item for item in sources}
+        indexed_ids = set()
+        for record in indexes:
+            if not isinstance(record, dict) or record.get("source_id") not in source_ids:
+                raise ValueError("EPUB index references an unknown source")
+            sid = record["source_id"]
+            if sid in indexed_ids or record.get("source_hash") != source_by_id[sid]["sha256"]:
+                raise ValueError("EPUB index has an invalid source fingerprint")
+            indexed_ids.add(sid)
+            try:
+                structural = json.loads(record.get("sections_json", ""))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("EPUB structural index is malformed") from exc
+            if not isinstance(structural, list) or len(structural) > epub_index.epub_structure.MAX_SECTIONS:
+                raise ValueError("EPUB index includes excessive sections")
+            for item in structural:
+                if (not isinstance(item, dict)
+                        or type(item.get("start")) is not int or type(item.get("end")) is not int
+                        or not 0 <= item["start"] < item["end"] <= len(contents[sid])
+                        or not isinstance(item.get("title"), str) or len(item["title"]) > 160):
+                    raise ValueError("EPUB index coordinates or labels are invalid")
+        reviewed_ids = set()
+        for event in events:
+            if not isinstance(event, dict) or event.get("source_id") not in source_ids:
+                raise ValueError("Event review references a missing source")
+            source_id = event["source_id"]
+            start, end = event.get("quote_start"), event.get("quote_end")
+            if (type(start) is not int or type(end) is not int
+                    or not 0 <= start < end <= len(contents[source_id])
+                    or contents[source_id][start:end] != event.get("quote")
+                    or event.get("source_hash") != source_by_id[source_id]["sha256"]
+                    or event.get("status") not in ("proposed", "approved", "rejected")
+                    or event.get("event_kind") not in event_reviews.VALID_KINDS
+                    or event.get("timeline_class") not in event_reviews.VALID_TIME
+                    or not isinstance(event.get("title"), str) or len(event["title"]) > 160
+                    or not isinstance(event.get("note"), str) or len(event["note"]) > 1000):
+                raise ValueError("Event review quote or metadata did not verify")
+            identity = (source_id, start, end)
+            if identity in reviewed_ids:
+                raise ValueError("Duplicate event review coordinates")
+            reviewed_ids.add(identity)
         # Scene boards are noncanonical author drafts. Validate the full record
         # before touching the destination, then remap entity IDs on restore.
         character_ids = {e["id"] for e in entities if e.get("kind") == "character"}
@@ -274,6 +335,33 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                         source_map[fact["source_id"]], fact["quote_start"],
                         fact["quote_end"], fact["quote"], fact["status"],
                         fact["note"], now(),
+                    ))
+                epub_index._table(con)
+                event_reviews._ensure(con)
+                for record in indexes:
+                    con.execute("""
+                        INSERT INTO series_epub_structure_indexes
+                        (source_id,series_id,source_hash,epub_hash,sections_json,saved_at)
+                        VALUES (?,?,?,?,?,?)
+                    """, (
+                        source_map[record["source_id"]], series_id,
+                        record["source_hash"], record["epub_hash"],
+                        record["sections_json"], now(),
+                    ))
+                for event in events:
+                    con.execute("""
+                        INSERT INTO series_event_reviews (
+                            id,series_id,source_id,source_hash,book,
+                            quote_start,quote_end,quote,title,event_kind,
+                            timeline_class,note,status,created_at,reviewed_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """, (
+                        _id(), series_id, source_map[event["source_id"]],
+                        event["source_hash"], event["book"],
+                        event["quote_start"], event["quote_end"], event["quote"],
+                        event["title"], event["event_kind"],
+                        event["timeline_class"], event["note"],event["status"],
+                        now(), now() if event["reviewed_at"] else None,
                     ))
         except Exception:
             for volume_id in set(created_volumes):

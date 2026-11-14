@@ -1,0 +1,13 @@
+.series-extraction-batches{margin:17px 0;border:1px solid #7b98aa;border-radius:12px;padding:14px;background:#192f43;color:#eff2f6}
+.series-extraction-batches>summary{cursor:pointer;font-size:.9rem;font-weight:750;color:#f2c89d}
+.series-extraction-batches p{font-size:.78rem;line-height:1.5;color:#d3dfea;margin:11px 0}
+.series-batch-setup{display:flex;gap:11px;align-items:end;flex-wrap:wrap;margin:12px 0}
+.series-batch-setup label,.series-extraction-batches>label{display:grid;gap:6px;font-size:.8rem}
+.series-extraction-batches input,.series-extraction-batches select{background:#102537;border:1px solid #8baabc;border-radius:7px;color:#fff;padding:11px;max-width:100%}
+.series-batch-setup input{width:115px}
+.series-batch-progress{margin-top:14px;display:grid;gap:8px;border-top:1px solid #678093;padding-top:13px}
+.series-batch-progress progress{width:100%;height:10px}
+.series-batch-actions{display:flex;gap:8px;flex-wrap:wrap}
+.series-extraction-batches button{min-height:42px;padding:10px 13px;color:#fff;border:1px solid #c7a888;border-radius:8px;background:#685746;cursor:pointer}
+.series-extraction-batches button:disabled{opacity:.5;cursor:not-allowed}
+.series-extraction-batches button:focus-visible,.series-extraction-batches summary:focus-visible{outline:3px solid #f1d19c;outline-offset:2px}

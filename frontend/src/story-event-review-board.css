@@ -1,0 +1,17 @@
+.story-event-review-board{margin:17px 0;padding:17px;display:grid;gap:13px;background:#182c3b;border:1px solid #7b9aab;border-radius:12px;color:#e8eef3}
+.story-event-review-board>div>strong{color:#f5c99a}
+.story-event-review-board p{font-size:.8rem;line-height:1.5;margin:5px 0;color:#cfdee9}
+.story-event-review-stats{display:flex;gap:9px;flex-wrap:wrap}
+.story-event-review-stats span{border:1px solid #788b9e;border-radius:8px;padding:7px 11px;font-size:.73rem}
+.story-event-review-entries{display:grid;gap:8px;max-height:310px;overflow:auto}
+.story-event-review-entries button{display:grid;text-align:left;gap:5px;padding:11px;background:#294050;border:1px solid #7592a4;border-radius:8px;color:#f5f5f5;cursor:pointer}
+.story-event-review-entries button[aria-pressed=true]{border-color:#fac99b}
+.story-event-review-entries span{font-size:.76rem;line-height:1.45;overflow-wrap:anywhere}
+.story-event-review-entries small{font-size:.7rem;color:#c6d6e1}
+.story-event-review-decision{display:grid;gap:11px;padding:14px;border:1px solid #7894a5;border-radius:9px}
+.story-event-review-decision blockquote{margin:0;padding:8px 12px;border-left:2px solid #ffc995;line-height:1.5;font-size:.8rem}
+.story-event-review-decision label{display:grid;gap:5px;font-size:.8rem}
+.story-event-review-decision input,.story-event-review-decision textarea,.story-event-review-decision select{min-width:0;border-radius:7px;border:1px solid #839daa;background:#101e2d;color:#fff;padding:10px;font:inherit}
+.story-event-review-actions{display:flex;gap:8px;flex-wrap:wrap}
+.story-event-review-actions button{min-height:43px;padding:11px 15px;border:1px solid #ddb383;border-radius:8px;color:#fff;background:#654c40;cursor:pointer}
+.story-event-review-actions button:disabled{opacity:.5;cursor:not-allowed}

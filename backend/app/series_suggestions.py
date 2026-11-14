@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 
 from .generation import generate
@@ -16,6 +17,14 @@ from .series_canon import SCOPES, list_entities
 from .series_vault import source_text
 
 MAX_SELECTION_CHARS = 2000
+
+
+def _local_story_endpoint() -> str:
+    """Permit the dedicated CPU server only on loopback; never send novels remotely."""
+    endpoint = os.environ.get("EMBER_STORY_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+    if endpoint not in ("http://127.0.0.1:11434", "http://127.0.0.1:11435"):
+        raise ValueError("Story extraction is restricted to local Ollama ports")
+    return endpoint
 
 
 def _lookup(entities: list[dict], text: str) -> dict | None:
@@ -57,7 +66,7 @@ async def suggest_facts(series_id: str, source_id: str, start: int, end: int,
     )
     raw = await asyncio.wait_for(
         generate(
-            ProviderConfig(provider="ollama", base_url="http://127.0.0.1:11434",
+            ProviderConfig(provider="ollama", base_url=_local_story_endpoint(),
                            model=model.strip()),
             [
                 {"role": "system", "content": prompt},

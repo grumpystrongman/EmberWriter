@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import './story-discovery.css'
 import StoryDeepRead from './StoryDeepRead'
+import StoryEventLeads from './StoryEventLeads'
 
 type Candidate={
   subject_id:string;subject_name:string;predicate:string;object_text:string;
@@ -13,8 +14,8 @@ type Results={ candidates:Candidate[]; total:number; offset:number; scanned_sour
 type Entity={id:string;name:string;kind:string}
 const BASE='http://127.0.0.1:8000/api/series'
 const label=(value:string)=>value.replace(/_/g,' ')
-export default function StoryDiscovery({seriesId,book,entities,onSaved,onOpenCanon}:{
-  seriesId:string;book:number;entities:Entity[];onSaved:()=>void;onOpenCanon:()=>void
+export default function StoryDiscovery({seriesId,book,entities,onSaved,onOpenCanon,onInspectSource}:{
+  seriesId:string;book:number;entities:Entity[];onSaved:()=>void;onOpenCanon:()=>void;onInspectSource:(sourceId:string)=>void
 }){
   const [scope,setScope]=useState<'all'|'book'>('all')
   const [data,setData]=useState<Results|null>(null)
@@ -81,6 +82,9 @@ export default function StoryDiscovery({seriesId,book,entities,onSaved,onOpenCan
     {error&&<p className="discovery-error" role="alert">{error}</p>}
     {notice&&<p className="discovery-notice" role="status">{notice} <button onClick={onOpenCanon}>Review in Canon Graph ↗</button></p>}
     <div className="discovery-summary"><span>{data?.scanned_sources||0} source snapshots scanned</span><span>{filtered.length} leads in view</span><span>Proposals require deliberate author approval</span></div>
+    <details className="discovery-event-panel"><summary>Explore source-anchored event and chronology leads</summary>
+      <StoryEventLeads seriesId={seriesId} book={book} onInspectSource={onInspectSource}/>
+    </details>
     <div className="discovery-layout">
       <div className="discovery-ledger" aria-label="Candidate source statements">
         {busy&&<p className="discovery-empty">Reading immutable source snapshots…</p>}

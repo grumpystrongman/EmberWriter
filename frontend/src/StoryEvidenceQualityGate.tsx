@@ -33,12 +33,12 @@ export default function StoryEvidenceQualityGate({seriesId,model}:{seriesId:stri
  }
  return <section className="story-evidence-quality-gate" aria-label="Synthetic story evidence quality checks">
   <div>
-   <strong>Five-case story evidence quality check</strong>
-   <p>Can this model handle quoted facts, character beliefs, Book 1 knowledge, changing states, and misleading instructions inside fictional text? The exact answers were set before testing. Each case has a 22-second limit; the complete test is bounded to 115 seconds. Results never automatically approve canon.</p>
+   <strong>Ten-case cross-book evidence quality check</strong>
+   <p>Ten independent synthetic checks for facts, beliefs, story chronology, flashbacks, setups, dream retellings, absent evidence and book-specific knowledge. Correct answers and source quotations are predeclared. Each case has a 22-second limit; the complete test is bounded to 225 seconds. No results automatically approve canon.</p>
   </div>
   <div className="story-quality-actions">
    <button type="button" disabled={!model||running} onClick={()=>void run()}>
-    {running?'Checking five fictional questions…':'Run five-case evidence check'}
+    {running?'Checking ten fictional questions…':'Run ten-case cross-book check'}
    </button>
    {running&&<button type="button" onClick={cancel}>Cancel check</button>}
   </div>

@@ -6,6 +6,7 @@ import StoryConstellation from './StoryConstellation'
 import StoryModelLab from './StoryModelLab'
 import StoryDiscovery from './StoryDiscovery'
 import StoryEvidenceOnboarding from './StoryEvidenceOnboarding'
+import StoryEventLeads from './StoryEventLeads'
 
 export type ObservatoryEntity = { id: string; name: string; kind: string; aliases: string[]; description: string }
 export type ObservatoryFact = {
@@ -158,6 +159,8 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
     </div> : null}
     <div className="observatory-stage">
       {!loading && !loadError && snapshot && snapshot.facts.length === 0 && snapshot.proposals.length === 0 && lens !== "models" && lens !== "discovery" && <StoryEvidenceOnboarding seriesId={seriesId} onDiscover={() => setLens("discovery")} onReview={onOpenCanon} />}
+      {!loading && !loadError && snapshot && lens === 'timeline' &&
+        <StoryEventLeads seriesId={seriesId} book={book} onInspectSource={onInspectSource} />}
       {lens === "universe" && <div className="observatory-toolbar">
         <label className="observatory-search"><span className="sr-only">Find story entity</span>
           <span aria-hidden="true">⌕</span>
@@ -179,7 +182,7 @@ export default function StoryObservatory({ seriesId, entities, facts, volumes, o
       {loading && <div role="status" className="observatory-loading">Reading approved story evidence…</div>}
       {lens === 'models' && <StoryModelLab seriesId={seriesId} />}
       {lens === 'discovery' && <StoryDiscovery seriesId={seriesId} book={book} entities={entities}
-        onSaved={() => { setRefresh(n=>n+1);onDiscoverySaved() }} onOpenCanon={onOpenCanon} />}
+        onSaved={() => { setRefresh(n=>n+1);onDiscoverySaved() }} onOpenCanon={onOpenCanon} onInspectSource={onInspectSource} />}
       {!loading && lens !== 'universe' && lens !== 'models' && lens !== 'discovery' && <StoryLens lens={lens} snapshot={snapshot} selectedId={selected?.id || null}
         onFocus={id => setSelectedId(id)} onExplore={id => { setSelectedId(id); setLens('universe') }} onOpenCanon={onOpenCanon} />}
       <div className="observatory-main" hidden={lens !== 'universe'}>
