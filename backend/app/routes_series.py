@@ -281,6 +281,36 @@ def decide_author_event_review(series_id: str, review_id: str,
         _fail(exc)
 
 
+@router.get("/{series_id}/name-candidates")
+def literal_name_candidates(series_id: str,
+                            limit: int = Query(default=60, ge=1, le=100),
+                            min_books: int = Query(default=2, ge=1, le=80),
+                            q: str = Query(default='', max_length=80)) -> dict:
+    """Review-only repeated capitalization candidates, no entity changes."""
+    from .series_name_candidates import propose
+    try:
+        return propose(series_id, limit=limit, min_books=min_books, query=q)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/character-presence")
+def character_presence_atlas(
+    series_id: str,
+    entity_id: str = Query(min_length=1, max_length=120),
+    min_book: int = Query(default=1, ge=1, le=9999),
+    max_book: int = Query(default=9999, ge=1, le=9999),
+    limit_per_book: int = Query(default=4, ge=1, le=10),
+) -> dict:
+    """Literal character mentions with exact source coordinates, no inferred traits."""
+    from .series_character_presence import atlas
+    try:
+        return atlas(series_id, entity_id=entity_id, min_book=min_book,
+                     max_book=max_book, limit_per_book=limit_per_book)
+    except (ValueError, FileNotFoundError) as exc:
+        _fail(exc)
+
+
 @router.get("/{series_id}/event-leads")
 def discover_literal_event_leads(
     series_id: str,

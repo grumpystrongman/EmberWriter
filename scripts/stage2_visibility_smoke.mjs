@@ -37,6 +37,23 @@ try{
    assert.ok(state.actions.includes('Review or add canon evidence'))
    assert.ok(state.pageWidth<=state.viewport+2,heading+' horizontal overflow')
    console.log('VISIBLE',heading,JSON.stringify(state))
+   if(heading==='Character minds'){
+     await until('document.querySelector(".story-character-evidence-map select")?.options.length>=3','Character source map available')
+     await until('!!document.querySelector(".character-map-metrics strong")','Source mention count for character')
+     const presence=await js('({name:document.querySelector(".story-character-evidence-map select")?.selectedOptions[0]?.textContent,metrics:document.querySelector(".character-map-metrics")?.textContent,books:document.querySelectorAll(".character-map-books article").length})')
+     assert.ok(presence.books>0,'Character presence should span real books')
+     console.log('VISIBLE Character Source Map',JSON.stringify(presence))
+     await until('!!document.querySelector(".story-name-discovery summary")','Name candidate review panel')
+     await js('document.querySelector(".story-name-discovery summary").click();true')
+     await until('document.querySelectorAll(".story-name-candidates article").length>0','Capitalization candidates from 80 sources')
+     const names=await js('({candidates:document.querySelectorAll(".story-name-candidates article").length,registerButtons:document.querySelectorAll(".story-name-actions button").length})')
+     assert.ok(names.candidates>0,'Expected review-only name leads')
+     await js('document.querySelector(".story-name-toggle").click();true')
+     await until('!!document.querySelector(".story-name-evidence blockquote")','Candidate source excerpt shown')
+     const review=await js('({evidence:!!document.querySelector(".story-name-evidence blockquote"),registerControl:[...document.querySelectorAll(".story-name-actions button")].some(b=>b.textContent.includes("Register as a character"))})')
+     assert.ok(review.evidence&&review.registerControl,'Author-only candidate registration control missing')
+     console.log('VISIBLE Character Name Discovery',JSON.stringify({...names,...review}))
+   }
  }
  await js('document.querySelectorAll(".observatory-lenses button")[4].click();true')
  await until('!!document.querySelector(".story-model-lab")','Model Lab')
