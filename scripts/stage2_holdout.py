@@ -160,11 +160,13 @@ def evaluate(payload):
         if (case["label"] == "answer" and prediction["label"] == "answer"
                 and cited and all((c["source_id"], c["start"], c["end"]) in allowed for c in cited)):
             citation_matches += 1
-    return {"inventory_sha256": digest(inventory), "total": len(cases), "correct": correct,
+    return {"evaluation_protocol": "frozen_holdout_exact_match",
+            "inventory_sha256": digest(inventory), "total": len(cases), "correct": correct,
             "accuracy": correct / len(cases), "abstention_rate": abstained / len(cases),
             "negative_cases": negatives, "correct_abstentions": correct_abstentions,
             "citation_matches": citation_matches, "similar_question_pairs": similar_pairs,
-            "source_entailment": None, "source_bytes_verified": paths is not None,
+            "source_entailment": None, "exact_match_semantics_verified": False,
+            "source_bytes_verified": paths is not None,
             "human_review_independently_verified": False, "semantic_distinctness_verified": False,
             "certified_5_of_5": False}
 
