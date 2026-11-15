@@ -140,3 +140,47 @@ def test_character_evidence_map_is_book_bounded_source_only(setup):
         denied = client.get(
             f"/api/series/{series_id}/characters/{other_character['id']}/evidence-map")
         assert denied.status_code == 404
+
+
+def test_balanced_cross_book_comparison_and_exact_offsets(tmp_path, monkeypatch):
+    texts = {
+        "early": ("Lantern " * 1500) + "early signal.",
+        "middle": "A lantern waits in the middle.",
+        "late": "The lantern appears at the end.",
+        "future": "A lantern appears in the future.",
+    }
+    series = {"id": "a" * 32, "volumes": [
+        {"id": name, "ordinal": number, "title": name, "sources": [
+            {"id": name, "sha256": name, "sequence": 1}]}
+        for number, name in enumerate(texts, 1)
+    ]}
+    monkeypatch.setattr(series_vault, "series_detail", lambda _: series)
+    monkeypatch.setattr(series_vault, "source_text", lambda _, source: (None, texts[source]))
+    monkeypatch.setattr(series_evidence_search, "_index_path", lambda _: tmp_path / "index.db")
+    result = series_evidence_search.search_balanced(
+        series["id"], "lantern", max_book=3, limit=3, compare_books=True)
+    assert [hit["book"] for hit in result["results"]] == [1, 3, 2]
+    assert result["total_hits"] > 3
+    assert "do not entail" in result["disclaimer"]
+    for hit in result["results"]:
+        assert texts[hit["source_id"]][hit["excerpt_start"]:hit["excerpt_end"]] == hit["excerpt"]
+    anchored = series_evidence_search.search_balanced(
+        series["id"], "lantern", max_book=3, limit=2, anchor_books=(2, 3))
+    assert [hit["book"] for hit in anchored["results"]] == [2, 3]
+    for query in ('" OR lantern*', 'lantern NEAR (future)'):
+        assert isinstance(series_evidence_search.search_balanced(
+            series["id"], query, max_book=3)["results"], list)
+    with pytest.raises(ValueError, match="two distinct"):
+        series_evidence_search.search_balanced(
+            series["id"], "lantern", max_book=1, compare_books=True)
+    with pytest.raises(ValueError, match="two distinct"):
+        series_evidence_search.search_balanced(
+            series["id"], "signal", max_book=3, anchor_books=(1, 3))
+    with pytest.raises(ValueError, match="anchor"):
+        series_evidence_search.search_balanced(
+            series["id"], "lantern", max_book=3, anchor_books=(1, 4))
+    assert not series_evidence_search.search_balanced(
+        series["id"], "future", max_book=3)["results"]
+    with pytest.raises(ValueError, match="at least two"):
+        series_evidence_search.search_balanced(
+            series["id"], "lantern", limit=1, compare_books=True)

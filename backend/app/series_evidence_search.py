@@ -169,6 +169,93 @@ def search(series_id: str, query: str, *, min_book: int = 1,
     }
 
 
+def search_balanced(series_id: str, query: str, *, min_book: int = 1,
+                    max_book: int = 9999, limit: int = 20,
+                    compare_books: bool = False,
+                    anchor_books: tuple[int, int] | None = None) -> dict:
+    """Retrieve ranked literal matches across books, not semantic entailments.
+
+    Comparison requires two distinct matching positions. If anchors are supplied,
+    each exact position must match; otherwise the earliest and latest matches
+    are preferred. Offsets always refer to the immutable indexed source snapshot.
+    """
+    query = query.strip()
+    if not 2 <= len(query) <= 120:
+        raise ValueError("Search query must contain 2–120 characters")
+    if not (1 <= min_book <= max_book <= 9999):
+        raise ValueError("Invalid search book window")
+    if not (1 <= limit <= MAX_SEARCH_RESULTS):
+        raise ValueError(f"Choose 1–{MAX_SEARCH_RESULTS} results")
+    tokens = re.findall(r"[\w]{2,}", query, re.UNICODE)[:12]
+    if not tokens:
+        raise ValueError("Search for a character, location, object, or phrase")
+    if anchor_books is not None:
+        if (len(anchor_books) != 2 or any(type(book) is not int for book in anchor_books)
+                or anchor_books[0] == anchor_books[1]
+                or any(not min_book <= book <= max_book for book in anchor_books)):
+            raise ValueError("Choose two distinct anchor books within the search window")
+        compare_books = True
+    if compare_books and limit < 2:
+        raise ValueError("A comparison requires at least two results")
+
+    series = vault.series_detail(series_id)
+    rows = []
+    if series["volumes"]:
+        index = _build(series, _signature(series))
+        expression = " AND ".join('"' + token.replace('"', '""') + '"' for token in tokens)
+        with closing(sqlite3.connect(index, timeout=30)) as connection:
+            # Rank once within each matching book; never truncate globally first.
+            rows = connection.execute(
+                "WITH matches AS MATERIALIZED ("
+                " SELECT rowid AS chunk_id, CAST(book AS INTEGER) AS book, volume,"
+                " source_id, source_start, content, bm25(chunks) AS score FROM chunks"
+                " WHERE chunks MATCH ? AND CAST(book AS INTEGER) BETWEEN ? AND ?"
+                "), ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY book "
+                "ORDER BY score, chunk_id) AS position, COUNT(*) OVER () AS total_hits "
+                "FROM matches) SELECT book, volume, source_id, source_start, content, "
+                "score, position, total_hits FROM ranked WHERE position <= ? "
+                "ORDER BY book, position", (expression, min_book, max_book, limit)
+            ).fetchall()
+
+    by_book = {}
+    for row in rows:
+        by_book.setdefault(row[0], []).append(row)
+    positions = sorted(by_book)
+    if compare_books and (len(positions) < 2 or
+                          (anchor_books is not None and
+                           any(book not in by_book for book in anchor_books))):
+        raise ValueError("Comparison requires literal matches in two distinct book positions")
+    if anchor_books is not None:
+        first_books = sorted(anchor_books)
+    elif len(positions) > 1:
+        first_books = [positions[0], positions[-1]]
+    else:
+        first_books = positions[:]
+    order = first_books + [book for book in positions if book not in first_books]
+    selected = []
+    for rank in range(limit):
+        for book in order:
+            if rank < len(by_book[book]) and len(selected) < limit:
+                selected.append(by_book[book][rank])
+
+    findings = []
+    for book, volume, source_id, source_start, content, _score, _position, _total in selected:
+        at = max(content.casefold().find(tokens[0].casefold()), 0)
+        left, right = max(0, at - 120), min(len(content), at + 300)
+        findings.append({"book": book, "volume": volume, "source_id": source_id,
+                         "excerpt_start": int(source_start) + left,
+                         "excerpt_end": int(source_start) + right,
+                         "excerpt": content[left:right]})
+    return {
+        "series_id": series_id, "query": query, "min_book": min_book,
+        "max_book": max_book, "books": len(series["volumes"]),
+        "sources": sum(len(v["sources"]) for v in series["volumes"]),
+        "total_hits": rows[0][7] if rows else 0, "results": findings, "indexed": True,
+        "disclaimer": "Literal source matches only; they do not entail a change, motive, "
+                      "event, or approved canon.",
+    }
+
+
 def character_evidence_map(series_id: str, entity_id: str, *,
                            max_book: int = 9999) -> dict:
     """Safe, source-only trajectory. A mention is NOT a story event or motive."""
