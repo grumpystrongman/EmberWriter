@@ -61,3 +61,17 @@
 .series-evidence-stage-claim{display:block;width:100%;min-height:42px;margin-top:7px;padding:9px 12px;border:1px solid #9e8ab0;border-radius:9px;background:#3e3b57;color:#f1daeb;font-size:.75rem;font-weight:700;text-align:left}
 .series-evidence-stage-claim:hover{background:#624b65}
 .series-evidence-stage-claim:focus-visible{outline:3px solid #f4c39e;outline-offset:2px}
+.grounded-ask{margin:14px 0;border:1px solid #8594a9;border-radius:12px;background:#203448;padding:12px 14px}
+.grounded-ask summary{cursor:pointer;color:#ffe0bb;font-weight:700}
+.grounded-ask p{font-size:.78rem;line-height:1.5;color:#dce2ea}
+.grounded-ask form{display:grid;gap:7px;max-width:700px}
+.grounded-ask label{font-size:.76rem;font-weight:700;color:#f0d6b7}
+.grounded-ask input,.grounded-ask select{width:100%;min-height:42px;border:1px solid #90a0b0;border-radius:8px;background:#162739;color:#fff;padding:9px}
+.grounded-ask button{min-height:44px;border:1px solid #b39ab7;border-radius:8px;background:#55445f;color:#fff;padding:9px 12px}
+.grounded-ask button:disabled{opacity:.5}
+.grounded-actions{display:flex;flex-wrap:wrap;gap:8px}
+.grounded-result{margin-top:16px;border-top:1px solid #71849a;padding-top:8px;overflow-wrap:anywhere}
+.grounded-result h3,.grounded-result h4{color:#ffe0bb}
+.grounded-citations{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px}
+.grounded-citations article{background:#172a3d;border:1px solid #677b92;border-radius:9px;padding:12px;min-width:0}
+.grounded-citations blockquote{margin:10px 0;border-left:3px solid #d3a6bc;padding-left:10px;font:normal .82rem/1.6 Georgia,serif;white-space:pre-wrap}
