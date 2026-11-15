@@ -6,8 +6,8 @@ It never reads Series sources. A result cannot authorize automatic canon approva
 from __future__ import annotations
 
 import asyncio
-import json
 import hashlib
+import json
 import time
 from collections.abc import Awaitable, Callable
 
