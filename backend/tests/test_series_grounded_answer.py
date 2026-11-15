@@ -15,7 +15,7 @@ def setup(monkeypatch):
     rows = [{"book": i + 1, "source_id": str(i), "excerpt": text,
              "excerpt_start": 10, "excerpt_end": 10 + len(text)}
             for i, text in enumerate(texts)]
-    monkeypatch.setattr(service.search, "search", lambda *a, **k: {"results": rows})
+    monkeypatch.setattr(service.search, "search_balanced", lambda *a, **k: {"results": rows})
     monkeypatch.setattr(service.readiness, "model_readiness", lambda *_: {
         "status": "available", "models": ["local:latest"]})
     return rows

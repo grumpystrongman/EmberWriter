@@ -20,7 +20,26 @@ def answer(series_id: str, question: str, query: str, as_of_book: int,
     question = question.strip()
     if not 3 <= len(question) <= 1500 or not 1 <= as_of_book <= 9999:
         raise ValueError("Invalid question or reading position")
-    found = search.search(series_id, query, max_book=as_of_book, limit=MAX_PASSAGES)
+    book_mentions = [int(x) for x in re.findall(r"\bbooks?\s+(\d+)\b", question, re.IGNORECASE)]
+    anchors = tuple(dict.fromkeys(book_mentions))
+    comparison = (len(anchors) >= 2 and any(term in question.casefold() for term in
+                  ("change", "evolv", "between", "compare", "versus", "vs", "develop")))
+    requested = (anchors[0], anchors[1]) if comparison else None
+    if requested is not None and max(requested) > as_of_book:
+        return {"series_id": series_id, "as_of_book": as_of_book, "query": query,
+                "status": "abstain", "answer": None, "citations": [], "passages": [],
+                "reasons": ["future_book_cutoff"], "semantic_entailment": "unverified",
+                "auto_approval_allowed": False}
+    try:
+        found = search.search_balanced(series_id, query, max_book=as_of_book,
+                                        limit=MAX_PASSAGES, anchor_books=requested)
+    except ValueError as exc:
+        if requested is None or "Comparison requires" not in str(exc):
+            raise
+        return {"series_id": series_id, "as_of_book": as_of_book, "query": query,
+                "status": "abstain", "answer": None, "citations": [], "passages": [],
+                "reasons": ["insufficient_temporal_evidence"], "semantic_entailment": "unverified",
+                "auto_approval_allowed": False}
     passages = []
     for hit in found["results"]:
         # Defend the model and response against a retrieval regression.
@@ -96,7 +115,7 @@ def answer(series_id: str, question: str, query: str, as_of_book: int,
         assessment = evidence.classify(question, candidate, supports)
         reasons = list(assessment.reasons)
         # Short subject-only responses are not answers to action questions.
-        if re.match(r"\s*what\s+does\b.*\bdo\s*\?", question, re.I):
+        if re.match(r"\s*what\s+does\b.*\bdo\s*\?", question, re.IGNORECASE):
             words = re.findall(r"\w+", candidate.casefold())
             if not words or set(words) <= set(re.findall(r"\w+", question.casefold())):
                 if "tautological_answer" not in reasons:

@@ -15,8 +15,8 @@ type Props = {
  onDraftClaim:(entry:Match)=>void
 }
 const EXAMPLES=['Remo','Chiun','Smith','CURE']
-type Citation={book?:number;volume?:string;source_id?:string;source_title?:string;excerpt?:string;excerpt_start?:number;quote?:string;quote_start?:number}
-type GroundedAnswer={answer?:string;status?:string;abstained?:boolean;review_only?:boolean;reasons?:string[];safety_reasons?:string[];safety_flags?:string[]|Record<string,boolean|string>;citations?:Citation[];evidence?:Citation[];disclaimer?:string}
+type Citation={book?:number;volume?:string;source_id?:string;source_title?:string;excerpt?:string;excerpt_start?:number;quote?:string;quote_start?:number;start?:number;end?:number}
+type GroundedAnswer={answer?:string;status?:string;abstained?:boolean;review_only?:boolean;reasons?:string[];safety_reasons?:string[];safety_flags?:string[]|Record<string,boolean|string>;citations?:Citation[];evidence?:Citation[];passages?:Citation[];disclaimer?:string;semantic_entailment?:string;auto_approval_allowed?:boolean}
 const API='http://127.0.0.1:8000/api'
 
 export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOpenSource,onDraftClaim}:Props){
@@ -35,8 +35,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
  useEffect(()=>{
    let active=true
    setModelStatus('Checking installed local models…')
-   void fetch(API+'/models',{method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({provider:'ollama',base_url:'http://127.0.0.1:11434',model:''})})
+   void fetch(API+'/series/'+encodeURIComponent(seriesId)+'/local-model-readiness')
      .then(async response=>{if(!response.ok)throw Error();return response.json()})
      .then(data=>{
        if(!active)return
@@ -46,7 +45,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
        setModelStatus(local.length?'':'No installed local Ollama models detected. Start Ollama or install a local model, then recheck.')
      }).catch(()=>{if(active){setModels([]);setModel('');setModelStatus('Could not check local models. Start Ollama and recheck.')}})
    return()=>{active=false}
- },[modelRefresh])
+ },[modelRefresh,seriesId])
  const [maxBook,setMaxBook]=useState(bookCount||1)
  const [searching,setSearching]=useState(false)
  const [result,setResult]=useState<SearchResponse|null>(null)
@@ -71,7 +70,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
    try{
      const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+'/grounded-answer',{
        method:'POST',headers:{'Content-Type':'application/json'},
-       body:JSON.stringify({question:question.trim(),query:terms,max_book:cutoff,model})
+       body:JSON.stringify({question:question.trim(),query:terms,as_of_book:cutoff,model})
      })
      const data=await response.json()
      if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Grounded answer could not complete')
@@ -162,13 +161,14 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
          {answer.safety_reasons?.length? <p>Safety reasons: {answer.safety_reasons.join('; ')}</p>:null}
          {answer.safety_flags&&<p>Safety flags: {Array.isArray(answer.safety_flags)?answer.safety_flags.join('; ')||'None reported':Object.entries(answer.safety_flags).map(([key,value])=>key.replace(/_/g,' ')+': '+String(value)).join('; ')||'None reported'}</p>}
          <h4>Passages returned for review</h4>
-         {!(answer.citations||answer.evidence||[]).length&&<p>No citations returned. Do not treat this as established evidence.</p>}
-         <div className="grounded-citations">{(answer.citations||answer.evidence||[]).map((citation,index)=><article key={(citation.source_id||'source')+'-'+index}>
+         {!(answer.citations?.length?answer.citations:(answer.passages||answer.evidence||[])).length&&<p>No citations returned. Do not treat this as established evidence.</p>}
+         <div className="grounded-citations">{(answer.citations?.length?answer.citations:(answer.passages||answer.evidence||[])).map((citation,index)=><article key={(citation.source_id||'source')+'-'+index}>
            <strong>{citation.book!=null?'Book '+citation.book:'Book not reported'}{citation.book!=null?' · '+(citation.book===answerCutoff?'Current cutoff book':citation.book<answerCutoff?'Older book':'Beyond cutoff'):''}</strong>
            <p>{citation.volume||citation.source_title||citation.source_id||'Source not reported'}{citation.source_id&&citation.source_title?' · '+citation.source_id:''}</p>
            {(citation.excerpt||citation.quote)&&<blockquote>{citation.excerpt||citation.quote}</blockquote>}
-           {citation.source_id&&typeof (citation.excerpt_start??citation.quote_start)==='number'&&<button type="button" onClick={()=>onOpenSource(citation.source_id!,answerSearch,(citation.excerpt_start??citation.quote_start)!)}>Open original source</button>}
+           {citation.source_id&&typeof (citation.start??citation.excerpt_start??citation.quote_start)==='number'&&<button type="button" onClick={()=>onOpenSource(citation.source_id!,answerSearch,(citation.start??citation.excerpt_start??citation.quote_start)!)}>Open original source</button>}
          </article>)}</div>
+         <p>Semantic entailment: {answer.semantic_entailment||'unverified'}. Canon approval: {answer.auto_approval_allowed===false?'not permitted':'not established'}.</p>
          {answer.disclaimer&&<p>{answer.disclaimer}</p>}
          <p>Review the original sources. This answer creates no canon claims.</p>
        </div>}
