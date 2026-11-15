@@ -1140,3 +1140,21 @@ def temporal_answer(series_id: str, payload: TemporalQuestion) -> dict:
         )
     except (ValueError, FileNotFoundError) as exc:
         _fail(exc)
+
+class GroundedAnswerRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=1500)
+    query: str = Field(min_length=2, max_length=120)
+    as_of_book: int = Field(ge=1, le=9999)
+    model: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+@router.post("/{series_id}/grounded-answer")
+def grounded_answer(series_id: str, payload: GroundedAnswerRequest) -> dict:
+    """Explicit local retrieval and optional local draft, always requiring review."""
+    from . import series_grounded_answer
+
+    try:
+        return series_grounded_answer.answer(
+            series_id, payload.question, payload.query, payload.as_of_book, payload.model)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
