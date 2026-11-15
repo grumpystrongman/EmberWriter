@@ -76,3 +76,42 @@ def test_route_and_model_selection(setup):
         assert len(response.json()["passages"]) == 1
         payload["model"] = "remote:cloud"
         assert client.post("/api/series/synthetic/grounded-answer", json=payload).status_code == 400
+
+
+
+def test_unrelated_exact_quote_cannot_support_new_claim(setup, monkeypatch):
+    fake_model(monkeypatch, {"answer": "Mira secretly murdered the king last winter.",
+        "citations": [{"passage": 0, "quote": setup[0]["excerpt"]}]})
+    result = service.answer("series", "What does Mira do?", "Mira", 2, "local:latest")
+    assert result["status"] == "abstain"
+    assert result["answer"] is None
+    assert "unsupported_claim_terms" in result["reasons"]
+
+
+@pytest.mark.parametrize("question", [
+    "Compare Mira in book 1 and 2",
+    "How does Mira differ in book 1 and book 2?",
+    "Compare Mira between books 1 and 2",
+])
+def test_comparative_question_requires_evidence_from_both_books(setup, monkeypatch, question):
+    fake_model(monkeypatch, {"answer": "Mira guards the old stone bridge.",
+        "citations": [{"passage": 0, "quote": setup[0]["excerpt"]}]})
+    result = service.answer("series", question, "Mira", 2, "local:latest")
+    assert result["status"] == "abstain"
+    assert "insufficient_temporal_evidence" in result["reasons"]
+
+
+def test_comparison_cannot_request_future_book(setup):
+    result = service.answer("series", "Compare Mira in book 1 and 9", "Mira", 2)
+    assert result["status"] == "abstain"
+    assert result["reasons"] == ["future_book_cutoff"]
+    assert result["passages"] == []
+
+
+def test_source_supported_noncomparative_answer_is_review_only(setup, monkeypatch):
+    fake_model(monkeypatch, {"answer": "Mira guards the old stone bridge.",
+        "citations": [{"passage": 0, "quote": setup[0]["excerpt"]}]})
+    result = service.answer("series", "What does Mira do?", "Mira", 2, "local:latest")
+    assert result["status"] == "review"
+    assert result["auto_approval_allowed"] is False
+    assert result["semantic_entailment"] == "unverified"

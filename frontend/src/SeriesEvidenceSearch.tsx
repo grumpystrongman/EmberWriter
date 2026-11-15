@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './series-evidence-search.css'
 import SeriesCharacterEvidenceMap from './SeriesCharacterEvidenceMap'
 
@@ -28,6 +28,10 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
  const [modelStatus,setModelStatus]=useState('')
  const [modelRefresh,setModelRefresh]=useState(0)
  const [answerBusy,setAnswerBusy]=useState(false)
+ const askSequence=useRef(0)
+ const searchSequence=useRef(0)
+ const askAbort=useRef<AbortController|null>(null)
+ const searchAbort=useRef<AbortController|null>(null)
  const [answer,setAnswer]=useState<GroundedAnswer|null>(null)
  const [answerError,setAnswerError]=useState('')
  const [answerCutoff,setAnswerCutoff]=useState(1)
@@ -54,9 +58,13 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
  const [focusedBook,setFocusedBook]=useState<number|null>(null)
  const [expanded,setExpanded]=useState(bookCount>12)
  useEffect(()=>{
+   askSequence.current++;searchSequence.current++
+   askAbort.current?.abort();searchAbort.current?.abort()
+   setAnswerBusy(false);setSearching(false)
    setMaxBook(Math.max(1,bookCount));setResult(null);setError('')
    setExpanded(bookCount>12);setFocusedBook(null);setAnswer(null);setAnswerError('');setQuestion('');setAnswerQuery('')
  },[seriesId,bookCount])
+ useEffect(()=>()=>{askAbort.current?.abort();searchAbort.current?.abort()},[])
  const entries=useMemo(()=>{
    if(!result)return []
    return sort==='chronological'
@@ -64,35 +72,56 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
      :result.results
  },[result,sort])
  async function ask(){
-   if(answerBusy||!question.trim()||answerQuery.trim().length<2||!models.includes(model))return
+   if(answerBusy||question.trim().length<3||answerQuery.trim().length<2||!models.includes(model))return
    const cutoff=maxBook,terms=answerQuery.trim()
+   const token=++askSequence.current
+   askAbort.current?.abort()
+   const controller=new AbortController()
+   askAbort.current=controller
    setAnswerBusy(true);setAnswerError('');setAnswer(null)
    try{
      const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+'/grounded-answer',{
        method:'POST',headers:{'Content-Type':'application/json'},
-       body:JSON.stringify({question:question.trim(),query:terms,as_of_book:cutoff,model})
+       body:JSON.stringify({question:question.trim(),query:terms,as_of_book:cutoff,model}),
+       signal:controller.signal
      })
+     if(token!==askSequence.current)return
      const data=await response.json()
+     if(token!==askSequence.current)return
      if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Grounded answer could not complete')
      setAnswer(data as GroundedAnswer);setAnswerCutoff(cutoff);setAnswerSearch(terms)
-   }catch(cause){setAnswerError(cause instanceof Error?cause.message:'Grounded answer could not complete')}
-   finally{setAnswerBusy(false)}
+   }catch(cause){
+     if(token===askSequence.current&&!(cause instanceof DOMException&&cause.name==='AbortError'))
+       setAnswerError(cause instanceof Error?cause.message:'Grounded answer could not complete')
+   }finally{
+     if(token===askSequence.current){setAnswerBusy(false);askAbort.current=null}
+   }
  }
  async function run(term=query,book:number|null=null){
    const q=term.trim()
    if(q.length<2||searching)return
+   const token=++searchSequence.current
+   searchAbort.current?.abort()
+   const controller=new AbortController()
+   searchAbort.current=controller
    setQuery(q);setError('');setSearching(true);setFocusedBook(book)
    try{
      const params=new URLSearchParams({query:q,max_book:String(book||maxBook),limit:'35'})
-   if(book!==null)params.set('min_book',String(book))
-     const response=await fetch(
-       'http://127.0.0.1:8000/api/series/'+encodeURIComponent(seriesId)+'/evidence-search?'+params
-     )
+     if(book!==null)params.set('min_book',String(book))
+     const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+'/evidence-search?'+params,
+       {signal:controller.signal})
+     if(token!==searchSequence.current)return
      const data=await response.json()
+     if(token!==searchSequence.current)return
      if(!response.ok)throw Error(data.detail||'Series search could not complete')
      setResult(data as SearchResponse)
-   }catch(cause){setResult(null);setError(String(cause))}
-   finally{setSearching(false)}
+   }catch(cause){
+     if(token===searchSequence.current&&!(cause instanceof DOMException&&cause.name==='AbortError')){
+       setResult(null);setError(String(cause))
+     }
+   }finally{
+     if(token===searchSequence.current){setSearching(false);searchAbort.current=null}
+   }
  }
  return <section className="series-evidence-search" aria-label="Search manuscript evidence across the series">
    <div className="series-evidence-heading">
@@ -123,7 +152,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
          <label htmlFor="series-evidence-timeline">Only show evidence up to <strong>book {maxBook}</strong></label>
          <input id="series-evidence-timeline" type="range" min={1}
            max={Math.max(1,bookCount)} value={maxBook}
-           onChange={event=>{setMaxBook(Number(event.target.value));setFocusedBook(null);setResult(null)}}/>
+           onChange={event=>{askSequence.current++;searchSequence.current++;askAbort.current?.abort();searchAbort.current?.abort();setAnswer(null);setAnswerBusy(false);setAnswerError('');setSearching(false);setMaxBook(Number(event.target.value));setFocusedBook(null);setResult(null)}}/>
          <div><small>Book 1</small><small>Book {Math.max(1,bookCount)}</small></div>
        </div>
        <div className="series-evidence-suggestions">
@@ -134,7 +163,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
      </div>
      <details className="grounded-ask">
        <summary>Ask from passages (local model)</summary>
-       <p>Only when you choose Ask, matching passages are sent to the selected local Ollama model. No hosted AI is used. Results are read-only and never become canon.</p>
+       <p>Only when you choose Ask, matching passages are sent to the selected local Ollama model. Passages are sent only to the configured loopback Ollama endpoint, but a local proxy or model could forward them. Verify your installation is offline. Results are read-only and never become canon.</p>
        <p>Answers are limited to retrieved passages through the selected book; missing evidence does not prove an event never happened. Check every answer against its sources.</p>
        <form onSubmit={event=>{event.preventDefault();void ask()}}>
          <label htmlFor="grounded-question">Question</label>
@@ -160,9 +189,10 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
          {answer.reasons?.length? <p>Reasons: {answer.reasons.join('; ')}</p>:null}
          {answer.safety_reasons?.length? <p>Safety reasons: {answer.safety_reasons.join('; ')}</p>:null}
          {answer.safety_flags&&<p>Safety flags: {Array.isArray(answer.safety_flags)?answer.safety_flags.join('; ')||'None reported':Object.entries(answer.safety_flags).map(([key,value])=>key.replace(/_/g,' ')+': '+String(value)).join('; ')||'None reported'}</p>}
-         <h4>Passages returned for review</h4>
-         {!(answer.citations?.length?answer.citations:(answer.passages||answer.evidence||[])).length&&<p>No citations returned. Do not treat this as established evidence.</p>}
-         <div className="grounded-citations">{(answer.citations?.length?answer.citations:(answer.passages||answer.evidence||[])).map((citation,index)=><article key={(citation.source_id||'source')+'-'+index}>
+         <h4>Retrieved passages for review</h4>
+         {answer.citations?.length?<p>Model cited {answer.citations.length} quotation(s). Exact matches do not prove they support its claims.</p>:null}
+         {!(answer.passages?.length?answer.passages:(answer.citations||answer.evidence||[])).length&&<p>No citations returned. Do not treat this as established evidence.</p>}
+         <div className="grounded-citations">{(answer.passages?.length?answer.passages:(answer.citations||answer.evidence||[])).map((citation,index)=><article key={(citation.source_id||'source')+'-'+index}>
            <strong>{citation.book!=null?'Book '+citation.book:'Book not reported'}{citation.book!=null?' · '+(citation.book===answerCutoff?'Current cutoff book':citation.book<answerCutoff?'Older book':'Beyond cutoff'):''}</strong>
            <p>{citation.volume||citation.source_title||citation.source_id||'Source not reported'}{citation.source_id&&citation.source_title?' · '+citation.source_id:''}</p>
            {(citation.excerpt||citation.quote)&&<blockquote>{citation.excerpt||citation.quote}</blockquote>}

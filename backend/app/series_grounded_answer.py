@@ -1,4 +1,4 @@
-﻿"""Author-invoked, local source research and optional Ollama draft screening."""
+"""Author-invoked, local source research and optional Ollama draft screening."""
 from __future__ import annotations
 
 import json
@@ -15,31 +15,80 @@ MAX_RESPONSE = 12000
 GENERATE_URL = "http://127.0.0.1:11434/api/generate"
 
 
+_COMPARISON = re.compile(r"\b(?:compar(?:e|ed|ison)|differ(?:s|ent|ence)?|versus|vs\.?|"
+                         r"chang(?:e|ed|es|ing)|evolv(?:e|ed|es|ing)|"
+                         r"develop(?:ed|ment)?|over time|between books?)\b", re.IGNORECASE)
+_DISCOURSE = frozenset({
+    "change", "changed", "changes", "changing", "across", "book", "books",
+    "became", "become", "becomes", "before", "after", "earlier", "later",
+    "versus", "compared", "comparison", "between", "now", "then", "from",
+    "was", "were", "is", "are", "a", "an", "the", "to", "and", "or", "of",
+    "in", "with", "their", "his", "her", "its", "they", "he", "she",
+    "how", "what", "why", "who", "that", "this", "it", "as",
+})
+
+
+def _stem(word: str) -> str:
+    # Cautious morphological matching for source quotation tokens, NOT entailment.
+    if word.endswith("ing") and len(word) >= 6:
+        return word[:-3]
+    if word.endswith("ied") and len(word) >= 6:
+        return word[:-3] + "y"
+    if word.endswith("ed") and len(word) >= 5:
+        return word[:-2]
+    if word.endswith("es") and len(word) >= 6:
+        return word[:-2]
+    if word.endswith("s") and len(word) >= 5:
+        return word[:-1]
+    return word
+
+
+def _unsupported_claim_terms(candidate: str, quotations: list[str]) -> bool:
+    # Reject newly introduced substantive words, even if a quote is exact.
+    cited = {_stem(word) for quote in quotations
+             for word in re.findall(r"[^\W_]+", quote.casefold())}
+    required = [_stem(word) for word in re.findall(r"[^\W_]+", candidate.casefold())
+                if len(word) >= 3 and word not in _DISCOURSE]
+    return bool(required) and any(word not in cited for word in required)
+
+
+def _comparison_books(question: str) -> tuple[int, ...]:
+    # Recognize 'book 1 and 2', 'books 1-2', and 'book 1 vs book 2'.
+    found = []
+    for match in re.finditer(
+        r"\bbooks?\s*(\d+)(?:\s*(?:and|&|vs\.?|versus|to|through|[-–])\s*"
+        r"(?:books?\s*)?(\d+))?", question, re.IGNORECASE,
+    ):
+        for value in match.groups():
+            if value is not None:
+                found.append(int(value))
+    return tuple(dict.fromkeys(found))
+
+
 def answer(series_id: str, question: str, query: str, as_of_book: int,
            model: str | None = None) -> dict:
     question = question.strip()
     if not 3 <= len(question) <= 1500 or not 1 <= as_of_book <= 9999:
         raise ValueError("Invalid question or reading position")
-    book_mentions = [int(x) for x in re.findall(r"\bbooks?\s+(\d+)\b", question, re.IGNORECASE)]
-    anchors = tuple(dict.fromkeys(book_mentions))
-    comparison = (len(anchors) >= 2 and any(term in question.casefold() for term in
-                  ("change", "evolv", "between", "compare", "versus", "vs", "develop")))
-    requested = (anchors[0], anchors[1]) if comparison else None
-    if requested is not None and max(requested) > as_of_book:
+    anchors = _comparison_books(question)
+    comparison = bool(_COMPARISON.search(question))
+    requested = (anchors[0], anchors[1]) if comparison and len(anchors) >= 2 else None
+    if any(book > as_of_book or book < 1 for book in anchors):
         return {"series_id": series_id, "as_of_book": as_of_book, "query": query,
                 "status": "abstain", "answer": None, "citations": [], "passages": [],
                 "reasons": ["future_book_cutoff"], "semantic_entailment": "unverified",
                 "auto_approval_allowed": False}
     try:
         found = search.search_balanced(series_id, query, max_book=as_of_book,
-                                        limit=MAX_PASSAGES, anchor_books=requested)
+                                        limit=MAX_PASSAGES, compare_books=comparison,
+                                        anchor_books=requested)
     except ValueError as exc:
-        if requested is None or "Comparison requires" not in str(exc):
+        if not comparison or "Comparison requires" not in str(exc):
             raise
         return {"series_id": series_id, "as_of_book": as_of_book, "query": query,
                 "status": "abstain", "answer": None, "citations": [], "passages": [],
-                "reasons": ["insufficient_temporal_evidence"], "semantic_entailment": "unverified",
-                "auto_approval_allowed": False}
+                "reasons": ["insufficient_temporal_evidence"],
+                "semantic_entailment": "unverified", "auto_approval_allowed": False}
     passages = []
     for hit in found["results"]:
         # Defend the model and response against a retrieval regression.
@@ -91,7 +140,7 @@ def answer(series_id: str, question: str, query: str, as_of_book: int,
             raise ValueError("Invalid response")
         draft = json.loads(raw)
         if not isinstance(draft, dict) or not isinstance(draft.get("answer"), str):
-            raise ValueError("Invalid draft")
+            raise TypeError("Invalid draft")
         candidate = draft["answer"].strip()
         items = draft.get("citations")
         if len(candidate) > 3000 or not isinstance(items, list) or not 1 <= len(items) <= MAX_PASSAGES:
@@ -117,9 +166,17 @@ def answer(series_id: str, question: str, query: str, as_of_book: int,
         # Short subject-only responses are not answers to action questions.
         if re.match(r"\s*what\s+does\b.*\bdo\s*\?", question, re.IGNORECASE):
             words = re.findall(r"\w+", candidate.casefold())
-            if not words or set(words) <= set(re.findall(r"\w+", question.casefold())):
-                if "tautological_answer" not in reasons:
-                    reasons.append("tautological_answer")
+            if ((not words or set(words) <= set(re.findall(r"\w+", question.casefold())))
+                    and "tautological_answer" not in reasons):
+                reasons.append("tautological_answer")
+        if comparison and len({citation["book"] for citation in citations}) < 2:
+            reasons.append("insufficient_temporal_evidence")
+        if requested is not None and not set(requested).issubset(
+                {citation["book"] for citation in citations}):
+            if "insufficient_temporal_evidence" not in reasons:
+                reasons.append("insufficient_temporal_evidence")
+        if _unsupported_claim_terms(candidate, [citation["quote"] for citation in citations]):
+            reasons.append("unsupported_claim_terms")
         if reasons or assessment.decision != "review":
             result["reasons"] = reasons or ["screening_failed"]
             return result
