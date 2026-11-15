@@ -1,5 +1,8 @@
 ﻿"""Synthetic checks for the local question inventory audit."""
 import importlib.util
+import io
+import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,3 +30,25 @@ def test_inventory_deduplicates_and_excludes_synthetic_and_unreferenced():
 def test_inventory_rejects_empty_question():
     with pytest.raises(ValueError):
         audit_module.audit([{"question": "!?"}])
+
+
+def test_cli_consumes_piped_json_without_opening_a_user_path(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["audit_stage2_questions.py"])
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps([
+        {"question": "Who saw the letter?", "origin": "synthetic"},
+    ])))
+    audit_module.main()
+    assert json.loads(capsys.readouterr().out)["distinct_text"] == 1
+
+
+def test_cli_rejects_untrusted_path_argument(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["audit_stage2_questions.py", "../../secrets.json"])
+    with pytest.raises(SystemExit, match="pipe a local JSON inventory"):
+        audit_module.main()
+
+
+def test_cli_rejects_non_array_input(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["audit_stage2_questions.py"])
+    monkeypatch.setattr(sys, "stdin", io.StringIO('{"question": "not a list"}'))
+    with pytest.raises(ValueError, match="JSON array"):
+        audit_module.main()

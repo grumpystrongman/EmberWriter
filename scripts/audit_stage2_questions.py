@@ -1,8 +1,7 @@
 ﻿"""Audit local question inventories without claiming human verification."""
-import argparse
 import json
 import re
-from pathlib import Path
+import sys
 
 
 def audit(items):
@@ -29,10 +28,13 @@ def audit(items):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("inventory", type=Path)
-    args = parser.parse_args()
-    print(json.dumps(audit(json.loads(args.inventory.read_text(encoding="utf-8"))), indent=2))
+    """Read inventory from stdin; never open an untrusted CLI-supplied path."""
+    if len(sys.argv) != 1:
+        raise SystemExit("Usage: pipe a local JSON inventory into audit_stage2_questions.py")
+    inventory = json.load(sys.stdin)
+    if not isinstance(inventory, list) or any(not isinstance(item, dict) for item in inventory):
+        raise ValueError("Question inventory must be a JSON array of objects")
+    print(json.dumps(audit(inventory), indent=2))
 
 
 if __name__ == "__main__":
