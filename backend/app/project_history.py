@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
 from .revisions import record_revision
+from .sqlite_lifecycle import ClosingConnection
 from .storage import _iter_story_files, project_root, safe_project_path, utc_now
 
 

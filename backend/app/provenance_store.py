@@ -3,12 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, utc_now
 
 WORD_RE = re.compile(r"\b[A-Za-z][A-Za-z'’-]*\b")

@@ -4,7 +4,6 @@ import hashlib
 import json
 import math
 import re
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from collections import Counter, defaultdict
 from collections.abc import Iterable
@@ -14,6 +13,7 @@ from uuid import uuid4
 
 from .binder import get_binder
 from .editorial_models import EditorialProfile, EditorialRunRequest
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, read_text, save_text, utc_now
 
 EDITORIAL_PROFILE_PATH = "style/editorial-profile.json"
