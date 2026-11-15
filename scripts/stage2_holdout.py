@@ -1,12 +1,13 @@
 ﻿"""Offline, fail-closed scoring of a separately labeled Stage 2 holdout.
 
-Inputs are private JSON on stdin. This validates metadata, not human identity,
-semantic distinctness, source entailment, or actual source bytes.
+Inputs are private JSON on stdin. Optional local byte verification checks hashes, not human identity,
+semantic distinctness, source entailment, or freeze timing.
 """
 import hashlib
 import json
 import re
 import sys
+from pathlib import Path
 
 HASH = re.compile(r"^[0-9a-f]{64}$")
 LENSES = {"world_truth", "character_belief", "reader_revelation"}
@@ -25,6 +26,30 @@ def text(value):
 def position(value):
     return (isinstance(value, list) and len(value) == 2 and
             all(type(n) is int and n > 0 for n in value))
+
+
+def verify_source_bytes(sources, cases, paths):
+    """Check byte hashes and half-open spans locally; never return source content."""
+    if not isinstance(paths, dict) or set(paths) != {s["id"] for s in sources}:
+        raise ValueError("source path mapping must cover sources exactly")
+    for source in sources:
+        path = paths[source["id"]]
+        if not isinstance(path, str) or not path:
+            raise ValueError("invalid source path")
+        try:
+            data = Path(path).read_bytes()
+        except (OSError, ValueError):
+            raise ValueError("source file unavailable") from None
+        if len(data) != source["length"] or hashlib.sha256(data).hexdigest() != source["sha256"]:
+            raise ValueError("source bytes mismatch")
+        for case in cases:
+            for citation in case["citations"]:
+                if citation["source_id"] == source["id"]:
+                    span_hash = citation.get("span_sha256")
+                    if not isinstance(span_hash, str) or not HASH.fullmatch(span_hash):
+                        raise ValueError("citation span hash required for byte verification")
+                    if hashlib.sha256(data[citation["start"]:citation["end"]]).hexdigest() != span_hash:
+                        raise ValueError("citation span hash mismatch")
 
 
 def evaluate(payload):
@@ -50,6 +75,8 @@ def evaluate(payload):
         if type(source.get("length")) is not int or source["length"] < 1 or type(source.get("book")) is not int or source["book"] < 1:
             raise ValueError("invalid source length or book")
         source_map[source["id"]] = source
+    if len({(s["sha256"], s["book"]) for s in sources}) != len(sources):
+        raise ValueError("duplicate source provenance")
     case_map = {}
     questions = set()
     for case in cases:
@@ -89,6 +116,9 @@ def evaluate(payload):
             if not position(citation.get("reveal_at")) or citation["reveal_at"][0] != source["book"] or citation["reveal_at"] > case["as_of"]:
                 raise ValueError("citation outside cutoff")
         case_map[case["id"]] = case
+    paths = payload.get("source_paths")
+    if paths is not None:
+        verify_source_bytes(sources, cases, paths)
     observed = {}
     for prediction in predictions:
         if not isinstance(prediction, dict) or prediction.get("id") not in case_map or prediction["id"] in observed:
@@ -99,6 +129,15 @@ def evaluate(payload):
             raise ValueError("prediction answer required")
         if prediction["label"] == "abstain" and prediction.get("answer") is not None:
             raise ValueError("invalid abstention")
+        cited = prediction.get("citations")
+        if cited is not None:
+            if not isinstance(cited, list) or any(
+                not isinstance(c, dict) or set(c) != {"source_id", "start", "end"}
+                or not isinstance(c["source_id"], str)
+                or type(c["start"]) is not int or type(c["end"]) is not int
+                for c in cited
+            ):
+                raise ValueError("invalid prediction citations")
         observed[prediction["id"]] = prediction
     if set(observed) != set(case_map):
         raise ValueError("predictions must cover holdout exactly")
@@ -106,10 +145,26 @@ def evaluate(payload):
     abstained = sum(p["label"] == "abstain" for p in observed.values())
     negatives = sum(c["label"] == "abstain" for c in cases)
     correct_abstentions = sum(c["label"] == "abstain" and observed[i]["label"] == "abstain" for i, c in case_map.items())
+    # A triage signal only: paraphrases with different vocabulary remain undetected.
+    token_sets = [set(re.findall(r"\w+", c["question"].casefold())) for c in cases]
+    similar_pairs = sum(
+        len(a & b) / len(a | b) >= 0.8
+        for i, a in enumerate(token_sets) for b in token_sets[i + 1:]
+        if a | b
+    )
+    citation_matches = 0
+    for case_id, case in case_map.items():
+        prediction = observed[case_id]
+        allowed = {(c["source_id"], c["start"], c["end"]) for c in case["citations"]}
+        cited = prediction.get("citations")
+        if (case["label"] == "answer" and prediction["label"] == "answer"
+                and cited and all((c["source_id"], c["start"], c["end"]) in allowed for c in cited)):
+            citation_matches += 1
     return {"inventory_sha256": digest(inventory), "total": len(cases), "correct": correct,
             "accuracy": correct / len(cases), "abstention_rate": abstained / len(cases),
             "negative_cases": negatives, "correct_abstentions": correct_abstentions,
-            "source_entailment": None, "source_bytes_verified": False,
+            "citation_matches": citation_matches, "similar_question_pairs": similar_pairs,
+            "source_entailment": None, "source_bytes_verified": paths is not None,
             "human_review_independently_verified": False, "semantic_distinctness_verified": False,
             "certified_5_of_5": False}
 
@@ -117,7 +172,11 @@ def evaluate(payload):
 def main():
     if len(sys.argv) != 1:
         raise SystemExit("Pipe private JSON through stdin; no paths accepted")
-    print(json.dumps(evaluate(json.load(sys.stdin)), indent=2))
+    try:
+        result = evaluate(json.load(sys.stdin))
+    except (ValueError, TypeError, KeyError, OSError):
+        raise SystemExit("Invalid input or verification failed; inspect locally without logging private data") from None
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
