@@ -160,17 +160,26 @@ def investigate(series_id: str, book: int, *, sequence: int = 999999,
             })
 
     causal_links = [_payload(row) for row in records if row["predicate"] in CAUSAL_PREDICATES]
-    thread_groups: dict[str, list[dict]] = defaultdict(list)
+    thread_groups: dict[tuple, list[dict]] = defaultdict(list)
     for row in records:
         if row["predicate"] in story.THREAD_START | story.THREAD_PAYOFF | story.THREAD_SIGNAL:
-            thread_groups[row["subject_id"]].append(row)
+            # An entity target is an explicit identity; free text is matched
+            # exactly. Similar wording does not establish a shared thread.
+            target = ("entity", row["object_entity_id"]) if row["object_entity_id"] else ("text", row["object_text"])
+            thread_groups[(row["subject_id"], row["scope"], row["knower_id"], target)].append(row)
     thread_lifecycle = []
-    for subject, entries in thread_groups.items():
+    for (subject, scope, holder, _target), entries in thread_groups.items():
         starts = [row for row in entries if row["predicate"] in story.THREAD_START]
         payoffs = [row for row in entries if row["predicate"] in story.THREAD_PAYOFF]
+        resolved = any(
+            (start["start_book"], start["start_sequence"])
+            < (payoff["start_book"], payoff["start_sequence"])
+            for start in starts for payoff in payoffs
+        )
         thread_lifecycle.append({
             "subject_id": subject, "name": entries[0]["subject_name"],
-            "status": "resolved" if payoffs else ("open" if starts else "unanchored"),
+            "scope": scope, "knower_id": holder,
+            "status": "resolved" if resolved else ("open" if starts else "unanchored"),
             "setups": [_payload(row) for row in starts],
             "payoffs": [_payload(row) for row in payoffs],
             "evidence": [_payload(row) for row in entries],
@@ -200,6 +209,7 @@ def investigate(series_id: str, book: int, *, sequence: int = 999999,
             "Source citations prove where text appears, not author intent or psychological causality.",
             "Scene sequence is assigned by authors; imported EPUBs do not automatically establish in-world chronology.",
             "Contradiction checks compare only approved, explicitly single-valued predicates; silence is not a contradiction.",
+            "Thread resolution requires the same explicit target and scope, with a setup at an earlier story position.",
         ],
     }
     response["answer_status"] = "grounded" if records else "insufficient_approved_evidence"
