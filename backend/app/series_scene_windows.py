@@ -127,6 +127,75 @@ def pov_suggestion(text: str) -> dict:
     return {"style": "undetermined", "evidence": [], "status": "abstained"}
 
 
+
+# These patterns label language in a sentence, not the truth of its content.
+_SENTENCE = re.compile(r"[^.!?\n]+(?:[.!?]+|$)")
+_MENTAL = re.compile(
+    r"\b(?P<subject>[A-Z][a-z]+)\s+(?P<verb>believed|thought|suspected|"
+    r"wondered|knew|learned|realized|remembered)\b"
+)
+_CONTEXT = (
+    ("dream", re.compile(r"\b(?:dream|dreamed|dreamt|dreaming)\b", re.I)),
+    ("flashback", re.compile(r"\b(?:years? earlier|months? earlier|weeks? earlier|"
+                             r"remembered|recalled)\b", re.I)),
+    ("hearsay", re.compile(r"\b(?:heard|rumou?r|told|said|claimed)\b", re.I)),
+    ("reader_revelation", re.compile(r"\b(?:the narrator (?:explained|revealed)|"
+                                     r"unbeknownst to)\b", re.I)),
+)
+
+
+
+def narrative_context_cues(text: str) -> list[dict]:
+    """Return literal context markers, without claiming their scope or truth."""
+    cues = [{"category": "quoted_dialogue", "start": m.start(), "end": m.end()}
+            for m in _QUOTED.finditer(text)]
+    for category, pattern in _CONTEXT:
+        for match in pattern.finditer(text):
+            # A marker inside speech describes speech, not narrative context.
+            if any(q["start"] <= match.start() < q["end"] for q in cues
+                   if q["category"] == "quoted_dialogue"):
+                continue
+            cues.append({"category": category, "start": match.start(), "end": match.end()})
+    return [dict(cue, offset_basis="window", status="heuristic_suggestion")
+            for cue in sorted(cues, key=lambda item: item["start"])[:50]]
+
+
+def knowledge_suggestions(text: str) -> list[dict]:
+    """Identify literal mental-state language for human review, never facts.
+
+    Offsets are relative to the supplied window. Context labels describe lexical
+    cues in the same sentence, not proven narrative boundaries or truth.
+    """
+    quoted = list(_QUOTED.finditer(text))
+    results = []
+    for sentence in _SENTENCE.finditer(text):
+        body = sentence.group()
+        contexts = [label for label, pattern in _CONTEXT if pattern.search(body)]
+        for match in _MENTAL.finditer(text, sentence.start(), sentence.end()):
+            # A quote or an ambiguous unclosed quote cannot establish a narrator's
+            # attribution; reported speech is also kept distinct from belief.
+            if any(q.start() <= match.start() < q.end() for q in quoted):
+                continue
+            if "hearsay" in contexts:
+                continue
+            verb = match.group("verb").lower()
+            results.append({
+                "subject_literal": match.group("subject"),
+                "cue": verb,
+                "category": "character_belief" if verb in {
+                    "believed", "thought", "suspected", "wondered"
+                } else "character_knowledge_claim",
+                "contexts": contexts or ["narration"],
+                "evidence": {"start": sentence.start(), "end": sentence.end()},
+                "cue_start": match.start(), "cue_end": match.end(),
+                "offset_basis": "window", "status": "heuristic_suggestion",
+                "truth_asserted": False, "canon_asserted": False,
+            })
+            if len(results) >= 20:
+                return results
+    return results
+
+
 def _people(content: str, entities: list[dict]) -> list[dict]:
     names = []
     for entity in entities:
@@ -184,6 +253,8 @@ def scan(series_id: str, *, book: int, offset: int = 0, limit: int = 40) -> dict
                         item for item in suggestions
                         if start <= item["offset"] < end],
                     "pov_suggestion": pov_suggestion(segment),
+                    "knowledge_suggestions": knowledge_suggestions(segment),
+                    "narrative_context_cues": narrative_context_cues(segment),
                 })
             if truncated:
                 break
@@ -197,7 +268,7 @@ def scan(series_id: str, *, book: int, offset: int = 0, limit: int = 40) -> dict
                 "EPUB section boundaries are verified formatting, not necessarily scenes. "
                 "Other divisions are bounded reading windows. Character names are literal "
                 "text matches only. No interaction, scene, character knowledge, "
-                "or canon is asserted. Boundary and POV suggestions are fallible and require author review."
+                "or canon is asserted. Boundary, POV, and knowledge cues are fallible and require author review."
             )}
 
 
