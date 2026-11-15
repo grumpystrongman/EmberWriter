@@ -194,3 +194,32 @@ def test_scene_review_portability_and_forged_range_rejection(source):
         assert reviews.list_reviews(restored_old["id"])==[]
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_scene_suggestions_are_evidence_only_and_ignore_navigation_splits():
+    text = "A notice displayed the following symbol:\n***\nThe notice continued."
+    assert windows.scene_suggestions(text) == []
+    text = "The watch continued. " * 800
+    assert len(list(windows._windows(text, 0, len(text)))) > 1
+    assert windows.scene_suggestions(text) == []
+    text = "A bell rang.\n\nSeveral weeks later, the travelers returned."
+    candidate = windows.scene_suggestions(text)[0]
+    assert text[candidate["offset"]:].startswith("Several weeks")
+    assert text[candidate["evidence_start"]:candidate["evidence_end"]] == "Several weeks later"
+
+
+def test_pov_suggestion_abstains_on_quoted_dialogue_and_single_signal():
+    assert windows.pov_suggestion('She said, "I lost my keys."')['style'] == 'undetermined'
+    assert windows.pov_suggestion('I watched. The room was silent.')['style'] == 'undetermined'
+    suggestion = windows.pov_suggestion('I watched. I waited.')
+    assert suggestion['style'] == 'first_person'
+    assert suggestion['status'] == 'heuristic_suggestion'
+    assert all('I watched. I waited.'[e['start']:e['end']] == 'I'
+               for e in suggestion['evidence'])
+
+
+def test_unicode_separators_remain_supported():
+    for marker in ("\u2042", "\u2014 \u2014 \u2014"):
+        text = "Before.\n" + marker + "\nAfter."
+        assert len(windows.scene_suggestions(text)) == 1
+        assert len(list(windows._windows(text, 0, len(text)))) == 2

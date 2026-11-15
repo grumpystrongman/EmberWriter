@@ -1,9 +1,7 @@
 """Predeclared synthetic literary interpretation evaluation, no LLM or manuscripts.
 
-Gold scene breaks and narrative truths are authored fixture labels. Current
-production behavior only creates bounded reading windows; it never predicts
-scene identity, viewpoint, or character knowledge. A false split is not a
-confirmed scene and must never be graded as an approved narrative interpretation.
+Gold scene breaks and narrative truths are authored fixture labels. Production
+suggestions are scored separately from navigation windows and author approval.
 """
 from __future__ import annotations
 
@@ -112,12 +110,9 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
         content = case["text"]
         if not content:
             raise ValueError("Empty fixture passage")
-        divisions = list(windows._windows(content, 0, len(content)))
-        # All reading-window breaks are only *candidates*. We measure how
-        # frequently those boundaries align with predeclared fixture gold.
-        # Whitespace to the right of a printed marker is not a literary break.
-        starts = sorted({start + len(content[start:end])-len(content[start:end].lstrip())
-                         for start,end,_ in divisions[1:]})
+        suggestions = windows.scene_suggestions(content)
+        starts = [item["offset"] for item in suggestions]
+        pov = windows.pov_suggestion(content)["style"]
         at = case["gold_at"]
         # Match at most ONE candidate to a gold boundary. Multiple nearby
         # navigation splits cannot all receive credit for the same scene.
@@ -148,8 +143,9 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
                               "miss" if actual else
                               "false_positive" if starts else "correct_rejection",
             "gold_pov":case["gold_pov"],
-            "predicted_pov":"undetermined",
-            "pov_grading":"abstained",
+            "predicted_pov":pov,
+            "pov_grading":"abstained" if pov == "undetermined" else
+                          "correct" if pov == case["gold_pov"] else "incorrect",
             "gold_character_knowledge":case["gold_knowledge"],
             "predicted_character_knowledge":"unknown",
             "knowledge_grading":"abstained" if case["gold_knowledge"]!="unknown"
@@ -171,8 +167,10 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
                     "false_negative":fn,"true_negative":tn,
                     "precision":round(precision,4),"recall":round(recall,4),
                     "f1":round(f1,4)},
-        "pov":{"gold_cases":known_pov,"prediction_coverage":0,
-               "correct_predictions":0,"unsupported_predictions":0},
+        "pov":{"gold_cases":known_pov,
+               "prediction_coverage":sum(r["pov_grading"] != "abstained" for r in rows),
+               "correct_predictions":sum(r["pov_grading"] == "correct" for r in rows),
+               "unsupported_predictions":sum(r["pov_grading"] == "incorrect" for r in rows)},
         "character_knowledge":{"gold_known_cases":known_knowledge,
                                "prediction_coverage":0,
                                "correct_predictions":0,
@@ -183,10 +181,9 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
         "source_text_sent":False,
         "external_model_calls":False,
         "limitations":(
-            "Synthetic, authored gold cases only. Current navigation windows "
-            "are never scene labels. A hit measures proximity of a reading "
-            "window boundary, not semantic recognition. POV/knowledge inference "
-            "abstains; production scene approval requires human verification."
+            "Synthetic authored cases only; candidate offsets and POV are fallible "
+            "heuristics, not approved scenes or canon. Knowledge inference abstains. "
+            "This small fixture set cannot establish real manuscript performance."
         ),
     }
 
