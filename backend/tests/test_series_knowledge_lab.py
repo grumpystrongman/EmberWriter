@@ -103,6 +103,26 @@ def test_exclusive_overlaps_flagged_but_relationships_not_equated(cycle):
     assert {row["value"] for row in b2["world_truths"]} == {"crypt", "tower"}
 
 
+def test_conflict_detects_nonadjacent_overlapping_claims(cycle):
+    sid, _, _, _mira, _rowan, crown = cycle
+    first = claim(cycle, 1, "crown rested in the crypt", crown,
+                  "located_in", "crypt")
+    middle = claim(cycle, 2, "crown traveled to the tower", crown,
+                   "located_in", "tower", end_book=2)
+    last = claim(cycle, 3, "Mira told Rowan about the crown", crown,
+                 "located_in", "vault")
+    for item in (first, middle, last):
+        canon.review_fact(sid, item["id"], "approved")
+    result = lab.investigate(sid, 3, subject_id=crown["id"])
+    pairs = {(c["older"]["id"], c["newer"]["id"]) for c in result["possible_conflicts"]}
+    assert (first["id"], last["id"]) in pairs
+    assert (middle["id"], last["id"]) not in pairs
+    assert all(c["older"]["citation"] and c["newer"]["citation"]
+               for c in result["possible_conflicts"])
+    assert all(c["newer"]["id"] != last["id"]
+               for c in lab.investigate(sid, 2)["possible_conflicts"])
+
+
 def test_future_book_and_future_scene_not_visible(cycle):
     sid, _, _, mira, rowan, _crown = cycle
     future = claim(cycle, 3, "Mira told Rowan", mira,
@@ -189,3 +209,38 @@ def test_two_character_filter_requires_actual_shared_evidence(cycle):
     assert [row["id"] for row in state["history"]] == [shared["id"]]
     assert [row["id"] for row in state["relationships"]] == [shared["id"]]
     assert state["possible_conflicts"] == []
+
+
+def test_temporal_abstains_for_unrelated_question_and_keeps_scopes_separate(cycle):
+    sid, _, _, mira, _, crown = cycle
+    location = claim(cycle, 1, "crown rested in the crypt", crown,
+                     "located_in", "crypt")
+    belief = claim(cycle, 1, "Mira mistrusted Rowan", crown,
+                   "harmless", "yes", scope="character_belief", knower=mira)
+    for item in (location, belief):
+        canon.review_fact(sid, item["id"], "approved")
+    unrelated = canon.ask_temporal(sid, "Why was the Blue Crown forged?", 1)
+    assert unrelated["facts"] == []
+    assert unrelated["sources"] == []
+    assert "can't establish" in unrelated["answer"]
+    assert canon.ask_temporal(sid, "Where is the Blue Crown?", 1)["facts"][0]["id"] == location["id"]
+    assert canon.ask_temporal(sid, "Is the Blue Crown harmless?", 1)["facts"] == []
+    result = canon.ask_temporal(sid, "Is the Blue Crown harmless?", 1,
+                                scope="character_belief", knower_id=mira["id"])
+    assert result["facts"][0]["id"] == belief["id"]
+
+
+def test_relationship_causal_evidence_is_explicit_and_scene_bounded(cycle):
+    sid, _, _, mira, rowan, _ = cycle
+    relationship = claim(cycle, 1, "Mira mistrusted Rowan", mira,
+                         "distrust", "Rowan", target=rowan)
+    cause = claim(cycle, 2, "Mira learned Rowan had defended her", mira,
+                  "caused_by", "Rowan's defense", target=rowan, sequence=5)
+    for item in (relationship, cause):
+        canon.review_fact(sid, item["id"], "approved")
+    early = lab.investigate(sid, 2, sequence=4, subject_id=mira["id"], other_id=rowan["id"])
+    assert [row["id"] for row in early["relationships"]] == [relationship["id"]]
+    assert early["causal_links"] == []
+    later = lab.investigate(sid, 2, sequence=5, subject_id=mira["id"], other_id=rowan["id"])
+    assert [row["id"] for row in later["causal_links"]] == [cause["id"]]
+    assert later["causal_links"][0]["citation"]["quote"] == "Mira learned Rowan had defended her"

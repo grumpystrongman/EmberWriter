@@ -328,15 +328,31 @@ def ask_temporal(series_id: str, question: str, book: int, *,
     state = at_book(series_id, book, sequence, scope=scope,
                     subject_id=subject_id, knower_id=knower_id)
     tokens = set(WORD.findall(lower)) - STOP
+    # Entity names identify the subject; they do not establish relevance to
+    # the question. A small explicit location mapping supports "where" while
+    # otherwise requiring a predicate/value match and conservatively abstaining.
+    for entity in entities:
+        for name in [entity["name"], *entity["aliases"]]:
+            tokens -= set(WORD.findall(name.casefold()))
+    causal_question = bool({"why", "cause", "caused"} & set(WORD.findall(lower)))
+    causal_predicates = {"causes", "caused_by", "leads_to", "consequence_of",
+                         "triggered_by", "enables", "prevents"}
     ranked = []
     for claim in state["facts"]:
         haystack = set(WORD.findall(
             (claim["predicate"].replace("_", " ") + " " + claim["object_text"] +
              " " + claim["subject_name"]).casefold()))
         score = len(tokens & haystack)
-        if subject_id and claim["subject_id"] == subject_id:
-            score += 4
-        ranked.append((score, claim))
+        if "where" in set(WORD.findall(lower)) and claim["predicate"] in {
+            "located_in", "location", "current_location"
+        }:
+            score += 1
+        if causal_question:
+            if claim["predicate"] not in causal_predicates:
+                continue
+            score += 1
+        if score:
+            ranked.append((score, claim))
     ranked.sort(key=lambda pair: (-pair[0], pair[1]["start_book"],
                                   pair[1]["start_sequence"]))
     selected = [row for _, row in ranked[:12]]

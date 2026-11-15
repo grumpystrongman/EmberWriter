@@ -56,3 +56,7 @@ The scorecard lives at `frontend/src/release-gates.ts` and can be checked in the
 ## Stage 1 evidence
 
 See `docs/reviews/2026-11-13-unified-release-lab-build.md` for real desktop/mobile screenshots and the Release Lab walkthrough, `docs/reviews/2026-11-13-character-atlas-test.json` for private 80-book research metadata, `scripts/verify_release_scorecard.mjs` for fail-closed certification, and `backend/tests/test_series_bulk_import.py` for importer safety regression tests.
+
+## Stage 2 question inventory audit
+
+On Windows PowerShell, pipe a local JSON array through stdin: `Get-Content -Raw local-inventory.json | py -3.14 scripts/audit_stage2_questions.py`. The audit script never opens a CLI-supplied file path. Each entry has `question`, `origin` (`synthetic` or `author_reviewed`), and a nonempty `review_reference` for a claimed reviewed question. It counts normalized distinct text and flags duplicates. It does not verify semantic distinctness, reviewer identity, citations, answer quality, or human signoff; paraphrases can inflate the count. Review these independently. Keep private questions, review records, quotations, and manuscripts local and out of Git. The 50 synthetic location fixtures are not 50 author-reviewed questions. The >=50 acceptance gate remains unmet until independent review evidence exists.

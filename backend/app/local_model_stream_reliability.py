@@ -17,6 +17,7 @@ from .performance_telemetry import record_model_call
 
 _FIRST_TOKEN_TIMEOUT_SECONDS = 15 * 60
 _INTER_TOKEN_TIMEOUT_SECONDS = 5 * 60
+_MAX_STREAM_SECONDS = 30 * 60
 _LARGE_MODEL_CONTEXT_TOKENS = 16384
 _LARGE_MODEL_HINTS = ("cydonia", "24b", "24-b", "24_b")
 _HERETIC_ROCINANTE = "hf.co/mradermacher/Rocinante-X-12B-v1-Heretic-Uncensored-GGUF:Q4_K_M"
@@ -233,13 +234,15 @@ async def generate_streamed_reliable(
 
                 line_iterator = response.aiter_lines().__aiter__()
                 saw_text = False
+                saw_done = False
+                stream_deadline = perf_counter() + _MAX_STREAM_SECONDS
+                deadline = perf_counter() + _FIRST_TOKEN_TIMEOUT_SECONDS
                 while True:
-                    watchdog = (
-                        _INTER_TOKEN_TIMEOUT_SECONDS if saw_text else _FIRST_TOKEN_TIMEOUT_SECONDS
-                    )
                     try:
-                        line = await _next_line(line_iterator, watchdog)
+                        line = await _next_line(line_iterator, max(0, min(deadline, stream_deadline) - perf_counter()))
                     except TimeoutError as exc:
+                        if perf_counter() >= stream_deadline:
+                            raise RuntimeError("Local model generation exceeded its 30-minute limit") from exc
                         if saw_text:
                             raise RuntimeError(
                                 "The local writing model stopped sending output for 5 minutes after generation had started, "
@@ -267,15 +270,21 @@ async def generate_streamed_reliable(
                         raise RuntimeError("Ollama returned an invalid streaming response") from exc
                     if payload.get("error"):
                         raise RuntimeError(f"Ollama generation failed: {payload['error']}")
-                    if payload.get("done"):
+                    if payload.get("done") is True:
+                        saw_done = True
                         final_metrics = payload
                     piece = str(payload.get("message", {}).get("content", ""))
                     if piece:
                         if not saw_text:
                             first_token_ms = (perf_counter() - call_started) * 1000.0
                         saw_text = True
+                        deadline = perf_counter() + _INTER_TOKEN_TIMEOUT_SECONDS
                         pieces.append(piece)
                         await on_delta(piece)
+                    if saw_done:
+                        break
+                if not saw_done:
+                    raise RuntimeError("Ollama stream ended before its completion marker; output is incomplete")
         except httpx.ConnectError as exc:
             raise RuntimeError(
                 "The local writing model server disconnected during generation. "

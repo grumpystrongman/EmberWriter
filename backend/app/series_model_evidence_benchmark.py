@@ -6,6 +6,7 @@ It never reads Series sources. A result cannot authorize automatic canon approva
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -98,7 +99,8 @@ def _prompt(case: dict) -> str:
 async def _evaluate(model: str) -> dict:
     started = time.perf_counter()
     results = []
-    async with asyncio.timeout(MAX_WALL_SECONDS):
+    try:
+      async with asyncio.timeout(MAX_WALL_SECONDS):
         async with httpx.AsyncClient(
             trust_env=False, timeout=httpx.Timeout(
                 CASE_TIMEOUT_SECONDS, connect=3.0, read=CASE_TIMEOUT_SECONDS
@@ -115,7 +117,8 @@ async def _evaluate(model: str) -> dict:
                         "format": "json", "keep_alive": "1m", "think": False,
                         "options": {"temperature": 0, "num_predict": 120, "num_ctx": 1536},
                     }
-                    response = await client.post(LOOPBACK, json=payload)
+                    async with asyncio.timeout(CASE_TIMEOUT_SECONDS):
+                        response = await client.post(LOOPBACK, json=payload)
                     response.raise_for_status()
                     body = response.json()
                     if not isinstance(body, dict):
@@ -135,14 +138,24 @@ async def _evaluate(model: str) -> dict:
                     "answer_correct": answer_correct, "quote_correct": quote_correct,
                     "elapsed_ms": round((time.perf_counter() - case_started) * 1000, 1),
                 })
+    except TimeoutError:
+        pass
+    completed_ids = {case["id"] for case in results}
+    incomplete = len(results) < len(CASES)
+    for case in CASES:
+        if case["id"] not in completed_ids:
+            results.append({"id": case["id"], "label": case["label"], "status": "not_run",
+                            "answer_correct": False, "quote_correct": False, "elapsed_ms": None})
     passed = sum(case["status"] == "passed" for case in results)
     return {
         "model": model, "passed": passed, "total": len(CASES),
-        "status": "passed" if passed == len(CASES) else "partial" if passed else "failed",
+        "status": "timed_out" if incomplete else "passed" if passed == len(CASES) else "partial" if passed else "failed",
         "cases": results, "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
         "synthetic_only": True, "source_text_sent": False,
         "auto_approval_allowed": False,
         "grading": "predeclared_exact_answer_and_source_quote",
+        "case_set_sha256": hashlib.sha256(json.dumps(CASES, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest(),
+        "case_timeout_seconds": CASE_TIMEOUT_SECONDS, "maximum_duration_seconds": MAX_WALL_SECONDS,
         "limitations": (
             "Ten synthetic factual and cross-book questions only. This does not establish "
             "creative-writing quality, scene understanding or long-book continuity. "
