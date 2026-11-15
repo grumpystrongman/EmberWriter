@@ -165,7 +165,7 @@ def test_causal_thread_setup_and_payoff_are_source_bound_and_not_spoiled(cycle):
     setup = claim(cycle, 1, "The crown foreshadows the sealed gate",
                   crown, "foreshadows", "sealed gate")
     payoff = claim(cycle, 3, "The crown resolves the sealed gate mystery",
-                   crown, "resolves", "sealed gate mystery")
+                   crown, "resolves", "sealed gate")
     canon.review_fact(sid, setup["id"], "approved")
     canon.review_fact(sid, payoff["id"], "approved")
     first = lab.investigate(sid, 1, subject_id=crown["id"])
@@ -244,3 +244,37 @@ def test_relationship_causal_evidence_is_explicit_and_scene_bounded(cycle):
     later = lab.investigate(sid, 2, sequence=5, subject_id=mira["id"], other_id=rowan["id"])
     assert [row["id"] for row in later["causal_links"]] == [cause["id"]]
     assert later["causal_links"][0]["citation"]["quote"] == "Mira learned Rowan had defended her"
+
+
+def test_thread_resolution_requires_matching_scope_target_and_earlier_setup(cycle):
+    sid, _, _, mira, rowan, crown = cycle
+    rows = [
+        claim(cycle, 1, "crown rested in the crypt", crown, "resolves", "gate"),
+        claim(cycle, 2, "crown traveled to the tower", crown, "foreshadows", "gate"),
+        claim(cycle, 3, "Mira told Rowan", crown, "resolves", "door"),
+        claim(cycle, 3, "Mira told Rowan", crown, "resolves", "gate",
+              scope="character_belief", knower=mira),
+        claim(cycle, 3, "Mira told Rowan", crown, "foreshadows", "gate",
+              scope="character_belief", knower=rowan),
+    ]
+    for row in rows:
+        canon.review_fact(sid, row["id"], "approved")
+    threads = lab.investigate(sid, 3, subject_id=crown["id"])["thread_lifecycle"]
+    assert len(threads) == 4
+    assert all(thread["status"] != "resolved" for thread in threads)
+    assert all(item["citation"]["source_id"] for thread in threads for item in thread["evidence"])
+
+    payoff = claim(cycle, 3, "Mira told Rowan", crown, "resolves", "gate", sequence=1)
+    canon.review_fact(sid, payoff["id"], "approved")
+    threads = lab.investigate(sid, 3, sequence=1, subject_id=crown["id"])["thread_lifecycle"]
+    assert [thread["status"] for thread in threads].count("resolved") == 1
+
+
+def test_same_scene_setup_and_payoff_do_not_establish_order(cycle):
+    sid, _, _, _, _, crown = cycle
+    setup = claim(cycle, 1, "crown rested in the crypt", crown, "foreshadows", "gate", sequence=3)
+    payoff = claim(cycle, 1, "The crown foreshadows the sealed gate", crown, "resolves", "gate", sequence=3)
+    for row in (setup, payoff):
+        canon.review_fact(sid, row["id"], "approved")
+    assert lab.investigate(sid, 1, sequence=2)["thread_lifecycle"] == []
+    assert lab.investigate(sid, 1, sequence=3)["thread_lifecycle"][0]["status"] == "open"

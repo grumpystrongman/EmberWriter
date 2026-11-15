@@ -82,3 +82,52 @@ def test_abstention_and_missing_prediction(payload):
     payload["predictions"] = []
     with pytest.raises(ValueError, match="cover"):
         holdout.evaluate(payload)
+
+
+def test_local_source_bytes_and_citation_match(payload, tmp_path):
+    data = b"synthetic source bytes"
+    source = payload["inventory"]["sources"][0]
+    citation = payload["inventory"]["cases"][0]["citations"][0]
+    source.update(sha256=holdout.hashlib.sha256(data).hexdigest(), length=len(data))
+    citation.update(source_sha256=source["sha256"], span_sha256=holdout.hashlib.sha256(data[:10]).hexdigest())
+    source_file = tmp_path / "private.txt"
+    source_file.write_bytes(data)
+    payload["source_paths"] = {"s": str(source_file)}
+    payload["inventory_sha256"] = holdout.digest(payload["inventory"])
+    payload["predictions"][0]["citations"] = [{"source_id": "s", "start": 0, "end": 10}]
+    result = holdout.evaluate(payload)
+    assert result["source_bytes_verified"] and result["citation_matches"] == 1
+    payload["predictions"][0]["citations"][0]["end"] = 9
+    assert holdout.evaluate(payload)["citation_matches"] == 0
+    source_file.write_bytes(b"x" * len(data))
+    with pytest.raises(ValueError, match="source bytes mismatch"):
+        holdout.evaluate(payload)
+
+
+def test_span_hash_and_duplicate_provenance_rejected(payload, tmp_path):
+    data = b"x" * 50
+    source = payload["inventory"]["sources"][0]
+    citation = payload["inventory"]["cases"][0]["citations"][0]
+    source["sha256"] = holdout.hashlib.sha256(data).hexdigest()
+    citation.update(source_sha256=source["sha256"], span_sha256="0" * 64)
+    source_file = tmp_path / "source"
+    source_file.write_bytes(data)
+    payload["source_paths"] = {"s": str(source_file)}
+    payload["inventory_sha256"] = holdout.digest(payload["inventory"])
+    with pytest.raises(ValueError, match="span hash mismatch"):
+        holdout.evaluate(payload)
+    duplicate = copy.deepcopy(source)
+    duplicate["id"] = "alias"
+    payload["inventory"]["sources"].append(duplicate)
+    payload["inventory_sha256"] = holdout.digest(payload["inventory"])
+    with pytest.raises(ValueError, match="duplicate source provenance"):
+        holdout.evaluate(payload)
+
+
+def test_similar_questions_are_flagged_not_certified(payload):
+    other = copy.deepcopy(payload["inventory"]["cases"][0])
+    other.update(id="other", question="Who knows now?")
+    payload["inventory"]["cases"].append(other)
+    payload["predictions"].append({"id": "other", "label": "answer", "answer": "A"})
+    payload["inventory_sha256"] = holdout.digest(payload["inventory"])
+    assert not holdout.evaluate(payload)["semantic_distinctness_verified"]

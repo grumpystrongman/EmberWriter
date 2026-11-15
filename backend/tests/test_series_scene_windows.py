@@ -223,3 +223,39 @@ def test_unicode_separators_remain_supported():
         text = "Before.\n" + marker + "\nAfter."
         assert len(windows.scene_suggestions(text)) == 1
         assert len(list(windows._windows(text, 0, len(text)))) == 2
+
+
+def test_knowledge_cues_are_literal_scoped_and_not_truth():
+    text = ("Mara believed the bridge was safe. Years earlier, Mara remembered the fire. "
+            "In a dream, Mara knew the door was open. ")
+    cues = windows.knowledge_suggestions(text)
+    assert [c["category"] for c in cues] == [
+        "character_belief", "character_knowledge_claim", "character_knowledge_claim"]
+    assert [c["contexts"] for c in cues] == [["narration"], ["flashback"], ["dream"]]
+    for cue in cues:
+        assert text[cue["cue_start"]:cue["cue_end"]].startswith("Mara ")
+        assert cue["subject_literal"] in text[cue["evidence"]["start"]:cue["evidence"]["end"]]
+        assert not cue["truth_asserted"] and not cue["canon_asserted"]
+
+
+def test_knowledge_cues_abstain_for_dialogue_and_hearsay():
+    assert windows.knowledge_suggestions('"Mara knew the code," he said.') == []
+    assert windows.knowledge_suggestions("Lena said Mara believed the bridge safe.") == []
+    assert windows.knowledge_suggestions('She whispered, "Mara knew the secret') == []
+    assert windows.knowledge_suggestions("Mara opened the door.") == []
+
+
+def test_window_api_exposes_local_evidence_without_approval(source):
+    sid, _source_id, _ada, _content = source
+    row = windows.scan(sid, book=1)["windows"][0]
+    assert row["knowledge_suggestions"] == []
+    assert not row["scene_confirmed"] and not row["pov_inferred"]
+
+
+def test_context_markers_keep_speech_and_revelation_distinct():
+    text = '"I dreamed," she said. Years earlier, a rumor spread. The narrator revealed a key.'
+    cues = windows.narrative_context_cues(text)
+    categories = [c["category"] for c in cues]
+    assert categories == ["quoted_dialogue", "hearsay", "flashback", "hearsay", "reader_revelation"]
+    assert all(text[c["start"]:c["end"]] for c in cues)
+    assert all(c["status"] == "heuristic_suggestion" for c in cues)
