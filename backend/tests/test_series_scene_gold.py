@@ -49,16 +49,15 @@ def test_scene_navigation_does_not_pass_as_semantic_certification():
     assert result["scene_interpretation_gate"]=="blocked"
     assert not result["automatic_scene_approval_allowed"]
     assert not result["external_model_calls"] and not result["source_text_sent"]
-    assert result["pov"]["prediction_coverage"]==0
+    assert result["pov"]["prediction_coverage"]==1
     assert result["character_knowledge"]["prediction_coverage"]==0
-    assert result["boundary"]["false_positive"]>=1
+    assert result["boundary"]["false_positive"]==0
     assert result["boundary"]["false_negative"]>=1
     assert result["boundary"]["f1"]<0.90
     assert result["boundary"]["true_positive"]>=2
-    assert any(x["boundary_result"]=="false_positive" for x in result["cases"])
     assert any(x["boundary_result"]=="miss" for x in result["cases"])
     assert any(x["boundary_result"]=="correct_rejection" for x in result["cases"])
-    assert all(x["predicted_pov"]=="undetermined" for x in result["cases"])
+    assert sum(x["predicted_pov"]!="undetermined" for x in result["cases"])==1
     assert all(x["predicted_character_knowledge"]=="unknown" for x in result["cases"])
 
 
@@ -74,7 +73,7 @@ def test_scoring_counts_every_extra_candidate_as_false_positive():
     case=gold._case(gold.GOLD[-1])
     assert not case["gold_break"]
     outcome=gold.score_boundary_candidates((case,))
-    assert outcome["boundary"]["false_positive"]>=1
+    assert outcome["boundary"]["false_positive"]==0
     assert outcome["boundary"]["true_positive"]==0
 
 
@@ -112,7 +111,7 @@ def test_evaluation_counts_author_review_but_never_promotes_to_gold(book):
     new=gold.evaluate(sid,book=1)
     assert new["author_reviews"]["author_confirmed_scenes"]==1
     assert new["case_count"]==12
-    assert new["pov"]["prediction_coverage"]==0
+    assert new["pov"]["prediction_coverage"]==1
     assert new["scene_interpretation_gate"]=="blocked"
 
 
@@ -122,12 +121,8 @@ def test_one_to_one_matching_penalizes_near_duplicate_candidate(monkeypatch):
     # Two starts fall within the matching tolerance of one real boundary.
     # A scoring implementation must not award both as true positives.
     monkeypatch.setattr(
-        windows, "_windows",
-        lambda content, start, end: iter([
-            (0, at, "test"),
-            (at, at + 1, "test"),
-            (at + 1, len(content), "test"),
-        ]),
+        windows, "scene_suggestions",
+        lambda content: [{"offset": at}, {"offset": at + 1}],
     )
     result = gold.score_boundary_candidates((case,))
     assert result["boundary"]["true_positive"] == 1
@@ -165,12 +160,8 @@ def test_one_boundary_cannot_cancel_extra_long_window_splits(monkeypatch):
     at = case["gold_at"]
     # Keep a real match and add one distant convenience split.
     monkeypatch.setattr(
-        windows, "_windows",
-        lambda content, start, end: iter([
-            (0, at // 2, "test"),
-            (at // 2, at, "test"),
-            (at, len(content), "test"),
-        ]),
+        windows, "scene_suggestions",
+        lambda content: [{"offset": at // 2}, {"offset": at}],
     )
     result = gold.score_boundary_candidates((case,))
     assert result["boundary"]["true_positive"] == 1

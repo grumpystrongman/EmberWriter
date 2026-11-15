@@ -1,8 +1,8 @@
-"""Deterministic chapter-scoped reading windows; never infer literal scenes/POV.
+"""Deterministic reading windows and tentative, source-bound literary cues.
 
 Only verified EPUB headings and explicit typography are structural evidence.
 Length-based splits are navigation conveniences, not narrative scene boundaries.
-No manuscript bytes stored, generated model claims, or canon mutations.
+Suggestions are not author-approved scenes or canon. No manuscript bytes stored.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ WINDOW_TARGET = 5200
 WINDOW_LIMIT = 8500
 MAX_PER_BOOK = 1200
 MAX_BOOK_CHARS = 2_000_000
-BREAK = re.compile(r"(?m)^[ \t]*(?:\*\s*\*\s*\*|#\s*#\s*#|⁂|—\s*—\s*—)[ \t]*$")
+BREAK = re.compile(r"(?m)^[ \t]*(?:\*\s*\*\s*\*|#\s*#\s*#|\u2042|\u2014\s*\u2014\s*\u2014)[ \t]*$")
 PARAGRAPH = re.compile(r"\n\s*\n")
 MAX_QUOTE = 250
 
@@ -82,6 +82,51 @@ def _windows(text: str, start: int, end: int):
             cursor = final
 
 
+# These cues are intentionally narrow. They identify review candidates, not facts.
+_TIME_SHIFT = re.compile(
+    r"(?i)(?:\w+\s+)?(?:days?|weeks?|months?|years?)\s+(?:later|earlier)\b"
+)
+_FIRST_PERSON = re.compile(r"(?i)\b(?:I|me|my|mine|myself)\b")
+_QUOTED = re.compile(r'"[^"\n]*(?:"|$)|\u201c[^\u201d\n]*(?:\u201d|$)')
+
+
+def scene_suggestions(text: str, start: int = 0, end: int | None = None) -> list[dict]:
+    """Return source offsets and literal evidence for tentative boundaries only."""
+    end = len(text) if end is None else end
+    suggestions = []
+    for match in BREAK.finditer(text, start, end):
+        before = text[start:match.start()].rstrip()
+        after = match.end()
+        while after < end and text[after].isspace():
+            after += 1
+        # A mark introduced as displayed content is weak boundary evidence.
+        if before and after < end and not before.endswith((':', '\uff1a')):
+            suggestions.append({"offset": after, "status": "heuristic_suggestion", "reason": "typographic_separator",
+                                "evidence_start": match.start(), "evidence_end": match.end()})
+    for match in PARAGRAPH.finditer(text, start, end):
+        after = match.end()
+        cue = _TIME_SHIFT.match(text, after, end)
+        if start < match.start() and after < end and cue:
+            suggestions.append({"offset": after, "status": "heuristic_suggestion", "reason": "elapsed_time_cue",
+                                "evidence_start": after, "evidence_end": cue.end()})
+    return sorted(suggestions, key=lambda item: item["offset"])
+
+
+def pov_suggestion(text: str) -> dict:
+    """Suggest first person only with repeated unquoted first-person signals.
+
+    Quoted speech is ignored; this remains a fallible voice cue, not a claim
+    about a particular character or an author-approved viewpoint.
+    """
+    unquoted = _QUOTED.sub(lambda m: ' ' * len(m.group()), text)
+    hits = list(_FIRST_PERSON.finditer(unquoted))
+    if len(hits) >= 2:
+        return {"style": "first_person", "offset_basis": "window", "evidence": [
+            {"start": m.start(), "end": m.end()} for m in hits[:10]],
+            "status": "heuristic_suggestion"}
+    return {"style": "undetermined", "evidence": [], "status": "abstained"}
+
+
 def _people(content: str, entities: list[dict]) -> list[dict]:
     names = []
     for entity in entities:
@@ -116,6 +161,7 @@ def scan(series_id: str, *, book: int, offset: int = 0, limit: int = 40) -> dict
             break
         saved = epub_index.read(series_id, source["id"])
         for section in _sections(text, saved):
+            suggestions = scene_suggestions(text, section["start"], section["end"])
             for start, end, reason in _windows(text, section["start"], section["end"]):
                 if len(rows)>=MAX_PER_BOOK:
                     truncated=True
@@ -134,9 +180,15 @@ def scan(series_id: str, *, book: int, offset: int = 0, limit: int = 40) -> dict
                     "character_mentions":_people(segment, people),
                     "scene_confirmed":False, "pov_inferred":False,
                     "reading_window_only":True,
+                    "scene_boundary_suggestions": [
+                        item for item in suggestions
+                        if start <= item["offset"] < end],
+                    "pov_suggestion": pov_suggestion(segment),
                 })
-            if truncated: break
-        if truncated: break
+            if truncated:
+                break
+        if truncated:
+            break
     return {"series_id":series_id,"book":book,"total":len(rows),
             "windows":rows[offset:offset+limit],
             "source_count":len(volumes[0]["sources"]),
@@ -144,8 +196,8 @@ def scan(series_id: str, *, book: int, offset: int = 0, limit: int = 40) -> dict
             "disclaimer":(
                 "EPUB section boundaries are verified formatting, not necessarily scenes. "
                 "Other divisions are bounded reading windows. Character names are literal "
-                "text matches only. No POV, interaction, scene, character knowledge, "
-                "or canon is inferred."
+                "text matches only. No interaction, scene, character knowledge, "
+                "or canon is asserted. Boundary and POV suggestions are fallible and require author review."
             )}
 
 
