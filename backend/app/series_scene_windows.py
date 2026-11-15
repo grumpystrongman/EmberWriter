@@ -135,12 +135,12 @@ _MENTAL = re.compile(
     r"wondered|knew|learned|realized|remembered)\b"
 )
 _CONTEXT = (
-    ("dream", re.compile(r"\b(?:dream|dreamed|dreamt|dreaming)\b", re.I)),
+    ("dream", re.compile(r"\b(?:dream|dreamed|dreamt|dreaming)\b", re.IGNORECASE)),
     ("flashback", re.compile(r"\b(?:years? earlier|months? earlier|weeks? earlier|"
-                             r"remembered|recalled)\b", re.I)),
-    ("hearsay", re.compile(r"\b(?:heard|rumou?r|told|said|claimed)\b", re.I)),
+                             r"remembered|recalled)\b", re.IGNORECASE)),
+    ("hearsay", re.compile(r"\b(?:heard|rumou?r|told|said|claimed)\b", re.IGNORECASE)),
     ("reader_revelation", re.compile(r"\b(?:the narrator (?:explained|revealed)|"
-                                     r"unbeknownst to)\b", re.I)),
+                                     r"unbeknownst to)\b", re.IGNORECASE)),
 )
 
 
