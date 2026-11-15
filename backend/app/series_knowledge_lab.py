@@ -8,7 +8,7 @@ not guessed from the EPUB offset.
 from __future__ import annotations
 
 from collections import defaultdict
-from itertools import pairwise
+from itertools import combinations, pairwise
 
 from . import series_canon as canon
 from . import series_story_state as story
@@ -141,6 +141,23 @@ def investigate(series_id: str, book: int, *, sequence: int = 999999,
             changes.append(item)
             if item["classification"] == "possible_conflict":
                 conflicts.append(item)
+
+        # Adjacent history alone misses an older, still-active claim when an
+        # intervening claim has already ended. Compare every other pair for
+        # exclusive-state conflicts without inventing extra history changes.
+        for (i, older), (j, newer) in combinations(enumerate(group), 2):
+            if j == i + 1 or older["predicate"] not in EXCLUSIVE_PREDICATES:
+                continue
+            if (older["object_text"], older["object_entity_id"]) == (newer["object_text"], newer["object_entity_id"]):
+                continue
+            if not _active(older, newer["start_book"], newer["start_sequence"]):
+                continue
+            conflicts.append({
+                "subject": older["subject_name"],
+                "predicate": older["predicate"], "scope": older["scope"],
+                "older": _payload(older), "newer": _payload(newer),
+                "classification": "possible_conflict", "requires_author_review": True,
+            })
 
     causal_links = [_payload(row) for row in records if row["predicate"] in CAUSAL_PREDICATES]
     thread_groups: dict[str, list[dict]] = defaultdict(list)

@@ -103,6 +103,26 @@ def test_exclusive_overlaps_flagged_but_relationships_not_equated(cycle):
     assert {row["value"] for row in b2["world_truths"]} == {"crypt", "tower"}
 
 
+def test_conflict_detects_nonadjacent_overlapping_claims(cycle):
+    sid, _, _, _mira, _rowan, crown = cycle
+    first = claim(cycle, 1, "crown rested in the crypt", crown,
+                  "located_in", "crypt")
+    middle = claim(cycle, 2, "crown traveled to the tower", crown,
+                   "located_in", "tower", end_book=2)
+    last = claim(cycle, 3, "Mira told Rowan about the crown", crown,
+                 "located_in", "vault")
+    for item in (first, middle, last):
+        canon.review_fact(sid, item["id"], "approved")
+    result = lab.investigate(sid, 3, subject_id=crown["id"])
+    pairs = {(c["older"]["id"], c["newer"]["id"]) for c in result["possible_conflicts"]}
+    assert (first["id"], last["id"]) in pairs
+    assert (middle["id"], last["id"]) not in pairs
+    assert all(c["older"]["citation"] and c["newer"]["citation"]
+               for c in result["possible_conflicts"])
+    assert all(c["newer"]["id"] != last["id"]
+               for c in lab.investigate(sid, 2)["possible_conflicts"])
+
+
 def test_future_book_and_future_scene_not_visible(cycle):
     sid, _, _, mira, rowan, _crown = cycle
     future = claim(cycle, 3, "Mira told Rowan", mira,
