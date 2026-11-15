@@ -171,10 +171,10 @@ def answer(series_id: str, question: str, query: str, as_of_book: int,
                 reasons.append("tautological_answer")
         if comparison and len({citation["book"] for citation in citations}) < 2:
             reasons.append("insufficient_temporal_evidence")
-        if requested is not None and not set(requested).issubset(
-                {citation["book"] for citation in citations}):
-            if "insufficient_temporal_evidence" not in reasons:
-                reasons.append("insufficient_temporal_evidence")
+        if (requested is not None
+                and not set(requested).issubset({citation["book"] for citation in citations})
+                and "insufficient_temporal_evidence" not in reasons):
+            reasons.append("insufficient_temporal_evidence")
         if _unsupported_claim_terms(candidate, [citation["quote"] for citation in citations]):
             reasons.append("unsupported_claim_terms")
         if reasons or assessment.decision != "review":
