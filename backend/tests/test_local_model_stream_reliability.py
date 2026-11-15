@@ -128,3 +128,79 @@ def test_stale_explicit_model_repairs_to_proven_specialist(monkeypatch) -> None:
 def test_reliability_layer_replaces_low_level_transport_not_public_wrapper() -> None:
     assert generation_reliability._original_generate_streamed is reliability.generate_streamed_reliable
     assert generation_reliability._route_adult_model is reliability.route_adult_model_stable
+
+
+def test_truncated_stream_is_not_accepted(monkeypatch):
+    import pytest
+    async def installed(_):
+        return [FAST]
+    class Response:
+        status_code = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def aiter_lines(self):
+            yield '{"message":{"content":"partial"},"done":false}'
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        def stream(self, *args, **kwargs): return Response()
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability.httpx, "AsyncClient", Client)
+    async def delta(_): pass
+    with pytest.raises(RuntimeError, match="completion marker"):
+        asyncio.run(reliability.generate_streamed_reliable(
+            ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=FAST),
+            [], on_delta=delta))
+
+
+def test_empty_events_cannot_extend_first_token_deadline(monkeypatch):
+    import pytest
+    async def installed(_): return [FAST]
+    class Response:
+        status_code = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def aiter_lines(self):
+            while True:
+                await asyncio.sleep(0.005)
+                yield '{}'
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        def stream(self, *args, **kwargs): return Response()
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(reliability, "_FIRST_TOKEN_TIMEOUT_SECONDS", 0.03)
+    async def delta(_): pass
+    with pytest.raises(RuntimeError, match="first token"):
+        asyncio.run(reliability.generate_streamed_reliable(
+            ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=FAST),
+            [], on_delta=delta))
+
+
+def test_total_stream_limit_even_with_continuous_text(monkeypatch):
+    import pytest
+    async def installed(_): return [FAST]
+    class Response:
+        status_code = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def aiter_lines(self):
+            while True:
+                await asyncio.sleep(0.005)
+                yield '{"message":{"content":"x"},"done":false}'
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        def stream(self, *args, **kwargs): return Response()
+    monkeypatch.setattr(reliability, "installed_ollama_models", installed)
+    monkeypatch.setattr(reliability.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(reliability, "_MAX_STREAM_SECONDS", 0.03)
+    async def delta(_): pass
+    with pytest.raises(RuntimeError, match="generation exceeded"):
+        asyncio.run(reliability.generate_streamed_reliable(
+            ProviderConfig(provider="ollama", base_url="http://localhost:11434", model=FAST),
+            [], on_delta=delta))

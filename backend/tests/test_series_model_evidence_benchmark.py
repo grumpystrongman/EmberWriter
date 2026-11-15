@@ -113,3 +113,51 @@ def test_api_isolation_and_installed_model_enforced(sid):
             f"/api/series/{sid}/local-model-evidence-benchmark",
             json={"model": "uninstalled:8b"},
         ).status_code == 400
+
+@pytest.mark.asyncio
+async def test_wall_timeout_preserves_completed_cases(sid, monkeypatch):
+    calls = fake_client(monkeypatch)
+    original = quality.httpx.AsyncClient.post
+    async def slow(self, url, *, json):
+        if len(calls) == 1:
+            await asyncio.sleep(1)
+        return await original(self, url, json=json)
+    monkeypatch.setattr(quality.httpx.AsyncClient, "post", slow)
+    monkeypatch.setattr(quality, "MAX_WALL_SECONDS", 0.05)
+    result = await quality.benchmark(sid, "fictional:3b")
+    assert result["status"] == "timed_out"
+    assert result["passed"] == 1
+    assert result["cases"][0]["status"] == "passed"
+    assert all(row["status"] == "not_run" for row in result["cases"][1:])
+    assert len(result["case_set_sha256"]) == 64
+
+
+@pytest.mark.asyncio
+async def test_case_wall_timeout_continues_to_next_case(sid, monkeypatch):
+    calls = fake_client(monkeypatch)
+    original = quality.httpx.AsyncClient.post
+    async def slow(self, url, *, json):
+        if not calls:
+            calls.append(json)
+            await asyncio.sleep(1)
+        return await original(self, url, json=json)
+    monkeypatch.setattr(quality.httpx.AsyncClient, "post", slow)
+    monkeypatch.setattr(quality, "CASE_TIMEOUT_SECONDS", 0.02)
+    result = await quality.benchmark(sid, "fictional:3b")
+    assert result["cases"][0]["status"] == "timed_out"
+    assert result["passed"] == 9
+
+@pytest.mark.asyncio
+async def test_abstention_requires_empty_quote(sid, monkeypatch):
+    fake_client(monkeypatch)
+    original = quality.httpx.AsyncClient.post
+    async def fabricated_quote(self, url, *, json):
+        response = await original(self, url, json=json)
+        if quality.CASES[-1]["source"] in json["prompt"]:
+            response.json = lambda: {"response": '{"answer":"unknown","quote":"invented"}'}
+        return response
+    monkeypatch.setattr(quality.httpx.AsyncClient, "post", fabricated_quote)
+    result = await quality.benchmark(sid, "fictional:3b")
+    assert result["cases"][-1]["status"] == "incorrect"
+    assert result["cases"][-1]["answer_correct"]
+    assert not result["cases"][-1]["quote_correct"]
