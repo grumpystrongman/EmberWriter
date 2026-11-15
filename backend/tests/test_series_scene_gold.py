@@ -114,3 +114,65 @@ def test_evaluation_counts_author_review_but_never_promotes_to_gold(book):
     assert new["case_count"]==12
     assert new["pov"]["prediction_coverage"]==0
     assert new["scene_interpretation_gate"]=="blocked"
+
+
+def test_one_to_one_matching_penalizes_near_duplicate_candidate(monkeypatch):
+    case = gold._case(gold.GOLD[0])
+    at = case["gold_at"]
+    # Two starts fall within the matching tolerance of one real boundary.
+    # A scoring implementation must not award both as true positives.
+    monkeypatch.setattr(
+        windows, "_windows",
+        lambda content, start, end: iter([
+            (0, at, "test"),
+            (at, at + 1, "test"),
+            (at + 1, len(content), "test"),
+        ]),
+    )
+    result = gold.score_boundary_candidates((case,))
+    assert result["boundary"]["true_positive"] == 1
+    assert result["boundary"]["false_positive"] == 1
+    assert result["cases"][0]["extraneous_breaks"] == 1
+    assert result["boundary"]["precision"] == 0.5
+    assert result["scene_interpretation_gate"] == "blocked"
+
+
+@pytest.mark.parametrize("change", [
+    {"id": ""},
+    {"gold_at": 0},
+    {"gold_at": True},
+    {"gold_at": 999999},
+    {"gold_break": 1},
+    {"gold_pov": "invented"},
+    {"gold_knowledge": "certainly"},
+    {"text": ""},
+])
+def test_malformed_gold_fails_closed(change):
+    case = gold._case(gold.GOLD[0])
+    case.update(change)
+    with pytest.raises(ValueError):
+        gold.score_boundary_candidates((case,))
+
+
+def test_duplicate_gold_ids_fail_closed():
+    case = gold._case(gold.GOLD[0])
+    with pytest.raises(ValueError, match="unique"):
+        gold.score_boundary_candidates((case, dict(case)))
+
+
+def test_one_boundary_cannot_cancel_extra_long_window_splits(monkeypatch):
+    case = gold._case(gold.GOLD[0])
+    at = case["gold_at"]
+    # Keep a real match and add one distant convenience split.
+    monkeypatch.setattr(
+        windows, "_windows",
+        lambda content, start, end: iter([
+            (0, at // 2, "test"),
+            (at // 2, at, "test"),
+            (at, len(content), "test"),
+        ]),
+    )
+    result = gold.score_boundary_candidates((case,))
+    assert result["boundary"]["true_positive"] == 1
+    assert result["boundary"]["false_positive"] == 1
+    assert result["cases"][0]["matched_candidate_start"] == at
