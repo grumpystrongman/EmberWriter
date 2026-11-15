@@ -34,8 +34,12 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[^\W_]+(?:['’][^\W_]+)?", text.casefold())
 
 
-_STOP = frozenset("a an the is are was were do does did what how why who whom whose "
-                  "of to in on for with and or that this it its their they he she".split())
+_STOP = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "do", "does", "did",
+    "what", "how", "why", "who", "whom", "whose", "of", "to", "in", "on",
+    "for", "with", "and", "or", "that", "this", "it", "its", "their",
+    "they", "he", "she",
+})
 _CHANGE = re.compile(
     r"\b(?:changed|change|evolved|grew|growth|developed|development|became|become|"
     r"improved|worsened|closer|further|more|less|earlier|later|over time|"
