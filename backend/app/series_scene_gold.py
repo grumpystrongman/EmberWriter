@@ -87,6 +87,25 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
     dataset = cases if cases is not None else tuple(_case(row) for row in GOLD)
     if not dataset:
         raise ValueError("Gold evaluation cannot use an empty fixture set")
+    # Refuse malformed/ambiguous gold labels instead of silently altering scores.
+    seen_ids: set[str] = set()
+    for case in dataset:
+        ident = case.get("id")
+        content = case.get("text")
+        at = case.get("gold_at")
+        if not isinstance(ident, str) or not ident or ident in seen_ids:
+            raise ValueError("Gold evaluation requires unique nonempty case IDs")
+        seen_ids.add(ident)
+        if not isinstance(content, str) or not content:
+            raise ValueError("Empty fixture passage")
+        if type(at) is not int or not 0 < at < len(content):
+            raise ValueError("Gold boundary offset must fall inside its passage")
+        if type(case.get("gold_break")) is not bool:
+            raise ValueError("Gold scene boundary must be explicitly boolean")
+        if case.get("gold_pov") not in reviews.POV - {"undetermined"}:
+            raise ValueError("Gold POV category is invalid")
+        if case.get("gold_knowledge") not in {"known", "unknown"}:
+            raise ValueError("Gold character knowledge label is invalid")
     rows = []
     tp = fp = fn = tn = 0
     for case in dataset:
@@ -100,15 +119,18 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
         starts = sorted({start + len(content[start:end])-len(content[start:end].lstrip())
                          for start,end,_ in divisions[1:]})
         at = case["gold_at"]
+        # Match at most ONE candidate to a gold boundary. Multiple nearby
+        # navigation splits cannot all receive credit for the same scene.
         matches = [start for start in starts if abs(start-at) <= 3]
-        predicted = bool(matches)
+        matched = min(matches, key=lambda start: (abs(start-at), start)) if matches else None
+        predicted = matched is not None
         actual = case["gold_break"]
         if actual:
             if predicted:
                 tp += 1
             else:
                 fn += 1
-            fp += len(starts)-len(matches)
+            fp += len(starts)-int(predicted)
         elif starts:
             fp += len(starts)
         else:
@@ -118,9 +140,10 @@ def score_boundary_candidates(cases: tuple[dict, ...] | None = None) -> dict:
             "gold_scene_boundary":actual,
             "candidate_boundary_at_gold":predicted,
             "candidate_break_count":len(starts),
-            "extraneous_breaks":len(starts)-len(matches) if actual else len(starts),
+            "extraneous_breaks":len(starts)-int(predicted) if actual else len(starts),
             "gold_boundary_offset":at if actual else None,
             "candidate_starts":starts[:16],
+            "matched_candidate_start":matched if actual else None,
             "boundary_result":"hit" if actual and predicted else
                               "miss" if actual else
                               "false_positive" if starts else "correct_rejection",

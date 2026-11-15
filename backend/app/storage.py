@@ -4,11 +4,12 @@ import json
 import os
 import re
 import shutil
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
+
+from .sqlite_lifecycle import ClosingConnection
 
 ALLOWED_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml"}
 DATA_ROOT = Path(os.getenv("EMBER_DATA_DIR", "data")).expanduser().resolve()

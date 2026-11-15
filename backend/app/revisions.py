@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import difflib
 import hashlib
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, read_text, save_text, utc_now
 
 

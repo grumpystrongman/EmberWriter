@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, safe_project_path, utc_now
 
 

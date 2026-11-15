@@ -61,11 +61,11 @@ from .routes_manuscript_intelligence import router as manuscript_intelligence_ro
 from .routes_media import router as media_router
 from .routes_memory import router as memory_router
 from .routes_preview import router as preview_router
-from .routes_publishing_desk import router as publishing_desk_router
 from .routes_production_conductor import router as production_conductor_router
 from .routes_production_preflight import router as production_preflight_router
 from .routes_prose_editor import router as prose_editor_router
 from .routes_provenance import router as provenance_router
+from .routes_publishing_desk import router as publishing_desk_router
 from .routes_quality_clinic import router as quality_clinic_router
 from .routes_reader import router as reader_router
 from .routes_recovery import automatic_recovery_loop

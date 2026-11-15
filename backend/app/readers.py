@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from .sqlite_lifecycle import ClosingConnection
 import sqlite3
 from typing import Any
 from uuid import uuid4
@@ -13,6 +12,7 @@ from .models import ProviderConfig
 from .provenance_store import record_assistance_event
 from .publishing import compiled_documents
 from .reader_models import ReaderRunCreate, ReaderVerdict
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, read_text, utc_now
 
 PERSONAS: dict[str, dict[str, Any]] = {
