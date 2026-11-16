@@ -15,9 +15,10 @@ type Props = {
  onDraftClaim:(entry:Match)=>void
 }
 const EXAMPLES=['Remo','Chiun','Smith','CURE']
-type Citation={book?:number;volume?:string;source_id?:string;source_title?:string;excerpt?:string;excerpt_start?:number;quote?:string;quote_start?:number;start?:number;end?:number}
-type GroundedAnswer={answer?:string;status?:string;abstained?:boolean;review_only?:boolean;reasons?:string[];safety_reasons?:string[];safety_flags?:string[]|Record<string,boolean|string>;citations?:Citation[];evidence?:Citation[];passages?:Citation[];disclaimer?:string;semantic_entailment?:string;auto_approval_allowed?:boolean}
-const API='http://127.0.0.1:8000/api'
+type Citation={reading_period?:string;book?:number;volume?:string;source_id?:string;source_title?:string;excerpt?:string;excerpt_start?:number;quote?:string;quote_start?:number;start?:number;end?:number}
+type GroundedAnswer={answer?:string;status?:string;abstained?:boolean;review_only?:boolean;reasons?:string[];reason_detail?:string;safety_reasons?:string[];safety_flags?:string[]|Record<string,boolean|string>;citations?:Citation[];evidence?:Citation[];passages?:Citation[];disclaimer?:string;semantic_entailment?:string;auto_approval_allowed?:boolean;uncertainty?:string;local_verifier?:string;method?:string;retrieval_guidance?:string;author_review_required?:boolean;context_cards?:Array<{id:string;facet:string;status:string}>}
+type ContextCard={id:string;question:string;interpretation:string;facet:string;as_of_book:number;review_state:string;citations:Citation[]}
+const API=((import.meta as ImportMeta & {env?:{VITE_API_BASE_URL?:string}}).env?.VITE_API_BASE_URL)||'http://127.0.0.1:8000/api'
 
 export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOpenSource,onDraftClaim}:Props){
  const [query,setQuery]=useState('')
@@ -28,6 +29,11 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
  const [modelStatus,setModelStatus]=useState('')
  const [modelRefresh,setModelRefresh]=useState(0)
  const [answerBusy,setAnswerBusy]=useState(false)
+ const [recentCards,setRecentCards]=useState<ContextCard[]>([])
+ const [reviewBusy,setReviewBusy]=useState(false)
+ const [reviewMessage,setReviewMessage]=useState('')
+ const cardSequence=useRef(0)
+
  const askSequence=useRef(0)
  const searchSequence=useRef(0)
  const askAbort=useRef<AbortController|null>(null)
@@ -58,6 +64,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
  const [focusedBook,setFocusedBook]=useState<number|null>(null)
  const [expanded,setExpanded]=useState(bookCount>12)
  useEffect(()=>{
+   cardSequence.current++;setRecentCards([]);setReviewMessage('');
    askSequence.current++;searchSequence.current++
    askAbort.current?.abort();searchAbort.current?.abort()
    setAnswerBusy(false);setSearching(false)
@@ -96,6 +103,40 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
    }finally{
      if(token===askSequence.current){setAnswerBusy(false);askAbort.current=null}
    }
+ }
+ async function loadResearchCandidates(){
+   const token=++cardSequence.current
+   setReviewMessage('');setReviewBusy(true)
+   try{
+     const params=new URLSearchParams({max_book:String(maxBook),limit:'20'})
+     const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+'/context-proposals?'+params)
+     if(token!==cardSequence.current)return
+     const payload=await response.json()
+     if(!response.ok)throw Error(payload.detail||'Could not load research proposals')
+     setRecentCards(Array.isArray(payload.items)?payload.items:[])
+   }catch(cause){
+     if(token===cardSequence.current)setReviewMessage(String(cause))
+   }finally{if(token===cardSequence.current)setReviewBusy(false)}
+ }
+ async function reviewResearchCandidate(cardId:string,decision:'confirmed_for_research'|'rejected'){
+   if(reviewBusy)return
+   const token=cardSequence.current
+   setReviewBusy(true);setReviewMessage('')
+   try{
+     const response=await fetch(API+'/series/'+encodeURIComponent(seriesId)+
+       '/context-proposals/'+encodeURIComponent(cardId)+'/review',{
+       method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({decision})
+     })
+     if(token!==cardSequence.current)return
+     const payload=await response.json()
+     if(!response.ok)throw Error(payload.detail||'Research review could not be saved')
+     setRecentCards(previous=>previous.map(item=>item.id===cardId?
+       {...item,review_state:decision}:item))
+     setReviewMessage('Research-note decision saved locally. This does not approve story canon.')
+   }catch(cause){
+     if(token===cardSequence.current)setReviewMessage(String(cause))
+   }finally{if(token===cardSequence.current)setReviewBusy(false)}
  }
  async function run(term=query,book:number|null=null){
    const q=term.trim()
@@ -152,7 +193,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
          <label htmlFor="series-evidence-timeline">Only show evidence up to <strong>book {maxBook}</strong></label>
          <input id="series-evidence-timeline" type="range" min={1}
            max={Math.max(1,bookCount)} value={maxBook}
-           onChange={event=>{askSequence.current++;searchSequence.current++;askAbort.current?.abort();searchAbort.current?.abort();setAnswer(null);setAnswerBusy(false);setAnswerError('');setSearching(false);setMaxBook(Number(event.target.value));setFocusedBook(null);setResult(null)}}/>
+           onChange={event=>{cardSequence.current++;setRecentCards([]);setReviewMessage('');askSequence.current++;searchSequence.current++;askAbort.current?.abort();searchAbort.current?.abort();setAnswer(null);setAnswerBusy(false);setAnswerError('');setSearching(false);setMaxBook(Number(event.target.value));setFocusedBook(null);setResult(null)}}/>
          <div><small>Book 1</small><small>Book {Math.max(1,bookCount)}</small></div>
        </div>
        <div className="series-evidence-suggestions">
@@ -162,7 +203,7 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
        </div>
      </div>
      <details className="grounded-ask">
-       <summary>Ask from passages (local model)</summary>
+       <summary>Ask with local contextual reasoning and source review</summary>
        <p>Only when you choose Ask, matching passages are sent to the selected local Ollama model. Passages are sent only to the configured loopback Ollama endpoint, but a local proxy or model could forward them. Verify your installation is offline. Results are read-only and never become canon.</p>
        <p>Answers are limited to retrieved passages through the selected book; missing evidence does not prove an event never happened. Check every answer against its sources.</p>
        <form onSubmit={event=>{event.preventDefault();void ask()}}>
@@ -185,10 +226,25 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
        {answer&&<div className="grounded-result" aria-live="polite">
          <h3>Read-only answer for review</h3>
          <p><strong>Status: {answer.abstained?'Abstained':answer.status?answer.status.replace(/_/g,' '):answer.review_only?'Review only':'Not reported'}</strong> · Book cutoff {answerCutoff}</p>
+         {answer.status==='provisional'&&<p><strong>Provisional interpretation, NOT confirmed canon.</strong> The local model assembled this response from multiple passages and checked it against the cited excerpts, but only your review can confirm its accuracy.</p>}
          {answer.answer&&<p>{answer.answer}</p>}
+         {answer.uncertainty&&<p><strong>Model uncertainty:</strong> {answer.uncertainty}</p>}
+         {answer.reason_detail&&<p><strong>Verification detail:</strong> {answer.reason_detail}</p>}
+         {answer.local_verifier&&<p><strong>Local self-check:</strong> {answer.local_verifier.replace(/_/g,' ')} (not independent expert verification)</p>}
+         {answer.retrieval_guidance==='author_feedback_hypotheses_for_search_only'&&<p>Earlier author corrections helped choose search terms. They were not treated as manuscript evidence or preapproved facts.</p>}
+         {answer.context_cards?.length? <p>{answer.context_cards.length} contextual interpretation saved locally as pending author review. These proposals are never approved as canon automatically.</p>:null}
          {answer.reasons?.length? <p>Reasons: {answer.reasons.join('; ')}</p>:null}
          {answer.safety_reasons?.length? <p>Safety reasons: {answer.safety_reasons.join('; ')}</p>:null}
          {answer.safety_flags&&<p>Safety flags: {Array.isArray(answer.safety_flags)?answer.safety_flags.join('; ')||'None reported':Object.entries(answer.safety_flags).map(([key,value])=>key.replace(/_/g,' ')+': '+String(value)).join('; ')||'None reported'}</p>}
+         {answer.citations?.length?<><h4>Cited primary-source passages</h4>
+           <div className="grounded-citations">{answer.citations.map((citation,index)=><article key={'cited-'+index}>
+             <strong>{citation.book!=null?'Book '+citation.book:'Source'}</strong>
+             {citation.reading_period&&<p>Reading period: {citation.reading_period}</p>}
+             {citation.quote&&<blockquote>{citation.quote}</blockquote>}
+             <p><small>Exact source span; quotation presence does not prove this passage supports every claim.</small></p>
+             {citation.source_id&&typeof citation.start==='number'&&<button type="button" onClick={()=>onOpenSource(citation.source_id!,answerSearch,citation.start!)}>Open cited source</button>}
+           </article>)}</div>
+         </>:null}
          <h4>Retrieved passages for review</h4>
          {answer.citations?.length?<p>Model cited {answer.citations.length} quotation(s). Exact matches do not prove they support its claims.</p>:null}
          {!(answer.passages?.length?answer.passages:(answer.citations||answer.evidence||[])).length&&<p>No citations returned. Do not treat this as established evidence.</p>}
@@ -202,6 +258,34 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
          {answer.disclaimer&&<p>{answer.disclaimer}</p>}
          <p>Review the original sources. This answer creates no canon claims.</p>
        </div>}
+     </details>
+     <details className="grounded-ask">
+       <summary>Review retained character and world context</summary>
+       <p>These are source-linked, model-proposed interpretations. None is approved canon. You can confirm a note as research context only after checking the cited sources, or reject it.</p>
+       <button type="button" disabled={reviewBusy} onClick={()=>void loadResearchCandidates()}>
+         {reviewBusy?'Checking local notes…':'Load recent contextual proposals'}
+       </button>
+       {reviewMessage&&<p role="status">{reviewMessage}</p>}
+       {recentCards.map(card=><article className="grounded-result" key={card.id}>
+         <h4>{card.facet.replace(/_/g,' ')} · As of Book {card.as_of_book}</h4>
+         <p><strong>Question:</strong> {card.question}</p>
+         <p>{card.interpretation}</p>
+         <p>Review state: {card.review_state.replace(/_/g,' ')}. These are not independently certified facts.</p>
+         <div className="grounded-actions">
+           {card.citations.map((c,index)=>c.source_id&&typeof c.start==='number'?
+             <button key={index} type="button" onClick={()=>onOpenSource(c.source_id!,card.question,c.start!)}>
+               Check source · Book {c.book??'?'}
+             </button>:null)}
+         </div>
+         {card.review_state==='pending_author_review'&&<div className="grounded-actions">
+           <button type="button" disabled={reviewBusy}
+             onClick={()=>void reviewResearchCandidate(card.id,'confirmed_for_research')}>
+             Confirm as research context — not canon
+           </button>
+           <button type="button" disabled={reviewBusy}
+             onClick={()=>void reviewResearchCandidate(card.id,'rejected')}>Reject interpretation</button>
+         </div>}
+       </article>)}
      </details>
      <SeriesCharacterEvidenceMap seriesId={seriesId} maxBook={maxBook}
        characters={characters.filter(entity=>entity.kind==='character')}
