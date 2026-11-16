@@ -72,11 +72,11 @@ def test_directive_is_last_even_after_reliability_wrappers(monkeypatch) -> None:
     system = messages[0]["content"]
 
     assert specialist is False
-    assert "Output language: es." in system
+    assert "Spanish (español)" in system
     assert "Author word-limit contract" in system, "wrapper should have appended its contract"
-    assert system.rstrip().endswith("Apply it to narration, description, and dialogue alike.")
+    assert system.rstrip().endswith("never translate the scene into English.")
     assert messages[1]["role"] == "user"
-    assert "Output language" not in messages[1]["content"]
+    assert "OUTPUT LANGUAGE" not in messages[1]["content"]
 
 
 def test_no_directive_when_project_language_is_author_controlled(monkeypatch) -> None:
@@ -90,7 +90,7 @@ def test_no_directive_when_project_language_is_author_controlled(monkeypatch) ->
         minimum_words=700,
         output_language=language,
     )
-    assert "Output language" not in messages[0]["content"]
+    assert "OUTPUT LANGUAGE" not in messages[0]["content"]
 
 
 def test_adult_specialist_path_also_ends_with_the_directive() -> None:
@@ -110,23 +110,33 @@ def test_adult_specialist_path_also_ends_with_the_directive() -> None:
 
     assert specialist is True
     assert "adult-fiction scene specialist" in system
-    assert "Output language: es." in system
-    assert system.rstrip().endswith("Apply it to narration, description, and dialogue alike.")
+    assert "Spanish (español)" in system
+    assert system.rstrip().endswith("never translate the scene into English.")
 
 
 def test_language_directive_helper_short_circuits_on_empty_values() -> None:
     for value in ("", "   ", None):
         assert generation.language_directive(value) == ""
-    assert "Output language: es-AR." in generation.language_directive(" es-AR ")
+    assert "Spanish (español)" in generation.language_directive(" es-AR ")
+    assert "Spanish (español)" in generation.language_directive("es_MX")
+
+
+def test_language_codes_are_named_not_left_as_bare_codes() -> None:
+    """A bare "es" is weak evidence for a small model; name the language."""
+    assert "Spanish (español)" in generation.language_directive("es")
+    assert "Portuguese (português)" in generation.language_directive("pt-BR")
+    assert "Japanese (日本語)" in generation.language_directive("ja")
+    # Unknown codes still speak for themselves rather than falling back to English.
+    assert "Klingon" in generation.language_directive("Klingon")
 
 
 def test_builders_do_not_hardcode_a_language() -> None:
     """Language lives in one place; the builders stay language-agnostic."""
     messages = generation.build_messages("write", "Write it.", "canon", heat_level="simmer")
-    assert "Output language" not in messages[0]["content"]
+    assert "OUTPUT LANGUAGE" not in messages[0]["content"]
 
     adult = adult_specialist.build_adult_specialist_messages(
         "write", "Write it.", "canon", heat_level="inferno",
         delivery_scope="full_scene", min_scene_words=900,
     )
-    assert "Output language" not in adult[0]["content"]
+    assert "OUTPUT LANGUAGE" not in adult[0]["content"]

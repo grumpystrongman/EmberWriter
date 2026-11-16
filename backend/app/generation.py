@@ -282,19 +282,57 @@ def scene_word_floor(prompt: str, heat_level: str | None = None) -> int:
     }.get(heat_level or "", 1200)
 
 
+_LANGUAGE_NAMES = {
+    "ar": "Arabic (العربية)",
+    "ca": "Catalan (català)",
+    "cs": "Czech (čeština)",
+    "da": "Danish (dansk)",
+    "de": "German (Deutsch)",
+    "el": "Greek (ελληνικά)",
+    "en": "English",
+    "es": "Spanish (español)",
+    "fi": "Finnish (suomi)",
+    "fr": "French (français)",
+    "he": "Hebrew (עברית)",
+    "hi": "Hindi (हिन्दी)",
+    "hu": "Hungarian (magyar)",
+    "id": "Indonesian (Bahasa Indonesia)",
+    "it": "Italian (italiano)",
+    "ja": "Japanese (日本語)",
+    "ko": "Korean (한국어)",
+    "nl": "Dutch (Nederlands)",
+    "no": "Norwegian (norsk)",
+    "pl": "Polish (polski)",
+    "pt": "Portuguese (português)",
+    "ro": "Romanian (română)",
+    "ru": "Russian (русский)",
+    "sv": "Swedish (svenska)",
+    "th": "Thai (ไทย)",
+    "tr": "Turkish (Türkçe)",
+    "uk": "Ukrainian (українська)",
+    "vi": "Vietnamese (Tiếng Việt)",
+    "zh": "Chinese (中文)",
+}
+
+
 def language_directive(language: str | None) -> str:
     """Force the author's declared prose language, and nothing else.
 
     Emitted last in the system prompt on purpose: the instructions and the project
     context are English, so a trailing directive has to outrank them for a small
     local model to keep the scene in the author's language.
+
+    An ISO code alone ("es") is weak evidence for a small model, so the directive
+    names the language in both languages and never falls back to English.
     """
     value = (language or "").strip()
     if not value:
         return ""
+    primary = re.split(r"[-_]", value, maxsplit=1)[0].casefold()
+    name = _LANGUAGE_NAMES.get(primary, value)
     return f"""
-Output language: {value}.
-Write every sentence of the prose in {value}. Do not answer in English, and do not translate the scene into English, even though these instructions and the project context are written in English. Apply it to narration, description, and dialogue alike.
+OUTPUT LANGUAGE — HIGHEST PRIORITY: {name}.
+Write the entire prose in {name}. The instructions above and the project context are in English only because the application is written in English; that is not a signal about the language of the scene. Every sentence of narration, description, interiority, and dialogue must be in {name}. Never answer in English and never translate the scene into English.
 """
 
 
