@@ -26,6 +26,7 @@ from .generation import (
     core_only_word_floor,
     generate,
     generate_complete_prose,
+    language_directive,
     list_models,
     scene_word_floor,
 )
@@ -54,7 +55,11 @@ from .streaming_generation import (
     generate_streamed,
     verify_studio_scene_delivery,
 )
-from .studio_context import STUDIO_CONTEXT_SENTINEL, build_studio_context
+from .studio_context import (
+    STUDIO_CONTEXT_SENTINEL,
+    build_studio_context,
+    project_output_language,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -360,6 +365,26 @@ def _generation_contract(payload: GenerateRequest) -> tuple[str | None, str, int
     return heat, delivery_scope, minimum_words
 
 
+def _with_output_language(
+    messages: list[dict[str, str]],
+    language: str,
+) -> list[dict[str, str]]:
+    """Append the author-declared prose language as the final system instruction.
+
+    Applied here, after every prompt builder and reliability wrapper has had its
+    say, because those layers append word-limit and completion contracts to the
+    system prompt. The language instruction has to be the last thing the model
+    reads for a small local model to hold the author's language instead of the
+    English prompt around it.
+    """
+    directive = language_directive(language)
+    if not directive or not messages:
+        return messages
+    system = dict(messages[0])
+    system["content"] = system.get("content", "").rstrip() + directive
+    return [system, *messages[1:]]
+
+
 def _generation_messages(
     payload: GenerateRequest,
     context_text: str,
@@ -368,6 +393,7 @@ def _generation_messages(
     delivery_scope: str,
     minimum_words: int,
     scene_plan: str = "",
+    output_language: str = "",
 ) -> tuple[list[dict[str, str]], bool]:
     specialist = should_use_adult_explicit_specialist(
         payload.provider.model,
@@ -376,30 +402,26 @@ def _generation_messages(
         payload.mode,
     )
     if specialist:
-        return (
-            build_adult_specialist_messages(
-                payload.mode,
-                payload.prompt,
-                context_text,
-                heat_level=heat,
-                delivery_scope=delivery_scope,
-                min_scene_words=minimum_words,
-                scene_plan=scene_plan,
-            ),
-            True,
-        )
-    return (
-        build_messages(
+        messages = build_adult_specialist_messages(
             payload.mode,
             payload.prompt,
             context_text,
             heat_level=heat,
-            finish_scene=payload.mode in PROSE_MODES,
-            min_scene_words=minimum_words,
             delivery_scope=delivery_scope,
-        ),
-        False,
+            min_scene_words=minimum_words,
+            scene_plan=scene_plan,
+        )
+        return _with_output_language(messages, output_language), True
+    messages = build_messages(
+        payload.mode,
+        payload.prompt,
+        context_text,
+        heat_level=heat,
+        finish_scene=payload.mode in PROSE_MODES,
+        min_scene_words=minimum_words,
+        delivery_scope=delivery_scope,
     )
+    return _with_output_language(messages, output_language), False
 
 
 @router.post("/models")
@@ -464,6 +486,7 @@ async def _generate_payload(
     on_status=None,
 ) -> GenerateResponse:
     context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
+    output_language = project_output_language(slug)
     heat, delivery_scope, minimum_words = _generation_contract(payload)
     planner_provider = payload.provider.model_copy(deep=True)
     await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
@@ -495,6 +518,7 @@ async def _generate_payload(
         delivery_scope=delivery_scope,
         minimum_words=minimum_words,
         scene_plan=scene_plan,
+        output_language=output_language,
     )
 
     if streamed:
@@ -654,6 +678,7 @@ async def _produce_generation_stream(
             # Prepare context separately so partial-result errors can still report which source
             # files were involved after model generation has started.
             context_text, context_files, craft_text = _prepare_generation_context(slug, payload)
+            output_language = project_output_language(slug)
             heat, delivery_scope, minimum_words = _generation_contract(payload)
             planner_provider = payload.provider.model_copy(deep=True)
             await route_explicit_adult_specialist(payload.provider, payload.prompt, heat, payload.mode)
@@ -685,6 +710,7 @@ async def _produce_generation_stream(
                 delivery_scope=delivery_scope,
                 minimum_words=minimum_words,
                 scene_plan=scene_plan,
+                output_language=output_language,
             )
 
             if payload.mode in PROSE_MODES:

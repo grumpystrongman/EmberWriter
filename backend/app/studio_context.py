@@ -13,6 +13,27 @@ _CONTEXT_SEPARATOR = "\n\n---\n\n"
 _BLOCKED_PROSE_PREFIXES = ("manuscript/", "source_archive/", "import/", ".ember/")
 _STUDIO_CONTINUATION_MARKER = "STUDIO CONTINUATION CONTRACT:"
 _STUDIO_DELIVERY_MARKER = "STUDIO SCENE DELIVERY CONTRACT:"
+_AUTHOR_CONTROLLED_LANGUAGE_VALUES = frozenset(
+    {"", "author_controlled", "auto", "mixed", "unspecified"}
+)
+
+
+def project_output_language(slug: str) -> str:
+    """Return the language an author declared for this project's prose.
+
+    An empty string means the author controls it and no output-language directive
+    is emitted, which keeps every existing English-language project unchanged.
+    """
+    try:
+        profile = get_project(slug).get("content_profile", {})
+    except (FileNotFoundError, OSError, ValueError):
+        return ""
+    if not isinstance(profile, dict):
+        return ""
+    value = str(profile.get("language") or "").strip()
+    if value.casefold() in _AUTHOR_CONTROLLED_LANGUAGE_VALUES:
+        return ""
+    return value
 
 
 def _trusted_project_content_contract(slug: str) -> str:
