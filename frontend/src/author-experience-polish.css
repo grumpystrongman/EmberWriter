@@ -1,5 +1,5 @@
 /* Author Experience UX-001/006/010: content-first navigation and manuscript headings. */
-.editor-path-detail{display:block;opacity:.65;font-size:.67rem;max-width:60ch;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.editor-path-detail{display:block;opacity:1;color:#b8c4d1;font-size:.67rem;max-width:60ch;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .devstudio-hero{padding:15px 20px 10px}
 .devstudio-eyebrow{font-size:.61rem;letter-spacing:.1em}
 .devstudio-hero-line{gap:15px}
@@ -103,3 +103,6 @@
  .planning-author-shortcut span{display:none}
  .planning-author-shortcut button{width:100%}
 }
+
+/* Maintain readable manuscript metadata on the dark editor header. */
+.editor-header small,.editor-header .editor-path-detail{color:#ded8d2!important;opacity:1}

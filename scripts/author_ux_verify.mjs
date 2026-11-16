@@ -5,13 +5,17 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 
 const root=path.resolve(import.meta.dirname,'..')
-const folder=path.join(root,'docs','reviews','assets','2026-11-12-scorecard-interactions')
+const folder=process.env.EMBER_QA_SCREENSHOT_DIR || path.join(root,'docs','reviews','assets','2026-11-12-scorecard-interactions')
+const resultFile=process.env.EMBER_QA_RESULT_FILE || path.join(root,'docs','reviews','2026-11-12-scorecard-interactions.json')
+const backend=process.env.EMBER_QA_BACKEND || 'http://127.0.0.1:8000'
+const frontend=process.env.EMBER_QA_FRONTEND || 'http://127.0.0.1:5173'
+const debuggerBase=process.env.EMBER_QA_DEBUGGER || 'http://127.0.0.1:9227'
 fs.mkdirSync(folder,{recursive:true})
-const projects=await(await fetch('http://127.0.0.1:8000/api/projects')).json()
+const projects=await(await fetch(backend+'/api/projects')).json()
 assert.equal(projects.length,1,'Only the isolated synthetic book can be audited')
 assert.match(projects[0].name,/Synthetic Editorial Review/)
-const browsers=await(await fetch('http://127.0.0.1:9227/json')).json()
-const tab=browsers.find(entry=>entry.type==='page'&&entry.url.startsWith('http://127.0.0.1:5173'))
+const browsers=await(await fetch(debuggerBase+'/json')).json()
+const tab=browsers.find(entry=>entry.type==='page'&&entry.url.startsWith(frontend))
 assert.ok(tab,'Expected local development Chrome')
 const ws=new WebSocket(tab.webSocketDebuggerUrl)
 await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject})
@@ -59,8 +63,8 @@ async function shot(name,width=390,height=844){
 }
 async function openBook(workspace){
  await size(1440,900)
- await send('Page.navigate',{url:'http://127.0.0.1:5173/'})
- await until('location.origin==="http://127.0.0.1:5173"','local frontend')
+ await send('Page.navigate',{url:frontend+'/'})
+ await until('location.origin==='+JSON.stringify(frontend),'local frontend')
  await js('localStorage.setItem("emberwriter.workspace",'+JSON.stringify(workspace)+');location.reload();true')
  await until('!!document.querySelector(".project-card")','project')
  await js('if(!document.querySelector(".project-card.active"))document.querySelector(".project-card").click();true')
@@ -115,9 +119,9 @@ try{
  await shot('10-series-verify-tools',1440,900)
  results.push({test:'series task grouping and verification submenu',pass:true})
 
- const series=await(await fetch('http://127.0.0.1:8000/api/series')).json()
+ const series=await(await fetch(backend+'/api/series')).json()
  const syntheticSeries=series.find(s=>s.title==='The Astral Lanterns'&&s.description?.includes('Synthetic'))
- const boards=syntheticSeries?await(await fetch('http://127.0.0.1:8000/api/series/'+syntheticSeries.id+'/scene-boards')).json():[]
+ const boards=syntheticSeries?await(await fetch(backend+'/api/series/'+syntheticSeries.id+'/scene-boards')).json():[]
  console.log('Synthetic scene boards available:',boards.length)
  if(syntheticSeries){
   const changed=await js('(()=>{const e=document.querySelector("select[aria-label=\\"Select a series\\"]");if(!e)return false;e.value='+JSON.stringify(syntheticSeries.id)+';e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
@@ -149,7 +153,7 @@ try{
  }else{
   results.push({test:'scene handoff',pass:false,reason:'No pre-existing saved synthetic scene board fixture'})
  }
- fs.writeFileSync(path.join(root,'docs','reviews','2026-11-12-scorecard-interactions.json'),JSON.stringify({
+ fs.writeFileSync(resultFile,JSON.stringify({
   date:'2026-11-12',synthetic:projects[0].name,results
  },null,2))
  console.log('INTERACTION_ACCEPTANCE',JSON.stringify(results))

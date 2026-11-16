@@ -751,9 +751,9 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         />
       </header>
 
-      <div className="ai-studio-modebar" role="tablist" aria-label="Studio mode">
+      <div className="ai-studio-modebar" role="group" aria-label="Studio mode">
         {(Object.keys(MODE_COPY) as StudioMode[]).map((item) => (
-          <button key={item} type="button" className={studioMode === item ? 'active' : ''} onClick={() => chooseMode(item)}>
+          <button key={item} type="button" aria-pressed={studioMode === item} className={studioMode === item ? 'active' : ''} onClick={() => chooseMode(item)}>
             <strong>{MODE_COPY[item].title}</strong>
             <span>{MODE_COPY[item].description}</span>
           </button>
@@ -796,7 +796,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
                 </div>
                 <div className="ai-studio-field">
                   <label>Tension curve</label>
-                  <select value={craft.tension_curve} onChange={(event) => setCraft({ ...craft, tension_curve: event.target.value as TensionCurve })}>
+                  <select aria-label="Tension curve" value={craft.tension_curve} onChange={(event) => setCraft({ ...craft, tension_curve: event.target.value as TensionCurve })}>
                     <option value="slow_burn">Slow burn</option>
                     <option value="steady_rise">Steady rise</option>
                     <option value="pressure_cooker">Pressure cooker</option>

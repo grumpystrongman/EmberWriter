@@ -313,7 +313,7 @@ export default function StudioModelRouter({ provider, models, preferences, studi
       </p>
 
       <label style={{ ...labelStyle, marginTop: 12 }}>Writing type</label>
-      <select value={purpose} onChange={(event) => setPurpose(event.target.value as WritingPurpose)} disabled={busy}>
+      <select aria-label="Writing type" value={purpose} onChange={(event) => setPurpose(event.target.value as WritingPurpose)} disabled={busy}>
         {(Object.keys(PURPOSES) as WritingPurpose[]).map((item) => <option key={item} value={item}>{PURPOSES[item].label}</option>)}
       </select>
       <p style={hintStyle}>{PURPOSES[purpose].short}</p>
@@ -330,7 +330,7 @@ export default function StudioModelRouter({ provider, models, preferences, studi
       <div style={{ marginTop: 12 }}>
         <label style={labelStyle}>Active model</label>
         <div style={rowStyle}>
-          <select value={provider.model} onChange={(event) => chooseManualModel(event.target.value)} disabled={busy}>
+          <select aria-label="Active model" value={provider.model} onChange={(event) => chooseManualModel(event.target.value)} disabled={busy}>
             {!provider.model && <option value="">Choose model</option>}
             {models.map((model) => <option key={model} value={model}>{model}</option>)}
             {provider.model && !models.includes(provider.model) && <option value={provider.model}>{provider.model} · unavailable</option>}
