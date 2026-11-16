@@ -102,7 +102,7 @@ def review(series_id: str, card_id: str, decision: str) -> dict:
                 raise ValueError("Research interpretation requires manuscript citations")
             for source in row["citations"]:
                 if not isinstance(source, dict):
-                    raise ValueError("Malformed source")
+                    raise TypeError("Malformed source")
                 src_id = source.get("source_id")
                 start, end = source.get("start"), source.get("end")
                 if (not isinstance(src_id, str)

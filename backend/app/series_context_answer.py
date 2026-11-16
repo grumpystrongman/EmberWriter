@@ -272,9 +272,8 @@ def _append_provisional(series_id: str, card: dict) -> None:
     # Candidate knowledge is never read as canon; only exact source-linked
     # proposals are persisted locally for later author review.
     path = vault._root() / f"context-proposals-{series_id}.jsonl"
-    with _SAVE_LOCK:
-        with path.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(card, ensure_ascii=False) + "\n")
+    with _SAVE_LOCK, path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(card, ensure_ascii=False) + "\n")
 
 
 def answer(series_id: str, question: str, query: str, as_of_book: int,

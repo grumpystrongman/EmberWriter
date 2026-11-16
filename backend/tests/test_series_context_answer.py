@@ -42,7 +42,7 @@ def fake_response(monkeypatch, *, answer, references, verify="supported"):
 
 
 def test_contextual_answer_can_synthesize_and_keep_author_review(setup, monkeypatch):
-    rows, memory = setup
+    _rows, memory = setup
     fake_response(monkeypatch,
                   answer="Mira trains and later becomes the bridge keeper.",
                   references=[0, 1])
