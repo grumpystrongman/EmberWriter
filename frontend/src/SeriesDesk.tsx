@@ -126,14 +126,15 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       return listing.some(item => item.id === choice) ? choice : (listing[0]?.id || '')
     })
   }, [])
-  const loadSelected = useCallback(async (id: string) => {
-    if (!id) { setSeries(null); setEntities([]); setFacts([]); setTimeline([]); return }
+  const loadSelected = useCallback(async (id: string, stillCurrent: () => boolean = () => true) => {
+    if (!id) { if (stillCurrent()) { setSeries(null); setEntities([]); setFacts([]); setTimeline([]) }; return }
     const [detail, people, assertions, chronology] = await Promise.all([
       request<Series>('/series/' + id),
       request<Entity[]>(`/series/${id}/entities`),
       request<Fact[]>(`/series/${id}/assertions`),
       request<{ events: Fact[] }>(`/series/${id}/timeline`),
     ])
+    if (!stillCurrent()) return
     setSeries(detail); setEntities(people); setFacts(assertions); setTimeline(chronology.events)
   }, [])
 
@@ -143,8 +144,13 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       .catch(cause => setError(String(cause)))
   }, [loadSeries])
   useEffect(() => {
-    void loadSelected(selectedId).catch(cause => setError(String(cause)))
-    setAnswer(null)
+    let active = true
+    // Never show data from the previous series while a new series is loading,
+    // including when the new source snapshot fails its integrity check.
+    setSeries(null); setEntities([]); setFacts([]); setTimeline([])
+    setError(''); setAnswer(null)
+    void loadSelected(selectedId, () => active).catch(cause => { if (active) setError(String(cause)) })
+    return () => { active = false }
   }, [selectedId, loadSelected])
   useEffect(() => {
     const onOpenPanel = (event: Event) => {

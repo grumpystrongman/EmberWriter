@@ -116,8 +116,14 @@ try{
  results.push({test:'series task grouping and verification submenu',pass:true})
 
  const series=await(await fetch('http://127.0.0.1:8000/api/series')).json()
- const boards=series.length?await(await fetch('http://127.0.0.1:8000/api/series/'+series[0].id+'/scene-boards')).json():[]
+ const syntheticSeries=series.find(s=>s.title==='The Astral Lanterns'&&s.description?.includes('Synthetic'))
+ const boards=syntheticSeries?await(await fetch('http://127.0.0.1:8000/api/series/'+syntheticSeries.id+'/scene-boards')).json():[]
  console.log('Synthetic scene boards available:',boards.length)
+ if(syntheticSeries){
+  const changed=await js('(()=>{const e=document.querySelector("select[aria-label=\\"Select a series\\"]");if(!e)return false;e.value='+JSON.stringify(syntheticSeries.id)+';e.dispatchEvent(new Event("change",{bubbles:true}));return true})()')
+  assert.ok(changed,'Missing series picker for isolated synthetic series')
+  await until('document.querySelector("select[aria-label=\\"Select a series\\"]")?.value==='+JSON.stringify(syntheticSeries.id),'selected synthetic series')
+ }
  if(boards.length>0){
   await tap('.series-experience-modes button:nth-child(2)')
   await until('!!document.querySelector(".p2-studio")','scene director studio')
