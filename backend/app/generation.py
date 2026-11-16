@@ -308,7 +308,6 @@ def build_messages(
     finish_scene: bool = True,
     min_scene_words: int | None = None,
     delivery_scope: str = "full_scene",
-    output_language: str | None = None,
 ) -> list[dict[str, str]]:
     guidance = MODE_GUIDANCE.get(mode, MODE_GUIDANCE["write"])
     resolved_intent = scene_intent or detect_scene_intent(prompt, heat_level)
@@ -353,7 +352,7 @@ Scene intent: {resolved_intent}
 {intent_guidance}
 {heat_note}
 {scope_note}
-{completion_note}{language_directive(output_language)}"""
+{completion_note}"""
     user = f"""AUTHOR INSTRUCTION
 {prompt}
 
