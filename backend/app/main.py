@@ -50,6 +50,7 @@ from .routes_companion import router as companion_router
 from .routes_cover import router as cover_router
 from .routes_craft import router as craft_router
 from .routes_development import router as development_router
+from .routes_developmental_editor import router as developmental_editor_router
 from .routes_distribution import router as distribution_router
 from .routes_editorial import router as editorial_router
 from .routes_editorial_board import router as editorial_board_router
@@ -64,6 +65,7 @@ from .routes_production_conductor import router as production_conductor_router
 from .routes_production_preflight import router as production_preflight_router
 from .routes_prose_editor import router as prose_editor_router
 from .routes_provenance import router as provenance_router
+from .routes_publishing_desk import router as publishing_desk_router
 from .routes_quality_clinic import router as quality_clinic_router
 from .routes_reader import router as reader_router
 from .routes_recovery import automatic_recovery_loop
@@ -194,6 +196,7 @@ app.include_router(book_jobs_router)
 app.include_router(book_reviews_router)
 app.include_router(book_revisions_router)
 app.include_router(manuscript_intelligence_router)
+app.include_router(developmental_editor_router)
 app.include_router(story_arcs_router)
 app.include_router(production_preflight_router)
 app.include_router(voiceprint_router)
@@ -226,6 +229,7 @@ app.include_router(media_router)
 app.include_router(sd_router)
 app.include_router(development_router)
 app.include_router(preview_router)
+app.include_router(publishing_desk_router)
 app.include_router(provenance_router)
 
 

@@ -1,0 +1,73 @@
+{
+  "time": "2026-11-13T14:27:34.492075+00:00",
+  "fixture": "The Destroyer - 80-Book Continuity Lab",
+  "series_id": "11d2558e7e1248298d1454ab6e906883",
+  "volume_count": 80,
+  "source_count": 80,
+  "source_characters_min": 200923,
+  "source_characters_max": 489096,
+  "indexed_entities": 5,
+  "approved_fact_count": 0,
+  "proposed_fact_count": 0,
+  "name_occurrence_counts": {
+    "remo": 45963,
+    "chiun": 21743,
+    "smith": 11278,
+    "sinanju": 5443
+  },
+  "verified_source_retrieval_books": [
+    1,
+    20,
+    40,
+    60,
+    80
+  ],
+  "as_of_books": [
+    {
+      "book": 1,
+      "profile_count": 5,
+      "conflicts": 0,
+      "approved_knowledge_facts": 0
+    },
+    {
+      "book": 20,
+      "profile_count": 5,
+      "conflicts": 0,
+      "approved_knowledge_facts": 0
+    },
+    {
+      "book": 40,
+      "profile_count": 5,
+      "conflicts": 0,
+      "approved_knowledge_facts": 0
+    },
+    {
+      "book": 80,
+      "profile_count": 5,
+      "conflicts": 0,
+      "approved_knowledge_facts": 0
+    }
+  ],
+  "ember_abstained_with_no_approved_canon": true,
+  "discovery_time_seconds": 1.614,
+  "discovery_keys": [
+    "series_id",
+    "candidates",
+    "total",
+    "offset",
+    "limit",
+    "scanned_sources",
+    "skipped_large_sources",
+    "truncated",
+    "saved",
+    "mode",
+    "caveat"
+  ],
+  "discovery_candidate_count": 9,
+  "no_unapproved_auto_promotion": true,
+  "limits": [
+    "Lexical sources alone cannot prove causality or character psychology.",
+    "There are no approved facts to ground a canon/relationship answer.",
+    "No long-form model reasoning was exercised in this deterministic test."
+  ]
+}

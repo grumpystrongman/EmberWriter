@@ -1,0 +1,48 @@
+.story-model-lab{padding:28px;min-height:440px;background:radial-gradient(ellipse at top right,#34405d,#111e2e 62%);color:#f0f3fa}
+.model-lab-heading>span{color:#edbf88;font-size:.69rem;font-weight:800;letter-spacing:.14em}
+.model-lab-heading h3{font-size:clamp(1.5rem,2.7vw,2.25rem);font-family:Georgia,serif;font-weight:500;margin:8px 0}
+.model-lab-heading p{line-height:1.6;color:#c7d0e0;max-width:850px;font-size:.85rem}
+.model-lab-scenarios{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:23px 0}
+.model-lab-scenario{background:#1e3044;border:1px solid #506078;border-radius:14px;padding:20px;display:grid;gap:7px}
+.model-lab-scenario>span{font-size:1.65rem;color:#d2afea}
+.model-lab-scenario small{letter-spacing:.15em;font-size:.66rem;color:#ebb98d}
+.model-lab-scenario strong{font-size:.96rem}
+.model-lab-scenario p{font-size:.79rem;line-height:1.55;color:#c5d1de;margin:0}
+.model-lab-console{border:1px solid #526377;background:#152539;border-radius:16px;padding:20px;display:flex;gap:22px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.model-lab-console h4{font-size:1.05rem;margin:0 0 7px}
+.model-lab-console p{color:#c8d2e0;font-size:.8rem;line-height:1.55;margin:0;max-width:540px}
+.model-lab-actions{display:flex;align-items:end;gap:10px;flex-wrap:wrap;max-width:100%}
+.model-lab-actions label{display:grid;gap:5px;color:#d7d5ed;font-size:.74rem;min-width:200px;max-width:320px}
+.model-lab-actions select{width:100%;background:#0d1a29;color:#f5f4fc;border:1px solid #6c7890;padding:11px;border-radius:9px}
+.model-lab-actions>button{background:linear-gradient(120deg,#a2698e,#73548e);border:1px solid #ce9ebf;color:white;border-radius:9px;padding:12px 17px;font-weight:750;cursor:pointer}
+.model-lab-actions>button:disabled{opacity:.5;cursor:not-allowed}
+.model-lab-progress,.model-lab-results,.model-lab-empty{margin-top:18px;padding:18px;border:1px solid #536377;border-radius:14px;background:#1c2c3e}
+.model-lab-progress>div:first-child{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}
+.model-lab-progress span{color:#d4bfd6;font-size:.84rem}
+.model-lab-progress-track{width:100%;height:9px;background:#304053;border-radius:9px;margin:15px 0;overflow:hidden}
+.model-lab-progress-track span{height:100%;display:block;background:#aa85bf;transition:width .35s}
+.model-lab-progress p,.model-lab-empty{color:#c1cddc;font-size:.81rem}
+.model-lab-error{padding:12px;border:1px solid #bd7e79;background:#4a2a36;border-radius:10px;margin-top:12px}
+.model-lab-result-summary{display:flex;align-items:center;gap:17px;margin-bottom:20px}
+.model-lab-result-summary>strong{font-size:3.4rem;color:#deb9e7;font-variant-numeric:tabular-nums}
+.model-lab-result-summary>strong span{font-size:1.6rem;color:#a7b8c8}
+.model-lab-result-summary h4{margin:0}
+.model-lab-result-summary p{color:#c8d1de;font-size:.76rem}
+.model-lab-result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.model-lab-result-grid>article{background:#111f2d;border:1px solid #3f5d65;border-radius:13px;padding:16px;min-width:0}
+.model-lab-result-grid>article.is-issue{border-color:#a47f61}
+.model-lab-result-grid header>span{font-size:.72rem;color:#b3e7ca}
+.model-lab-result-grid .is-issue header>span{color:#e8bb8c}
+.model-lab-result-grid h4{font-size:.93rem;margin:9px 0}
+.model-lab-metrics{display:flex;justify-content:space-between;gap:7px;border-block:1px solid #3d5265;padding:12px 0;margin:12px 0}
+.model-lab-metrics strong{font-size:1.1rem}
+.model-lab-metrics small{display:block;font-size:.66rem;color:#b9c6d4;font-weight:400}
+.model-lab-signals{display:grid;gap:7px}
+.model-lab-signals span{font-size:.74rem;line-height:1.4;color:#c2cfdd}
+.model-lab-signals span.pass:first-letter{color:#a8dfc3}
+.model-lab-signals span.fail{color:#ffd0a4}
+.model-lab-result-grid p{color:#f0ceac;font-size:.75rem;overflow-wrap:anywhere}
+.story-model-lab footer{margin-top:20px;color:#aab7c8;font-size:.75rem;line-height:1.6}
+@media(max-width:1000px){.model-lab-result-grid{grid-template-columns:1fr}.model-lab-scenarios{grid-template-columns:1fr}.model-lab-console{align-items:stretch}}
+@media(max-width:540px){.story-model-lab{padding:16px}.model-lab-actions label,.model-lab-actions>button{width:100%;max-width:none}.model-lab-actions{width:100%}.model-lab-result-summary>strong{font-size:2.7rem}}
+@media(prefers-reduced-motion:reduce){.model-lab-progress-track span{transition:none}}

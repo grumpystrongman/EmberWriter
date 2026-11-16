@@ -15,6 +15,11 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from . import series_dialogue_reviews as dialogue_reviews
+from . import series_epub_index as epub_index
+from . import series_event_reviews as event_reviews
+from . import series_scene_reviews as scene_reviews
+from . import series_scene_studio as scene_studio
 from .series_vault import (
     MAX_DOCUMENT_CHARS,
     _connect,
@@ -39,6 +44,22 @@ def backup(series_id: str) -> Path:
             "SELECT * FROM entities WHERE series_id=? ORDER BY name", (series_id,))]
         facts = [dict(row) for row in con.execute(
             "SELECT * FROM assertions WHERE series_id=? ORDER BY created_at", (series_id,))]
+        epub_index._table(con)
+        event_reviews._ensure(con)
+        epub_indexes = [dict(row) for row in con.execute(
+            "SELECT * FROM series_epub_structure_indexes WHERE series_id=? ORDER BY source_id",
+            (series_id,))]
+        reviewed_events = [dict(row) for row in con.execute(
+            "SELECT * FROM series_event_reviews WHERE series_id=? ORDER BY book,quote_start",
+            (series_id,))]
+        dialogue_reviews._ensure(con)
+        reviewed_dialogue = [dict(row) for row in con.execute(
+            "SELECT * FROM series_dialogue_reviews WHERE series_id=? ORDER BY book,quote_start",
+            (series_id,))]
+        scene_reviews._ensure(con)
+        reviewed_scenes = [dict(row) for row in con.execute(
+            "SELECT * FROM series_scene_reviews WHERE series_id=? ORDER BY book,start",
+            (series_id,))]
     sources = []
     for volume in series["volumes"]:
         for source in volume["sources"]:
@@ -59,6 +80,11 @@ def backup(series_id: str) -> Path:
         "sources": sources,
         "entities": entities,
         "assertions": facts,
+        "verified_epub_indexes": epub_indexes,
+        "author_event_reviews": reviewed_events,
+        "author_dialogue_reviews": reviewed_dialogue,
+        "author_scene_reviews": reviewed_scenes,
+        "scene_boards": scene_studio.list_boards(series_id),
         "note": "Restoring this archive creates a new independent series. "
                 "Linked writing projects are not moved; their immutable source "
                 "snapshots are included instead.",
@@ -130,9 +156,21 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
         sources = manifest.get("sources", [])
         entities = manifest.get("entities", [])
         assertions = manifest.get("assertions", [])
+        scene_boards = manifest.get("scene_boards", [])
+        indexes = manifest.get("verified_epub_indexes", [])
+        events = manifest.get("author_event_reviews", [])
+        dialogue_records = manifest.get("author_dialogue_reviews", [])
+        scene_records = manifest.get("author_scene_reviews", [])
+        if (not isinstance(indexes, list) or not isinstance(events, list)
+                or not isinstance(dialogue_records, list)
+                or not isinstance(scene_records, list)
+                or len(indexes) > 1000 or len(events) > 5000
+                or len(dialogue_records) > 5000 or len(scene_records) > 5000):
+            raise ValueError("Archive includes excessive or invalid review metadata")
         if (not isinstance(about, dict) or not isinstance(volumes, list)
                 or not isinstance(sources, list) or not isinstance(entities, list)
                 or not isinstance(assertions, list)
+                or not isinstance(scene_boards, list) or len(scene_boards) > 200
                 or len(sources) > 1000 or len(entities) > 10000
                 or len(assertions) > 100000):
             raise ValueError("Archive has invalid record counts")
@@ -183,6 +221,145 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                 raise ValueError("Canon source citation is invalid; restore cancelled")
             if fact.get("status") not in {"proposed", "approved", "rejected"}:
                 raise ValueError("Archive canon review state is invalid")
+        # Newer archive fields are optional: existing version-one backups without
+        # structural metadata must remain importable. All new metadata is checked
+        # against the original immutable snapshots before any series is created.
+        source_by_id = {item["id"]: item for item in sources}
+        indexed_ids = set()
+        for record in indexes:
+            if not isinstance(record, dict) or record.get("source_id") not in source_ids:
+                raise ValueError("EPUB index references an unknown source")
+            sid = record["source_id"]
+            if sid in indexed_ids or record.get("source_hash") != source_by_id[sid]["sha256"]:
+                raise ValueError("EPUB index has an invalid source fingerprint")
+            indexed_ids.add(sid)
+            try:
+                structural = json.loads(record.get("sections_json", ""))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("EPUB structural index is malformed") from exc
+            if not isinstance(structural, list) or len(structural) > epub_index.epub_structure.MAX_SECTIONS:
+                raise ValueError("EPUB index includes excessive sections")
+            for item in structural:
+                if (not isinstance(item, dict)
+                        or type(item.get("start")) is not int or type(item.get("end")) is not int
+                        or not 0 <= item["start"] < item["end"] <= len(contents[sid])
+                        or not isinstance(item.get("title"), str) or len(item["title"]) > 160):
+                    raise ValueError("EPUB index coordinates or labels are invalid")
+        reviewed_ids = set()
+        for event in events:
+            if not isinstance(event, dict) or event.get("source_id") not in source_ids:
+                raise ValueError("Event review references a missing source")
+            source_id = event["source_id"]
+            start, end = event.get("quote_start"), event.get("quote_end")
+            if (type(start) is not int or type(end) is not int
+                    or not 0 <= start < end <= len(contents[source_id])
+                    or contents[source_id][start:end] != event.get("quote")
+                    or event.get("source_hash") != source_by_id[source_id]["sha256"]
+                    or event.get("status") not in ("proposed", "approved", "rejected")
+                    or event.get("event_kind") not in event_reviews.VALID_KINDS
+                    or event.get("timeline_class") not in event_reviews.VALID_TIME
+                    or not isinstance(event.get("title"), str) or len(event["title"]) > 160
+                    or not isinstance(event.get("note"), str) or len(event["note"]) > 1000):
+                raise ValueError("Event review quote or metadata did not verify")
+            identity = (source_id, start, end)
+            if identity in reviewed_ids:
+                raise ValueError("Duplicate event review coordinates")
+            reviewed_ids.add(identity)
+        # Dialogue decisions are optional in older archives, but cannot be
+        # imported without exact source text or an existing character reference.
+        reviewed_dialogue_ids = set()
+        character_ids = {entity['id'] for entity in entities
+                         if entity.get('kind') == 'character'}
+        for record in dialogue_records:
+            if not isinstance(record, dict) or record.get('source_id') not in source_ids:
+                raise ValueError('Dialogue review references unknown source')
+            sid = record['source_id']
+            start, end = record.get('quote_start'), record.get('quote_end')
+            speaker = record.get('speaker_id')
+            if (type(start) is not int or type(end) is not int
+                    or not 0 <= start < end <= len(contents[sid])
+                    or contents[sid][start:end] != record.get('quote')
+                    or record.get('source_hash') != source_by_id[sid]['sha256']
+                    or record.get('status') not in dialogue_reviews.STATUS
+                    or record.get('pov_class') not in dialogue_reviews.POV
+                    or (speaker is not None and speaker not in character_ids)
+                    or (record.get('status') == 'approved' and speaker is None)
+                    or not isinstance(record.get('note'), str)
+                    or len(record['note']) > 1000):
+                raise ValueError('Dialogue review source, speaker or POV failed verification')
+            identity = (sid, start, end)
+            if identity in reviewed_dialogue_ids:
+                raise ValueError('Duplicate dialogue attribution evidence')
+            reviewed_dialogue_ids.add(identity)
+        # Author-reviewed source windows are distinct from scene-studio drafts.
+        # Verify the exact cited bytes and author-controlled metadata before
+        # creating the destination series or remapping identifiers.
+        reviewed_scene_ids = set()
+        book_by_volume = {volume['id']: volume['ordinal'] for volume in volumes}
+        for item in scene_records:
+            if not isinstance(item, dict) or item.get('source_id') not in source_ids:
+                raise ValueError('Scene review references unknown source')
+            sid = item['source_id']
+            begin, finish = item.get('start'), item.get('end')
+            person = item.get('pov_character_id')
+            valid = (type(begin) is int and type(finish) is int
+                     and 0 <= begin < finish <= len(contents[sid])
+                     and finish-begin <= 8500
+                     and item.get('source_hash') == source_by_id[sid]['sha256']
+                     and item.get('range_hash') == hashlib.sha256(
+                         contents[sid][begin:finish].encode('utf8')).hexdigest()
+                     and item.get('book') == book_by_volume[
+                         source_by_id[sid]['volume_id']]
+                     and item.get('status') in scene_reviews.STATUSES
+                     and item.get('scene_kind') in scene_reviews.KINDS
+                     and item.get('pov_style') in scene_reviews.POV
+                     and (person is None or person in character_ids)
+                     and isinstance(item.get('title'), str)
+                     and len(item['title']) <= 160
+                     and isinstance(item.get('note'), str)
+                     and len(item['note']) <= 1000)
+            if not valid or (item.get('status') == 'approved' and
+                             (item.get('scene_kind') == 'uncertain'
+                              or not item['title'].strip())):
+                raise ValueError('Scene review coordinates, citation or classification failed verification')
+            identity = (sid, begin, finish)
+            if identity in reviewed_scene_ids:
+                raise ValueError('Duplicate scene review coordinates')
+            reviewed_scene_ids.add(identity)
+        # Scene boards are noncanonical author drafts. Validate the full record
+        # before touching the destination, then remap entity IDs on restore.
+        character_ids = {e["id"] for e in entities if e.get("kind") == "character"}
+        place_ids = {e["id"] for e in entities if e.get("kind") == "place"}
+        for board in scene_boards:
+            if not isinstance(board, dict) or not isinstance(board.get("book"), int) or board["book"] not in orders:
+                raise ValueError("Archive contains an invalid scene board book")
+            if not isinstance(board.get("sequence"), int) or not 0 <= board["sequence"] <= 999999:
+                raise ValueError("Archive contains an invalid scene board position")
+            participants = board.get("participants")
+            if not isinstance(participants, list) or len(participants) > 20 or len(set(participants)) != len(participants) or any(p not in character_ids for p in participants):
+                raise ValueError("Archive contains a scene board with missing cast")
+            if (board.get("pov_id") and board["pov_id"] not in character_ids) or (board.get("location_id") and board["location_id"] not in place_ids):
+                raise ValueError("Archive scene board refers to an unknown location or POV")
+            if not 1 <= len(str(board.get("title", "")).strip()) <= 160:
+                raise ValueError("Archive contains a scene board with an invalid title")
+            for field, maximum in (("objective", 1200), ("conflict", 1200), ("opening", 1600), ("aftermath", 1600), ("voice_notes", 1200)):
+                if not isinstance(board.get(field, ""), str) or len(board.get(field, "")) > maximum:
+                    raise ValueError("Archive contains a scene board with invalid notes")
+            beats = board.get("beats")
+            if not isinstance(beats, list) or not 1 <= len(beats) <= 24:
+                raise ValueError("Archive contains an invalid dramatic beat board")
+            beat_ids = set()
+            for beat in beats:
+                if not isinstance(beat, dict) or not isinstance(beat.get("id"), str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", beat["id"]):
+                    raise ValueError("Archive contains an invalid beat identifier")
+                beat_ids.add(beat["id"])
+                if (beat.get("kind") not in scene_studio.BEAT_KINDS
+                    or not isinstance(beat.get("title"), str) or not 1 <= len(beat["title"].strip()) <= 120
+                    or not isinstance(beat.get("detail"), str) or len(beat["detail"]) > 1200
+                    or type(beat.get("pressure")) is not int or not 0 <= beat["pressure"] <= 100):
+                    raise ValueError("Archive contains an invalid scene beat")
+            if len(beat_ids) != len(beats):
+                raise ValueError("Archive contains repeated beat identifiers")
         # All validation has completed. Create only a new ID namespace.
         series_id = _id()
         volume_map = {old: _id() for old in volume_ids}
@@ -237,8 +414,82 @@ def restore(data: bytes, rights_confirmed: bool) -> dict:
                         fact["quote_end"], fact["quote"], fact["status"],
                         fact["note"], now(),
                     ))
+                epub_index._table(con)
+                event_reviews._ensure(con)
+                dialogue_reviews._ensure(con)
+                scene_reviews._ensure(con)
+                for record in indexes:
+                    con.execute("""
+                        INSERT INTO series_epub_structure_indexes
+                        (source_id,series_id,source_hash,epub_hash,sections_json,saved_at)
+                        VALUES (?,?,?,?,?,?)
+                    """, (
+                        source_map[record["source_id"]], series_id,
+                        record["source_hash"], record["epub_hash"],
+                        record["sections_json"], now(),
+                    ))
+                for event in events:
+                    con.execute("""
+                        INSERT INTO series_event_reviews (
+                            id,series_id,source_id,source_hash,book,
+                            quote_start,quote_end,quote,title,event_kind,
+                            timeline_class,note,status,created_at,reviewed_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """, (
+                        _id(), series_id, source_map[event["source_id"]],
+                        event["source_hash"], event["book"],
+                        event["quote_start"], event["quote_end"], event["quote"],
+                        event["title"], event["event_kind"],
+                        event["timeline_class"], event["note"],event["status"],
+                        now(), now() if event["reviewed_at"] else None,
+                    ))
+                for record in dialogue_records:
+                    con.execute('''
+                        INSERT INTO series_dialogue_reviews (
+                            id,series_id,source_id,source_hash,book,quote_start,
+                            quote_end,quote,speaker_id,pov_class,note,status,
+                            created_at,reviewed_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ''', (
+                        _id(),series_id,source_map[record['source_id']],
+                        record['source_hash'],record['book'],
+                        record['quote_start'],record['quote_end'],record['quote'],
+                        entity_map.get(record['speaker_id']),record['pov_class'],
+                        record['note'],record['status'],now(),
+                        now() if record['reviewed_at'] else None,
+                    ))
+                for item in scene_records:
+                    con.execute('''
+                        INSERT INTO series_scene_reviews (
+                            id,series_id,source_id,source_hash,range_hash,
+                            book,start,end,title,scene_kind,pov_style,
+                            pov_character_id,note,status,created_at,reviewed_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ''', (
+                        _id(),series_id,source_map[item['source_id']],
+                        item['source_hash'],item['range_hash'],item['book'],
+                        item['start'],item['end'],item['title'],item['scene_kind'],
+                        item['pov_style'],entity_map.get(item.get('pov_character_id')),
+                        item['note'],item['status'],now(),
+                        now() if item.get('reviewed_at') else None,
+                    ))
         except Exception:
             for volume_id in set(created_volumes):
                 shutil.rmtree(_root() / "snapshots" / volume_id, ignore_errors=True)
+            raise
+        try:
+            for board in scene_boards:
+                scene_studio.create_board(series_id, {
+                    **{key: board.get(key, "") for key in ("title", "objective", "conflict", "opening", "aftermath", "voice_notes")},
+                    "book": board["book"], "sequence": board["sequence"],
+                    "pov_id": entity_map.get(board.get("pov_id")),
+                    "location_id": entity_map.get(board.get("location_id")),
+                    "participants": [entity_map[p] for p in board["participants"]],
+                    "beats": board["beats"],
+                })
+        except Exception:
+            # Do not leave an apparently successful but incomplete restore.
+            from .series_vault import delete_series
+            delete_series(series_id, title)
             raise
     return series_detail(series_id)

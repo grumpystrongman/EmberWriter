@@ -28,6 +28,22 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [apiBaseRewrite(apiBase), react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            const path = id.replace(/\\/g, '/')
+            if (!path.includes('/node_modules/')) return undefined
+            if (path.includes('/react-dom/') || path.includes('/scheduler/')) return 'react-renderer-vendor'
+            if (path.includes('/@tiptap/') || path.includes('/prosemirror-')) return 'editor-vendor'
+            if (path.includes('/harper.js/')) return 'grammar-vendor'
+            if (path.includes('/marked/')) return 'markdown-vendor'
+            if (path.includes('/turndown/')) return 'conversion-vendor'
+            return undefined
+          },
+        },
+      },
+    },
     server: {
       host: '127.0.0.1',
       port: 5173,

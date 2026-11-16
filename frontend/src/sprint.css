@@ -18,7 +18,7 @@
 
 .sprint-panel > summary::-webkit-details-marker { display: none; }
 .sprint-panel > summary span { font-weight: 700; }
-.sprint-panel > summary small { color: #78695d; }
+.sprint-panel > summary small { color: #514137; }
 .sprint-panel > summary strong { color: #8b441f; font-size: 0.7rem; }
 .sprint-panel.active > summary { background: rgba(202, 125, 73, 0.11); }
 

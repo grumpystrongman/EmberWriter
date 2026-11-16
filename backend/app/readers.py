@@ -12,6 +12,7 @@ from .models import ProviderConfig
 from .provenance_store import record_assistance_event
 from .publishing import compiled_documents
 from .reader_models import ReaderRunCreate, ReaderVerdict
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, read_text, utc_now
 
 PERSONAS: dict[str, dict[str, Any]] = {
@@ -97,7 +98,7 @@ def _parse_json_object(text: str, label: str) -> dict[str, Any]:
 
 def _connect(slug: str) -> sqlite3.Connection:
     path = project_root(slug) / ".ember" / "story.db"
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(path, factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

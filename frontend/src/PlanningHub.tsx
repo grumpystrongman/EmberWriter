@@ -8,6 +8,7 @@ import VoiceprintLab from './VoiceprintLab'
 import StyleBible from './StyleBible'
 import ProseEditor from './ProseEditor'
 import EditorialBoard from './EditorialBoard'
+import DevelopmentalStudio from './DevelopmentalStudio'
 import ProductionConductor from './ProductionConductor'
 import DevelopmentWorkspace from './DevelopmentWorkspace'
 import PlanWorkspace from './PlanWorkspace'
@@ -17,11 +18,12 @@ type Props = {
   apiBase: string
   project: WorkspaceProject
   onOpenSource: (path: string, anchor?: string) => void
+  onNavigateWorkspace: (workspace:'analyze') => void
 }
 type PlanHubTab =
   | 'production_conductor' | 'book_studio'
   | 'timeline' | 'story_map' | 'manuscript_intelligence' | 'story_arcs'
-  | 'editorial_board' | 'prose_editor' | 'style_bible' | 'voiceprint'
+  | 'editorial_board' | 'developmental_studio' | 'prose_editor' | 'style_bible' | 'voiceprint'
   | 'autopilot'
 type Group = 'produce' | 'develop' | 'edit' | 'advanced'
 type Tool = { id: PlanHubTab; name: string; detail: string }
@@ -50,6 +52,7 @@ export const PLANNING_GROUPS: GroupSpec[] = [
     id: 'edit', label: 'Edit & review',
     description: 'Prioritize issues across the manuscript and retain every deliberate writing decision.',
     tools: [
+      { id: 'developmental_studio', name: 'Developmental studio', detail: 'Visual manuscript health, arc atlas, and selective revision workbench' },
       { id: 'editorial_board', name: 'Editorial overview', detail: 'Find outstanding work across all chapters' },
       { id: 'prose_editor', name: 'Prose editor', detail: 'Review specific grammar and style suggestions' },
       { id: 'style_bible', name: 'Style Bible', detail: 'Preferred spellings and invented terminology' },
@@ -70,13 +73,18 @@ function groupFor(tab: PlanHubTab): Group {
 }
 function initialTab(slug: string): PlanHubTab {
   try {
+    const requested = window.sessionStorage.getItem('emberwriter:planning-tab-request:'+slug)
+    if(requested && TOOLS.some(tool=>tool.id===requested)){
+      window.sessionStorage.removeItem('emberwriter:planning-tab-request:'+slug)
+      return requested as PlanHubTab
+    }
     const stored = window.localStorage.getItem(`emberwriter:planning-tab:${slug}`)
     if (TOOLS.some(tool => tool.id === stored)) return stored as PlanHubTab
   } catch { /* Private browsing may disable local storage. */ }
   return 'production_conductor'
 }
 
-export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
+export default function PlanningHub({ apiBase, project, onOpenSource, onNavigateWorkspace }: Props) {
   const [tab, setTab] = useState<PlanHubTab>(() => initialTab(project.slug))
   const [editorialTarget, setEditorialTarget] = useState('')
   const groupId = groupFor(tab)
@@ -112,6 +120,9 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
         return <StyleBible apiBase={apiBase} projectSlug={project.slug} initialPath={editorialTarget} onOpenSource={onOpenSource} />
       case 'prose_editor':
         return <ProseEditor apiBase={apiBase} projectSlug={project.slug} initialPath={editorialTarget} onOpenSource={onOpenSource} />
+      case 'developmental_studio':
+        return <DevelopmentalStudio apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource}
+          onOpenEditorTool={(tool,path)=>{setEditorialTarget(path);selectTool(tool)}} />
       case 'editorial_board':
         return <EditorialBoard apiBase={apiBase} projectSlug={project.slug} onOpenSource={onOpenSource} onNavigate={navigateEditorial} />
       case 'autopilot':
@@ -132,6 +143,10 @@ export default function PlanningHub({ apiBase, project, onOpenSource }: Props) {
           <p>Choose the work you're doing. Your chapters, settings and author decisions remain in the project.</p>
         </div>
       </header>
+      <div className="planning-author-shortcut">
+        <span>Source-linked editing and safe revisions live here.</span>
+        <button type="button" onClick={()=>onNavigateWorkspace('analyze')}>Run deep reader critique ↗</button>
+      </div>
       <nav className="planning-groups" aria-label="Writing workflow">
         {PLANNING_GROUPS.map(item =>
           <button key={item.id} type="button" aria-pressed={groupId === item.id}

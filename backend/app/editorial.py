@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from .binder import get_binder
 from .editorial_models import EditorialProfile, EditorialRunRequest
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, read_text, save_text, utc_now
 
 EDITORIAL_PROFILE_PATH = "style/editorial-profile.json"
@@ -295,7 +296,7 @@ def _db_path(slug: str) -> Path:
 
 
 def _connect(slug: str) -> sqlite3.Connection:
-    con = sqlite3.connect(_db_path(slug))
+    con = sqlite3.connect(_db_path(slug), factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

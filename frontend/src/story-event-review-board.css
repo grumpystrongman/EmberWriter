@@ -1,0 +1,5 @@
+.story-event-review-board{margin:10px 0;color:#edf2f6}
+.story-event-review-board>p[role=alert]{font-size:.78rem;color:#f1af9b}
+.story-event-review-board>p[role=status]{font-size:.78rem;color:#cee4c2}
+.review-queue-secondary .story-event-review-board .review-queue{margin:6px 0}
+.review-queue-secondary{display:block}

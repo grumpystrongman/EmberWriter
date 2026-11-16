@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from .sqlite_lifecycle import ClosingConnection
+
 ALLOWED_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml"}
 DATA_ROOT = Path(os.getenv("EMBER_DATA_DIR", "data")).expanduser().resolve()
 PROJECTS_ROOT = DATA_ROOT / "projects"
@@ -54,7 +56,7 @@ def _db_path(slug: str) -> Path:
 def _connect(slug: str) -> sqlite3.Connection:
     path = _db_path(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(path, factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

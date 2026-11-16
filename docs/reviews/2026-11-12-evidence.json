@@ -1,0 +1,1579 @@
+{
+  "date": "2026-11-12",
+  "source": "Fresh CDP capture of synthetic localhost application",
+  "synthetic_project": "The Ashen Coast — Synthetic Editorial Review",
+  "timestamp": "2026-11-12T22:41:32.108Z",
+  "cases": [
+    {
+      "step": "write-desktop",
+      "workspace": "write",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door"
+      ],
+      "visibleButtonCount": 100,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "BUTTON",
+          "text": "×",
+          "width": 23,
+          "height": 35
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n✎ Write\nThe Ashen Coast — Synthetic Editorial Review · manuscript/01-the-letter-beneath-the-door.md\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast —",
+      "currentWorkspace": "write",
+      "image": "assets/2026-11-12/write-desktop.png"
+    },
+    {
+      "step": "write-mobile",
+      "workspace": "write",
+      "title": "EmberWriter",
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "heading": [
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door"
+      ],
+      "visibleButtonCount": 58,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>✦ Studio</span><small>Ctrl/Cmd+2</small></button>",
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>◫ Analyze</span><small>Ctrl/Cmd+7</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "×",
+          "width": 23,
+          "height": 35
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n▦\nPlan\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\n◈\n☰\n▧\n◉ Focus\nChecking images…\n✎ Write\nThe Ashen Coast — Synthetic Editorial Review · manuscript/01-the-letter-beneath-the-door.md\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n01-the-letter-beneath-the-door\n×\n⌕ Search\n◫ Split\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n* * *\n≡\n≣\n≡\n95 words · 547 chars\n⏱ Writing Sprint\n25 min · 500 word goal · today +0\nThe Letter Beneath the Door\n\nMira opened the weather-worn letter on a stormless morning. The town bell hadn't rung in three days, and nobody would explain why.\n\nShe set the letter beside the silver compass. Its needle had always pointed inland, toward the old lighthouse, but now it trembled toward the sea.\n\n\"The harbor is safe,\" said Tavi. \"It has always been safe.\" Mira looked past ",
+      "currentWorkspace": "write",
+      "image": "assets/2026-11-12/write-mobile.png"
+    },
+    {
+      "step": "plan-desktop",
+      "workspace": "plan",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Your writing workspace",
+        "See the book beneath the words."
+      ],
+      "visibleButtonCount": 109,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n▦ Plan\nThe Ashen Coast — Synthetic Editorial Review · Plan workspace\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Review\nman",
+      "currentWorkspace": "plan",
+      "image": "assets/2026-11-12/plan-desktop.png"
+    },
+    {
+      "step": "plan-mobile",
+      "workspace": "plan",
+      "title": "EmberWriter",
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "heading": [
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Your writing workspace",
+        "See the book beneath the words.",
+        "The rhythm of your draft.",
+        "Patterns worth investigating."
+      ],
+      "visibleButtonCount": 95,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>✦ Studio</span><small>Ctrl/Cmd+2</small></button>",
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>◫ Analyze</span><small>Ctrl/Cmd+7</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n▦\nPlan\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\n◈\n☰\n▧\n◉ Focus\nChecking images…\n▦ Plan\nThe Ashen Coast — Synthetic Editorial Review · Plan workspace\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n* * *\n≡\n≣\n≡\n95 words · 547 chars\n⏱ Writing Sprint\n25 min · 500 word goal · today +0\nThe Letter Beneath the Door\n\nMira opened the weather-worn letter on a stormless morning. The town bell hadn't rung in three days, and nobody would explain why.\n\nShe set the letter beside the silver compass. Its needle had always pointed inland, toward the old lighthouse, but now it trembled toward the sea.\n\n\"The harbor is safe,\" said Tavi. \"It has always been safe.\" Mira looked past him, where the fishing boats swayed beneath an empty sky.\n\nMira wanted to know wh",
+      "currentWorkspace": "plan",
+      "image": "assets/2026-11-12/plan-mobile.png"
+    },
+    {
+      "step": "analyze-desktop",
+      "workspace": "analyze",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Editorial & Reader Studio",
+        "Creative Process Evidence",
+        "Voice Fidelity Audit"
+      ],
+      "visibleButtonCount": 131,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">",
+        "<button type=\"button\" class=\"\">Grammar</button>",
+        "<button type=\"button\" class=\"active\">Publishing</button>"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 1082,
+          "height": 12
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n◫ Analyze\nThe Ashen Coast — Synthetic Editorial Review · Analyze workspace\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Revi",
+      "currentWorkspace": "analyze",
+      "image": "assets/2026-11-12/analyze-desktop.png"
+    },
+    {
+      "step": "analyze-mobile",
+      "workspace": "analyze",
+      "title": "EmberWriter",
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "heading": [
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Editorial & Reader Studio",
+        "Creative Process Evidence",
+        "Voice Fidelity Audit"
+      ],
+      "visibleButtonCount": 89,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>✦ Studio</span><small>Ctrl/Cmd+2</small></button>",
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"active\" aria-current=\"page\"><span>◫ Analyze</span><small>Ctrl/Cmd+7</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 322,
+          "height": 12
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 322,
+          "height": 12
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 322,
+          "height": 12
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 322,
+          "height": 12
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 322,
+          "height": 12
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 322,
+          "height": 12
+        },
+        {
+          "tag": "A",
+          "text": "",
+          "width": 316,
+          "height": 12
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n▦\nPlan\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\n◈\n☰\n▧\n◉ Focus\nChecking images…\n◫ Analyze\nThe Ashen Coast — Synthetic Editorial Review · Analyze workspace\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n* * *\n≡\n≣\n≡\n95 words · 547 chars\n⏱ Writing Sprint\n25 min · 500 word goal · today +0\nThe Letter Beneath the Door\n\nMira opened the weather-worn letter on a stormless morning. The town bell hadn't rung in three days, and nobody would explain why.\n\nShe set the letter beside the silver compass. Its needle had always pointed inland, toward the old lighthouse, but now it trembled toward the sea.\n\n\"The harbor is safe,\" said Tavi. \"It has always been safe.\" Mira looked past him, where the fishing boats swayed beneath an empty sky.\n\nMira wanted to k",
+      "currentWorkspace": "analyze",
+      "image": "assets/2026-11-12/analyze-mobile.png"
+    },
+    {
+      "step": "publish-desktop",
+      "workspace": "publish",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Publishing Studio",
+        "Make the book ready for the world.",
+        "Manuscript check",
+        "The last decision is yours."
+      ],
+      "visibleButtonCount": 126,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n▤ Publish\nThe Ashen Coast — Synthetic Editorial Review · Publish workspace\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Revi",
+      "currentWorkspace": "publish",
+      "image": "assets/2026-11-12/publish-desktop.png"
+    },
+    {
+      "step": "publish-mobile",
+      "workspace": "publish",
+      "title": "EmberWriter",
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "heading": [
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Publishing Studio",
+        "Make the book ready for the world.",
+        "Manuscript check",
+        "The last decision is yours."
+      ],
+      "visibleButtonCount": 84,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>✦ Studio</span><small>Ctrl/Cmd+2</small></button>",
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>◫ Analyze</span><small>Ctrl/Cmd+7</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 17,
+          "height": 17
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n▦\nPlan\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\n◈\n☰\n▧\n◉ Focus\nChecking images…\n▤ Publish\nThe Ashen Coast — Synthetic Editorial Review · Publish workspace\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n* * *\n≡\n≣\n≡\n95 words · 547 chars\n⏱ Writing Sprint\n25 min · 500 word goal · today +0\nThe Letter Beneath the Door\n\nMira opened the weather-worn letter on a stormless morning. The town bell hadn't rung in three days, and nobody would explain why.\n\nShe set the letter beside the silver compass. Its needle had always pointed inland, toward the old lighthouse, but now it trembled toward the sea.\n\n\"The harbor is safe,\" said Tavi. \"It has always been safe.\" Mira looked past him, where the fishing boats swayed beneath an empty sky.\n\nMira wanted to k",
+      "currentWorkspace": "publish",
+      "image": "assets/2026-11-12/publish-mobile.png"
+    },
+    {
+      "step": "series-desktop",
+      "workspace": "series",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Series Desk",
+        "Your universe, in motion.",
+        "Ashen Library"
+      ],
+      "visibleButtonCount": 146,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">",
+        "<button type=\"button\" disabled=\"\">Create series</button>",
+        "<input accept=\".zip,application/zip\" type=\"file\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 18,
+          "height": 18
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n◈ Series\nThe Ashen Coast — Synthetic Editorial Review · Series workspace\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Review",
+      "currentWorkspace": "series",
+      "image": "assets/2026-11-12/series-desktop.png"
+    },
+    {
+      "step": "series-mobile",
+      "workspace": "series",
+      "title": "EmberWriter",
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "heading": [
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Series Desk",
+        "Your universe, in motion.",
+        "Ashen Library"
+      ],
+      "visibleButtonCount": 104,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>✦ Studio</span><small>Ctrl/Cmd+2</small></button>",
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>◫ Analyze</span><small>Ctrl/Cmd+7</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 18,
+          "height": 18
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n▦\nPlan\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\n◈\n☰\n▧\n◉ Focus\nChecking images…\n◈ Series\nThe Ashen Coast — Synthetic Editorial Review · Series workspace\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n* * *\n≡\n≣\n≡\n95 words · 547 chars\n⏱ Writing Sprint\n25 min · 500 word goal · today +0\nThe Letter Beneath the Door\n\nMira opened the weather-worn letter on a stormless morning. The town bell hadn't rung in three days, and nobody would explain why.\n\nShe set the letter beside the silver compass. Its needle had always pointed inland, toward the old lighthouse, but now it trembled toward the sea.\n\n\"The harbor is safe,\" said Tavi. \"It has always been safe.\" Mira looked past him, where the fishing boats swayed beneath an empty sky.\n\nMira wanted to kno",
+      "currentWorkspace": "series",
+      "image": "assets/2026-11-12/series-mobile.png"
+    },
+    {
+      "step": "publish-tablet",
+      "workspace": "publish",
+      "title": "EmberWriter",
+      "viewport": 900,
+      "documentWidth": 885,
+      "bodyWidth": 885,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Publishing Studio",
+        "Make the book ready for the world.",
+        "Manuscript check",
+        "The last decision is yours."
+      ],
+      "visibleButtonCount": 125,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n▤ Publish\nThe Ashen Coast — Synthetic Editorial Review · Publish workspace\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n",
+      "currentWorkspace": "publish",
+      "image": "assets/2026-11-12/publish-tablet.png"
+    },
+    {
+      "step": "publish-interior-milestone",
+      "workspace": "publish",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Publishing Studio",
+        "Make the book ready for the world.",
+        "Book interiors",
+        "The last decision is yours."
+      ],
+      "visibleButtonCount": 123,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        },
+        {
+          "tag": "A",
+          "text": "Download ↗",
+          "width": 63,
+          "height": 15
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n▤ Publish\nThe Ashen Coast — Synthetic Editorial Review · Publish workspace\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Revi",
+      "currentWorkspace": "publish",
+      "image": "assets/2026-11-12/publish-interior-milestone.png"
+    },
+    {
+      "step": "editorial-desktop",
+      "workspace": "plan",
+      "title": "EmberWriter",
+      "viewport": 1440,
+      "documentWidth": 1425,
+      "bodyWidth": 1425,
+      "heading": [
+        "Library",
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Your writing workspace",
+        "See the book beneath the words.",
+        "The rhythm of your draft.",
+        "Patterns worth investigating."
+      ],
+      "visibleButtonCount": 137,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Expand",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "›",
+          "width": 22,
+          "height": 33
+        },
+        {
+          "tag": "BUTTON",
+          "text": "⌄",
+          "width": 22,
+          "height": 32
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "◆\nEmberWriter\nStories. Sharper.\n✎\nWrite\n✦\nStudio\n▦\nPlan\n◫\nAnalyze\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\nNew writing\n◈\nLocal backup\n☰\n▧ Reference\n▰ Note\n◉ Focus\nChecking images…\n▦ Plan\nThe Ashen Coast — Synthetic Editorial Review · Plan workspace\nCtrl/Cmd+1–9 or 0 changes workspace · Ctrl/Cmd+Shift+F toggles Focus\nLIBRARY\n+\nThe Ashen Coast — Synthetic Editorial Review\nLocal story project\nDelete project\n▸ Import / Restore\nBinder\n19 items\nSync\nTree\nCorkboard\nOutliner\n⌄\n▸\nDraft\n▤\nThe Letter Beneath the Door\n95 words\n▤\nThe Empty Harbor\n85 words\n▤\nThe Salt Road\n85 words\n▤\nThe First Confession\n91 words\n▤\nThe Lighthouse Opens\n91 words\n▤\nChapter 1\n10 words\n⌄\n▸\nResearch\n⌄\n▸\nStory Bible\n›\n▸\nCharacters\n›\n▸\nStyle\n›\n▸\nSummaries\n›\n▸\nWorld\n⌄\n⌫\nTrash\nDocument\nFolder\nResearch\nCharacter\nLocation\nNote\n+\nInspector\nfolder\nThe Ashen Coast — Synthetic Editorial Review\nman",
+      "currentWorkspace": "plan",
+      "image": "assets/2026-11-12/editorial-desktop.png"
+    },
+    {
+      "step": "editorial-mobile",
+      "workspace": "plan",
+      "title": "EmberWriter",
+      "viewport": 390,
+      "documentWidth": 390,
+      "bodyWidth": 390,
+      "heading": [
+        "manuscript/01-the-letter-beneath-the-door.md",
+        "The Letter Beneath the Door",
+        "Your writing workspace",
+        "See the book beneath the words.",
+        "The rhythm of your draft.",
+        "Patterns worth investigating."
+      ],
+      "visibleButtonCount": 95,
+      "unnamedControls": [
+        "<button type=\"button\" class=\"\"><span>✦ Studio</span><small>Ctrl/Cmd+2</small></button>",
+        "<button type=\"button\" class=\"\"><span>▰ Notes</span><small>Ctrl/Cmd+3</small></button>",
+        "<button type=\"button\" class=\"\"><span>♟ Characters</span><small>Ctrl/Cmd+5</small></button>",
+        "<button type=\"button\" class=\"\"><span>◎ World</span><small>Ctrl/Cmd+6</small></button>",
+        "<button type=\"button\" class=\"\"><span>◫ Analyze</span><small>Ctrl/Cmd+7</small></button>",
+        "<button type=\"button\" class=\"\"><span>⚙ Tools</span><small>Ctrl/Cmd+8</small></button>",
+        "<button type=\"button\" class=\"\"><span>⇧ Submit</span><small>Ctrl/Cmd+0</small></button>",
+        "<button type=\"button\" class=\"\">10m</button>",
+        "<button type=\"button\" class=\"active\">25m</button>",
+        "<button type=\"button\" class=\"\">45m</button>",
+        "<button type=\"button\" class=\"\">60m</button>",
+        "<input min=\"1\" max=\"480\" type=\"number\" value=\"25\">",
+        "<input min=\"1\" max=\"100000\" type=\"number\" value=\"500\">",
+        "<input type=\"checkbox\" checked=\"\">",
+        "<button type=\"button\" class=\"primary\">Start sprint</button>",
+        "<select><option value=\"comment\">Comment</option><option value=\"question\">Question</option><option value=\"issue\">Issue</option><option value=\"todo\">To-do</option><option value=\"prai",
+        "<button type=\"button\" class=\"primary\" disabled=\"\">Add comment to current selection</button>",
+        "<input type=\"checkbox\">"
+      ],
+      "smallControls": [
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "",
+          "width": 13,
+          "height": 36
+        }
+      ],
+      "alertTexts": [],
+      "firstViewportText": "✎\nWrite\n▦\nPlan\n▤\nPublish\n◈\nSeries\nMore\n▾\n＋\n◈\n☰\n▧\n◉ Focus\nChecking images…\n▦ Plan\nThe Ashen Coast — Synthetic Editorial Review · Plan workspace\nThe Ashen Coast — Synthetic Editorial Review\nmanuscript/01-the-letter-beneath-the-door.md\n96 words\n↶\n↷\n⌕\nABC\nStyle 0\nB\nI\nU\nS̶\n▰\nP\nH1\nH2\nH3\n• List\n1. List\n❝\n* * *\n≡\n≣\n≡\n95 words · 547 chars\n⏱ Writing Sprint\n25 min · 500 word goal · today +0\nThe Letter Beneath the Door\n\nMira opened the weather-worn letter on a stormless morning. The town bell hadn't rung in three days, and nobody would explain why.\n\nShe set the letter beside the silver compass. Its needle had always pointed inland, toward the old lighthouse, but now it trembled toward the sea.\n\n\"The harbor is safe,\" said Tavi. \"It has always been safe.\" Mira looked past him, where the fishing boats swayed beneath an empty sky.\n\nMira wanted to know wh",
+      "currentWorkspace": "plan",
+      "image": "assets/2026-11-12/editorial-mobile.png"
+    }
+  ]
+}

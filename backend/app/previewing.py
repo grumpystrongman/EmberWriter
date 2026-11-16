@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import markdown as markdown_lib
 
-from .publishing import compiled_documents
+from .publishing import _clean_chapter_content, compiled_documents
 from .storage import project_root
 
 
@@ -34,7 +34,7 @@ def preview_payload(
                 "title": item["title"],
                 "path": item["path"],
                 "word_count": item["word_count"],
-                "html": _chapter_html(item["content"]),
+                "html": _chapter_html(_clean_chapter_content(item["content"], item["title"])),
             }
             for item in documents
         ],

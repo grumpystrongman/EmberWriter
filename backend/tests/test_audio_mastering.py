@@ -126,7 +126,9 @@ class AudioMasteringTests(unittest.IsolatedAsyncioTestCase):
     def test_silence_intervals_are_not_mislabeled_ambient_noise_floor(self):
         file = Path(self.tmp.name) / "artificial-pause.wav"
         with wave.open(str(file), "wb") as wav:
-            wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(16000)
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
             wav.writeframes(b"\x00\x00" * 32000)
             wav.writeframes(b"".join(struct.pack("<h", int(10000 * math.sin(2 * math.pi * 440 * n / 16000))) for n in range(16000)))
         measured = analyze_file(file)

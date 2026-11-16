@@ -1,0 +1,5 @@
+.story-name-discovery .story-name-search{padding:9px 0}
+.story-name-search form{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.story-name-search form label{display:grid;gap:6px;font-size:.72rem;color:#d4dfea;min-width:240px;flex:1}
+.story-name-search form input{background:#0e2131;border:1px solid #8096aa;border-radius:6px;color:#fff;padding:9px;min-height:37px;width:100%;max-width:480px}
+.story-name-search form button{padding:9px 13px;min-height:37px;background:#3e5267;color:#fff;border:1px solid #91a4b4;border-radius:6px;cursor:pointer}

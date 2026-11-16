@@ -87,6 +87,10 @@ jobs:
           grep -q 'docs/screenshots/03-visual-canon.png' README.md
           grep -q 'docs/screenshots/04-character-studio.png' README.md
           grep -q 'docs/screenshots/05-publishing-studio.png' README.md
+      - name: Validate complete 38-gate author-quality scorecard
+        run: |
+          node scripts/verify_release_scorecard.mjs --catalog
+          node --test scripts/test_release_scorecard.mjs
       - name: Build hosted production frontend
         run: npm run build
         working-directory: frontend

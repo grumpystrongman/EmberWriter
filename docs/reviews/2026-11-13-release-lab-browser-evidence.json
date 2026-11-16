@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-11-13T14:51:29.122Z",
+  "source": "Local Chromium CDP on synthetic only",
+  "overview": {
+    "heading": "Nothing ships at four.",
+    "gates": 38,
+    "domains": 5,
+    "kpis": [
+      "38",
+      "0",
+      "2",
+      "4"
+    ]
+  },
+  "confirmedChecks": [
+    "38 release gates",
+    "5 quality groups",
+    "0 certified",
+    "10 narrative gates",
+    "proof inspector with locked 5/5",
+    "2 P0 blockers",
+    "responsive 1440 and 390 without page overflow",
+    "9 author craft gates"
+  ]
+}

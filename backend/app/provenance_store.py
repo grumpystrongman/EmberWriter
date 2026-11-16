@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from .sqlite_lifecycle import ClosingConnection
 from .storage import project_root, utc_now
 
 WORD_RE = re.compile(r"\b[A-Za-z][A-Za-z'’-]*\b")
@@ -25,7 +26,7 @@ def _db_path(slug: str) -> Path:
 
 
 def connect(slug: str) -> sqlite3.Connection:
-    con = sqlite3.connect(_db_path(slug))
+    con = sqlite3.connect(_db_path(slug), factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """

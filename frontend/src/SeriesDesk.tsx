@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { WorkspaceProject } from './workspace-types'
 import SeriesProfessionalTools, { type ProMode } from './SeriesProfessionalTools'
+import StoryObservatory from './StoryObservatory'
+import PartTwoStudio from './PartTwoStudio'
+import SeriesEvidenceSearch from './SeriesEvidenceSearch'
+import SeriesKnowledgeLab from './SeriesKnowledgeLab'
+import SeriesExtractionWorkbench from './SeriesExtractionWorkbench'
+import SourceSectionNavigator from './SourceSectionNavigator'
 import './series-desk.css'
 
 const API = 'http://127.0.0.1:8000/api'
@@ -40,7 +46,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [selectedId, setSelectedId] = useState('')
   const [series, setSeries] = useState<Series | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
-  const [view, setView] = useState<'vault' | 'canon' | 'timeline' | ProMode>('vault')
+  const [view, setView] = useState<'observatory' | 'creative' | 'vault' | 'canon' | 'timeline' | 'knowledge' | ProMode>('observatory')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -55,9 +61,18 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [editionStatus, setEditionStatus] = useState('draft')
   const [linkProject, setLinkProject] = useState('')
   const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [collectionFile, setCollectionFile] = useState<File | null>(null)
+  const [collectionPermission, setCollectionPermission] = useState(false)
+  const [collectionConfirmed, setCollectionConfirmed] = useState(false)
+  const [collectionResult, setCollectionResult] = useState<{
+    imported_count: number; book_orders: number[]; total_source_characters: number;
+    ignored_non_epub: number; canon_facts_approved: number;
+  } | null>(null)
   const [volumeEdits, setVolumeEdits] = useState<Record<string, {title: string; ordinal: number; kind: string; edition_status: string}>>({})
   const [rightsConfirmed, setRightsConfirmed] = useState(false)
   const [addMode, setAddMode] = useState<'project' | 'document'>('project')
+  const [bookFilter,setBookFilter] = useState('')
+  const [bookPage,setBookPage] = useState(0)
   const [entities, setEntities] = useState<Entity[]>([])
   const [facts, setFacts] = useState<Fact[]>([])
   const [entityName, setEntityName] = useState('')
@@ -65,6 +80,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const [entityAliases, setEntityAliases] = useState('')
   const [sourceId, setSourceId] = useState('')
   const [sourceQuery, setSourceQuery] = useState('')
+  const [sourcePosition, setSourcePosition] = useState<number|null>(null)
   const [excerpt, setExcerpt] = useState<Excerpt | null>(null)
   const [quote, setQuote] = useState('')
   const [subjectId, setSubjectId] = useState('')
@@ -91,6 +107,12 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
   const sources = useMemo(() => (series?.volumes || []).flatMap(volume =>
     volume.sources.map(source => ({ ...source, ordinal: volume.ordinal, volumeTitle: volume.title }))),
   [series])
+  const filteredBooks = useMemo(() => (series?.volumes || []).filter(book => {
+    const term=bookFilter.trim().toLowerCase()
+    return !term || book.title.toLowerCase().includes(term) || String(book.ordinal).padStart(3,'0').includes(term)
+  }),[series?.volumes,bookFilter])
+  const bookPages=Math.max(1,Math.ceil(filteredBooks.length/16))
+  const visibleBooks=filteredBooks.slice(Math.min(bookPage,bookPages-1)*16,(Math.min(bookPage,bookPages-1)+1)*16)
   const selectedSource = sources.find(row => row.id === sourceId)
   const quotePosition = excerpt && quote ? excerpt.excerpt.indexOf(quote) : -1
   const quoteStart = excerpt && quotePosition >= 0 ? excerpt.excerpt_start + quotePosition : -1
@@ -104,14 +126,15 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       return listing.some(item => item.id === choice) ? choice : (listing[0]?.id || '')
     })
   }, [])
-  const loadSelected = useCallback(async (id: string) => {
-    if (!id) { setSeries(null); setEntities([]); setFacts([]); setTimeline([]); return }
+  const loadSelected = useCallback(async (id: string, stillCurrent: () => boolean = () => true) => {
+    if (!id) { if (stillCurrent()) { setSeries(null); setEntities([]); setFacts([]); setTimeline([]) }; return }
     const [detail, people, assertions, chronology] = await Promise.all([
       request<Series>('/series/' + id),
       request<Entity[]>(`/series/${id}/entities`),
       request<Fact[]>(`/series/${id}/assertions`),
       request<{ events: Fact[] }>(`/series/${id}/timeline`),
     ])
+    if (!stillCurrent()) return
     setSeries(detail); setEntities(people); setFacts(assertions); setTimeline(chronology.events)
   }, [])
 
@@ -121,13 +144,18 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       .catch(cause => setError(String(cause)))
   }, [loadSeries])
   useEffect(() => {
-    void loadSelected(selectedId).catch(cause => setError(String(cause)))
-    setAnswer(null)
+    let active = true
+    // Never show data from the previous series while a new series is loading,
+    // including when the new source snapshot fails its integrity check.
+    setSeries(null); setEntities([]); setFacts([]); setTimeline([])
+    setError(''); setAnswer(null)
+    void loadSelected(selectedId, () => active).catch(cause => { if (active) setError(String(cause)) })
+    return () => { active = false }
   }, [selectedId, loadSelected])
   useEffect(() => {
     const onOpenPanel = (event: Event) => {
       const panel = (event as CustomEvent<{panel: string}>).detail?.panel
-      if (['vault','canon','timeline','guardian','consequences','ember'].includes(panel)) {
+      if (['observatory','vault','canon','timeline','guardian','consequences','ember'].includes(panel)) {
         setView(panel as typeof view)
       }
     }
@@ -135,6 +163,7 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     return () => window.removeEventListener('emberwriter:series-panel', onOpenPanel)
   }, [])
 
+  useEffect(()=>{setBookPage(0)},[series?.id,bookFilter])
   useEffect(() => {
     if (!series?.volumes?.length) return
     setVolumeOrdinal(Math.max(...series.volumes.map(item => item.ordinal)) + 1)
@@ -171,11 +200,12 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
     }
     let active = true
     const query = new URLSearchParams({ query: sourceQuery, limit: '4000' })
+    if(sourcePosition!==null)query.set('position',String(sourcePosition))
     void request<Excerpt>(`/series/${selectedId}/sources/${sourceId}/excerpt?${query}`)
       .then(result => { if (active) setExcerpt(result) })
       .catch(cause => { if (active) { setExcerpt(null); setError(String(cause)) } })
     return () => { active = false }
-  }, [sourceId, sourceQuery, selectedId, series?.id, sources])
+  }, [sourceId, sourceQuery, sourcePosition, selectedId, series?.id, sources])
 
   async function execute(operation: () => Promise<void>, success: string) {
     setBusy(true); setError(''); setNotice('')
@@ -244,6 +274,23 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       setRightsConfirmed(false); setVolumeTitle(''); setDocumentFile(null)
       await loadSelected(series.id)
     }, 'Book added to the Series Vault. Its source snapshot is preserved and no canon was approved automatically.')
+  }
+
+  async function importCollection() {
+    if (!series || !collectionFile || !collectionPermission || !collectionConfirmed) return
+    setCollectionConfirmed(false)
+    await execute(async () => {
+      const data = new FormData()
+      data.append('file', collectionFile)
+      data.append('rights_confirmed', 'true')
+      const result = await request<{
+        imported_count: number; book_orders: number[]; total_source_characters: number;
+        ignored_non_epub: number; canon_facts_approved: number;
+      }>(`/series/${series.id}/volumes/bulk-zip`, {method: 'POST',body: data})
+      setCollectionResult(result)
+      setCollectionFile(null); setCollectionPermission(false)
+      await loadSelected(series.id)
+    }, 'EPUB collection imported privately. Source evidence is available; no canon facts were automatically approved.')
   }
 
   async function saveVolume(book: Volume) {
@@ -385,14 +432,85 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
       </details>
     </div>
     {series && <>
-      <nav className="series-desk-tabs" aria-label="Series Desk views">
-        <button type="button" className={view === 'vault' ? 'active' : ''} onClick={() => setView('vault')}>01 · Series Vault</button>
-        <button type="button" className={view === 'canon' ? 'active' : ''} onClick={() => setView('canon')}>02 · Canon Graph <small>{facts.filter(item => item.status === 'proposed').length} waiting</small></button>
-        <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>03 · Time & Knowledge</button>
-        <button type="button" className={view === 'guardian' ? 'active' : ''} onClick={() => setView('guardian')}>04 · Continuity</button>
-        <button type="button" className={view === 'consequences' ? 'active' : ''} onClick={() => setView('consequences')}>05 · Consequences</button>
-        <button type="button" className={view === 'ember' ? 'active' : ''} onClick={() => setView('ember')}>06 · Ask Ember</button>
+      <nav className="series-experience-modes" aria-label="Series author workflows">
+        {([
+          ['observatory','Explore','Characters, secrets and story threads'],
+          ['creative','Direct','Character relationships and scene boards'],
+          ['canon','Verify','Evidence, chronology and continuity'],
+          ['knowledge','Knowledge Lab','Stage 2: source facts and local AI checks'],
+          ['vault','Library','Books and source archives'],
+        ] as const).map(([key,label,description])=>{
+          const active=key==='canon'
+            ? ['canon','timeline','guardian','consequences','ember'].includes(view)
+            : view===key
+          return <button key={key} type="button" aria-pressed={active}
+            onClick={()=>setView(key)}>
+            <strong>{label}</strong><small>{description}</small>
+            {key==='canon'&&facts.some(item=>item.status==='proposed')&&
+              <span>{facts.filter(item=>item.status==='proposed').length} awaiting review</span>}
+          </button>
+        })}
       </nav>
+      {(['canon','timeline','knowledge','guardian','consequences','ember'] as const).includes(view as 'canon')&&
+        <nav className="series-verify-tools" aria-label="Evidence and verification tools">
+          {([
+            ['canon','Review canon'],
+            ['timeline','Time & knowledge'],
+            ['knowledge','Knowledge Lab'],
+            ['guardian','Continuity'],
+            ['consequences','Consequences'],
+            ['ember','Ask Ember'],
+          ] as const).map(([key,label])=>
+            <button key={key} type="button" aria-current={view===key?'page':undefined}
+              onClick={()=>setView(key)}>{label}</button>)}
+        </nav>}
+      {series && <SeriesEvidenceSearch seriesId={series.id}
+        characters={entities} bookCount={series.volumes?.length || 0}
+        onDraftClaim={entry=>{
+          const located=sources.find(source=>source.id===entry.source_id)
+          setSourceId(entry.source_id)
+          setSourcePosition(entry.excerpt_start)
+          setSourceQuery('')
+          setQuote(entry.excerpt)
+          setSubjectId('')
+          setPredicate('located_in')
+          setObjectText('')
+          setObjectEntityId('')
+          setScope('world')
+          setKnowerId('')
+          setStartBook(located?.ordinal||entry.book)
+          setStartSequence(0);setEndBook('')
+          setNotice('Exact passage staged as a draft. Choose who or what it concerns, its meaning, and save only after verifying the source. Nothing was approved.')
+          setView('canon')
+        }}
+        onOpenSource={(id,searchTerm,position)=>{
+          const located = sources.find(item=>item.id===id)
+          setSourceId(id)
+          setSourcePosition(position)
+          setSourceQuery(searchTerm.trim().split(' ')[0] || '')
+          setQuote('')
+          if(located){setStartBook(located.ordinal);setStartSequence(0);setEndBook('')}
+          setView('canon')
+        }}/>}
+      {view === 'knowledge' && <SeriesKnowledgeLab
+        key={series.id} seriesId={series.id} entities={entities} volumes={series.volumes||[]}
+        onReview={()=>setView('canon')}
+        onInspect={(id,searchTerm,position)=>{
+          const located=sources.find(source=>source.id===id)
+          setSourceId(id);setSourcePosition(position)
+          setSourceQuery(searchTerm.trim().slice(0,80))
+          setQuote('')
+          if(located){setStartBook(located.ordinal);setStartSequence(0);setEndBook('')}
+          setView('canon')
+        }}/>}
+      {view === 'observatory' && <StoryObservatory
+        key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
+        busy={busy} onReview={(factId, decision) => void reviewFact(factId, decision)}
+        onOpenCanon={() => setView('canon')} onOpenVault={() => setView('vault')}
+        onDiscoverySaved={() => void loadSelected(series.id)}
+        onInspectSource={id => { setSourceId(id); setView('canon') }} />}
+      {view === 'creative' && <PartTwoStudio key={series.id} seriesId={series.id} entities={entities} facts={facts} volumes={series.volumes || []}
+        onSource={id => {setSourceId(id);setView('canon')}} onCanon={() => setView('canon')}/>}
       {(view === 'guardian' || view === 'consequences' || view === 'ember') &&
         <SeriesProfessionalTools mode={view} seriesId={series.id}
           volumes={series.volumes || []} entities={entities}
@@ -414,8 +532,17 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
             <button type="button" disabled={busy || deleteConfirmation !== series.title}
               onClick={() => void deleteSelectedSeries()}>Permanently delete this series vault</button>
           </details>
-          {series.volumes?.length ? <div className="series-desk-books">
-            {series.volumes.map(book => <article key={book.id}>
+          {series.volumes?.length ? <>
+            <div className="series-book-finder">
+              <label htmlFor="series-book-filter">Find a volume by book number or title
+                <input id="series-book-filter" type="search" value={bookFilter}
+                  placeholder="e.g. 040 or Dangerous Games"
+                  onChange={event=>setBookFilter(event.target.value)}/>
+              </label>
+              <span>{filteredBooks.length} of {series.volumes.length} books shown · 16 per page</span>
+            </div>
+            <div className="series-desk-books">
+            {visibleBooks.map(book => <article key={book.id}>
               <div className="series-desk-book-index">{String(book.ordinal).padStart(2, '0')}</div>
               <div><strong>{book.title}</strong><p>{book.kind.replaceAll('_', ' ')} · {book.edition_status} · {book.source_count} sources</p>
                 {book.project_slug && <small>Linked project: {book.project_slug}</small>}
@@ -455,8 +582,52 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 </details>
               </div>
             </article>)}
-          </div> : <div className="series-desk-empty">No books yet. Add the first volume below. Nothing needs to be retyped.</div>}
+            </div>
+            {bookPages>1&&<nav className="series-book-pages" aria-label="Browse series volumes">
+              <button type="button" disabled={bookPage<=0} onClick={()=>setBookPage(n=>Math.max(0,n-1))}>← Earlier books</button>
+              <span>Page {Math.min(bookPage,bookPages-1)+1} of {bookPages}</span>
+              <button type="button" disabled={bookPage>=bookPages-1} onClick={()=>setBookPage(n=>Math.min(bookPages-1,n+1))}>Later books →</button>
+            </nav>}
+          </> : <div className="series-desk-empty">No books yet. Add the first volume below. Nothing needs to be retyped.</div>}
         </div>
+        <section className="series-desk-card series-collection-import" aria-label="Import a numbered EPUB collection">
+          <div className="series-collection-heading">
+            <span aria-hidden="true" className="series-collection-mark">▥</span>
+            <div><small>BULK SERIES LIBRARY · LOCAL ONLY</small>
+              <h2>Bring an entire series into the Vault</h2>
+              <p className="series-desk-hint">Select one ZIP containing numbered EPUB books. The importer reads all volumes in order, checks them before writing, and preserves immutable source snapshots. Nothing is uploaded to a cloud service or added to approved canon.</p>
+            </div>
+          </div>
+          <div className="series-collection-controls">
+            <label>Choose a ZIP of numbered EPUBs
+              <input type="file" accept=".zip,application/zip" disabled={busy}
+                onChange={event => {
+                  setCollectionFile(event.target.files?.[0] || null)
+                  setCollectionConfirmed(false); setCollectionResult(null)
+                }} />
+            </label>
+            {collectionFile&&<p className="series-collection-selected">{collectionFile.name}
+              <span> · {(collectionFile.size/1024/1024).toFixed(1)} MB · Up to 150 volumes</span></p>}
+            <p className="series-collection-hint">Expected names: <code>Series 001 - Book Title.epub</code>. Other catalog metadata is ignored. An existing book position will block import rather than overwrite it.</p>
+            <label className="series-desk-check"><input type="checkbox" checked={collectionPermission}
+              disabled={busy} onChange={event=>{setCollectionPermission(event.target.checked);setCollectionConfirmed(false)}} />
+              <span>I have permission to use these files in my private local reference library.</span>
+            </label>
+            {!collectionConfirmed?<button type="button" className="series-desk-primary"
+              disabled={busy||!collectionFile||!collectionPermission||collectionFile.size>60*1024*1024}
+              onClick={()=>setCollectionConfirmed(true)}>Review bulk import →</button>:
+              <div className="series-collection-confirm" role="group" aria-label="Confirm series collection import">
+                <strong>Import every numbered EPUB from this archive?</strong>
+                <p>New reference volumes and local source snapshots will be created for this Series Vault only. Existing manuscript projects will not change. No narrative facts will be automatically approved.</p>
+                <div><button type="button" disabled={busy} onClick={()=>void importCollection()}>Confirm private import</button>
+                <button type="button" disabled={busy} onClick={()=>setCollectionConfirmed(false)}>Cancel</button></div>
+              </div>}
+            {collectionResult&&<div className="series-collection-success" role="status">
+              <strong>{collectionResult.imported_count} books imported</strong>
+              <span>{collectionResult.total_source_characters.toLocaleString()} extracted characters · positions {Math.min(...collectionResult.book_orders)}–{Math.max(...collectionResult.book_orders)} · {collectionResult.canon_facts_approved} facts automatically approved</span>
+            </div>}
+          </div>
+        </section>
         <div className="series-desk-card">
           <h2>Add a book or story</h2>
           <p className="series-desk-hint">Link one of your existing EmberWriter books or import an authorized source file. Your original is never edited.</p>
@@ -517,14 +688,14 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
           <p className="series-desk-hint">Select an exact passage in one of your books. A proposal is not canon until you approve it.</p>
           <div className="series-desk-form">
             <label>Source document
-              <select value={sourceId} onChange={event => { setSourceId(event.target.value); setQuote(''); setSourceQuery('');
+              <select value={sourceId} onChange={event => { setSourceId(event.target.value); setQuote(''); setSourceQuery(''); setSourcePosition(null);
                 setStartBook(sources.find(item => item.id === event.target.value)?.ordinal || 1)
                 setStartSequence(0); setEndBook('') }}>
                 {!sources.length && <option value="">Add a book first</option>}
                 {sources.map(row => <option key={row.id} value={row.id}>Book {row.ordinal} · {row.volumeTitle} · {row.title}</option>)}
               </select></label>
             <label>Find a phrase in this book <input value={sourceQuery} maxLength={400}
-              onChange={event => { setSourceQuery(event.target.value); setQuote('') }}
+              onChange={event => { setSourceQuery(event.target.value); setQuote(''); setSourcePosition(null) }}
               placeholder="Enter exact words to locate evidence" /></label>
             {selectedSource && <div className="series-desk-evidence">
               <small>Immutable evidence snapshot · {selectedSource.source_path}</small>
@@ -538,6 +709,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 <small>Showing characters {excerpt.excerpt_start + 1}–{excerpt.excerpt_end} of {excerpt.total_characters}. Search another phrase to reach later pages.</small>
               </> : <p>No matching passage. Try a different phrase.</p>}
             </div>}
+            {selectedSource&&<SourceSectionNavigator seriesId={series.id} sourceId={selectedSource.id}
+              onJump={position=>{
+                setSourcePosition(position);setSourceQuery('');setQuote('')
+              }}/>}
             {excerpt?.found && <div className="series-desk-suggest">
               <strong>Optional · let local AI suggest possible canon facts</strong>
               <p className="series-desk-hint">This sends only your selected quote—or up to 1,900 characters of the visible excerpt—to your installed local Ollama model. The model cannot save or approve canon. Its suggested quotes must match your source exactly.</p>
@@ -556,6 +731,10 @@ export default function SeriesDesk({ project }: { project: WorkspaceProject | nu
                 <button type="button" onClick={() => useSuggestion(candidate)}>Use this in the proposal form</button>
               </div>)}
             </div>}
+            {selectedSource&&<SeriesExtractionWorkbench
+              key={series.id+':'+selectedSource.id} seriesId={series.id}
+              sourceId={selectedSource.id} model={suggestionModel}
+              onUseSuggestion={useSuggestion}/>}
             <label>Exact quote (copy from the excerpt above) <textarea rows={3} maxLength={2000}
               value={quote} onChange={event => setQuote(event.target.value)} /></label>
             <p className={quoteStart >= 0 ? 'series-desk-success' : 'series-desk-hint'}>

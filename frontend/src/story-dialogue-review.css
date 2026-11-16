@@ -1,0 +1,12 @@
+.observatory-dialogue-panel,.story-name-discovery,.review-queue-secondary{margin:12px 0;border:1px solid rgba(164,182,200,.35);border-radius:10px;background:#1c3043;padding:10px 13px;color:#eff3f6}
+.observatory-dialogue-panel>summary,.story-name-discovery>summary,.review-queue-secondary>summary{cursor:pointer;padding:4px 2px;font-weight:650;color:#f3cba4;font-size:.84rem}
+.story-dialogue-review{display:grid;gap:8px;margin:12px 0}
+.story-review-view-switch{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.story-review-view-switch button{border:1px solid #8299aa;border-radius:6px;background:#24394d;color:#eaf1f6;padding:8px 12px;cursor:pointer;font-size:.78rem}
+.story-review-view-switch button[aria-pressed=true]{background:#56463c;border-color:#e4be95}
+.story-review-view-switch span{font-size:.72rem;color:#b8cbd9;margin-left:auto}
+.story-dialogue-caveat,.review-queue-disclaimer{font-size:.7rem!important;line-height:1.5;color:#c4d2dc;margin:8px 3px}
+.review-queue-detail-fields{display:grid;gap:11px;min-width:0}
+.review-queue-detail-fields>div{display:grid;gap:8px}
+.review-queue-detail-fields>div.review-queue-actions{display:flex;gap:7px;flex-wrap:wrap}
+.review-queue-detail-fields small{display:block}

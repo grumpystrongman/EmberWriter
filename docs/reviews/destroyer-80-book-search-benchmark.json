@@ -1,0 +1,156 @@
+{
+  "time": "2026-11-13T14:27:30.130457+00:00",
+  "series_id": "11d2558e7e1248298d1454ab6e906883",
+  "book_count": 80,
+  "source_count": 80,
+  "method": "Offline SQLite FTS5 exact source windows, current test site",
+  "measurements": [
+    {
+      "query": "Remo",
+      "max_book": 80,
+      "elapsed_seconds": 0.136,
+      "total_matching_windows": 13182,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        26,
+        40,
+        73,
+        42,
+        28,
+        41,
+        28,
+        22
+      ]
+    },
+    {
+      "query": "Chiun",
+      "max_book": 80,
+      "elapsed_seconds": 0.121,
+      "total_matching_windows": 8252,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        40,
+        28,
+        39,
+        48,
+        69,
+        37,
+        75,
+        33
+      ]
+    },
+    {
+      "query": "Sinanju",
+      "max_book": 80,
+      "elapsed_seconds": 0.084,
+      "total_matching_windows": 3302,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        27,
+        68,
+        70,
+        73,
+        63,
+        63,
+        71,
+        16
+      ]
+    },
+    {
+      "query": "CURE",
+      "max_book": 80,
+      "elapsed_seconds": 0.093,
+      "total_matching_windows": 943,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        77,
+        11,
+        44,
+        72,
+        51,
+        50,
+        6,
+        6
+      ]
+    },
+    {
+      "query": "Smith",
+      "max_book": 80,
+      "elapsed_seconds": 0.062,
+      "total_matching_windows": 4269,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        71,
+        71,
+        71,
+        34,
+        75,
+        71,
+        71,
+        73
+      ]
+    },
+    {
+      "query": "Remo Chiun",
+      "max_book": 80,
+      "elapsed_seconds": 0.102,
+      "total_matching_windows": 7454,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        40,
+        28,
+        39,
+        48,
+        69,
+        37,
+        75,
+        33
+      ]
+    },
+    {
+      "query": "Remo",
+      "max_book": 20,
+      "elapsed_seconds": 0.149,
+      "total_matching_windows": 3170,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        7,
+        11,
+        10,
+        9,
+        18,
+        11,
+        16,
+        11
+      ]
+    },
+    {
+      "query": "Remo",
+      "max_book": 1,
+      "elapsed_seconds": 0.165,
+      "total_matching_windows": 183,
+      "returned_results": 20,
+      "book_ordinals_sample": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "query": "definitelynotinthebooks987",
+      "max_book": 80,
+      "elapsed_seconds": 0.015,
+      "total_matching_windows": 0,
+      "returned_results": 0,
+      "book_ordinals_sample": []
+    }
+  ],
+  "verified_no_future_book_leakage": true,
+  "semantic_facts_automatically_approved": false,
+  "notice": "Literal source retrieval, not psychological or causal narrative inference."
+}

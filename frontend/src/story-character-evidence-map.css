@@ -1,0 +1,26 @@
+.story-character-evidence-map{margin:18px 0;padding:16px;display:grid;gap:13px;background:#192b40;color:#eff3f7;border:1px solid #6e839d;border-radius:14px}
+.story-character-evidence-map header span{color:#e8c29a;font-size:.7rem;letter-spacing:.08em}
+.story-character-evidence-map h3{color:#ffddae;margin:7px 0;font-size:1.05rem}
+.story-character-evidence-map p{font-size:.78rem;line-height:1.5;color:#ccd6e4}
+.character-map-controls{display:flex;gap:15px;align-items:center;flex-wrap:wrap}
+.character-map-controls label{display:grid;gap:7px;font-size:.78rem}
+.character-map-controls select{padding:10px 14px;background:#101d2c;color:#f5f5f5;border:1px solid #91a8bd;border-radius:8px;max-width:100%}
+.character-map-controls .character-map-check{display:flex;align-items:center;gap:8px}
+.character-map-metrics{display:flex;gap:9px;flex-wrap:wrap}
+.character-map-metrics span{border:1px solid #7690aa;padding:10px;border-radius:8px;font-size:.75rem}
+.character-map-metrics strong{color:#f2c99a}
+.character-map-books{display:grid;gap:7px;max-height:690px;overflow-y:auto}
+.character-map-books article{border:1px solid #687e97;border-radius:9px;overflow:hidden}
+.character-map-book{background:#243b52;color:#fff;padding:10px;display:grid;grid-template-columns:minmax(110px,1fr) minmax(60px,1fr) auto;gap:9px;align-items:center;width:100%;border:0;text-align:left;cursor:pointer}
+.character-map-book[aria-expanded=true]{background:#3b5268}
+.character-map-book small{display:block;font-size:.7rem;color:#cbd9e5;overflow-wrap:anywhere}
+.character-map-track{height:8px;background:#101d2c;border-radius:8px;overflow:hidden}
+.character-map-track i{height:100%;display:block;background:#e8b98b}
+.character-map-book strong{font-size:.78rem;white-space:nowrap}
+.character-map-samples{padding:12px;display:grid;gap:9px}
+.character-map-samples>div{display:grid;gap:7px;border-bottom:1px solid #647d99;padding:8px 0}
+.character-map-samples small{color:#d2dce8;font-size:.68rem}
+.character-map-samples blockquote{font-size:.78rem;line-height:1.55;border-left:2px solid #f2c28d;padding:9px;margin:0;overflow-wrap:anywhere}
+.character-map-samples button{justify-self:start;border:1px solid #c5a386;background:#5e5060;color:#fff;border-radius:8px;padding:10px;cursor:pointer}
+.character-map-caveat{font-size:.71rem!important}
+@media(max-width:670px){.character-map-book{grid-template-columns:minmax(100px,1fr) auto}.character-map-track{grid-column:1/-1;grid-row:2}}

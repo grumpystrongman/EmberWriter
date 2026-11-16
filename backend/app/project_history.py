@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .revisions import record_revision
+from .sqlite_lifecycle import ClosingConnection
 from .storage import _iter_story_files, project_root, safe_project_path, utc_now
 
 
@@ -16,7 +17,7 @@ def _db_path(slug: str) -> Path:
 
 
 def _connect(slug: str) -> sqlite3.Connection:
-    con = sqlite3.connect(_db_path(slug))
+    con = sqlite3.connect(_db_path(slug), factory=ClosingConnection)
     con.row_factory = sqlite3.Row
     con.execute(
         """
