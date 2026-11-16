@@ -110,7 +110,7 @@ export default function PartTwoStudio({seriesId,entities,facts,volumes,onSource,
   const connections=useMemo(()=>{
     const map=new Map<string,{key:string,a:string,b:string;events:Fact[]}>()
     for(const fact of relationships){
-      const key=[fact.subject_id,fact.object_entity_id!].sort().join(':')
+      const key=[fact.subject_id,fact.object_entity_id!].sort((a,b)=>a.localeCompare(b)).join(':')
       if(!map.has(key))map.set(key,{key,a:fact.subject_id,b:fact.object_entity_id!,events:[]})
       map.get(key)!.events.push(fact)
     }

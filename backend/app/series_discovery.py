@@ -43,7 +43,7 @@ PATTERNS: tuple[tuple[str, str], ...] = (
     (r"moves?", "moves"),
 )
 _VERBS = "|".join(f"(?P<verb{i}>{pattern})" for i, (pattern, _) in enumerate(PATTERNS))
-_SENTENCE = re.compile(r"[^.!?\n]{2,}[.!?]|[^.!?\n]{2,}$", re.MULTILINE)
+_SENTENCE = re.compile(r"(?:[^.!?\n]{2,}[.!?]|[^.!?\n]{2,}$)", re.MULTILINE)
 MAX_SCAN_CHARS = 4_000_000
 MAX_CANDIDATES = 1200
 MAX_MATCHES_PER_ENTITY = 80

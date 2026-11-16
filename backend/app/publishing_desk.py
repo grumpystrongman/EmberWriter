@@ -15,7 +15,7 @@ from uuid import uuid4
 from .distribution import list_release_artifacts, load_release_profile, validate_release
 from .production_preflight import preflight
 from .publishing import compile_source_fingerprint, compiled_documents
-from .storage import get_project, project_root
+from .storage import _atomic_write_text, get_project, project_root
 
 MAX_RECEIPTS = 100
 
@@ -42,12 +42,7 @@ def _receipts(slug: str) -> list[dict]:
 def _write_receipts(slug: str, entries: list[dict]) -> None:
     path = _path(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
-    try:
-        temporary.write_text(json.dumps(entries, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    _atomic_write_text(path, json.dumps(entries, indent=2, ensure_ascii=False) + "\n")
 
 
 def _compiled(slug: str) -> tuple[list[dict], str | None]:

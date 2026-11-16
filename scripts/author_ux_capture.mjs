@@ -7,6 +7,7 @@ import path from 'node:path'
 const root=path.resolve(import.meta.dirname,'..')
 const date=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'})
 const runTag=process.argv[2]||date
+if(!/^[A-Za-z0-9_-]{1,64}$/.test(runTag))throw new Error('Invalid synthetic QA run name')
 const out=path.join(root,'docs','reviews','assets',runTag)
 fs.mkdirSync(out,{recursive:true})
 const backend='http://127.0.0.1:8000'

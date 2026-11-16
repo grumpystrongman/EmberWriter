@@ -157,15 +157,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate an installed local Ollama model")
     parser.add_argument("--model", required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:11434")
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=str, help="Safe report basename (e.g. model-eval.json); saved under reports/")
     args = parser.parse_args()
     try:
         report = asyncio.run(run_benchmark(args.model, base_url=args.base_url))
     except (httpx.HTTPError, ValueError) as exc:
         parser.exit(2, f"Local benchmark unavailable: {exc}\n")
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}\.json", args.output):
+            parser.error("--output must be a simple JSON filename without directory separators")
+        directory = Path.cwd() / "reports"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / args.output).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] == report["total"] else 1
 

@@ -7,7 +7,6 @@ open editor tab from silently overwriting another.
 from __future__ import annotations
 
 import json
-import os
 import re
 import threading
 from datetime import UTC, datetime
@@ -16,6 +15,7 @@ from uuid import uuid4
 
 from . import series_canon as canon
 from . import series_vault as vault
+from .storage import _atomic_write_text
 
 _LOCK = threading.RLock()
 BEAT_KINDS = {"arrival", "spark", "obstacle", "reversal", "choice", "aftermath"}
@@ -44,12 +44,7 @@ def _read(series_id: str) -> list[dict]:
 
 def _write(series_id: str, boards: list[dict]) -> None:
     path = _storage_path(series_id)
-    temp = path.with_name(f".{uuid4().hex}.tmp")
-    try:
-        temp.write_text(json.dumps(boards, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        os.replace(temp, path)
-    finally:
-        temp.unlink(missing_ok=True)
+    _atomic_write_text(path, json.dumps(boards, ensure_ascii=False, indent=2) + "\n")
 
 
 def _validate(series_id: str, payload: dict) -> dict:

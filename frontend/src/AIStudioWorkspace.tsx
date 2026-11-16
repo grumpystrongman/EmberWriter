@@ -751,7 +751,7 @@ export default function AIStudioWorkspace({ apiBase, project }: Props) {
         />
       </header>
 
-      <div className="ai-studio-modebar" role="group" aria-label="Studio mode">
+      <div className="ai-studio-modebar" role="toolbar" aria-label="Studio mode">
         {(Object.keys(MODE_COPY) as StudioMode[]).map((item) => (
           <button key={item} type="button" aria-pressed={studioMode === item} className={studioMode === item ? 'active' : ''} onClick={() => chooseMode(item)}>
             <strong>{MODE_COPY[item].title}</strong>

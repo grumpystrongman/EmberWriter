@@ -59,16 +59,20 @@ def test_reject_invalid_character_bad_beat_and_wrong_series(setup):
     series,alia,rowan,keep=setup
     payload=specimen(alia,rowan,keep)
     payload["participants"]=["not-a-series-character"]
-    assert pytest.raises(ValueError,studio.create_board,series,payload)
+    with pytest.raises(ValueError):
+        studio.create_board(series, payload)
     payload["participants"]=[alia]
     payload["beats"][0]["pressure"]=111
-    assert pytest.raises(ValueError,studio.create_board,series,payload)
+    with pytest.raises(ValueError):
+        studio.create_board(series, payload)
     payload["beats"][0]["pressure"]=25
     payload["book"]=90
-    assert pytest.raises(ValueError,studio.create_board,series,payload)
+    with pytest.raises(ValueError):
+        studio.create_board(series, payload)
     payload["book"]=1
     other=vault.create_series("Other Synthetic")
-    assert pytest.raises(ValueError,studio.create_board,other['id'],payload)
+    with pytest.raises(ValueError):
+        studio.create_board(other['id'], payload)
 
 
 def test_no_automatic_canon_creation(setup):

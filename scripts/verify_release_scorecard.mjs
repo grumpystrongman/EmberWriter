@@ -4,7 +4,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import {execFileSync} from 'node:child_process'
 import {createRequire} from 'node:module'
 const root=path.resolve(import.meta.dirname,'..')
 const require=createRequire(path.join(root,'frontend','package.json'))
@@ -52,7 +51,14 @@ try{
  process.exit(1)
 }
 let gitSha
-try{gitSha=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}catch{issues.push('Unable to establish candidate Git commit')}
+try{
+ const dotgit=path.join(root,'.git')
+ const gitDir=fs.statSync(dotgit).isDirectory()?dotgit:path.resolve(root,fs.readFileSync(dotgit,'utf8').trim().slice('gitdir:'.length).trim())
+ const head=fs.readFileSync(path.join(gitDir,'HEAD'),'utf8').trim()
+ const commonFile=path.join(gitDir,'commondir')
+ const common=fs.existsSync(commonFile)?path.resolve(gitDir,fs.readFileSync(commonFile,'utf8').trim()):gitDir
+ gitSha=/^[0-9a-f]{40}$/.test(head)?head:fs.readFileSync(path.join(common,...head.slice('ref: '.length).split('/')),'utf8').trim()
+}catch{issues.push('Unable to establish candidate Git commit')}
 if(!/^[0-9a-f]{40}$/.test(manifest.commit||'')||manifest.commit!==gitSha)issues.push('All receipts must target the exact shipping commit')
 if(manifest.schema!==1||manifest.kind!=='production_scorecard'||manifest.synthetic||manifest.ai_assessed)issues.push('Real production-candidate evidence required; synthetic/AI-only signoff rejected')
 const reviews=Array.isArray(manifest.gates)?manifest.gates:[]
