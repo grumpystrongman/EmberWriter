@@ -1,4 +1,4 @@
-﻿"""Synthetic tests for local incremental semantic retrieval."""
+"""Synthetic tests for local incremental semantic retrieval."""
 import pytest
 
 from app import series_semantic_retrieval as semantic
@@ -62,3 +62,20 @@ def test_ties_are_stable_and_diverse(corpus):
 def test_cloud_model_rejected():
     with pytest.raises(ValueError):
         semantic._embed(["synthetic"], "example:cloud")
+
+
+
+def test_failed_local_embedding_avoids_repeat_waits(corpus, monkeypatch):
+    import httpx
+    calls = []
+    def unavailable(texts, model):
+        calls.append(1)
+        raise httpx.ReadTimeout("offline")
+    monkeypatch.setattr(semantic, "_embed", unavailable)
+    monkeypatch.setattr(semantic, "_EMBED_UNAVAILABLE_UNTIL", 0.0)
+    first = semantic.retrieve("d" * 32, "purpose", [corpus("a")], max_book=2)
+    second = semantic.retrieve("d" * 32, "purpose", [corpus("a")], max_book=2)
+    assert len(calls) == 1
+    assert first["status"] == "semantic_unavailable"
+    assert second["status"] == "embedding_model_cooldown"
+    assert second["results"][0]["source_id"] == "a"

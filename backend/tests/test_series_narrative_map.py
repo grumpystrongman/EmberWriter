@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import json
 
 import pytest
@@ -34,6 +34,8 @@ def claim(quote, **kwargs):
 async def test_extract_review_and_no_future_leak(sources):
     async def generate(payload):
         assert payload['options']['num_predict'] == 900
+        assert payload['think'] is False
+        assert payload['format']['properties']['claims']['maxItems'] == 8
         return json.dumps({'claims': [claim('Mira trusts Sol.'),
                                      claim('invented quote')]})
     job = mapping.create_job(SID, 'one', 'local')
@@ -74,3 +76,30 @@ async def test_failure_retry_knowledge_and_changed_snapshot(sources):
     with pytest.raises(ValueError, match='snapshot'):
         mapping.review(SID, item['id'], 'confirmed_for_research')
     assert not mapping.timeline(SID, 1)['items'][0]['snapshot_verified']
+
+
+
+def test_confirmed_context_enforces_book_snapshot_and_review(monkeypatch):
+    from app import series_narrative_map as narrative
+    rows = [
+        {"id": "a", "status": "confirmed_for_research", "snapshot_verified": True,
+         "book": 3, "source_id": "s1", "start": 10, "end": 30,
+         "kind": "organization", "subject": "CURE", "predicate": "protects",
+         "object": "Constitution", "scope": "narrator", "knower": "",
+         "story_time": "unspecified"},
+        {"id": "b", "status": "proposed", "snapshot_verified": True,
+         "book": 2, "source_id": "s2", "start": 0, "end": 7,
+         "subject": "CURE", "predicate": "lies", "object": "forever"},
+        {"id": "c", "status": "confirmed_for_research", "snapshot_verified": False,
+         "book": 1, "source_id": "s3", "start": 1, "end": 2,
+         "subject": "CURE", "predicate": "unverified", "object": ""},
+    ]
+    monkeypatch.setattr(narrative, "timeline", lambda _id, cutoff:
+                        {"items": [x for x in rows if x["book"] <= cutoff]})
+    assert narrative.confirmed_context("synthetic", "What does CURE protect?",
+                                       as_of_book=2) == []
+    found = narrative.confirmed_context("synthetic", "What does CURE protect?",
+                                         as_of_book=3)
+    assert len(found) == 1
+    assert found[0]["claim"]["predicate"] == "protects"
+    assert found[0]["semantic_entailment"] == "unverified"

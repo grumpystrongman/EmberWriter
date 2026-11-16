@@ -15,6 +15,7 @@ import httpx
 from . import series_evidence_search as search
 from . import series_semantic_retrieval as semantic
 from . import series_context_memory as memory
+from . import series_narrative_map as narrative_map
 from . import series_grounded_answer as baseline
 from . import series_model_readiness as readiness
 from . import series_vault as vault
@@ -321,6 +322,8 @@ def answer(series_id: str, question: str, query: str, as_of_book: int,
                   for i, p in enumerate(passages)]
     confirmed_context = memory.approved_research_context(
         series_id, question, as_of_book=as_of_book)
+    confirmed_context.extend(narrative_map.confirmed_context(
+        series_id, question, as_of_book=as_of_book))
     prompt = (
         "You are interpreting primary-source excerpts from a series of novels. "
         "Connect concepts, explain organizations, distinguish what characters know "

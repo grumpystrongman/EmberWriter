@@ -1,10 +1,12 @@
-﻿"""Bounded local semantic retrieval over verified source windows, never entailment."""
+"""Bounded local semantic retrieval over verified source windows, never entailment."""
 from __future__ import annotations
 
 import json
 import math
 import re
 import sqlite3
+import threading
+import time
 from contextlib import closing
 
 import httpx
@@ -16,6 +18,10 @@ MODEL = "qwen3-embedding:4b"
 MAX_CANDIDATES = 40
 MAX_CACHED_SCAN = 2000
 BATCH = 8
+
+_EMBED_LOCK = threading.Lock()
+_EMBED_UNAVAILABLE_UNTIL = 0.0
+COOLDOWN_SECONDS = 180
 
 
 def _embed(texts: list[str], model: str) -> list[list[float]]:
@@ -94,6 +100,16 @@ def retrieve(series_id: str, question: str, candidates: list[dict], *,
             if key not in seen:
                 seen.add(key)
                 valid.append(row)
+    global _EMBED_UNAVAILABLE_UNTIL
+    local_request = embed is None
+    if local_request:
+        with _EMBED_LOCK:
+            cooling_down = time.monotonic() < _EMBED_UNAVAILABLE_UNTIL
+        if cooling_down:
+            return {"results": valid[:limit], "status": "embedding_model_cooldown",
+                    "cached_scanned": 0,
+                    "coverage": "incremental_windows_only",
+                    "semantic_entailment": "unverified"}
     embed = embed or (lambda texts: _embed(texts, model))
     status = "semantic_unavailable"
     try:
@@ -168,9 +184,15 @@ def retrieve(series_id: str, question: str, candidates: list[dict], *,
                     if len(ranked) == limit:
                         break
             status = "partial_cached_windows"
+            if local_request:
+                with _EMBED_LOCK:
+                    _EMBED_UNAVAILABLE_UNTIL = 0.0
             return {"results": ranked, "status": status, "cached_scanned": len(cached),
                     "coverage": "incremental_windows_only", "semantic_entailment": "unverified"}
     except (httpx.HTTPError, OSError, sqlite3.Error, ValueError, TypeError, KeyError,
             IndexError, OverflowError):
+        if local_request:
+            with _EMBED_LOCK:
+                _EMBED_UNAVAILABLE_UNTIL = time.monotonic() + COOLDOWN_SECONDS
         return {"results": valid[:limit], "status": status, "cached_scanned": 0,
                 "coverage": "incremental_windows_only", "semantic_entailment": "unverified"}
