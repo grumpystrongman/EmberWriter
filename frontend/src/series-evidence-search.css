@@ -75,3 +75,8 @@
 .grounded-citations{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px}
 .grounded-citations article{background:#172a3d;border:1px solid #677b92;border-radius:9px;padding:12px;min-width:0}
 .grounded-citations blockquote{margin:10px 0;border-left:3px solid #d3a6bc;padding-left:10px;font:normal .82rem/1.6 Georgia,serif;white-space:pre-wrap}
+.narrative-map-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;margin:12px 0}
+.narrative-map-controls label{display:grid;gap:6px}
+.narrative-map-progress,.narrative-map-claim{margin-top:12px;padding:12px;border:1px solid #677b92;border-radius:9px;background:#172a3d;overflow-wrap:anywhere}
+.narrative-map-progress progress{width:100%;accent-color:#d3a6bc}
+.narrative-map-claim blockquote{margin:10px 0;border-left:3px solid #d3a6bc;padding-left:10px;font:normal .82rem/1.6 Georgia,serif;white-space:pre-wrap}

@@ -1194,3 +1194,58 @@ def contextual_proposal_review(
         return series_context_memory.review(series_id, proposal_id, payload.decision)
     except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
         _fail(exc)
+
+class NarrativeMapStart(BaseModel):
+    source_id: str = Field(min_length=1, max_length=120)
+    model: str = Field(min_length=1, max_length=200)
+
+
+class NarrativeMapReview(BaseModel):
+    decision: Literal["confirmed_for_research", "rejected"]
+
+
+@router.post("/{series_id}/narrative-map/jobs", status_code=201)
+def narrative_map_start(series_id: str, payload: NarrativeMapStart) -> dict:
+    from . import series_narrative_map
+    try:
+        return series_narrative_map.create_job(series_id, payload.source_id, payload.model)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/narrative-map/jobs/{job_id}")
+def narrative_map_job(series_id: str, job_id: str) -> dict:
+    from . import series_narrative_map
+    try:
+        return series_narrative_map.get_job(series_id, job_id)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/narrative-map/jobs/{job_id}/next")
+async def narrative_map_next(series_id: str, job_id: str) -> dict:
+    from . import series_narrative_map
+    try:
+        return await series_narrative_map.advance(series_id, job_id)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError) as exc:
+        _fail(exc)
+    except (httpx.HTTPError, OSError) as exc:
+        raise HTTPException(503, "Local model unavailable; window can be retried") from exc
+
+
+@router.get("/{series_id}/narrative-map")
+def narrative_map_read(series_id: str, as_of_book: int = Query(ge=1, le=9999)) -> dict:
+    from . import series_narrative_map
+    try:
+        return series_narrative_map.timeline(series_id, as_of_book)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
+@router.post("/{series_id}/narrative-map/{claim_id}/review")
+def narrative_map_review(series_id: str, claim_id: str, payload: NarrativeMapReview) -> dict:
+    from . import series_narrative_map
+    try:
+        return series_narrative_map.review(series_id, claim_id, payload.decision)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
