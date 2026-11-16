@@ -29,11 +29,17 @@ if(process.argv[2]==='--catalog'){
  process.exit(issues.length?1:0)
 }
 if(process.argv[2]!=='--certify'){
- console.error('Usage: node scripts/verify_release_scorecard.mjs --catalog | --certify PATH_TO_RELEASE_EVIDENCE.json')
+ console.error('Usage: node scripts/verify_release_scorecard.mjs --catalog | --certify [release/quality-evidence.json]')
  process.exit(2)
 }
-const manifestPath=process.argv[3]&&path.resolve(process.argv[3])
-if(!manifestPath||!fs.existsSync(manifestPath)){
+// Only the repository's fixed release manifest is accepted. Arbitrary CLI paths
+// cannot make this release tool read a private file outside the project.
+if(process.argv[3]&&process.argv[3]!=='release/quality-evidence.json'){
+ console.error('RELEASE HOLD: evidence must be release/quality-evidence.json in the candidate checkout.')
+ process.exit(1)
+}
+const manifestPath=path.join(root,'release','quality-evidence.json')
+if(!fs.existsSync(manifestPath)){
  console.error('RELEASE HOLD: missing release scorecard evidence manifest; 38 gates remain locked.')
  process.exit(1)
 }

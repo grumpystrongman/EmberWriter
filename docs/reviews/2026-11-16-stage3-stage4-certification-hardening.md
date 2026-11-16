@@ -34,3 +34,10 @@ Run live isolated synthetic-project browser acceptance, gather exact-commit Wind
 - Ruff initially found five style violations, corrected in pronunciation lexicon and two backend tests; `py -3.14 -m ruff check backend/app backend/tests` then passed.
 
 This is automated engineering evidence only. The Stage 3 browser journey, screen-reader accessibility and real author review, and Stage 4 clean Windows install/migration/recovery, device publishing proofs, and all 38 independent signoffs remain required.
+
+## Live browser qualification and security follow-up
+
+- Using the local Chromium debugger and a synthetic editorial project, the Release Lab audit passed: 38 quality gates, 5 domains, no false certified scores, visible proof inspector, responsive 1440px/390px layouts. Private and real manuscript contents were not written to Git.
+- Fourteen author UX screenshots were captured at mobile, tablet and desktop widths. They are retained in a private local evidence directory, not the repository. Automated DOM probes reported potentially unnamed and small controls; these require accessibility review and cannot be counted as WCAG/NVDA signoff.
+- The live author UX interaction script passed mobile workspace navigation, offline help, and series navigation checks. Its complete scene handoff remains **not verified** because no saved synthetic scene-board fixture was present. The script's outdated expectation of four series tabs was corrected to five, including Knowledge Lab. No private or real-series board was modified just to satisfy the test.
+- SonarCloud PR 166 initially failed the new-security rating due to arbitrary CLI manifest path handling and PATH invocation in tests. The release verifier now accepts only the fixed checkout path `release/quality-evidence.json`, forbidding arbitrary CLI file reads; tests derive checkout identity from local Git metadata without launching Git from PATH. Eight targeted certification tests passed locally after the correction. A new remote Sonar scan is required before calling this gate green.

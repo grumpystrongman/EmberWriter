@@ -108,7 +108,7 @@ try{
  results.push({test:'offline how-to library, explicit step progression, truthful locate feedback',pass:true})
 
  await openBook('series')
- await until('document.querySelectorAll(".series-experience-modes button").length===4','four series modes')
+ await until('document.querySelectorAll(".series-experience-modes button").length===5','five series modes including Knowledge Lab')
  await shot('09-series-modes',1440,900)
  await tap('.series-experience-modes button:nth-child(3)')
  await until('!!document.querySelector(".series-verify-tools")','verification subnavigation')
