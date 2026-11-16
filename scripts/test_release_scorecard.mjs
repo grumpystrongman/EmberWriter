@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import {createHash} from 'node:crypto'
 import {spawnSync} from 'node:child_process'
 const root=path.resolve(import.meta.dirname,'..')
 const runner=path.join(root,'scripts','verify_release_scorecard.mjs')
@@ -40,4 +41,49 @@ test('a list of provisional scores is never mistaken for release certification',
  assert.match(file,/SER-04/)
  assert.match(file,/ENG-01/)
  assert.match(file,/PUB-04/)
+})
+
+
+test('malformed release evidence fails closed without a stack trace',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ember-invalid-evidence-'))
+ try{
+  const file=path.join(dir,'bad.json')
+  fs.writeFileSync(file,'{broken')
+  const result=execute('--certify',file)
+  assert.equal(result.status,1)
+  assert.match(result.stderr,/RELEASE HOLD: release evidence must be a valid JSON object/)
+  assert.doesNotMatch(result.stderr,/SyntaxError|at JSON.parse/)
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+})
+
+test('evidence references cannot escape their directory via absolute or traversal paths',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ember-path-evidence-'))
+ try{
+  const commit=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).stdout.trim()
+  const receipt=path.join(dir,'receipt.txt')
+  fs.writeFileSync(receipt,'passed')
+  const hash=awaitDigest(fs.readFileSync(receipt))
+  for(const illegal of [receipt,'../receipt.txt']){
+   const file=path.join(dir,'manifest.json')
+   fs.writeFileSync(file,JSON.stringify({schema:1,kind:'production_scorecard',commit,gates:[{id:'UX-01',score:5,commit,evidence:[{kind:'test',path:illegal,sha256:hash,commit,result:'passed'}]}]}))
+   const result=execute('--certify',file)
+   assert.equal(result.status,1)
+   assert.match(result.stderr,/UX-01: evidence path escapes the approved directory/)
+  }
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+})
+
+function awaitDigest(bytes){return createHash('sha256').update(bytes).digest('hex')}
+
+
+test('non-array gate inventories are rejected without crashing',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ember-bad-gates-'))
+ try{
+  const file=path.join(dir,'manifest.json')
+  fs.writeFileSync(file,JSON.stringify({schema:1,kind:'production_scorecard',commit:'a'.repeat(40),gates:{'UX-01':{score:5}}}))
+  const result=execute('--certify',file)
+  assert.equal(result.status,1)
+  assert.match(result.stderr,/One review required for every single quality gate/)
+  assert.doesNotMatch(result.stderr,/TypeError/)
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
 })

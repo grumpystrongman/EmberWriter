@@ -37,13 +37,20 @@ if(!manifestPath||!fs.existsSync(manifestPath)){
  console.error('RELEASE HOLD: missing release scorecard evidence manifest; 38 gates remain locked.')
  process.exit(1)
 }
-const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'))
+let manifest
+try{
+ manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'))
+ if(!manifest||typeof manifest!=='object'||Array.isArray(manifest))throw Error('invalid manifest object')
+}catch{
+ console.error('RELEASE HOLD: release evidence must be a valid JSON object.')
+ process.exit(1)
+}
 let gitSha
 try{gitSha=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}catch{issues.push('Unable to establish candidate Git commit')}
 if(!/^[0-9a-f]{40}$/.test(manifest.commit||'')||manifest.commit!==gitSha)issues.push('All receipts must target the exact shipping commit')
 if(manifest.schema!==1||manifest.kind!=='production_scorecard'||manifest.synthetic||manifest.ai_assessed)issues.push('Real production-candidate evidence required; synthetic/AI-only signoff rejected')
-const reviews=manifest.gates||[]
-if(!Array.isArray(reviews)||reviews.length!==RELEASE_GATES.length)issues.push('One review required for every single quality gate')
+const reviews=Array.isArray(manifest.gates)?manifest.gates:[]
+if(!Array.isArray(manifest.gates)||reviews.length!==RELEASE_GATES.length)issues.push('One review required for every single quality gate')
 const records=new Map()
 for(const g of reviews){
  if(!g||typeof g.id!=='string'||records.has(g.id)){issues.push('Duplicate or invalid gate review');continue}
@@ -59,15 +66,17 @@ for(const gate of RELEASE_GATES){
   if(!proof||proof.synthetic||proof.ai_only||proof.mock) {issues.push(gate.id+': synthetic or mock evidence rejected');continue}
   if(proof.kind==='test'){
    if(typeof proof.path!=='string'||typeof proof.sha256!=='string'||!(/^[a-f0-9]{64}$/.test(proof.sha256))){issues.push(gate.id+': invalid test receipt');continue}
-   const base=path.dirname(manifestPath)
+   const base=fs.realpathSync(path.dirname(manifestPath))
    const file=path.resolve(base,proof.path)
-   if(!file.startsWith(base+path.sep)||proof.path.includes('..')){issues.push(gate.id+': evidence path escapes the approved directory');continue}
+   if(path.isAbsolute(proof.path)||path.relative(base,file).startsWith('..'+path.sep)||path.relative(base,file)==='..'||path.relative(base,file)===''){issues.push(gate.id+': evidence path escapes the approved directory');continue}
    if(!fs.existsSync(file)||!fs.statSync(file).isFile()){issues.push(gate.id+': evidence file missing');continue}
-   const actual=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+   const realFile=fs.realpathSync(file)
+   if(!realFile.startsWith(base+path.sep)){issues.push(gate.id+': evidence symlink escapes the approved directory');continue}
+   const actual=crypto.createHash('sha256').update(fs.readFileSync(realFile)).digest('hex')
    if(actual!==proof.sha256||proof.commit!==gitSha||proof.result!=='passed'){issues.push(gate.id+': test evidence hash, commit or result invalid');continue}
    automated=true
   }else if(proof.kind==='human'){
-   if(typeof proof.reviewer!=='string'||proof.reviewer.trim().length<4||typeof proof.assessment!=='string'||proof.assessment.trim().length<120||!/^\d{4}-\d{2}-\d{2}$/.test(proof.reviewed_at||'')||proof.commit!==gitSha||proof.approved!==true){
+   if(typeof proof.reviewer!=='string'||proof.reviewer.trim().length<4||typeof proof.assessment!=='string'||proof.assessment.trim().length<120||!/^\d{4}-\d{2}-\d{2}$/.test(proof.reviewed_at||'')||!Number.isFinite(Date.parse(proof.reviewed_at+'T00:00:00Z'))||new Date(proof.reviewed_at+'T00:00:00Z').toISOString().slice(0,10)!==proof.reviewed_at||proof.reviewed_at>new Date().toISOString().slice(0,10)||proof.commit!==gitSha||proof.approved!==true){
     issues.push(gate.id+': independent human acceptance incomplete');continue
    }
    if(proof.role==='author'){author=true;reviewers.author.add(proof.reviewer.trim().toLowerCase())}

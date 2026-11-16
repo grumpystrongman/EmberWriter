@@ -25,6 +25,12 @@ The scorecard lives at `frontend/src/release-gates.ts` and can be checked in the
 
 **Primary gates:** SER-02 through SER-10, UX-04/06/07, CRAFT-01/04/05, ENG-02.
 
+### Public-web corroboration (supplementary Stage 2 evidence)
+
+For questions about externally documented, published-series facts, a reviewer may independently look up public sources **after** freezing EmberWriter's answer. Compare the meaning of the claims rather than requiring identical phrasing; record the public URL, access date, claim, and whether it supports, partly supports, contradicts, or cannot verify the answer. Prefer primary published/authorized references over fan summaries; multiple copies of the same unsupported assertion do not count as independent corroboration. Record disagreements for author review.
+
+Web matches are **not** manuscript citation verification, proof of the relevant book/scene cutoff, proof of a character's knowledge, evidence for unpublished/private canon, or a replacement for author-reviewed golden answers, blind holdout testing, and the independent human signoffs required for 5/5. Never transmit unpublished manuscript text, private questions, local excerpts, or protected answer keys to online search. No automatic full-credit or release-policy bypass is permitted by a web match.
+
 ## Stage 3 — Professional novelist's daily writing workflow
 
 **Status: not yet accepted / after Stage 2.**
