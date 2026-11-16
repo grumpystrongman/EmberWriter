@@ -12,12 +12,12 @@ import threading
 
 import httpx
 
-from . import series_evidence_search as search
-from . import series_semantic_retrieval as semantic
 from . import series_context_memory as memory
-from . import series_narrative_map as narrative_map
+from . import series_evidence_search as search
 from . import series_grounded_answer as baseline
 from . import series_model_readiness as readiness
+from . import series_narrative_map as narrative_map
+from . import series_semantic_retrieval as semantic
 from . import series_vault as vault
 
 URL = "http://127.0.0.1:11434/api/generate"
