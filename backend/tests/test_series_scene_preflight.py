@@ -29,7 +29,8 @@ def world(tmp_path,monkeypatch):
         f=canon.propose_fact(s["id"],subject["id"],predicate,object_text=value,
             object_entity_id=target["id"] if target else None,start_book=book,
             source_id=sources[book-1],quote_start=index,quote_end=index+len(phrase),quote=phrase)
-        if accept:canon.review_fact(s["id"],f["id"],"approved")
+        if accept:
+            canon.review_fact(s["id"], f["id"], "approved")
     approved(1,a,"located_in","Alia remains in the Mountain Keep.","Mountain Keep",keep)
     approved(1,a,"injured","Alia injured her ankle.","ankle")
     approved(1,r,"distrusts","Rowan distrusts Alia.","Alia",a)

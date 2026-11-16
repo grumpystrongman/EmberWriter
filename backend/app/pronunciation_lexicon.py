@@ -8,6 +8,8 @@ the standard Kokoro phonemizer in their selected voice locale.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
+from pathlib import Path
 
 MAX_OVERRIDES = 150
 TERM = re.compile(r"^[A-Za-z][A-Za-z'’-]{0,79}$")
@@ -87,8 +89,6 @@ def reference_examples() -> dict:
 # The bundled CMU Pronouncing Dictionary is a BSD-licensed American-English
 # lexicon. We offer its pronunciations to the author as choices, rather than
 # automatically changing every possible homograph.
-from functools import lru_cache
-from pathlib import Path
 
 _CMUDICT = Path(__file__).parent / "resources" / "cmudict.dict"
 _ARPABET_TO_IPA = {

@@ -23,3 +23,14 @@ Requires exact-commit full-suite receipts, crash/low-disk/concurrent-edit stress
 ## Next qualification action
 
 Run live isolated synthetic-project browser acceptance, gather exact-commit Windows install/export/restore evidence, and collect external author/expert reviews. Preserve private books and labels locally; do not place them into Git or public tooling.
+
+## Subsequent implementation and verification
+
+- Stage 3 Revision Workbench now offers **Stop waiting for proposal** and **Refresh revision history** controls, separates client wait cancellation from server-side generation, and aborts outstanding proposal fetches on workspace/chapter switching. The UI explicitly warns that a server-side local job may still finish after the client stops waiting. This avoids falsely claiming the underlying model was canceled.
+- Full local Python backend run: **934 passed, 2 skipped, 1 warning** in 206.55 seconds. The warning is an intentional duplicate EPUB mimetype adversarial test fixture. Two skips remain; a full 5/5 qualification must review skipped-critical cases separately.
+- After Revision Workbench changes, TypeScript + Vite production build succeeded (`npm run build`).
+- Windows installation/launch PowerShell scripts passed `scripts/validate-powershell.ps1` syntax validation.
+- `npm audit --audit-level=moderate` exited 0.
+- Ruff initially found five style violations, corrected in pronunciation lexicon and two backend tests; `py -3.14 -m ruff check backend/app backend/tests` then passed.
+
+This is automated engineering evidence only. The Stage 3 browser journey, screen-reader accessibility and real author review, and Stage 4 clean Windows install/migration/recovery, device publishing proofs, and all 38 independent signoffs remain required.

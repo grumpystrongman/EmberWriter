@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './revision-workbench.css'
 
 type Proposal = {
@@ -19,11 +19,12 @@ export default function RevisionWorkbench({ apiBase, projectSlug, chapter, model
   const [selected, setSelected] = useState<Preview | null>(null)
   const [direction, setDirection] = useState('')
   const [busy, setBusy] = useState(false)
+  const proposalAbort = useRef<AbortController | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  async function request<T>(suffix = '', method = 'GET', body?: unknown): Promise<T> {
+  async function request<T>(suffix = '', method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
     const result = await fetch(endpoint + suffix, {
-      method, headers: { 'Content-Type': 'application/json' },
+      method, signal, headers: { 'Content-Type': 'application/json' },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     })
     if (!result.ok) {
@@ -37,22 +38,29 @@ export default function RevisionWorkbench({ apiBase, projectSlug, chapter, model
     setProposals(data.proposals)
   }
   useEffect(() => {
+    let active = true
+    proposalAbort.current?.abort()
     setSelected(null); setProposals([]); setError(''); setNotice('')
-    void refresh().catch(e => setError(String(e)))
+    void request<{ proposals: Proposal[] }>().then(data => { if (active) setProposals(data.proposals) }).catch(e => { if (active) setError(String(e)) })
+    return () => { active = false; proposalAbort.current?.abort() }
   }, [endpoint])
   async function generate() {
+    const controller = new AbortController()
+    proposalAbort.current = controller
     setBusy(true); setError(''); setNotice('')
     try {
       if (!model.trim()) throw new Error('Select an installed local model first.')
       const result = await request<Preview>('/propose', 'POST', {
         provider: { provider: 'ollama', base_url: 'http://127.0.0.1:11434', model },
         author_direction: direction,
-      })
+      }, controller.signal)
       setSelected(result)
       await refresh()
       setNotice('Revision proposed. Compare the text before accepting any change.')
-    } catch (e) { setError(String(e)) }
-    finally { setBusy(false) }
+    } catch (e) {
+      if (controller.signal.aborted) setNotice('Stopped waiting. The local server may still finish the proposal; refresh history before trying again.')
+      else setError(String(e))
+    } finally { if (proposalAbort.current === controller) proposalAbort.current = null; setBusy(false) }
   }
   async function inspect(id: string) {
     setError('')
@@ -85,6 +93,8 @@ export default function RevisionWorkbench({ apiBase, projectSlug, chapter, model
     <button disabled={busy || !model.trim()} onClick={() => void generate()}>
       {busy ? 'Creating alternative draft…' : 'Propose a revised chapter'}
     </button>
+    {busy && proposalAbort.current && <button type="button" onClick={() => proposalAbort.current?.abort()}>Stop waiting for proposal</button>}
+    <button type="button" disabled={busy} onClick={() => void refresh().catch(e => setError(String(e)))}>Refresh revision history</button>
     <p className="revision-workbench-note">A revision requires at least one accepted reader finding or your own direction. No local files are changed while generating the proposal.</p>
     {error && <p role="alert" className="revision-workbench-error">{error}</p>}
     {notice && <p role="status" className="revision-workbench-success">{notice}</p>}
