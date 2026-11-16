@@ -20,6 +20,74 @@ type GroundedAnswer={answer?:string;status?:string;abstained?:boolean;review_onl
 type ContextCard={id:string;question:string;interpretation:string;facet:string;as_of_book:number;review_state:string;citations:Citation[]}
 const API=((import.meta as ImportMeta & {env?:{VITE_API_BASE_URL?:string}}).env?.VITE_API_BASE_URL)||'http://127.0.0.1:8000/api'
 
+type MapSource={id:string;title:string;book:number;volume:string}
+type MapJob={id:string;source_id:string;book:number;model:string;next_offset:number;length:number;accepted?:number;discarded?:number}
+type MapClaim={id:string;source_id:string;source_hash:string;book:number;start:number;end:number;quote:string;kind:string;subject:string;predicate:string;object:string;scope:string;knower:string;story_time:string;status:string;snapshot_verified:boolean}
+function NarrativeMap({seriesId,cutoff,models,model,setModel,modelStatus,recheck,onOpenSource}:{seriesId:string;cutoff:number;models:string[];model:string;setModel:(v:string)=>void;modelStatus:string;recheck:()=>void;onOpenSource:Props['onOpenSource']}){
+ const [sources,setSources]=useState<MapSource[]>([]),[sourceId,setSourceId]=useState('')
+ const [job,setJob]=useState<MapJob|null>(null),[claims,setClaims]=useState<MapClaim[]>([])
+ const [busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false),[message,setMessage]=useState('')
+ const controller=useRef(new AbortController())
+ useEffect(()=>()=>controller.current.abort(),[])
+ const base=API+'/series/'+encodeURIComponent(seriesId)
+ async function request(path:string,options:RequestInit={}){
+   const response=await fetch(base+path,{...options,signal:controller.current.signal})
+   const data=await response.json()
+   if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Request failed')
+   return data
+ }
+ async function timeline(){
+   const data=await request('/narrative-map?'+new URLSearchParams({as_of_book:String(cutoff)}))
+   if(!controller.current.signal.aborted)setClaims((data.items||[]).filter((c:MapClaim)=>c.book<=cutoff))
+ }
+ async function load(){
+   setBusy(true);setMessage('')
+   try{
+     const [detail]=await Promise.all([request(''),timeline()])
+     if(controller.current.signal.aborted)return
+     const found:MapSource[]=(detail.volumes||[]).flatMap((v:{ordinal:number;title:string;sources:{id:string;title:string}[]})=>v.ordinal<=cutoff?(v.sources||[]).map(source=>({id:source.id,title:source.title,book:v.ordinal,volume:v.title})):[])
+     setSources(found);setSourceId(previous=>found.some(source=>source.id===previous)?previous:found[0]?.id||'');setLoaded(true)
+   }catch(e){if(!controller.current.signal.aborted)setMessage(e instanceof Error?e.message:'Could not load sources')}
+   finally{if(!controller.current.signal.aborted)setBusy(false)}
+ }
+ async function start(){
+   if(!sourceId||!models.includes(model)||busy)return
+   setBusy(true);setMessage('')
+   try{const data=await request('/narrative-map/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_id:sourceId,model})});if(!controller.current.signal.aborted){setJob(data);setMessage('Scan ready; existing progress for this source and model is resumed.')}}
+   catch(e){if(!controller.current.signal.aborted)setMessage(e instanceof Error?e.message:'Could not start scan')}
+   finally{if(!controller.current.signal.aborted)setBusy(false)}
+ }
+ async function advance(){
+   if(!job||busy)return
+   setBusy(true);setMessage('')
+   try{const data:MapJob=await request('/narrative-map/jobs/'+encodeURIComponent(job.id)+'/next',{method:'POST'});if(controller.current.signal.aborted)return;setJob(data);setMessage(`Passage processed: ${data.accepted??0} candidates retained, ${data.discarded??0} discarded.`);await timeline()}
+   catch(e){if(!controller.current.signal.aborted)setMessage((e instanceof Error?e.message:'Passage could not be analyzed')+'. Check the local model and resume the scan to check progress.')}
+   finally{if(!controller.current.signal.aborted)setBusy(false)}
+ }
+ async function review(claim:MapClaim,decision:'confirmed_for_research'|'rejected'){
+   if(busy)return
+   setBusy(true);setMessage('')
+   try{await request('/narrative-map/'+encodeURIComponent(claim.id)+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision})});if(controller.current.signal.aborted)return;setClaims(previous=>decision==='rejected'?previous.filter(c=>c.id!==claim.id):previous.map(c=>c.id===claim.id?{...c,status:decision}:c));setMessage('Research review saved. No canon was approved.')}
+   catch(e){if(!controller.current.signal.aborted)setMessage(e instanceof Error?e.message:'Review could not be saved')}
+   finally{if(!controller.current.signal.aborted)setBusy(false)}
+ }
+ const current=sources.find(source=>source.id===job?.source_id)
+ return <div className="narrative-map">
+   <p>Opt in to scan one source at a time with an installed local Ollama model. Each step sends one 1,400-character passage to the local model. Verify your Ollama installation is offline; a local proxy or model could forward text. Nothing becomes canon automatically.</p>
+   <button type="button" disabled={busy} onClick={()=>void load()}>{loaded?'Refresh sources and candidates':'Load vault sources and candidates'}</button>
+   {loaded&&<>
+     <div className="narrative-map-controls"><label>Source through book {cutoff}<select value={sourceId} disabled={busy||!sources.length} onChange={e=>{setSourceId(e.target.value);setJob(null)}}>{!sources.length&&<option value="">No sources at this cutoff</option>}{sources.map(source=><option key={source.id} value={source.id}>Book {source.book} ? {source.volume} ? {source.title}</option>)}</select></label>
+       <label>Installed local model<select value={model} disabled={busy||!models.length} onChange={e=>{setModel(e.target.value);setJob(null)}}>{!models.length&&<option value="">No local model available</option>}{models.map(name=><option key={name} value={name}>{name}</option>)}</select></label></div>
+     {modelStatus&&<p role="status">{modelStatus}</p>}
+     <div className="grounded-actions"><button type="button" disabled={busy} onClick={recheck}>Recheck local models</button><button type="button" disabled={busy||!sourceId||!models.includes(model)} onClick={()=>void start()}>Start or resume source scan</button></div>
+     {job&&<div className="narrative-map-progress"><strong>Current source: Book {job.book} ? {current?.volume} ? {current?.title||job.source_id}</strong><p>{job.next_offset.toLocaleString()} of {job.length.toLocaleString()} characters scanned ? Model: {job.model}</p><progress value={job.next_offset} max={job.length} aria-label="Current source scan progress"/><p>{job.next_offset>=job.length?'This source scan is complete.':'Only the scanned portion of this source has been analyzed.'}</p><button type="button" disabled={busy||job.next_offset>=job.length||!models.includes(job.model)} onClick={()=>void advance()}>{busy?'Working?':'Analyze next passage'}</button></div>}
+     <h3>Candidate facts through book {cutoff}</h3><p>Reading order; proposed story time is separate. Candidates require author review and may be inaccurate. This list only reflects passages scanned so far.</p>
+     {!claims.length&&<p>No visible candidates yet.</p>}
+     {[...claims].filter(c=>c.book<=cutoff).sort((a,b)=>a.book-b.book||a.source_id.localeCompare(b.source_id)||a.start-b.start).map(c=><article className="narrative-map-claim" key={c.id}><strong>Book {c.book} ? {c.kind.replace(/_/g,' ')} ? {c.status==='proposed'?'Pending review':c.status.replace(/_/g,' ')}</strong><p>{c.subject} {c.predicate} {c.object}</p><p>{c.scope==='character_knowledge'?`Character knowledge: ${c.knower}`:'Narrator perspective'} ? Story time: {c.story_time||'unknown'}</p><blockquote>{c.quote}</blockquote><p>Source: {sources.find(source=>source.id===c.source_id)?.title||c.source_id} ? Characters {c.start.toLocaleString()}?{c.end.toLocaleString()} ? Snapshot {c.snapshot_verified?'verified':'changed or unverified'} ? SHA-256 {c.source_hash}</p><div className="grounded-actions"><button type="button" onClick={()=>onOpenSource(c.source_id,c.quote,c.start)}>Open exact source</button>{c.status==='proposed'&&<><button type="button" disabled={busy||!c.snapshot_verified} onClick={()=>void review(c,'confirmed_for_research')}>Confirm for research</button><button type="button" disabled={busy} onClick={()=>void review(c,'rejected')}>Reject</button></>}</div></article>)}
+   </>}{message&&<p role="status">{message}</p>}
+ </div>
+}
+
 export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOpenSource,onDraftClaim}:Props){
  const [query,setQuery]=useState('')
  const [question,setQuestion]=useState('')
@@ -202,6 +270,10 @@ export default function SeriesEvidenceSearch({seriesId,bookCount,characters,onOp
            onClick={()=>void run(term)}>{term}</button>)}
        </div>
      </div>
+     <details className="grounded-ask">
+       <summary>Build story understanding (local)</summary>
+       <NarrativeMap key={seriesId+':'+maxBook} seriesId={seriesId} cutoff={maxBook} models={models} model={model} setModel={setModel} modelStatus={modelStatus} recheck={()=>setModelRefresh(value=>value+1)} onOpenSource={onOpenSource}/>
+     </details>
      <details className="grounded-ask">
        <summary>Ask with local contextual reasoning and source review</summary>
        <p>Only when you choose Ask, matching passages are sent to the selected local Ollama model. Passages are sent only to the configured loopback Ollama endpoint, but a local proxy or model could forward them. Verify your installation is offline. Results are read-only and never become canon.</p>
