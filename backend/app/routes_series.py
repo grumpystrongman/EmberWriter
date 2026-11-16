@@ -6,7 +6,7 @@ rights-confirmed series sources; no AI text ingestion or automatic canon changes
 from __future__ import annotations
 
 import sqlite3
-from typing import Annotated
+from typing import Annotated, Literal
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -1151,10 +1151,46 @@ class GroundedAnswerRequest(BaseModel):
 @router.post("/{series_id}/grounded-answer")
 def grounded_answer(series_id: str, payload: GroundedAnswerRequest) -> dict:
     """Explicit local retrieval and optional local draft, always requiring review."""
-    from . import series_grounded_answer
+    from . import series_context_answer, series_grounded_answer
 
     try:
+        if payload.model is not None:
+            return series_context_answer.answer(
+                series_id, payload.question, payload.query, payload.as_of_book, payload.model)
         return series_grounded_answer.answer(
-            series_id, payload.question, payload.query, payload.as_of_book, payload.model)
+            series_id, payload.question, payload.query, payload.as_of_book)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
+@router.get("/{series_id}/context-proposals")
+def contextual_proposal_list(
+    series_id: str,
+    max_book: int = Query(default=9999, ge=1, le=9999),
+    limit: int = Query(default=30, ge=1, le=100),
+) -> dict:
+    """Read provisional, privately stored semantic context for explicit review."""
+    from . import series_context_memory
+
+    try:
+        return series_context_memory.list_candidates(
+            series_id, max_book=max_book, limit=limit)
+    except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
+        _fail(exc)
+
+
+class ContextProposalReviewRequest(BaseModel):
+    decision: Literal["confirmed_for_research", "rejected"]
+
+
+@router.post("/{series_id}/context-proposals/{proposal_id}/review")
+def contextual_proposal_review(
+    series_id: str, proposal_id: str, payload: ContextProposalReviewRequest,
+) -> dict:
+    """Only explicit author choices can promote a proposal to research context."""
+    from . import series_context_memory
+
+    try:
+        return series_context_memory.review(series_id, proposal_id, payload.decision)
     except (ValueError, FileNotFoundError, sqlite3.DatabaseError, OSError) as exc:
         _fail(exc)
