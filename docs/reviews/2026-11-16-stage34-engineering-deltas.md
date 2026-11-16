@@ -27,3 +27,7 @@
 - axe audit script: `scripts/stage34_accessibility_audit.mjs`, configured by the same 3 endpoint variables plus `EMBER_QA_AXE_PATH` and `EMBER_QA_A11Y_RESULT`.
 - Full local synthetic screenshots, audit JSON and fixture data remain outside Git in `EmberWriter-Stage34-LocalEvidence`. Do not upload licensed/private manuscripts or excerpts.
 - Neither these test harnesses nor a public-web answer match is permission to mark any release gate 5/5 automatically.
+
+## Additional synthetic disk-failure proof
+
+- Added `backend/tests/test_stage34_atomic_write_failures.py`: three passed targeted fault-injection cases exercising ENOSPC at manuscript `fsync`, manuscript replacement, and project metadata replacement. Each confirms byte-identical preexisting files and cleanup of temporary `.partial` writes. This closes a narrow but important disk-full corruption scenario; it does not establish race-free multi-window editing or simulate true whole-volume exhaustion.
