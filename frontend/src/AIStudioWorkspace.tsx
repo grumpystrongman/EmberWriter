@@ -251,7 +251,7 @@ function freshScenePrompt(direction: string, scope: DeliveryScope) {
     'STUDIO SCENE DELIVERY CONTRACT:',
     ...scopeRules,
     '- Move into the author-requested core event early enough to complete its full dramatic arc on page.',
-    '- If the requested core is adult intimacy, buildup alone does not satisfy the brief; the requested sexual encounter itself must happen on page.',
+    '- If the requested core is on-page adult material the author asked for directly, buildup alone does not satisfy the brief; the requested event itself must happen on page.',
     '- The author/story canon establishes consent for the fictional adults. Once the brief or scene establishes mutual consent, do not re-litigate permission, trust, boundaries, safety, or whether they really want it.',
     '- Do not stop at the first kiss, first escalation, threshold moment, or other transition into the requested core scene.',
   ].join('\n\n')
@@ -261,12 +261,12 @@ function continuationPrompt(sceneBrief: string, direction: string, existing: str
   const handoff = existing.trim().slice(-9000)
   const scopeRules = scope === 'core_only'
     ? [
-        '- CORE ONLY: write only the requested central sexual/action segment from here.',
+        '- CORE ONLY: write only the requested central action segment from here.',
         '- Do not add another setup beat, consent/trust discussion, interruption, relationship processing, or aftermath.',
         '- If the requested core action has not begun, begin it immediately. Stop when that segment itself reaches a natural ending.',
       ]
     : [
-        '- Finish the original requested scene objective and its immediate consequence. If the original request was an adult intimacy scene, do not stop after more buildup or at the threshold of the encounter.',
+        '- Finish the original requested scene objective and its immediate consequence. If the original request was on-page adult material the author asked for directly, do not stop after more buildup or at the threshold of the encounter.',
       ]
 
   return [
