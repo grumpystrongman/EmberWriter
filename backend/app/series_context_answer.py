@@ -13,6 +13,7 @@ import threading
 import httpx
 
 from . import series_evidence_search as search
+from . import series_semantic_retrieval as semantic
 from . import series_context_memory as memory
 from . import series_grounded_answer as baseline
 from . import series_model_readiness as readiness
@@ -187,7 +188,19 @@ def _collect(series_id: str, question: str, query: str, cutoff: int) -> list[dic
     queries = list(dict.fromkeys(_queries(question, query)
                                 + _author_guided_queries(series_id, question, query)))
     if pair is not None:
-        return _collect_epochs(series_id, queries, *sorted(pair))
+        early, late = sorted(pair)
+        lexical = _collect_epochs(series_id, queries, early, late)
+        periods = []
+        for phase, lower, upper in (("early", 1, early), ("later", early + 1, late)):
+            candidates = [row for row in lexical if row["reading_period"] == phase]
+            result = semantic.retrieve(series_id, question, candidates, min_book=lower,
+                                       max_book=upper, limit=MAX_PASSAGES // 2)
+            periods.append([{**row, "reading_period": phase} for row in result["results"]])
+        if not all(periods):
+            return []
+        return [row for pair_rows in zip(*periods) for row in pair_rows] + [
+            row for rows in periods for row in rows[min(map(len, periods)):]
+        ]
     for rank, q in enumerate(queries):
         try:
             batch = search.search_balanced(
@@ -211,7 +224,9 @@ def _collect(series_id: str, question: str, query: str, cutoff: int) -> list[dic
                 by_id[key] = hit
             if len(by_id) >= MAX_PASSAGES * 3:
                 break
-    hits = list(by_id.values())
+    lexical_hits = list(by_id.values())
+    hits = semantic.retrieve(series_id, question, lexical_hits, max_book=cutoff,
+                             limit=MAX_PASSAGES)["results"]
     if compare:
         if pair is not None:
             early, late = sorted(pair)
