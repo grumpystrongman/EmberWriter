@@ -282,6 +282,22 @@ def scene_word_floor(prompt: str, heat_level: str | None = None) -> int:
     }.get(heat_level or "", 1200)
 
 
+def language_directive(language: str | None) -> str:
+    """Force the author's declared prose language, and nothing else.
+
+    Emitted last in the system prompt on purpose: the instructions and the project
+    context are English, so a trailing directive has to outrank them for a small
+    local model to keep the scene in the author's language.
+    """
+    value = (language or "").strip()
+    if not value:
+        return ""
+    return f"""
+Output language: {value}.
+Write every sentence of the prose in {value}. Do not answer in English, and do not translate the scene into English, even though these instructions and the project context are written in English. Apply it to narration, description, and dialogue alike.
+"""
+
+
 def build_messages(
     mode: str,
     prompt: str,
@@ -292,6 +308,7 @@ def build_messages(
     finish_scene: bool = True,
     min_scene_words: int | None = None,
     delivery_scope: str = "full_scene",
+    output_language: str | None = None,
 ) -> list[dict[str, str]]:
     guidance = MODE_GUIDANCE.get(mode, MODE_GUIDANCE["write"])
     resolved_intent = scene_intent or detect_scene_intent(prompt, heat_level)
@@ -336,7 +353,7 @@ Scene intent: {resolved_intent}
 {intent_guidance}
 {heat_note}
 {scope_note}
-{completion_note}"""
+{completion_note}{language_directive(output_language)}"""
     user = f"""AUTHOR INSTRUCTION
 {prompt}
 
